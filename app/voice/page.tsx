@@ -9,7 +9,7 @@ import AudioPlayer from '../../components/voice/AudioPlayer'
 import EvidenceManifestSummary from '../../components/voice/EvidenceManifestSummary'
 import ActivityFeedEmbed from '../../components/voice/ActivityFeedEmbed'
 import { Button } from '../../components/ui/button'
-import { AlertCircle } from 'lucide-react'
+// lightweight fallback icon
 import { toast } from '../../components/ui/use-toast'
 
 interface Call {
@@ -111,12 +111,12 @@ export default function VoiceOperationsPage() {
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h2 className="mt-4 text-xl">Error loading calls</h2>
-          <p className="mt-2 text-slate-400">{error}</p>
-          <Button onClick={() => location.reload()} className="mt-4">Retry</Button>
-        </div>
+          <div className="text-center">
+            <div className="mx-auto h-12 w-12 text-red-500 text-4xl">⚠️</div>
+            <h2 className="mt-4 text-xl">Error loading calls</h2>
+            <p className="mt-2 text-slate-400">{error}</p>
+            <Button onClick={() => location.reload()} className="mt-4">Retry</Button>
+          </div>
       </div>
     )
   }
