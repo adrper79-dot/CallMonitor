@@ -1,7 +1,7 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/webhooks/signalwire/route": "app/api/webhooks/signalwire/route.js",
   "/api/calls/start/route": "app/api/calls/start/route.js",
+  "/api/webhooks/signalwire/route": "app/api/webhooks/signalwire/route.js",
   "/page": "app/page.js",
   "/voice/page": "app/voice/page.js"
 }

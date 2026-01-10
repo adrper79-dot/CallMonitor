@@ -204,11 +204,26 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
         // eslint-disable-next-line no-console
         console.log('startCallHandler: sending SignalWire POST', { endpoint: swEndpoint, to: phone_number, from: swNumber })
-        const swRes = await fetch(swEndpoint, {
-          method: 'POST',
-          headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params
-        })
+        // add a short timeout for the external call to fail fast in serverless environment
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 10000) // 10s
+        let swRes
+        try {
+          swRes = await fetch(swEndpoint, {
+            method: 'POST',
+            headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params,
+            signal: controller.signal
+          })
+        } catch (fetchErr: any) {
+          // eslint-disable-next-line no-console
+          console.error('startCallHandler: SignalWire fetch error', { error: fetchErr?.message ?? String(fetchErr) })
+          const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
+          await writeAuditError('calls', callId, e.toJSON())
+          throw e
+        } finally {
+          clearTimeout(timeout)
+        }
 
         if (!swRes.ok) {
           const text = await swRes.text()
