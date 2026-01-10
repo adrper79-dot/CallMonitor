@@ -86,5 +86,3 @@ export default function CallList({ calls, selectedCallId, onSelect }: CallListPr
     </div>
   )
 }
-  )
-}
