@@ -55,6 +55,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
   try {
     const { organization_id, phone_number, modulations } = input
+    // lightweight tracing for debugging call placement (avoid logging secrets)
+    // Logs: organization and phone to help trace attempts in runtime logs
+    // DO NOT log credentials or provider tokens
+    // eslint-disable-next-line no-console
+    console.log('startCallHandler: initiating call', { organization_id, phone_number, modulations })
 
     // actor/session lookup
     const session = await getSession()
@@ -163,6 +168,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const { error: insertErr } = await supabaseAdmin.from('calls').insert(callRow)
     if (insertErr) {
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: failed to insert call row', { callId, error: insertErr?.message })
       const e = new AppError({ code: 'CALL_START_DB_INSERT', message: 'Failed to create call record', user_message: 'We encountered a system error while starting your call. Please try again.', severity: 'HIGH', retriable: true, details: { cause: insertErr.message } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
@@ -171,8 +178,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // execute SignalWire (via injected caller if available)
     let call_sid: string | null = null
     if (signalwireCall) {
+      // eslint-disable-next-line no-console
+      console.log('startCallHandler: using injected signalwireCall to place outbound call')
       const sw = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
       call_sid = sw.call_sid
+      // eslint-disable-next-line no-console
+      console.log('startCallHandler: injected signalwireCall returned', { call_sid: call_sid ? '[REDACTED]' : null })
     } else {
       // no injected caller: try to use env and perform network call
       const swProject = env.SIGNALWIRE_PROJECT_ID
@@ -188,7 +199,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
         params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
 
-        const swRes = await fetch(`https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`, {
+        const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+        // eslint-disable-next-line no-console
+        console.log('startCallHandler: sending SignalWire POST', { endpoint: swEndpoint, to: phone_number, from: swNumber })
+        const swRes = await fetch(swEndpoint, {
           method: 'POST',
           headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
           body: params
@@ -196,6 +210,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
         if (!swRes.ok) {
           const text = await swRes.text()
+          // eslint-disable-next-line no-console
+          console.error('startCallHandler: SignalWire POST failed', { status: swRes.status, body: text })
           const e = new AppError({ code: 'SIGNALWIRE_API_ERROR', message: `SignalWire Error: ${swRes.status}`, user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { provider_error: text } })
           await writeAuditError('calls', callId, e.toJSON())
           throw e
@@ -203,6 +219,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
         const swData = await swRes.json()
         call_sid = swData.sid
+        // eslint-disable-next-line no-console
+        console.log('startCallHandler: SignalWire responded', { sid: call_sid ? '[REDACTED]' : null })
       } else {
         // fallback: in non-production allow a mock SID to continue flow
         if (env.NODE_ENV === 'production') {
@@ -217,6 +235,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // update persisted call status only (do NOT write call_sid per TOOL_TABLE_ALIGNMENT)
     const { error: updateErr } = await supabaseAdmin.from('calls').update({ status: 'in-progress' }).eq('id', callId)
     if (updateErr) {
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: failed to update call status', { callId, error: updateErr?.message })
       await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
     }
 
@@ -230,6 +250,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         try {
           const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
           if (aiErr) {
+            // eslint-disable-next-line no-console
+            console.error('startCallHandler: failed to insert ai_run', { callId, error: aiErr?.message })
             await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSC_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Transcription could not be started. The call will continue without transcription.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
           }
         } catch (e) {
@@ -253,6 +275,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // fetch canonical call
     const { data: persistedCall, error: fetchCallErr } = await supabaseAdmin.from('calls').select('*').eq('id', callId).limit(1)
     if (fetchCallErr || !persistedCall?.[0]) {
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: failed to fetch persisted call', { callId, error: fetchCallErr?.message })
       const e = new AppError({ code: 'CALL_START_FETCH_PERSISTED_FAILED', message: 'Failed to read back persisted call', user_message: 'We started the call but could not verify its record. Please contact support.', severity: 'HIGH', retriable: true, details: { cause: fetchCallErr?.message } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
@@ -262,9 +286,13 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     try {
       await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', before: null, after: { ...canonicalCall, config: modulations, call_sid }, created_at: new Date().toISOString() })
     } catch (auditErr) {
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: failed to insert audit log', { callId, error: (auditErr as any)?.message })
       await writeAuditError('audit_logs', callId, new AppError({ code: 'AUDIT_LOG_INSERT_FAILED', message: 'Failed to write audit log', user_message: 'Call started but an internal audit log could not be saved.', severity: 'MEDIUM', retriable: true, details: { cause: (auditErr as any).message } }).toJSON())
     }
 
+    // eslint-disable-next-line no-console
+    console.log('startCallHandler: call flow completed', { callId })
     return { success: true, call_id: callId }
   } catch (err: any) {
     if (err instanceof AppError) {
