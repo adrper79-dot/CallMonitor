@@ -1,0 +1,265 @@
+"use server"
+
+import { v4 as uuidv4 } from 'uuid'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { AppError } from '@/types/app-error'
+import { getServerSession } from 'next-auth/next'
+
+export type TriggerTranscriptionInput = {
+  recording_id: string
+  organization_id: string
+}
+
+type ApiError = { id: string; code: string; message: string; severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' }
+type ApiResponseSuccess = { success: true; ai_run_id: string }
+type ApiResponseError = { success: false; error: ApiError }
+type ApiResponse = ApiResponseSuccess | ApiResponseError
+
+/**
+ * Tables/columns used (from ARCH_DOCS/Schema.txt):
+ * - recordings: id, organization_id, call_sid, recording_sid, recording_url, duration_seconds, transcript_json, status, created_at, updated_at, tool_id, created_by
+ * - ai_runs: id, call_id, system_id, model, status, started_at, completed_at, output
+ * - audit_logs: id, organization_id, user_id, system_id, resource_type, resource_id, action, before, after, created_at
+ * - organizations: id, plan, tool_id
+ * - org_members: id, organization_id, user_id, role
+ *
+ * TOOL_TABLE_ALIGNMENT permissions (from ARCH_DOCS/TOOL_TABLE_ALIGNMENT):
+ * - recordings: POST allowed (organization_id, call_sid, recording_url, duration_seconds, source, ai_metadata), GET allowed (id, organization_id, call_sid, ...)
+ * - ai_runs: POST/GET/PUT added earlier to allow creating and updating ai_runs
+ * - audit_logs: POST allowed for writing audits
+ * - organizations: GET allowed for plan
+ */
+
+export default async function triggerTranscription(input: TriggerTranscriptionInput): Promise<ApiResponse> {
+  let capturedActorId: string | null = null
+  let aiId: string | null = null
+  try {
+    const { recording_id, organization_id } = input
+
+    // session/actor
+    const session = await getServerSession()
+    const actorId = session?.user?.id ?? null
+    capturedActorId = actorId
+    if (!actorId) {
+      // best-effort audit for unauthenticated access (user_id will be null)
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id: input.organization_id ?? null,
+          user_id: null,
+          system_id: null,
+          resource_type: 'auth',
+          resource_id: null,
+          action: 'error',
+          before: null,
+          after: { code: 'AUTH_REQUIRED', message: 'Unauthenticated access attempted' },
+          created_at: new Date().toISOString()
+        })
+      } catch (__) {}
+
+      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH', retriable: false })
+      throw err
+    }
+
+    // basic id validation
+    if (!/^[0-9a-fA-F-]{36}$/.test(recording_id) || !/^[0-9a-fA-F-]{36}$/.test(organization_id)) {
+      const err = new AppError({ code: 'INVALID_IDS', message: 'Invalid identifiers', user_message: 'Invalid identifiers provided', severity: 'MEDIUM', retriable: false })
+      throw err
+    }
+
+    // verify recording exists and belongs to organization
+    const { data: recRows, error: recErr } = await supabaseAdmin
+      .from('recordings')
+      .select('id,organization_id,call_sid,status,tool_id,created_by')
+      .eq('id', recording_id)
+      .limit(1)
+
+    if (recErr) {
+      const e = new AppError({ code: 'RECORDING_FETCH_FAILED', message: 'Failed to fetch recording', user_message: 'Unable to fetch recording', severity: 'HIGH', retriable: true })
+      throw e
+    }
+
+    const rec = recRows?.[0]
+    if (!rec) {
+      const e = new AppError({ code: 'RECORDING_NOT_FOUND', message: 'Recording not found', user_message: 'Recording not found', severity: 'MEDIUM', retriable: false })
+      throw e
+    }
+
+    if (rec.organization_id !== organization_id) {
+      const e = new AppError({ code: 'AUTH_ORG_MISMATCH', message: 'Organization mismatch', user_message: 'Recording does not belong to the specified organization', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
+    // ownership/membership check via org_members if present
+    const { data: membershipRows, error: membershipErr } = await supabaseAdmin
+      .from('org_members')
+      .select('id,role')
+      .eq('organization_id', organization_id)
+      .eq('user_id', actorId)
+      .limit(1)
+
+    if (membershipErr) {
+      const e = new AppError({ code: 'AUTH_MEMBERSHIP_LOOKUP_FAILED', message: 'Membership lookup failed', user_message: 'Unable to verify membership', severity: 'HIGH', retriable: true })
+      throw e
+    }
+
+    if (!membershipRows || membershipRows.length === 0) {
+      const e = new AppError({ code: 'AUTH_ORG_MISMATCH', message: 'Actor not authorized for organization', user_message: 'Not authorized for this organization', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
+    // MASTER_ARCHITECTURE enforcement: call-rooted requirement.
+    // Schema: recordings.call_sid is text. We now rely on canonical mapping stored in calls.call_sid (added to schema via migration).
+    // Resolve call_id from calls.call_sid so ai_runs.call_id can be populated.
+    let resolvedCallId: string | null = null
+    if (rec.call_sid) {
+      const { data: callRows, error: callErr } = await supabaseAdmin
+        .from('calls')
+        .select('id')
+        .eq('call_sid', rec.call_sid)
+        .limit(1)
+
+      if (callErr) {
+        const e = new AppError({ code: 'CALL_LOOKUP_FAILED', message: 'Failed to lookup call by call_sid', user_message: 'Unable to resolve call for recording', severity: 'HIGH', retriable: true })
+        throw e
+      }
+
+      const callRow = callRows?.[0]
+      if (!callRow) {
+        const e = new AppError({ code: 'CALL_NOT_FOUND', message: 'Call not found for recording.call_sid', user_message: 'Call not found for this recording', severity: 'HIGH', retriable: false })
+        // audit the missing call
+        try {
+          await supabaseAdmin.from('audit_logs').insert({
+            id: uuidv4(),
+            organization_id,
+            user_id: capturedActorId,
+            system_id: null,
+            resource_type: 'recordings',
+            resource_id: recording_id,
+            action: 'error',
+            before: null,
+            after: { error: e.message, call_sid: rec.call_sid },
+            created_at: new Date().toISOString()
+          })
+        } catch (__) {}
+        throw e
+      }
+
+      resolvedCallId = callRow.id
+    }
+
+    // check recording status allows transcription
+    // NOTE: Schema.txt defines recordings.status default 'pending' but does not enumerate allowed values.
+    // We treat 'pending' as allowable; if status is 'completed' or 'processing' we consider invalid.
+    const status = rec.status as string | null
+    if (status && ['processing', 'completed'].includes(status)) {
+      const e = new AppError({ code: 'RECORDING_INVALID_STATUS', message: 'Recording status does not allow transcription', user_message: 'Recording is not in a transcribable state', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
+    // check organization plan limits
+    const { data: orgRows, error: orgErr } = await supabaseAdmin
+      .from('organizations')
+      .select('id,plan')
+      .eq('id', organization_id)
+      .limit(1)
+
+    if (orgErr) {
+      const e = new AppError({ code: 'ORG_LOOKUP_FAILED', message: 'Organization lookup failed', user_message: 'Unable to verify organization', severity: 'HIGH', retriable: true })
+      throw e
+    }
+    const org = orgRows?.[0]
+    if (!org) {
+      const e = new AppError({ code: 'ORG_NOT_FOUND', message: 'Organization not found', user_message: 'Organization not found', severity: 'HIGH', retriable: false })
+      throw e
+    }
+    if (org.plan === 'free') {
+      const e = new AppError({ code: 'PLAN_LIMIT_EXCEEDED', message: 'Plan does not permit transcription', user_message: 'Your plan does not allow transcription. Please upgrade.', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
+    // insert into ai_runs (exact columns: id, call_id, system_id, model, status)
+    aiId = uuidv4()
+    const aiRow = {
+      id: aiId,
+      call_id: resolvedCallId,
+      system_id: null,
+      model: 'assemblyai-v1',
+      status: 'queued'
+    }
+
+    // Note: Schema defines ai_runs.call_id foreign key to calls.id. If recording has call reference elsewhere, you should populate call_id.
+    const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
+    if (aiErr) {
+      const e = new AppError({ code: 'AI_RUN_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Could not start transcription', severity: 'HIGH', retriable: true, details: { cause: aiErr.message } } as any)
+      // audit the failure
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id,
+          user_id: capturedActorId,
+          system_id: null,
+          resource_type: 'ai_runs',
+          resource_id: aiId,
+          action: 'error',
+          before: null,
+          after: { error: aiErr.message },
+          created_at: new Date().toISOString()
+        })
+      } catch (__) {}
+      throw e
+    }
+
+    // mock AssemblyAI job id
+    const job_id = `assemblyai-${uuidv4()}`
+
+    // audit log entry (success)
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
+        organization_id,
+        user_id: capturedActorId,
+        system_id: null,
+        resource_type: 'ai_runs',
+        resource_id: aiId,
+        action: 'create',
+        before: null,
+        after: { requested_at: new Date().toISOString(), model: 'assemblyai-v1', job_id, recording_id },
+        created_at: new Date().toISOString()
+      })
+    } catch (e) {
+      // best-effort
+    }
+
+    return { success: true, ai_run_id: aiId }
+  } catch (err: any) {
+    // Attempt to write an error audit (best-effort). Prefer resource ai_runs if we have aiId, otherwise record recordings resource.
+    try {
+      const resource_type = aiId ? 'ai_runs' : 'recordings'
+      const resource_id = aiId ?? input.recording_id
+      const errBody = err instanceof AppError ? { code: err.code, message: err.message } : { message: String(err?.message ?? err) }
+      await supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
+        organization_id: input.organization_id,
+        user_id: capturedActorId,
+        system_id: null,
+        resource_type,
+        resource_id,
+        action: 'error',
+        before: null,
+        after: { error: errBody },
+        created_at: new Date().toISOString()
+      })
+    } catch (__) {
+      // best-effort
+    }
+
+    if (err instanceof AppError) {
+      const p = err.toJSON()
+      return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: p.severity } }
+    }
+    const unexpected = new AppError({ code: 'TRANSCR_TRIGGER_UNEXPECTED', message: err?.message ?? 'Unexpected', user_message: 'An unexpected error occurred while triggering transcription', severity: 'CRITICAL', retriable: true })
+    const p = unexpected.toJSON()
+    return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: p.severity } }
+  }
+}

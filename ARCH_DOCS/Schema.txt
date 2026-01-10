@@ -1,0 +1,561 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.access_grants_archived (
+  id uuid NOT NULL,
+  organization_id uuid,
+  user_id uuid,
+  role_id uuid,
+  system_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT access_grants_archived_pkey PRIMARY KEY (id),
+  CONSTRAINT access_grants_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT access_grants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT access_grants_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles_archived(id),
+  CONSTRAINT access_grants_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
+);
+CREATE TABLE public.ai_runs (
+  id uuid NOT NULL,
+  call_id uuid,
+  system_id uuid,
+  model text,
+  status text,
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  output jsonb,
+  CONSTRAINT ai_runs_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_runs_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
+  CONSTRAINT ai_runs_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
+);
+CREATE TABLE public.alert_acknowledgements (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  alert_id uuid,
+  user_id uuid,
+  acknowledged_at timestamp with time zone DEFAULT now(),
+  acknowledgement_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT alert_acknowledgements_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.alerts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  test_config_id uuid,
+  rule jsonb,
+  enabled boolean DEFAULT true,
+  last_triggered timestamp with time zone,
+  CONSTRAINT alerts_pkey PRIMARY KEY (id),
+  CONSTRAINT alerts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT alerts_test_config_id_fkey FOREIGN KEY (test_config_id) REFERENCES public.test_configs(id)
+);
+CREATE TABLE public.artifacts (
+  id text NOT NULL,
+  type text NOT NULL,
+  title text,
+  created_at timestamp with time zone DEFAULT now(),
+  duration_seconds integer,
+  size_bytes bigint,
+  storage_bucket text,
+  storage_path text,
+  provenance jsonb,
+  transcript jsonb,
+  evidence_manifest jsonb,
+  CONSTRAINT artifacts_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL,
+  organization_id uuid,
+  user_id uuid,
+  system_id uuid,
+  resource_type text,
+  resource_id uuid,
+  action text,
+  before jsonb,
+  after jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT audit_logs_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
+);
+CREATE TABLE public.calls (
+  id uuid NOT NULL,
+  organization_id uuid,
+  system_id uuid,
+  status text,
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
+  created_by uuid,
+  call_sid text,
+  CONSTRAINT calls_pkey PRIMARY KEY (id),
+  CONSTRAINT calls_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT calls_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id),
+  CONSTRAINT calls_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.capabilities_archived (
+  id uuid NOT NULL,
+  system_id uuid,
+  action text NOT NULL,
+  description text,
+  CONSTRAINT capabilities_archived_pkey PRIMARY KEY (id),
+  CONSTRAINT capabilities_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
+);
+CREATE TABLE public.carrier_status (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  carrier_name text NOT NULL UNIQUE,
+  status text NOT NULL CHECK (status = ANY (ARRAY['operational'::text, 'degraded'::text, 'outage'::text])),
+  last_updated timestamp with time zone DEFAULT now(),
+  official_url text,
+  status_page_api text,
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  incident_count integer DEFAULT 0,
+  last_incident_at timestamp with time zone,
+  CONSTRAINT carrier_status_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.evidence_manifests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  recording_id uuid NOT NULL,
+  scorecard_id uuid,
+  manifest jsonb NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT evidence_manifests_pkey PRIMARY KEY (id),
+  CONSTRAINT evidence_manifests_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id)
+);
+CREATE TABLE public.execution_contexts (
+  id uuid NOT NULL,
+  name text UNIQUE,
+  isolation_level text,
+  description text,
+  CONSTRAINT execution_contexts_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.kpi_logs (
+  id bigint NOT NULL DEFAULT nextval('kpi_logs_id_seq'::regclass),
+  test_id uuid,
+  stage text NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['success'::text, 'failure'::text])),
+  message text NOT NULL,
+  duration_ms integer,
+  error_details text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT kpi_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT kpi_logs_test_id_fkey FOREIGN KEY (test_id) REFERENCES public.test_configs(id)
+);
+CREATE TABLE public.kpi_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL UNIQUE,
+  response_time_threshold_ms integer DEFAULT 5000,
+  response_time_warning_ms integer DEFAULT 3000,
+  consecutive_failures_before_alert integer DEFAULT 3,
+  alert_sensitivity text DEFAULT 'medium'::text CHECK (alert_sensitivity = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
+  default_test_frequency text DEFAULT '5min'::text CHECK (default_test_frequency = ANY (ARRAY['5min'::text, '15min'::text, '30min'::text, '1hr'::text, '4hr'::text, '24hr'::text])),
+  send_email_alerts boolean DEFAULT true,
+  send_sms_alerts boolean DEFAULT true,
+  alert_on_recovery boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT kpi_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT kpi_settings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.media_sessions (
+  id uuid NOT NULL,
+  call_id uuid,
+  system_id uuid,
+  freeswitch_node text,
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
+  CONSTRAINT media_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT media_sessions_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
+  CONSTRAINT media_sessions_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
+);
+CREATE TABLE public.monitored_numbers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  number text NOT NULL,
+  name text,
+  description text,
+  type text DEFAULT 'inbound'::text,
+  test_frequency text NOT NULL DEFAULT 'hourly'::text,
+  greeting_message_id uuid,
+  custom_greeting_message text,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT monitored_numbers_pkey PRIMARY KEY (id),
+  CONSTRAINT monitored_numbers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT monitored_numbers_greeting_message_id_fkey FOREIGN KEY (greeting_message_id) REFERENCES public.stock_messages(id)
+);
+CREATE TABLE public.network_incidents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  description text,
+  source text NOT NULL,
+  link text,
+  pub_date timestamp with time zone,
+  severity text CHECK (severity = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])),
+  affected_carriers ARRAY,
+  created_at timestamp with time zone DEFAULT now(),
+  is_active boolean DEFAULT true,
+  CONSTRAINT network_incidents_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.number_kpi_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  monitored_number_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  stage text,
+  duration_ms integer,
+  meta jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT number_kpi_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT number_kpi_logs_monitored_number_id_fkey FOREIGN KEY (monitored_number_id) REFERENCES public.monitored_numbers(id),
+  CONSTRAINT number_kpi_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.number_kpi_snapshot (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  monitored_number_id uuid NOT NULL,
+  organization_id uuid NOT NULL,
+  status text NOT NULL,
+  uptime_percentage numeric,
+  last_24h_failures integer,
+  last_test_at timestamp with time zone,
+  last_test_status text,
+  avg_response_time_ms integer,
+  last_updated timestamp with time zone DEFAULT now(),
+  CONSTRAINT number_kpi_snapshot_pkey PRIMARY KEY (id),
+  CONSTRAINT number_kpi_snapshot_monitored_number_id_fkey FOREIGN KEY (monitored_number_id) REFERENCES public.monitored_numbers(id),
+  CONSTRAINT number_kpi_snapshot_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.org_members (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role text DEFAULT 'member'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT org_members_pkey PRIMARY KEY (id),
+  CONSTRAINT org_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT org_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.organizations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  plan text,
+  created_at timestamp with time zone DEFAULT now(),
+  plan_status text DEFAULT 'active'::text CHECK (plan_status = ANY (ARRAY['active'::text, 'past_due'::text, 'canceled'::text, 'trialing'::text, 'incomplete'::text])),
+  stripe_customer_id text UNIQUE,
+  stripe_subscription_id text,
+  tenant_id uuid,
+  tool_id uuid,
+  created_by uuid,
+  CONSTRAINT organizations_pkey PRIMARY KEY (id),
+  CONSTRAINT organizations_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.recordings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  call_sid text NOT NULL,
+  recording_sid text UNIQUE,
+  recording_url text NOT NULL,
+  duration_seconds integer,
+  transcript_json jsonb,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  tool_id uuid NOT NULL,
+  created_by uuid,
+  CONSTRAINT recordings_pkey PRIMARY KEY (id),
+  CONSTRAINT recordings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT recordings_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id),
+  CONSTRAINT recordings_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.report_schedules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  test_config_id uuid,
+  frequency text NOT NULL CHECK (frequency = ANY (ARRAY['daily'::text, 'weekly'::text])),
+  recipient_emails ARRAY NOT NULL,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT report_schedules_pkey PRIMARY KEY (id),
+  CONSTRAINT report_schedules_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT report_schedules_test_config_id_fkey FOREIGN KEY (test_config_id) REFERENCES public.test_configs(id)
+);
+CREATE TABLE public.role_capabilities_archived (
+  role_id uuid NOT NULL,
+  capability_id uuid NOT NULL,
+  CONSTRAINT role_capabilities_archived_pkey PRIMARY KEY (role_id, capability_id),
+  CONSTRAINT role_capabilities_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles_archived(id),
+  CONSTRAINT role_capabilities_capability_id_fkey FOREIGN KEY (capability_id) REFERENCES public.capabilities_archived(id)
+);
+CREATE TABLE public.roles_archived (
+  id uuid NOT NULL,
+  organization_id uuid,
+  name text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT roles_archived_pkey PRIMARY KEY (id),
+  CONSTRAINT roles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.scorecards (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  structure jsonb NOT NULL,
+  is_template boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  tool_id uuid NOT NULL,
+  created_by uuid,
+  CONSTRAINT scorecards_pkey PRIMARY KEY (id),
+  CONSTRAINT scorecards_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT scorecards_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id),
+  CONSTRAINT scorecards_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.scored_recordings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  recording_id uuid NOT NULL,
+  scorecard_id uuid NOT NULL,
+  scores_json jsonb NOT NULL,
+  total_score numeric,
+  manual_overrides_json jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scored_recordings_pkey PRIMARY KEY (id),
+  CONSTRAINT scored_recordings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT scored_recordings_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id),
+  CONSTRAINT scored_recordings_scorecard_id_fkey FOREIGN KEY (scorecard_id) REFERENCES public.scorecards(id)
+);
+CREATE TABLE public.shopper_campaigns_archive (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  organization_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  scenario text NOT NULL,
+  schedule text DEFAULT 'manual'::text,
+  phone_numbers ARRAY DEFAULT '{}'::text[],
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  created_by uuid,
+  caller_number text,
+  phone_to_test text,
+  CONSTRAINT shopper_campaigns_archive_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.shopper_jobs_archive (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  campaign_id uuid,
+  organization_id uuid,
+  result_id uuid,
+  payload jsonb,
+  status text NOT NULL DEFAULT 'pending'::text,
+  attempt_count integer NOT NULL DEFAULT 0,
+  max_attempts integer NOT NULL DEFAULT 5,
+  next_try_at timestamp with time zone DEFAULT now(),
+  last_error text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT shopper_jobs_archive_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.shopper_results (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  campaign_id uuid NOT NULL,
+  phone_number text,
+  call_sid text,
+  status text NOT NULL,
+  score integer,
+  notes text,
+  call_duration integer,
+  created_at timestamp with time zone DEFAULT now(),
+  organization_id uuid,
+  call_date timestamp with time zone DEFAULT now(),
+  created_by uuid,
+  meta jsonb,
+  shopper_call_sid text,
+  conference text,
+  tool_id uuid NOT NULL,
+  CONSTRAINT shopper_results_pkey PRIMARY KEY (id),
+  CONSTRAINT shopper_results_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT shopper_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+  CONSTRAINT shopper_results_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id)
+);
+CREATE TABLE public.stock_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  type text NOT NULL DEFAULT 'greeting'::text,
+  text text NOT NULL,
+  category text,
+  duration_seconds integer,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT stock_messages_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.systems (
+  id uuid NOT NULL,
+  key text NOT NULL UNIQUE,
+  name text NOT NULL,
+  description text,
+  category text,
+  execution_plane text CHECK (execution_plane = ANY (ARRAY['control'::text, 'media'::text, 'ai'::text])),
+  is_billable boolean DEFAULT false,
+  is_internal boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT systems_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.test_configs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  name text,
+  phone_to text NOT NULL,
+  schedule text NOT NULL,
+  active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  custom_message text,
+  dtmf_required boolean DEFAULT false,
+  dtmf_expected character varying,
+  description text,
+  carrier text,
+  test_script text DEFAULT 'basic'::text,
+  alert_rules jsonb DEFAULT '{"alert_email": true, "consecutive_failures": 2}'::jsonb,
+  last_test_at timestamp with time zone,
+  last_status text,
+  updated_at timestamp with time zone DEFAULT now(),
+  tool_id uuid NOT NULL,
+  created_by uuid,
+  CONSTRAINT test_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT test_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT test_configs_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id),
+  CONSTRAINT test_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.test_frequency_config (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  monitored_number_id uuid,
+  frequency text NOT NULL,
+  hours_between_tests integer,
+  day_of_week integer,
+  time_of_day time without time zone,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT test_frequency_config_pkey PRIMARY KEY (id),
+  CONSTRAINT test_frequency_config_monitored_number_id_fkey FOREIGN KEY (monitored_number_id) REFERENCES public.monitored_numbers(id)
+);
+CREATE TABLE public.test_results (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  test_config_id uuid,
+  status text,
+  duration_ms integer,
+  meta jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  tool_id uuid NOT NULL,
+  created_by uuid,
+  CONSTRAINT test_results_pkey PRIMARY KEY (id),
+  CONSTRAINT test_results_test_config_id_fkey FOREIGN KEY (test_config_id) REFERENCES public.test_configs(id),
+  CONSTRAINT test_results_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id),
+  CONSTRAINT test_results_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.test_statistics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  test_config_id uuid NOT NULL UNIQUE,
+  uptime_percentage_24h numeric DEFAULT 100.00,
+  uptime_percentage_7d numeric DEFAULT 100.00,
+  uptime_percentage_30d numeric DEFAULT 100.00,
+  avg_response_ms_24h integer,
+  min_response_ms_24h integer,
+  max_response_ms_24h integer,
+  total_tests_24h integer DEFAULT 0,
+  failures_24h integer DEFAULT 0,
+  consecutive_failures integer DEFAULT 0,
+  current_status text DEFAULT 'unknown'::text CHECK (current_status = ANY (ARRAY['healthy'::text, 'warning'::text, 'critical'::text, 'unknown'::text])),
+  last_success_at timestamp with time zone,
+  last_failure_at timestamp with time zone,
+  hourly_uptime_trend jsonb DEFAULT '[]'::jsonb,
+  updated_at timestamp with time zone DEFAULT now(),
+  system_id uuid,
+  created_by uuid,
+  visibility text DEFAULT 'org'::text CHECK (visibility = ANY (ARRAY['private'::text, 'team'::text, 'org'::text])),
+  CONSTRAINT test_statistics_pkey PRIMARY KEY (id),
+  CONSTRAINT test_statistics_test_config_id_fkey FOREIGN KEY (test_config_id) REFERENCES public.test_configs(id),
+  CONSTRAINT test_statistics_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id),
+  CONSTRAINT test_statistics_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.tool_access (
+  id uuid,
+  organization_id uuid,
+  user_id uuid,
+  tool USER-DEFINED,
+  role USER-DEFINED,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone
+);
+CREATE TABLE public.tool_access_archived (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  tool USER-DEFINED NOT NULL,
+  role USER-DEFINED NOT NULL DEFAULT 'viewer'::tool_role_type,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tool_access_archived_pkey PRIMARY KEY (id),
+  CONSTRAINT tool_access_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT tool_access_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.tool_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  tool USER-DEFINED NOT NULL,
+  settings jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tool_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT tool_settings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.tool_team_members (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  tool USER-DEFINED NOT NULL,
+  role USER-DEFINED NOT NULL,
+  invited_by uuid,
+  invited_at timestamp with time zone,
+  accepted_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tool_team_members_pkey PRIMARY KEY (id),
+  CONSTRAINT tool_team_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT tool_team_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT tool_team_members_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.tools (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tools_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL,
+  organization_id uuid,
+  email text NOT NULL UNIQUE,
+  phone text,
+  role text DEFAULT 'viewer'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  is_admin boolean DEFAULT false,
+  tenant_id uuid,
+  tool_id uuid,
+  created_by uuid,
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
+  CONSTRAINT users_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.webhook_configs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  type text NOT NULL CHECK (type = ANY (ARRAY['slack'::text, 'teams'::text])),
+  url text NOT NULL,
+  is_active boolean DEFAULT true,
+  test_sent_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT webhook_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT webhook_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
