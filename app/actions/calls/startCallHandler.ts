@@ -188,8 +188,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       // no injected caller: try to use env and perform network call
       const swProject = env.SIGNALWIRE_PROJECT_ID
       const swToken = env.SIGNALWIRE_TOKEN
-      const swSpace = env.SIGNALWIRE_SPACE?.replace('https://', '')?.replace(/\/$/, '')
       const swNumber = env.SIGNALWIRE_NUMBER
+      // Normalize SIGNALWIRE_SPACE: accept 'myslug', 'https://myslug', or 'myslug.signalwire.com'
+      const rawSpace = String(env.SIGNALWIRE_SPACE || '')
+      const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
 
       if (swProject && swToken && swSpace && swNumber) {
         const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
