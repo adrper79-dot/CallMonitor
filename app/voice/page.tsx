@@ -1,16 +1,16 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import supabase from '@/lib/supabase'
+import supabase from '../../lib/supabase'
 import { useRouter } from 'next/navigation'
-import CallList from '@/components/voice/CallList'
-import CallModulations from '@/components/voice/CallModulations'
-import AudioPlayer from '@/components/voice/AudioPlayer'
-import EvidenceManifestSummary from '@/components/voice/EvidenceManifestSummary'
-import ActivityFeedEmbed from '@/components/voice/ActivityFeedEmbed'
-import { Button } from '@/components/ui/button'
+import CallList from '../../components/voice/CallList'
+import CallModulations from '../../components/voice/CallModulations'
+import AudioPlayer from '../../components/voice/AudioPlayer'
+import EvidenceManifestSummary from '../../components/voice/EvidenceManifestSummary'
+import ActivityFeedEmbed from '../../components/voice/ActivityFeedEmbed'
+import { Button } from '../../components/ui/button'
 import { AlertCircle } from 'lucide-react'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from '../../components/ui/use-toast'
 
 interface Call {
   id: string
