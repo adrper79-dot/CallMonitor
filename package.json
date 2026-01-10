@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "test": "vitest",
     "build": "next build",
     "start": "next start",
     "vercel-build": "next build"
@@ -15,6 +16,7 @@
   "devDependencies": {
     "@types/node": "^25.0.5",
     "@types/react": "^19.2.8",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.0.0"
   }
 }

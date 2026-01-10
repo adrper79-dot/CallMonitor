@@ -157,6 +157,11 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       throw e
     }
 
+    if (!rec.recording_url) {
+      const e = new AppError({ code: 'RECORDING_URL_MISSING', message: 'Recording has no URL', user_message: 'Recording file not available', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
     // check organization plan limits
     const { data: orgRows, error: orgErr } = await supabaseAdmin
       .from('organizations')
@@ -178,6 +183,28 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       throw e
     }
 
+    // Execute AssemblyAI (Intelligence Plane)
+    const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+      method: 'POST',
+      headers: {
+        'Authorization': process.env.ASSEMBLYAI_API_KEY!,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        audio_url: rec.recording_url,
+        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`
+      })
+    })
+
+    if (!aaiRes.ok) {
+      const errText = await aaiRes.text()
+      const e = new AppError({ code: 'ASSEMBLYAI_API_ERROR', message: `AssemblyAI Error: ${aaiRes.status}`, user_message: 'Transcription service unavailable', severity: 'HIGH', retriable: true, details: { provider_error: errText } })
+      throw e
+    }
+
+    const aaiData = await aaiRes.json()
+    const job_id = aaiData.id
+
     // insert into ai_runs (exact columns: id, call_id, system_id, model, status)
     aiId = uuidv4()
     const aiRow = {
@@ -185,7 +212,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       call_id: resolvedCallId,
       system_id: null,
       model: 'assemblyai-v1',
-      status: 'queued'
+      status: 'queued',
+      job_id: job_id // Persist vendor job ID
     }
 
     // Note: Schema defines ai_runs.call_id foreign key to calls.id. If recording has call reference elsewhere, you should populate call_id.
@@ -209,9 +237,6 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       } catch (__) {}
       throw e
     }
-
-    // mock AssemblyAI job id
-    const job_id = `assemblyai-${uuidv4()}`
 
     // audit log entry (success)
     try {

@@ -83,24 +83,14 @@ CREATE TABLE shopper_results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   campaign_id UUID NOT NULL REFERENCES shopper_campaigns(id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE, -- Link to root call
   created_by UUID REFERENCES users(id), -- System or User who triggered
   tool_id UUID NOT NULL REFERENCES tools(id), -- DB_STRATEGY Compliance
   
-  -- Call Details
-  call_sid VARCHAR(100), -- SignalWire call SID
-  phone_number VARCHAR(20), -- SignalWire caller number (from)
-  phone_to VARCHAR(20) NOT NULL,
-  
-  -- Timing
-  started_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  ended_at TIMESTAMP WITH TIME ZONE,
-  duration_seconds INTEGER,
-  
-  -- Recording
-  recording_url TEXT, -- SignalWire recording URL
-  storage_path TEXT, -- Supabase Storage path (if downloaded)
-  recording_duration_seconds INTEGER,
-  
+  -- Note: Core call details (sid, duration, recording_url) live on 
+  -- the 'calls' and 'recordings' tables, linked via call_id.
+  -- This table stores only Shopper-specific intelligence.
+
   -- Transcription (Pro tier)
   transcript TEXT,
   transcript_confidence DECIMAL(5,2), -- 0-100 from AssemblyAI
