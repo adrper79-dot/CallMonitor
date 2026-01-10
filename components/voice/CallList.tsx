@@ -6,7 +6,7 @@ import type { Call } from '@/app/voice/page'
 export interface CallListProps {
   calls: Call[]
   selectedCallId?: string | null
-  onSelect: (id: string) => void
+  onSelect?: (id: string) => void
 }
 
 export default function CallList({ calls, selectedCallId, onSelect }: CallListProps) {
@@ -34,7 +34,7 @@ export default function CallList({ calls, selectedCallId, onSelect }: CallListPr
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (!calls || calls.length === 0) return
-    if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown') {
       e.preventDefault()
       const next = Math.min(calls.length - 1, focusedIndex + 1)
       focusItem(next)
@@ -45,7 +45,7 @@ export default function CallList({ calls, selectedCallId, onSelect }: CallListPr
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       const c = calls[focusedIndex]
-      if (c) onSelect(c.id)
+      if (c) onSelect?.(c.id)
     }
   }
 
@@ -59,7 +59,7 @@ export default function CallList({ calls, selectedCallId, onSelect }: CallListPr
             role="listitem"
             tabIndex={-1}
             aria-selected={selected}
-            onClick={() => onSelect(c.id)}
+            onClick={() => onSelect?.(c.id)}
             onFocus={() => setFocusedIndex(idx)}
             className={
               `w-full p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors cursor-pointer bg-slate-800 hover:bg-slate-700 ${selected ? 'ring-2 ring-indigo-500' : ''}`

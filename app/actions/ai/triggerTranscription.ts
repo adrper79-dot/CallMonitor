@@ -281,10 +281,10 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
 
     if (err instanceof AppError) {
       const p = err.toJSON()
-      return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: p.severity } }
+      return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: (p.severity as ApiError['severity']) ?? 'MEDIUM' } }
     }
     const unexpected = new AppError({ code: 'TRANSCR_TRIGGER_UNEXPECTED', message: err?.message ?? 'Unexpected', user_message: 'An unexpected error occurred while triggering transcription', severity: 'CRITICAL', retriable: true })
     const p = unexpected.toJSON()
-    return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: p.severity } }
+    return { success: false, error: { id: p.id, code: p.code, message: p.user_message ?? p.message, severity: (p.severity as ApiError['severity']) ?? 'CRITICAL' } }
   }
 }

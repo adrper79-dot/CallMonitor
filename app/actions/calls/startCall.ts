@@ -16,7 +16,7 @@ export type StartCallInput = HandlerInput
 export default async function startCall(input: StartCallInput) {
   try {
     const parsed = StartCallSchema.parse(input)
-    const res = await startCallHandler(parsed, { supabaseAdmin, getSession: getServerSession, env: process.env })
+    const res = await startCallHandler(parsed as HandlerInput, { supabaseAdmin, getSession: getServerSession, env: process.env })
     return res
   } catch (e: any) {
     if (e?.errors) {

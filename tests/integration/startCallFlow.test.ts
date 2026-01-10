@@ -1,12 +1,13 @@
 import startCall from '../../app/actions/calls/startCall'
 import { AppError } from '../../types/app-error'
+import { vi } from 'vitest'
 
 // Mock supabaseAdmin used by server actions
 const fromCalls: string[] = []
-const mockInsert = jest.fn(async (row: any) => ({ data: [row], error: null }))
-const mockSelect = jest.fn(async (cols: any) => ({ data: [], error: null }))
+const mockInsert = vi.fn(async (row: any) => ({ data: [row], error: null }))
+const mockSelect = vi.fn(async (cols: any) => ({ data: [], error: null }))
 
-jest.mock('../../lib/supabaseAdmin', () => ({
+vi.mock('../../lib/supabaseAdmin', () => ({
   __esModule: true,
   default: {
     from: (table: string) => {
@@ -16,21 +17,21 @@ jest.mock('../../lib/supabaseAdmin', () => ({
         select: mockSelect,
         eq: () => ({ limit: () => ({ data: [], error: null }) }),
         limit: () => ({ data: [], error: null }),
-        update: jest.fn(async (x: any) => ({ data: [], error: null })),
+        update: vi.fn(async (x: any) => ({ data: [], error: null })),
       }
     }
   }
 }))
 
 // Mock SignalWire client if used
-jest.mock('signalwire', () => ({
+vi.mock('signalwire', () => ({
   __esModule: true,
-  SignalWire: jest.fn()
+  SignalWire: vi.fn()
 }))
 
 // Mock getServerSession to simulate authenticated user
-jest.mock('next-auth/next', () => ({
-  getServerSession: jest.fn(async () => ({ user: { id: 'user-123' } }))
+vi.mock('next-auth/next', () => ({
+  getServerSession: vi.fn(async () => ({ user: { id: 'user-123' } }))
 }))
 
 describe('startCall flow integration', () => {

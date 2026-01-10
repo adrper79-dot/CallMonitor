@@ -115,10 +115,10 @@ export const ClientVoiceShell = (props: { initialCalls: Call[] }) => {
   'use client'
   const { initialCalls } = props
   const ReactClient = React as any
-  const [selectedCallId, setSelectedCallId] = ReactClient.useState<string | null>(null)
+  const [selectedCallId, setSelectedCallId] = ReactClient.useState(null)
   const [loading, setLoading] = ReactClient.useState(false)
-  const [error, setError] = ReactClient.useState<string | null>(null)
-  const [callDetails, setCallDetails] = ReactClient.useState<any | null>(null)
+  const [error, setError] = ReactClient.useState(null)
+  const [callDetails, setCallDetails] = ReactClient.useState(null)
 
   async function loadCall(callId: string) {
     setLoading(true); setError(null)
@@ -133,13 +133,13 @@ export const ClientVoiceShell = (props: { initialCalls: Call[] }) => {
     } finally { setLoading(false) }
   }
 
-  async function handleModulationChange(modKey: string, value: boolean) {
+  async function handleModulationChange(mods: Record<string, boolean>) {
     // Call server action (via API route) to record the modulation intent (read/write boundary)
     try {
       await fetch('/api/calls/recordModulationIntent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callId: selectedCallId, modKey, value })
+        body: JSON.stringify({ callId: selectedCallId, modulations: mods })
       })
     } catch (e) {
       // swallow — page remains read-first, UI components should handle optimistic updates
@@ -173,8 +173,8 @@ export const ClientVoiceShell = (props: { initialCalls: Call[] }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 space-y-4">
               <CallModulations
-                call={callDetails.call}
-                modulations={callDetails.modulations}
+                callId={callDetails.call?.id || 'unknown'}
+                initialModulations={callDetails.modulations || { record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }}
                 onChange={handleModulationChange}
               />
 
