@@ -54,10 +54,16 @@ export default function CallModulations({ callId, initialModulations, onChange }
 
   const [mods, setMods] = useState<CallModulations>({ ...defaults, ...initialModulations });
   const { loading: capsLoading, capabilities } = useCapabilities(callId);
+  const [authUser, setAuthUser] = useState('')
+  const [authPass, setAuthPass] = useState('')
+  const [unlocked, setUnlocked] = useState<boolean>(() => {
+    try { return sessionStorage.getItem(`unlock:${callId}`) === '1' } catch { return false }
+  })
+  const [unlocking, setUnlocking] = useState(false)
 
   const handleToggle = async (key: ModulationKey) => {
     const loading = capsLoading;
-    const allowed = Boolean(capabilities[key]);
+    const allowed = unlocked ? true : Boolean(capabilities[key]);
     if (loading || !allowed) return;
 
     const prev = mods;
@@ -71,6 +77,26 @@ export default function CallModulations({ callId, initialModulations, onChange }
     }
   };
 
+  const handleUnlock = async () => {
+    setUnlocking(true)
+    try {
+      const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }) })
+      const j = await res.json()
+      if (res.ok && j?.success) {
+        try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
+        setUnlocked(true)
+      } else {
+        // eslint-disable-next-line no-console
+        console.error('unlock failed', j?.error)
+        setUnlocked(false)
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('unlock error', e)
+      setUnlocked(false)
+    } finally { setUnlocking(false) }
+  }
+
   const items = [
     { key: "record" as ModulationKey, label: "Record", hint: "Start/stop recording for this call" },
     { key: "transcribe" as ModulationKey, label: "Transcribe", hint: "Enable transcription" },
@@ -81,6 +107,20 @@ export default function CallModulations({ callId, initialModulations, onChange }
 
   return (
     <TooltipProvider>
+      {!unlocked ? (
+        <div className="mb-4 p-3 bg-slate-800 rounded">
+          <div className="text-sm text-slate-200 font-medium mb-2">Sign in to access account features</div>
+          <div className="grid grid-cols-1 gap-2">
+            <input value={authUser} onChange={(e) => setAuthUser(e.target.value)} placeholder="Username" className="p-2 rounded bg-slate-700 text-slate-100" />
+            <input value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder="Password" type="password" className="p-2 rounded bg-slate-700 text-slate-100" />
+            <div className="flex items-center space-x-2">
+              <button onClick={handleUnlock} disabled={unlocking} className="px-3 py-1 rounded bg-indigo-600 text-white">{unlocking ? 'Unlocking...' : 'Unlock'}</button>
+              <button onClick={() => { setAuthUser(''); setAuthPass('') }} className="px-3 py-1 rounded bg-slate-600 text-white">Clear</button>
+            </div>
+            <div className="text-xs text-slate-400">Unlocking uses a guarded API; in production set UNLOCK_USER/UNLOCK_PASS to enable.</div>
+          </div>
+        </div>
+      ) : null}
       <div className="w-full bg-slate-900 text-slate-100 rounded-md p-4">
         <div className="grid grid-cols-1 gap-3">
           {items.map((item) => {
