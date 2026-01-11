@@ -28,6 +28,10 @@ try {
     adapter = SupabaseAdapter(supabaseForAdapter as any)
   }
 } catch (e) {
+
+    // runtime diagnostic: whether Email provider is enabled (no secrets logged)
+    // eslint-disable-next-line no-console
+    console.info(`[next-auth] Email provider ${adapter ? 'registered' : 'not registered'}; adapterPresent=${Boolean(adapter)}`)
   // don't throw during build; runtime will surface adapter issues
   // eslint-disable-next-line no-console
   console.error('Failed to initialize Supabase adapter for NextAuth', e)
