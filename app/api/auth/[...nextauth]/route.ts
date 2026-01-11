@@ -20,11 +20,21 @@ async function sendViaResend(to: string, html: string) {
   if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`)
 }
 
-// Configure Supabase adapter (used by Email provider to persist verification tokens)
-const supabaseForAdapter = createClient(String(process.env.SUPABASE_URL || ''), String(process.env.SUPABASE_SERVICE_ROLE_KEY || ''))
+// Lazily configure Supabase adapter (avoid failing at build-time when env missing)
+let adapter: any = undefined
+try {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const supabaseForAdapter = createClient(String(process.env.SUPABASE_URL), String(process.env.SUPABASE_SERVICE_ROLE_KEY))
+    adapter = SupabaseAdapter(supabaseForAdapter as any)
+  }
+} catch (e) {
+  // don't throw during build; runtime will surface adapter issues
+  // eslint-disable-next-line no-console
+  console.error('Failed to initialize Supabase adapter for NextAuth', e)
+}
 
 const authOptions = {
-  adapter: SupabaseAdapter(supabaseForAdapter as any),
+  ...(adapter ? { adapter } : {}),
   providers: [
     // Simple server-side rate limiter (in-memory).
     // NOTE: This is intentionally lightweight for local/dev use. For production,
