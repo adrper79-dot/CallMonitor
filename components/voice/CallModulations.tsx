@@ -27,6 +27,13 @@ export default function CallModulations({ callId, initialModulations, onChange }
   const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }))
   const [error, setError] = useState<string | null>(null)
 
+  const [authUser, setAuthUser] = useState('')
+  const [authPass, setAuthPass] = useState('')
+  const [unlocked, setUnlocked] = useState<boolean>(() => {
+    try { return sessionStorage.getItem(`unlock:${callId}`) === '1' } catch { return false }
+  })
+  const [unlocking, setUnlocking] = useState(false)
+
   useEffect(() => {
     setMods({ ...initialModulations })
   }, [initialModulations])
@@ -59,9 +66,40 @@ export default function CallModulations({ callId, initialModulations, onChange }
         <p className="text-sm text-slate-400">Preview (modulations only — no writes)</p>
       </div>
 
+      {!unlocked ? (
+        <div className="mb-4 p-3 bg-slate-800 rounded">
+          <div className="text-sm text-slate-200 font-medium mb-2">Sign in to access account features</div>
+          <div className="grid grid-cols-1 gap-2">
+            <input value={authUser} onChange={(e) => setAuthUser(e.target.value)} placeholder="Username" className="p-2 rounded bg-slate-700 text-slate-100" />
+            <input value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder="Password" type="password" className="p-2 rounded bg-slate-700 text-slate-100" />
+            <div className="flex items-center space-x-2">
+              <button onClick={async () => {
+                setUnlocking(true)
+                try {
+                  const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }) })
+                  const j = await res.json()
+                  if (res.ok && j?.success) {
+                    try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
+                    setUnlocked(true)
+                  } else {
+                    // eslint-disable-next-line no-console
+                    console.error('unlock failed', j?.error)
+                  }
+                } catch (e) {
+                  // eslint-disable-next-line no-console
+                  console.error('unlock error', e)
+                } finally { setUnlocking(false) }
+              }} disabled={unlocking} className="px-3 py-1 rounded bg-indigo-600 text-white">{unlocking ? 'Unlocking...' : 'Unlock'}</button>
+              <button onClick={() => { setAuthUser(''); setAuthPass('') }} className="px-3 py-1 rounded bg-slate-600 text-white">Clear</button>
+            </div>
+            <div className="text-xs text-slate-400">Unlocking uses a guarded API; in production set UNLOCK_USER/UNLOCK_PASS to enable.</div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid grid-cols-1 gap-3">
         {TOGGLES.map(t => {
-          const isDisabled = t.key === 'synthetic_caller' && !canUseSynthetic
+          const isDisabled = (!unlocked) || (t.key === 'synthetic_caller' && !canUseSynthetic)
           return (
             <div key={t.key} className="flex items-center justify-between p-2 rounded-md bg-slate-800 hover:bg-slate-700">
               <div className="flex flex-col">
