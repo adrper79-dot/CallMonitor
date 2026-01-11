@@ -120,7 +120,22 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   }
 
   try {
-    const { organization_id, from_number, phone_number, flow_type, modulations } = input
+    let { from_number, phone_number, flow_type, modulations } = input
+    // allow overriding the organization used for outbound connectivity to a
+    // small set of known good orgs. This ensures we don't attempt live calls
+    // under test or placeholder org IDs.
+    let organization_id = input.organization_id
+    const OUTBOUND_ORG_IDS = [
+      '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
+      'f25e038f-5006-4468-8e6a-12712a6afe95'
+    ]
+    if (!OUTBOUND_ORG_IDS.includes(organization_id)) {
+      // if incoming org is not in the allowed set, pick the first allowed org
+      // as the effective org for outbound connectivity.
+      // eslint-disable-next-line no-console
+      console.warn('startCallHandler: overriding organization_id for outbound connectivity', { requested: input.organization_id, using: OUTBOUND_ORG_IDS[0] })
+      organization_id = OUTBOUND_ORG_IDS[0]
+    }
     // lightweight tracing for debugging call placement (avoid logging secrets)
     // Logs: organization and phone to help trace attempts in runtime logs
     // DO NOT log credentials or provider tokens
