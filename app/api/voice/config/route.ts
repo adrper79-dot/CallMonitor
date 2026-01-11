@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
 import { AppError } from '@/types/app-error'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
+import { withIdempotency } from '@/lib/idempotency'
 
 type VoiceConfigRow = {
   id?: string
@@ -24,7 +26,7 @@ function isValidLangCode(s: any) {
   return /^[a-z]{2}(-[A-Z]{2})?$/.test(s)
 }
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   try {
     const url = new URL(req.url)
     const orgId = url.searchParams.get('orgId') ?? undefined
@@ -64,7 +66,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function PUT(req: Request) {
+async function handlePUT(req: Request) {
   try {
     const body = await req.json()
     const orgId = body?.orgId ?? undefined
@@ -158,3 +160,33 @@ export async function PUT(req: Request) {
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }
 }
+
+export const GET = withRateLimit(handleGET, {
+  identifier: (req) => {
+    const url = new URL(req.url)
+    const orgId = url.searchParams.get('orgId')
+    return `${getClientIP(req)}-${orgId || 'anonymous'}`
+  },
+  config: {
+    maxAttempts: 30,
+    windowMs: 60 * 1000,
+    blockMs: 5 * 60 * 1000
+  }
+})
+
+export const PUT = withRateLimit(
+  withIdempotency(handlePUT, {
+    ttlSeconds: 300 // 5 minutes for config updates
+  }),
+  {
+    identifier: (req) => {
+      // Rate limit by IP + organization
+      return `${getClientIP(req)}-config`
+    },
+    config: {
+      maxAttempts: 20,
+      windowMs: 60 * 1000,
+      blockMs: 5 * 60 * 1000
+    }
+  }
+)

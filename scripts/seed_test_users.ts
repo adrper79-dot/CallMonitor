@@ -47,6 +47,7 @@ async function createUser(supabaseUrl: string, serviceKey: string, u: UserSpec) 
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
       Accept: 'application/json',
     },
     body: JSON.stringify({

@@ -15,6 +15,7 @@ export class AppError extends Error {
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
   retriable: boolean
   details: any
+  httpStatus: number
 
   constructor(opts: AppErrorOptions) {
     super(opts.message)
@@ -24,10 +25,19 @@ export class AppError extends Error {
     this.severity = opts.severity ?? 'MEDIUM'
     this.retriable = !!opts.retriable
     this.details = opts.details
+    
+    // Get HTTP status from error catalog
+    try {
+      const { getErrorDefinition } = require('@/lib/errors/errorCatalog')
+      const errorDef = getErrorDefinition(this.code)
+      this.httpStatus = errorDef?.httpStatus || 500
+    } catch {
+      this.httpStatus = 500
+    }
   }
 
   toJSON() {
-    return { id: this.id, code: this.code, message: this.message, user_message: this.user_message, severity: this.severity }
+    return { id: this.id, code: this.code, message: this.message, user_message: this.user_message, severity: this.severity, httpStatus: this.httpStatus }
   }
 }
 

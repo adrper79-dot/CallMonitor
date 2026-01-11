@@ -158,6 +158,14 @@ CREATE TABLE public.kpi_settings (
   CONSTRAINT kpi_settings_pkey PRIMARY KEY (id),
   CONSTRAINT kpi_settings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.login_attempts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  username text NOT NULL,
+  ip text,
+  succeeded boolean NOT NULL DEFAULT false,
+  attempted_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT login_attempts_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.media_sessions (
   id uuid NOT NULL,
   call_id uuid,
@@ -547,20 +555,6 @@ CREATE TABLE public.users (
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT users_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
-CREATE TABLE public.webhook_configs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  organization_id uuid,
-  type text NOT NULL CHECK (type = ANY (ARRAY['slack'::text, 'teams'::text])),
-  url text NOT NULL,
-  is_active boolean DEFAULT true,
-  test_sent_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT webhook_configs_pkey PRIMARY KEY (id),
-  CONSTRAINT webhook_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
-);
-
--- Added voice_configs table: per-organization canonical voice modulation settings
 CREATE TABLE public.voice_configs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
@@ -576,4 +570,16 @@ CREATE TABLE public.voice_configs (
   CONSTRAINT voice_configs_pkey PRIMARY KEY (id),
   CONSTRAINT voice_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT voice_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.webhook_configs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  type text NOT NULL CHECK (type = ANY (ARRAY['slack'::text, 'teams'::text])),
+  url text NOT NULL,
+  is_active boolean DEFAULT true,
+  test_sent_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT webhook_configs_pkey PRIMARY KEY (id),
+  CONSTRAINT webhook_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );

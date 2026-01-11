@@ -5,53 +5,67 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
+import { useRBAC, usePermission } from '@/hooks/useRBAC'
+import { planSupportsFeature } from '@/lib/rbac'
+import { Select } from '@/components/ui/select'
+import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 
 export type ModKey = 'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller'
 
 export interface CallModulationsProps {
   callId: string
+  organizationId: string | null
   initialModulations: Record<ModKey, boolean>
   onChange: (mods: Record<ModKey, boolean>) => Promise<void>
 }
 
-const TOGGLES: { key: ModKey; label: string; desc: string }[] = [
-  { key: 'record', label: 'Recording', desc: 'Capture call audio' },
-  { key: 'transcribe', label: 'Transcribe', desc: 'Generate transcript' },
-  { key: 'translate', label: 'Translate', desc: 'Translate transcript' },
-  { key: 'survey', label: 'After-call Survey', desc: 'Run after-call survey' },
-  { key: 'synthetic_caller', label: 'Synthetic Caller', desc: 'Use synthetic caller voice for tests' }
+const TOGGLES: { key: ModKey; label: string; desc: string; feature: string; plan: string }[] = [
+  { key: 'record', label: 'Recording', desc: 'Capture call audio', feature: 'recording', plan: 'Pro+' },
+  { key: 'transcribe', label: 'Transcribe', desc: 'Generate transcript', feature: 'transcription', plan: 'Pro+' },
+  { key: 'translate', label: 'Translate', desc: 'Translate transcript', feature: 'translation', plan: 'Global+' },
+  { key: 'survey', label: 'After-call Survey', desc: 'Run after-call survey', feature: 'survey', plan: 'Insights+' },
+  { key: 'synthetic_caller', label: 'Secret Shopper', desc: 'Use secret shopper script', feature: 'secret_shopper', plan: 'Insights+' }
 ]
 
-export default function CallModulations({ callId, initialModulations, onChange }: CallModulationsProps) {
+export default function CallModulations({ callId, organizationId, initialModulations, onChange }: CallModulationsProps) {
+  const { role, plan, loading: rbacLoading } = useRBAC(organizationId)
+  const { config, updateConfig } = useVoiceConfig(organizationId)
   const [mods, setMods] = useState<Record<ModKey, boolean>>(() => ({ ...initialModulations }))
   const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }))
   const [error, setError] = useState<string | null>(null)
-
-  const [authUser, setAuthUser] = useState('')
-  const [authPass, setAuthPass] = useState('')
-  const [unlocked, setUnlocked] = useState<boolean>(() => {
-    try { return sessionStorage.getItem(`unlock:${callId}`) === '1' } catch { return false }
-  })
-  const [unlocking, setUnlocking] = useState(false)
 
   useEffect(() => {
     setMods({ ...initialModulations })
   }, [initialModulations])
 
-  // gating example: replace with real capability check
-  const canUseSynthetic = false
+  const canEdit = role === 'owner' || role === 'admin'
 
   async function handleToggle(key: ModKey) {
+    if (!canEdit) {
+      setError('Only Owners and Admins can modify modulations')
+      return
+    }
+
     setError(null)
     const prev = { ...mods }
     const next = { ...mods, [key]: !mods[key] }
-    // optimistic UI
+    
+    // Optimistic UI
     setMods(next)
     setPending(p => ({ ...p, [key]: true }))
+    
     try {
+      // Update via voice config API
+      const configKey = key === 'record' ? 'recording_enabled' :
+                       key === 'transcribe' ? 'transcription_enabled' :
+                       key === 'translate' ? 'translation_enabled' :
+                       key === 'survey' ? 'survey_enabled' :
+                       'secret_shopper_enabled'
+      
+      await updateConfig({ [configKey]: next[key] })
       await onChange(next)
     } catch (e: any) {
-      // rollback
+      // Rollback
       setMods(prev)
       setError(e?.message ?? 'Update failed')
     } finally {
@@ -59,86 +73,133 @@ export default function CallModulations({ callId, initialModulations, onChange }
     }
   }
 
-  return (
-    <section aria-labelledby={`call-modulations-${callId}`} className="w-full p-4 bg-slate-950 rounded-md">
-      <div className="flex items-center justify-between">
-        <h3 id={`call-modulations-${callId}`} className="text-lg font-medium text-slate-100">Call Modulations</h3>
-        <p className="text-sm text-slate-400">Preview (modulations only — no writes)</p>
-      </div>
+  function getToggleDisabled(key: ModKey, feature: string): { disabled: boolean; reason?: string } {
+    if (rbacLoading) {
+      return { disabled: true, reason: 'Loading permissions...' }
+    }
 
-      {!unlocked ? (
-        <div className="mb-4 p-3 bg-slate-800 rounded">
-          <div className="text-sm text-slate-200 font-medium mb-2">Sign in to access account features</div>
-          <div className="grid grid-cols-1 gap-2">
-            <input value={authUser} onChange={(e) => setAuthUser(e.target.value)} placeholder="Username" className="p-2 rounded bg-slate-700 text-slate-100" />
-            <input value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder="Password" type="password" className="p-2 rounded bg-slate-700 text-slate-100" />
-            <div className="flex items-center space-x-2">
-              <button onClick={async () => {
-                setUnlocking(true)
-                try {
-                  const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }) })
-                  const j = await res.json()
-                  if (res.ok && j?.success) {
-                    try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
-                    setUnlocked(true)
-                  } else {
-                    // eslint-disable-next-line no-console
-                    console.error('unlock failed', j?.error)
-                  }
-                } catch (e) {
-                  // eslint-disable-next-line no-console
-                  console.error('unlock error', e)
-                } finally { setUnlocking(false) }
-              }} disabled={unlocking} className="px-3 py-1 rounded bg-indigo-600 text-white">{unlocking ? 'Unlocking...' : 'Unlock'}</button>
-              <button onClick={() => { setAuthUser(''); setAuthPass('') }} className="px-3 py-1 rounded bg-slate-600 text-white">Clear</button>
-            </div>
-            <div className="text-xs text-slate-400">Unlocking uses a guarded API; in production set UNLOCK_USER/UNLOCK_PASS to enable.</div>
-          </div>
-        </div>
-      ) : null}
+    if (!plan) {
+      return { disabled: true, reason: 'Plan not available' }
+    }
+
+    if (!planSupportsFeature(plan, feature)) {
+      return { disabled: true, reason: `This feature requires ${TOGGLES.find(t => t.key === key)?.plan || 'a higher plan'}` }
+    }
+
+    if (!canEdit && key !== 'record' && key !== 'transcribe') {
+      return { disabled: true, reason: 'Only Owners and Admins can modify this' }
+    }
+
+    return { disabled: false }
+  }
+
+  return (
+    <section aria-labelledby={`call-modulations-${callId}`} className="w-full p-4 bg-slate-950 rounded-md border border-slate-800">
+      <div className="flex items-center justify-between mb-4">
+        <h3 id={`call-modulations-${callId}`} className="text-lg font-medium text-slate-100">Call Modulations</h3>
+        {!canEdit && (
+          <p className="text-sm text-slate-400">Read-only (Owner/Admin can modify)</p>
+        )}
+      </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3">
         {TOGGLES.map(t => {
-          const isDisabled = (!unlocked) || (t.key === 'synthetic_caller' && !canUseSynthetic)
+          const { disabled, reason } = getToggleDisabled(t.key, t.feature)
+          const checked = mods[t.key]
+          
           return (
-            <div key={t.key} className="flex items-center justify-between p-2 rounded-md bg-slate-800 hover:bg-slate-700">
-              <div className="flex flex-col">
-                <Label className="text-sm text-slate-100">{t.label}</Label>
+            <div key={t.key} className="flex items-center justify-between p-3 rounded-md bg-slate-800 hover:bg-slate-700">
+              <div className="flex flex-col flex-1">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor={`mod-${t.key}`} className="text-sm text-slate-100">
+                    {t.label}
+                  </Label>
+                  {disabled && reason && (
+                    <Tooltip content={reason}>
+                      <span className="text-xs text-amber-400" aria-label={reason}>⚠</span>
+                    </Tooltip>
+                  )}
+                </div>
                 <span className="text-xs text-slate-400">{t.desc}</span>
+                
+                {/* Additional config for specific modulations */}
+                {checked && t.key === 'translate' && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Select
+                      label="From Language"
+                      value={config?.translation_from || ''}
+                      onChange={(e) => updateConfig({ translation_from: e.target.value })}
+                      disabled={!canEdit}
+                      className="text-sm"
+                    >
+                      <option value="">Select...</option>
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                    </Select>
+                    <Select
+                      label="To Language"
+                      value={config?.translation_to || ''}
+                      onChange={(e) => updateConfig({ translation_to: e.target.value })}
+                      disabled={!canEdit}
+                      className="text-sm"
+                    >
+                      <option value="">Select...</option>
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                    </Select>
+                  </div>
+                )}
+                
+                {checked && t.key === 'survey' && (
+                  <div className="mt-2">
+                    <Select
+                      label="Survey"
+                      value={config?.survey_id || ''}
+                      onChange={(e) => updateConfig({ survey_id: e.target.value || null })}
+                      disabled={!canEdit}
+                      className="text-sm"
+                    >
+                      <option value="">Select a survey...</option>
+                      {/* Surveys would be loaded from API */}
+                    </Select>
+                  </div>
+                )}
+                
+                {checked && t.key === 'synthetic_caller' && (
+                  <div className="mt-2">
+                    <Select
+                      label="Script"
+                      value={config?.script_id || ''}
+                      onChange={(e) => updateConfig({ script_id: e.target.value || null })}
+                      disabled={!canEdit}
+                      className="text-sm"
+                    >
+                      <option value="">Select a script...</option>
+                      {/* Scripts would be loaded from API */}
+                    </Select>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center gap-3">
-                {isDisabled ? (
-                  <Tooltip content="Requires elevated permissions">
-                    <div>
-                      <button
-                        role="switch"
-                        aria-checked={!!mods[t.key]}
-                        aria-label={t.label}
-                        tabIndex={0}
-                        disabled
-                        className="inline-flex items-center h-7 w-12 rounded-full p-1 bg-gray-700 opacity-60 cursor-not-allowed"
-                      >
-                        <span className={`inline-block h-5 w-5 rounded-full bg-white transform ${mods[t.key] ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
-                  </Tooltip>
-                ) : (
-                  <button
-                    role="switch"
-                    aria-checked={!!mods[t.key]}
-                    aria-label={t.label}
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!pending[t.key]) handleToggle(t.key) } }}
-                    onClick={() => { if (!pending[t.key]) handleToggle(t.key) }}
-                    className={`inline-flex items-center h-7 w-12 rounded-full p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${mods[t.key] ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                  >
-                    <span className={`inline-block h-5 w-5 rounded-full bg-white transform transition-transform ${mods[t.key] ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                )}
-
+              <div className="flex items-center gap-3 ml-4">
+                <Switch
+                  id={`mod-${t.key}`}
+                  checked={checked}
+                  onCheckedChange={() => !disabled && !pending[t.key] && handleToggle(t.key)}
+                  disabled={disabled || pending[t.key]}
+                  aria-label={t.label}
+                  aria-describedby={disabled && reason ? `mod-${t.key}-hint` : undefined}
+                />
                 <div className="text-xs text-slate-400 w-12 text-right">
-                  {pending[t.key] ? <span aria-live="polite">Updating…</span> : (mods[t.key] ? 'On' : 'Off')}
+                  {pending[t.key] ? (
+                    <span aria-live="polite">Updating…</span>
+                  ) : (
+                    checked ? 'On' : 'Off'
+                  )}
                 </div>
               </div>
             </div>
@@ -146,11 +207,11 @@ export default function CallModulations({ callId, initialModulations, onChange }
         })}
       </div>
 
-      {error ? <div role="status" aria-live="assertive" className="mt-3 text-sm text-red-400">{error}</div> : null}
-
-      <div className="mt-4 text-right">
-        <Button variant="ghost" size="sm" onClick={() => setMods({ ...initialModulations })} className="text-xs">Reset Preview</Button>
-      </div>
+      {error && (
+        <div role="status" aria-live="assertive" className="mt-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
     </section>
   )
 }

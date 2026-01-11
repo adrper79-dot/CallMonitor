@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 
 function parseFormEncoded(text: string) {
   try {
@@ -11,6 +12,54 @@ function parseFormEncoded(text: string) {
   }
 }
 
+/**
+ * LaML Outbound Handler
+ * 
+ * Generates dynamic LaML XML based on voice_configs modulations:
+ * - Recording if record=true
+ * - Translation prompts if translate=true
+ * - Survey prompts if survey=true
+ * - Secret shopper script if synthetic_caller=true
+ * 
+ * Per MEDIA_PLANE_ARCHITECTURE.txt: SignalWire handles all media via LaML
+ */
+export async function POST(req: Request) {
+  const ct = String(req.headers.get('content-type') || '')
+  let payload: any = {}
+  try {
+    if (ct.includes('application/json')) payload = await req.json()
+    else {
+      const txt = await req.text()
+      payload = parseFormEncoded(txt)
+    }
+  } catch (e) {
+    // best-effort
+    try { payload = await req.json() } catch { payload = {} }
+  }
+
+  const from = payload.From ?? payload.from
+  const to = payload.To ?? payload.to
+  const callSid = payload.CallSid ?? payload.CallSid ?? payload.call_sid
+
+  // Log minimal info for debugging (do not leak secrets)
+  // eslint-disable-next-line no-console
+  console.log('laml/outbound webhook', { from, to, callSid: callSid ? '[REDACTED]' : null })
+
+  // Try to fetch dynamic XML script from app; fall back to generated LaML
+  const dynamic = await tryFetchDynamicScript(callSid)
+  if (dynamic) {
+    return new NextResponse(dynamic, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+  }
+
+  // Generate LaML based on voice_configs
+  const xml = await generateLaML(callSid, to)
+
+  return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+}
+
+/**
+ * Try to fetch dynamic script from /api/voice/script endpoint
+ */
 const tryFetchDynamicScript = async (callSid?: string) => {
   try {
     const base = String(process.env.NEXT_PUBLIC_APP_URL || '')
@@ -29,39 +78,144 @@ const tryFetchDynamicScript = async (callSid?: string) => {
   }
 }
 
-export async function POST(req: Request) {
-  const ct = String(req.headers.get('content-type') || '')
-  let payload: any = {}
-  try {
-    if (ct.includes('application/json')) payload = await req.json()
-    else {
-      const txt = await req.text()
-      payload = parseFormEncoded(txt)
+/**
+ * Generate LaML XML based on voice_configs modulations
+ */
+async function generateLaML(callSid: string | undefined, toNumber: string | undefined): Promise<string> {
+  let voiceConfig: any = null
+  let organizationId: string | null = null
+
+  // Find call by call_sid to get organization_id
+  if (callSid) {
+    const { data: callRows } = await supabaseAdmin
+      .from('calls')
+      .select('organization_id')
+      .eq('call_sid', callSid)
+      .limit(1)
+
+    organizationId = callRows?.[0]?.organization_id || null
+
+    if (organizationId) {
+      // Get voice_configs for this organization
+      const { data: vcRows } = await supabaseAdmin
+        .from('voice_configs')
+        .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller')
+        .eq('organization_id', organizationId)
+        .limit(1)
+
+      voiceConfig = vcRows?.[0] || null
     }
-  } catch (e) {
-    // best-effort
-    try { payload = await req.json() } catch { payload = {} }
   }
 
-  const from = payload.From ?? payload.from
-  const to = payload.To ?? payload.to
-  const callSid = payload.CallSid ?? payload.CallSid ?? payload.CallSid
+  // Build LaML response
+  const elements: string[] = []
 
-  // Log minimal info for debugging (do not leak secrets)
-  // eslint-disable-next-line no-console
-  console.log('laml/outbound webhook', { from, to, callSid })
+  // Secret Shopper script (synthetic_caller) - inject scripted prompts
+  if (voiceConfig?.synthetic_caller) {
+    // Get secret shopper script from voice_configs or shopper_scripts
+    // For now, we'll use a default script or fetch from a scripts table
+    let script: string | null = null
+    
+    // Try to get script from voice_configs JSONB (if script stored there)
+    // Or fetch from shopper_scripts table if it exists
+    try {
+      const { data: scriptRows } = await supabaseAdmin
+        .from('voice_configs')
+        .select('*')
+        .eq('organization_id', organizationId || '')
+        .limit(1)
+      
+      // Check if script is stored in a JSONB field or separate table
+      // For now, use default script
+      script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
+    } catch {
+      script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
+    }
 
-  // Try to fetch dynamic XML script from app; fall back to conference Dial
-  const dynamic = await tryFetchDynamicScript(callSid)
-  if (dynamic) {
-    return new NextResponse(dynamic, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+    // Parse script into LaML Say elements
+    // Script format: lines separated by newlines or |, each line becomes a Say element
+    const scriptLines = (script || '').split(/\n|\|/).filter(line => line.trim())
+    
+    for (let i = 0; i < scriptLines.length; i++) {
+      const line = scriptLines[i].trim()
+      if (line) {
+        elements.push(`<Say voice="alice">${escapeXml(line)}</Say>`)
+        if (i < scriptLines.length - 1) {
+          elements.push('<Pause length="2"/>')
+        }
+      }
+    }
   }
 
-  // Default: join a conference named by callSid so legs can be bridged
-  const confName = callSid || `conf-${Date.now()}`
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Dial>\n    <Conference>${confName}</Conference>\n  </Dial>\n</Response>`
+  // Translation prompts (if translation enabled)
+  if (voiceConfig?.translate && voiceConfig?.translate_from && voiceConfig?.translate_to) {
+    // SignalWire doesn't have built-in translation, but we can inject prompts
+    // Actual translation happens post-call via AssemblyAI
+    // For now, we just note that translation is enabled
+    // In Phase 2 with FreeSWITCH, we could inject real-time translation
+  }
 
-  return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+  // Recording (always enabled if record=true)
+  const recordingEnabled = voiceConfig?.record === true
+  const recordingAction = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+
+  // Survey prompts (if survey enabled)
+  if (voiceConfig?.survey) {
+    // Inject survey prompts before recording
+    elements.push('<Say voice="alice">Thank you for your time. Before we end, I have a quick survey.</Say>')
+    elements.push('<Pause length="1"/>')
+    elements.push('<Say>On a scale of 1 to 5, how satisfied were you with this call?</Say>')
+    elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
+  }
+
+  // Main call flow - Dial to destination
+  if (toNumber) {
+    const dialElements: string[] = []
+    
+    // If recording enabled, add Record attribute to Dial
+    if (recordingEnabled) {
+      dialElements.push(`<Number>${escapeXml(toNumber)}</Number>`)
+      elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
+      elements.push(...dialElements)
+      elements.push('</Dial>')
+    } else {
+      elements.push(`<Dial><Number>${escapeXml(toNumber)}</Number></Dial>`)
+    }
+  } else {
+    // Fallback: conference bridge
+    const confName = callSid || `conf-${Date.now()}`
+    elements.push(`<Dial><Conference>${escapeXml(confName)}</Conference></Dial>`)
+  }
+
+  // If recording was enabled but not via Dial, add Record verb
+  if (recordingEnabled && !toNumber) {
+    elements.push(`<Record action="${recordingAction}" recordingStatusCallback="${recordingStatusCallback}" maxLength="3600"/>`)
+  }
+
+  // Closing message for secret shopper
+  if (voiceConfig?.synthetic_caller) {
+    elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
+  }
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+${elements.map(el => `  ${el}`).join('\n')}
+</Response>`
+
+  return xml
+}
+
+/**
+ * Escape XML special characters
+ */
+function escapeXml(text: string): string {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
 
 export async function GET() {

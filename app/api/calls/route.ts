@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const searchParams = req.nextUrl.searchParams
+    const orgId = searchParams.get('orgId')
+    const status = searchParams.get('status')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = (page - 1) * limit
+
+    if (!orgId) {
+      return NextResponse.json({ error: 'orgId is required' }, { status: 400 })
+    }
+
+    let query = (supabaseAdmin as any)
+      .from('calls')
+      .select('id,organization_id,system_id,status,started_at,ended_at,created_by,call_sid', { count: 'exact' })
+      .eq('organization_id', orgId)
+      .order('started_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        query = query.in('status', ['in_progress', 'ringing'])
+      } else {
+        query = query.eq('status', status)
+      }
+    }
+
+    const { data, error, count } = await query
+
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({
+      success: true,
+      calls: data || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
+      },
+    })
+  } catch (err: any) {
+    console.error('GET /api/calls error:', err)
+    return NextResponse.json(
+      { error: err?.message || 'Failed to fetch calls' },
+      { status: 500 }
+    )
+  }
+}
