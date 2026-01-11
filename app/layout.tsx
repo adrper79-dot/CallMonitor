@@ -1,3 +1,4 @@
+import AuthProvider from "../components/AuthProvider"
 import UnlockForm from "../components/UnlockForm"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -5,8 +6,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head />
       <body>
-        <UnlockForm />
-        {children}
+        <AuthProvider>
+          <UnlockForm />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   )
