@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { signIn, useSession } from "next-auth/react"
 
 export default function UnlockForm() {
@@ -9,6 +9,21 @@ export default function UnlockForm() {
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<string | null>(null)
   const [mode, setMode] = useState<'email' | 'credentials'>('email')
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    fetch('/api/_health/auth-providers')
+      .then(r => r.json())
+      .then((j) => {
+        if (!mounted) return
+        // adapterEnv must be true for Email provider to be usable
+        setEmailAvailable(Boolean(j?.adapterEnv && j?.resendEnv))
+        if (!j?.adapterEnv) setMode('credentials')
+      })
+      .catch(() => { if (mounted) setEmailAvailable(false) })
+    return () => { mounted = false }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -35,7 +50,9 @@ export default function UnlockForm() {
   return (
     <div style={{ padding: 8, background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button type="button" onClick={() => setMode('email')} style={{ padding: 6 }}>{mode === 'email' ? '•' : ' '} Email link</button>
+        {emailAvailable !== false && (
+          <button type="button" onClick={() => setMode('email')} style={{ padding: 6 }}>{mode === 'email' ? '•' : ' '} Email link</button>
+        )}
         <button type="button" onClick={() => setMode('credentials')} style={{ padding: 6 }}>{mode === 'credentials' ? '•' : ' '} Username/Password</button>
       </div>
       <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
