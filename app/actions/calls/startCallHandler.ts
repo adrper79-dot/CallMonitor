@@ -132,14 +132,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
       'f25e038f-5006-4468-8e6a-12712a6afe95'
     ]
-    // helper hash: simple deterministic distribution based on phone number
-    const pickOrgForNumber = (num?: string) => {
-      if (!num) return OUTBOUND_ORG_IDS[0]
-      let h = 0
-      for (let i = 0; i < num.length; i++) h = (h * 31 + num.charCodeAt(i)) | 0
-      const idx = Math.abs(h) % OUTBOUND_ORG_IDS.length
-      return OUTBOUND_ORG_IDS[idx]
-    }
+    // prefer the first allowed outbound org for overrides to ensure
+    // a predictable, single target (avoid rotating selection)
+    const pickOrgForNumber = (_num?: string) => OUTBOUND_ORG_IDS[0]
 
     // override organization for outbound connectivity when the incoming org
     // is not one of the allowed outbound orgs or appears to be a placeholder
