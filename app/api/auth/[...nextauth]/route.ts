@@ -1,6 +1,8 @@
 import NextAuth from "next-auth"
 import EmailProvider from "next-auth/providers/email"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { createClient } from '@supabase/supabase-js'
+import { SupabaseAdapter } from '@next-auth/supabase-adapter'
 
 async function sendViaResend(to: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY
@@ -18,7 +20,11 @@ async function sendViaResend(to: string, html: string) {
   if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`)
 }
 
+// Configure Supabase adapter (used by Email provider to persist verification tokens)
+const supabaseForAdapter = createClient(String(process.env.SUPABASE_URL || ''), String(process.env.SUPABASE_SERVICE_ROLE_KEY || ''))
+
 const authOptions = {
+  adapter: SupabaseAdapter(supabaseForAdapter as any),
   providers: [
     // Simple server-side rate limiter (in-memory).
     // NOTE: This is intentionally lightweight for local/dev use. For production,
