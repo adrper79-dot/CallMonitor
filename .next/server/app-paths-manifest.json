@@ -1,14 +1,14 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/api/auth/unlock/route": "app/api/auth/unlock/route.js",
   "/api/call-capabilities/route": "app/api/call-capabilities/route.js",
   "/api/calls/recordModulationIntent/route": "app/api/calls/recordModulationIntent/route.js",
+  "/api/auth/unlock/route": "app/api/auth/unlock/route.js",
   "/api/calls/start/route": "app/api/calls/start/route.js",
   "/api/debug/run-start-call/route": "app/api/debug/run-start-call/route.js",
   "/api/voice/config/route": "app/api/voice/config/route.js",
   "/api/voice/laml/outbound/route": "app/api/voice/laml/outbound/route.js",
   "/api/webhooks/signalwire/route": "app/api/webhooks/signalwire/route.js",
   "/page": "app/page.js",
-  "/voice/page": "app/voice/page.js"
+  "/voice/page": "app/voice/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
 }
