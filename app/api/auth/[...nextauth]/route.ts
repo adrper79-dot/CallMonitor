@@ -69,11 +69,42 @@ providers.push(CredentialsProvider({
     const supabaseUrl = process.env.SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured for credentials login')
+
+    // resolve username -> email when a non-email identifier is provided
+    function looksLikeEmail(v: string) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) }
+    let identifier = String(credentials.username)
+    let emailToUse: string | null = null
+    if (looksLikeEmail(identifier)) {
+      emailToUse = identifier
+    } else {
+      // attempt to resolve username in `users` table to an email
+      try {
+        const sup = createClient(supabaseUrl, serviceKey)
+        // search common columns: username or email
+        const { data: found, error: findErr } = await sup.from('users').select('email,username').or(`username.eq.${identifier},email.eq.${identifier}`).limit(1)
+        if (!findErr && Array.isArray(found) && found.length) {
+          emailToUse = (found[0] as any).email ?? null
+        }
+      } catch (e) {
+        // ignore lookup errors and continue to fail below
+      }
+    }
+
+    if (!emailToUse) {
+      // record failed attempt
+      entry.attempts.push(now())
+      if (entry.attempts.length >= MAX_ATTEMPTS) {
+        entry.blockedUntil = now() + BLOCK_MS
+      }
+      limiter.set(key, entry)
+      return null
+    }
+
     const endpoint = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ email: credentials.username, password: credentials.password })
+      body: JSON.stringify({ email: emailToUse, password: credentials.password })
     })
     if (!res.ok) {
       // record failed attempt

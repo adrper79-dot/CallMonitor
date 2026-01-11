@@ -29,11 +29,18 @@ export default function UnlockForm() {
     e.preventDefault()
     setStatus("sending")
     if (mode === 'email') {
-      const res = await signIn('email', { email, redirect: false })
+      const val = (email || '').trim()
+      const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)
+      if (!looksLikeEmail) {
+        setStatus('invalid email')
+        return
+      }
+      const res = await signIn('email', { email: val, redirect: false })
       if (res && (res as any).error) setStatus('failed')
       else setStatus('sent')
     } else {
-      const res = await signIn('credentials', { username: username || email, password, redirect: false })
+      const id = (username || email).trim()
+      const res = await signIn('credentials', { username: id, password, redirect: false })
       if (res && (res as any).error) setStatus('failed')
       else setStatus('signed-in')
     }
