@@ -129,12 +129,24 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
       'f25e038f-5006-4468-8e6a-12712a6afe95'
     ]
-    if (!OUTBOUND_ORG_IDS.includes(organization_id)) {
-      // if incoming org is not in the allowed set, pick the first allowed org
-      // as the effective org for outbound connectivity.
+    // helper hash: simple deterministic distribution based on phone number
+    const pickOrgForNumber = (num?: string) => {
+      if (!num) return OUTBOUND_ORG_IDS[0]
+      let h = 0
+      for (let i = 0; i < num.length; i++) h = (h * 31 + num.charCodeAt(i)) | 0
+      const idx = Math.abs(h) % OUTBOUND_ORG_IDS.length
+      return OUTBOUND_ORG_IDS[idx]
+    }
+
+    // override organization for outbound connectivity when the incoming org
+    // is not one of the allowed outbound orgs or appears to be a placeholder
+    // (eg all-zero UUID). Select deterministically using the phone number.
+    const ALL_ZERO_UUID = /^0{8}-0{4}-0{4}-0{4}-0{12}$/
+    if (!OUTBOUND_ORG_IDS.includes(organization_id) || ALL_ZERO_UUID.test(String(organization_id))) {
+      const chosen = pickOrgForNumber(phone_number)
       // eslint-disable-next-line no-console
-      console.warn('startCallHandler: overriding organization_id for outbound connectivity', { requested: input.organization_id, using: OUTBOUND_ORG_IDS[0] })
-      organization_id = OUTBOUND_ORG_IDS[0]
+      console.warn('startCallHandler: overriding organization_id for outbound connectivity', { requested: input.organization_id, using: chosen })
+      organization_id = chosen
     }
     // lightweight tracing for debugging call placement (avoid logging secrets)
     // Logs: organization and phone to help trace attempts in runtime logs
