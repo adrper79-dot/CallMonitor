@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import EmailProvider from "next-auth/providers/email"
 import CredentialsProvider from "next-auth/providers/credentials"
+import GoogleProvider from "next-auth/providers/google"
 import { createClient } from '@supabase/supabase-js'
 import { SupabaseAdapter } from '@next-auth/supabase-adapter'
 
@@ -141,6 +142,16 @@ if (adapter) {
       await sendViaResend(email, html)
     },
     server: undefined,
+  }))
+}
+
+// Add Google OAuth provider if credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(GoogleProvider({
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    // Allow users to sign up with Google
+    allowDangerousEmailAccountLinking: false, // Set to true if you want to allow linking existing accounts
   }))
 }
 
