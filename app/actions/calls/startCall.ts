@@ -7,7 +7,9 @@ import startCallHandler, { StartCallInput as HandlerInput } from './startCallHan
 
 const StartCallSchema = z.object({
   organization_id: z.string().uuid(),
+  from_number: z.string().optional(),
   phone_number: z.string().regex(/^\+?[1-9]\d{1,14}$/),
+  flow_type: z.enum(['bridge','outbound']).optional(),
   modulations: z.object({ record: z.boolean(), transcribe: z.boolean(), survey: z.boolean().optional() })
 })
 

@@ -2,17 +2,25 @@
 
 import React from 'react'
 
-type SwitchProps = React.HTMLAttributes<HTMLButtonElement> & {
+type SwitchProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   checked?: boolean
   onChange?: (checked: boolean) => void
+  onCheckedChange?: (checked: boolean) => void
 }
 
-export function Switch({ checked = false, onChange, className = '', ...rest }: SwitchProps) {
+export function Switch({ checked = false, onChange, onCheckedChange, className = '', ...rest }: SwitchProps) {
+  const handleClick = () => {
+    const next = !checked
+    onChange?.(next)
+    onCheckedChange?.(next)
+  }
+
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange?.(!checked)}
+      onClick={handleClick}
       className={`inline-flex items-center h-7 w-12 rounded-full p-1 ${checked ? 'bg-indigo-600' : 'bg-slate-700'} ${className}`}
       {...rest}
     >

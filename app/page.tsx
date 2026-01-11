@@ -7,6 +7,7 @@ import Link from 'next/link'
 
 export default function Home() {
   const [phone, setPhone] = useState('')
+  const [from, setFrom] = useState('')
   const [record, setRecord] = useState(true)
   const [transcribe, setTranscribe] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -18,7 +19,7 @@ export default function Home() {
       const res = await fetch('/api/calls/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organization_id: '00000000-0000-0000-0000-000000000000', phone_number: phone, modulations: { record, transcribe } })
+        body: JSON.stringify({ organization_id: '00000000-0000-0000-0000-000000000000', from_number: from || undefined, phone_number: phone, flow_type: from ? 'bridge' : 'outbound', modulations: { record, transcribe } })
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error?.message || 'Failed')
@@ -49,8 +50,11 @@ export default function Home() {
 
           <form onSubmit={startCall} className="space-y-3">
             <div>
-              <label className="block text-sm text-slate-300 mb-1">Phone (E.164)</label>
+              <label className="block text-sm text-slate-300 mb-1">From (Agent or From number, optional)</label>
+              <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="+15551234 or agent-id" className="w-full p-2 rounded bg-slate-800 text-white mb-2" />
+              <label className="block text-sm text-slate-300 mb-1">To (E.164)</label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+15555551234" className="w-full p-2 rounded bg-slate-800 text-white" />
+              <p className="text-xs text-slate-500 mt-1">Provide both From and To to create a bridged two-leg call; leave From empty for single outbound.</p>
             </div>
 
             <div className="flex gap-4 items-center">

@@ -11,7 +11,9 @@ export type Modulations = {
 
 export type StartCallInput = {
   organization_id: string
+  from_number?: string
   phone_number: string
+  flow_type?: 'bridge' | 'outbound'
   modulations: Modulations
 }
 
@@ -53,22 +55,95 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
   }
 
+  // helper to place a single SignalWire call (returns sid)
+  const placeSignalWireCall = async (toNumber: string) => {
+    const swProject = env.SIGNALWIRE_PROJECT_ID
+    const swToken = env.SIGNALWIRE_TOKEN
+    const swNumber = env.SIGNALWIRE_NUMBER
+    const rawSpace = String(env.SIGNALWIRE_SPACE || '')
+    const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
+
+    if (!(swProject && swToken && swSpace && swNumber)) {
+      if (env.NODE_ENV === 'production') {
+        const e = new AppError({ code: 'SIGNALWIRE_CONFIG_MISSING', message: 'SignalWire credentials missing', user_message: 'System configuration error', severity: 'CRITICAL', retriable: false })
+        await writeAuditError('systems', null, e.toJSON())
+        throw e
+      }
+      // mock SID in non-production
+      return `mock-${uuidv4()}`
+    }
+
+    const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
+    const params = new URLSearchParams()
+    params.append('From', swNumber)
+    params.append('To', toNumber)
+    params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
+    params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+
+    const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+    // eslint-disable-next-line no-console
+    console.log('startCallHandler: sending SignalWire POST', { endpoint: swEndpoint, to: toNumber, from: swNumber })
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    let swRes
+    try {
+      swRes = await fetch(swEndpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+        signal: controller.signal
+      })
+    } catch (fetchErr: any) {
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: SignalWire fetch error', { error: fetchErr?.message ?? String(fetchErr) })
+      const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
+      await writeAuditError('calls', callId, e.toJSON())
+      throw e
+    } finally {
+      clearTimeout(timeout)
+    }
+
+    if (!swRes.ok) {
+      const text = await swRes.text()
+      // eslint-disable-next-line no-console
+      console.error('startCallHandler: SignalWire POST failed', { status: swRes.status, body: text })
+      const e = new AppError({ code: 'SIGNALWIRE_API_ERROR', message: `SignalWire Error: ${swRes.status}`, user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { provider_error: text } })
+      await writeAuditError('calls', callId, e.toJSON())
+      throw e
+    }
+
+    const swData = await swRes.json()
+    // eslint-disable-next-line no-console
+    console.log('startCallHandler: SignalWire responded', { sid: swData?.sid ? '[REDACTED]' : null })
+    return swData?.sid ?? null
+  }
+
   try {
-    const { organization_id, phone_number, modulations } = input
+    const { organization_id, from_number, phone_number, flow_type, modulations } = input
     // lightweight tracing for debugging call placement (avoid logging secrets)
     // Logs: organization and phone to help trace attempts in runtime logs
     // DO NOT log credentials or provider tokens
     // eslint-disable-next-line no-console
-    console.log('startCallHandler: initiating call', { organization_id, phone_number, modulations })
+    console.log('startCallHandler: initiating call', { organization_id, from_number, phone_number, flow_type, modulations })
 
     // actor/session lookup
-    const session = await getSession()
-    const actorId = session?.user?.id ?? null
+    const session = await getSession().catch(() => null)
+    let actorId = session?.user?.id ?? null
     capturedActorId = actorId
     if (!actorId) {
-      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH', retriable: false })
-      await writeAuditError('organizations', null, err.toJSON())
-      throw err
+      // allow a developer/testing fallback actor in non-production using the
+      // provided UUID to exercise flows without a real session.
+      if (env.NODE_ENV !== 'production') {
+        actorId = '28d68e05-ab20-40ee-b935-b19e8927ae68'
+        capturedActorId = actorId
+        // eslint-disable-next-line no-console
+        console.warn('startCallHandler: using dev fallback actorId', { actorId })
+      } else {
+        const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH', retriable: false })
+        await writeAuditError('organizations', null, err.toJSON())
+        throw err
+      }
     }
 
     // basic org id guard
@@ -175,77 +250,38 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw e
     }
 
+    
+
     // execute SignalWire (via injected caller if available)
     let call_sid: string | null = null
     if (signalwireCall) {
       // eslint-disable-next-line no-console
       console.log('startCallHandler: using injected signalwireCall to place outbound call')
-      const sw = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
-      call_sid = sw.call_sid
-      // eslint-disable-next-line no-console
-      console.log('startCallHandler: injected signalwireCall returned', { call_sid: call_sid ? '[REDACTED]' : null })
-    } else {
-      // no injected caller: try to use env and perform network call
-      const swProject = env.SIGNALWIRE_PROJECT_ID
-      const swToken = env.SIGNALWIRE_TOKEN
-      const swNumber = env.SIGNALWIRE_NUMBER
-      // Normalize SIGNALWIRE_SPACE: accept 'myslug', 'https://myslug', or 'myslug.signalwire.com'
-      const rawSpace = String(env.SIGNALWIRE_SPACE || '')
-      const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
-
-      if (swProject && swToken && swSpace && swNumber) {
-        const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
-        const params = new URLSearchParams()
-        params.append('From', swNumber)
-        params.append('To', phone_number)
-        params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
-        params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
-
-        const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+      if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
+        // place two legs: agent leg then destination leg
+        const sidA = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: from_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
+        const sidB = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
+        call_sid = sidB.call_sid
         // eslint-disable-next-line no-console
-        console.log('startCallHandler: sending SignalWire POST', { endpoint: swEndpoint, to: phone_number, from: swNumber })
-        // add a short timeout for the external call to fail fast in serverless environment
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000) // 10s
-        let swRes
-        try {
-          swRes = await fetch(swEndpoint, {
-            method: 'POST',
-            headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params,
-            signal: controller.signal
-          })
-        } catch (fetchErr: any) {
-          // eslint-disable-next-line no-console
-          console.error('startCallHandler: SignalWire fetch error', { error: fetchErr?.message ?? String(fetchErr) })
-          const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
-          await writeAuditError('calls', callId, e.toJSON())
-          throw e
-        } finally {
-          clearTimeout(timeout)
-        }
-
-        if (!swRes.ok) {
-          const text = await swRes.text()
-          // eslint-disable-next-line no-console
-          console.error('startCallHandler: SignalWire POST failed', { status: swRes.status, body: text })
-          const e = new AppError({ code: 'SIGNALWIRE_API_ERROR', message: `SignalWire Error: ${swRes.status}`, user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { provider_error: text } })
-          await writeAuditError('calls', callId, e.toJSON())
-          throw e
-        }
-
-        const swData = await swRes.json()
-        call_sid = swData.sid
-        // eslint-disable-next-line no-console
-        console.log('startCallHandler: SignalWire responded', { sid: call_sid ? '[REDACTED]' : null })
+        console.log('startCallHandler: injected signalwireCall bridge created', { a: sidA.call_sid ? '[REDACTED]' : null, b: sidB.call_sid ? '[REDACTED]' : null })
       } else {
-        // fallback: in non-production allow a mock SID to continue flow
-        if (env.NODE_ENV === 'production') {
-          const e = new AppError({ code: 'SIGNALWIRE_CONFIG_MISSING', message: 'SignalWire credentials missing', user_message: 'System configuration error', severity: 'CRITICAL', retriable: false })
-          await writeAuditError('systems', null, e.toJSON())
-          throw e
-        }
-        call_sid = `mock-${uuidv4()}`
+        const sw = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
+        call_sid = sw.call_sid
+        // eslint-disable-next-line no-console
+        console.log('startCallHandler: injected signalwireCall returned', { call_sid: call_sid ? '[REDACTED]' : null })
+      }
+    } else {
+      // no injected caller: use shared helper which handles config and mocks
+      if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
+        const sidA = await placeSignalWireCall(from_number)
+        const sidB = await placeSignalWireCall(phone_number)
+        call_sid = sidB
+        // eslint-disable-next-line no-console
+        console.log('startCallHandler: signalwire bridge created', { a: sidA ? '[REDACTED]' : null, b: sidB ? '[REDACTED]' : null })
+      } else {
+        call_sid = await placeSignalWireCall(phone_number)
+        // eslint-disable-next-line no-console
+        console.log('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null })
       }
     }
 
