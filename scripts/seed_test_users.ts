@@ -104,6 +104,11 @@ async function main() {
   }
 }
 
-if (require.main === module) {
-  main().catch((e) => { console.error(e); process.exit(1) })
+// When run directly (ts-node or node), process.argv[1] will point to the script path.
+// Avoid using `require.main` since this file may be loaded as an ES module.
+if (process && process.argv && process.argv[1]) {
+  const entry = process.argv[1]
+  if (entry.endsWith('seed_test_users.ts') || entry.endsWith('seed_test_users.js') || entry.endsWith('seed_test_users')) {
+    main().catch((e) => { console.error(e); process.exit(1) })
+  }
 }
