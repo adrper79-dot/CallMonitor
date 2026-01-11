@@ -33,12 +33,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   let capturedActorId: string | null = null
   let capturedSystemCpidId: string | null = null
   let callId: string | null = null
+  // track organization_id here so audit helpers and catch blocks
+  // always reference the effective organization (after overrides)
+  let organization_id: string = input.organization_id
 
   async function writeAuditError(resource: string, resourceId: string | null, payload: any) {
     try {
       await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(),
-        organization_id: input.organization_id,
+        organization_id,
         user_id: capturedActorId,
         system_id: capturedSystemCpidId,
         resource_type: resource,
@@ -124,7 +127,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // allow overriding the organization used for outbound connectivity to a
     // small set of known good orgs. This ensures we don't attempt live calls
     // under test or placeholder org IDs.
-    let organization_id = input.organization_id
+    organization_id = input.organization_id
     const OUTBOUND_ORG_IDS = [
       '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
       'f25e038f-5006-4468-8e6a-12712a6afe95'
@@ -377,13 +380,13 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   } catch (err: any) {
     if (err instanceof AppError) {
       const payload = err.toJSON()
-      try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: input.organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+      try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
       return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
     }
 
     const unexpected = new AppError({ code: 'CALL_START_UNEXPECTED', message: err?.message ?? 'Unexpected error', user_message: 'An unexpected error occurred while starting the call.', severity: 'CRITICAL', retriable: true, details: { stack: err?.stack } })
     const payload = unexpected.toJSON()
-    try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: input.organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+    try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
     return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
   }
 }
