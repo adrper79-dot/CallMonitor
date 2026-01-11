@@ -4,7 +4,7 @@ function parseFormEncoded(text: string) {
   try {
     const params = new URLSearchParams(text)
     const obj: Record<string, string> = {}
-    for (const [k, v] of params.entries()) obj[k] = v
+    Array.from(params.entries()).forEach(([k, v]) => { obj[k] = v })
     return obj
   } catch {
     return {}

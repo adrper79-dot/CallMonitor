@@ -8,6 +8,7 @@ export type Modulations = {
   transcribe: boolean
   translate?: boolean
   survey?: boolean
+  synthetic_caller?: boolean
 }
 
 export type StartCallInput = {

@@ -140,7 +140,8 @@ export async function PUT(req: Request) {
     }
 
     // update
-    const { error: updateErr } = await supabaseAdmin.from('voice_configs').update(updatePayload).eq('organization_id', orgId)
+    // Use `any` cast to avoid typing mismatch in this environment and perform an update by organization_id
+    const { error: updateErr } = await (supabaseAdmin as any).from('voice_configs').update(updatePayload).eq('organization_id', orgId)
     if (updateErr) {
       const err = new AppError({ code: 'DB_UPDATE_FAILED', message: 'Failed to update voice config', user_message: 'Could not update configuration', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })

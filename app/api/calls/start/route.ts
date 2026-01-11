@@ -20,20 +20,20 @@ export async function POST(req: Request) {
         } catch (e) {
           // final fallback: attempt to parse as URLSearchParams
           const params = new URLSearchParams(txt)
-          if ([...params.keys()].length > 0) body = Object.fromEntries(params.entries())
+          if (Array.from(params.keys()).length > 0) body = Object.fromEntries(Array.from(params.entries()))
           else throw jsonErr
         }
       }
     } else if (contentType.includes('application/x-www-form-urlencoded')) {
       const txt = await req.text()
-      body = Object.fromEntries(new URLSearchParams(txt).entries())
+      body = Object.fromEntries(Array.from(new URLSearchParams(txt).entries()))
     } else {
       // unknown content type: attempt JSON then form parsing
       try {
         body = await req.json()
       } catch {
         const txt = await req.text()
-        body = Object.fromEntries(new URLSearchParams(txt).entries())
+        body = Object.fromEntries(Array.from(new URLSearchParams(txt).entries()))
       }
     }
 
