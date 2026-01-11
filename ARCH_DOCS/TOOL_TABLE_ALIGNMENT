@@ -59,4 +59,11 @@
     "PUT": ["email", "phone", "role", "is_admin", "tenant_id", "tool_id"],
     "DELETE": ["id"]
   }
+  ,
+  "voice_configs": {
+    "GET": ["id", "organization_id", "record", "transcribe", "translate", "translate_from", "translate_to", "survey", "synthetic_caller", "updated_by", "updated_at"],
+    "POST": ["organization_id", "record", "transcribe", "translate", "translate_from", "translate_to", "survey", "synthetic_caller", "updated_by"],
+    "PUT": ["record", "transcribe", "translate", "translate_from", "translate_to", "survey", "synthetic_caller", "updated_by", "updated_at"],
+    "DELETE": ["id"]
+  }
 }

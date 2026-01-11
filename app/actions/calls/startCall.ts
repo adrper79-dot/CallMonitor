@@ -10,7 +10,7 @@ const StartCallSchema = z.object({
   from_number: z.string().optional(),
   phone_number: z.string().regex(/^\+?[1-9]\d{1,14}$/),
   flow_type: z.enum(['bridge','outbound']).optional(),
-  modulations: z.object({ record: z.boolean(), transcribe: z.boolean(), survey: z.boolean().optional() })
+  modulations: z.object({ record: z.boolean(), transcribe: z.boolean(), translate: z.boolean().optional(), survey: z.boolean().optional() })
 })
 
 export type StartCallInput = HandlerInput

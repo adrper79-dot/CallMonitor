@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "next dev",
     "test": "vitest",
+    "test:prod": "ts-node -r tsconfig-paths/register tools/run_prod_test.ts",
     "build": "next build",
     "start": "next start",
     "vercel-build": "next build"
@@ -16,8 +17,11 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "@types/node": "^25.0.5",
+    "@supabase/supabase-js": "^2.27.0",
+    "@types/node": "^25.0.6",
     "@types/react": "^19.2.8",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   }

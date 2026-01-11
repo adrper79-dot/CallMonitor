@@ -6,6 +6,7 @@ const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 export type Modulations = {
   record: boolean
   transcribe: boolean
+  translate?: boolean
   survey?: boolean
 }
 
@@ -218,6 +219,25 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw err
     }
 
+    // enforce canonical modulations from voice_configs (do NOT allow client override)
+    // default to conservative (all false) when no config present
+    let effectiveModulations: Modulations & { translate_from?: string | null; translate_to?: string | null } = { record: false, transcribe: false, translate: false }
+    try {
+      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,translate,translate_from,translate_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
+      if (!vcErr && vcRows && vcRows[0]) {
+        const cfg: any = vcRows[0]
+        effectiveModulations.record = !!cfg.record
+        effectiveModulations.transcribe = !!cfg.transcribe
+        effectiveModulations.translate = !!cfg.translate
+        effectiveModulations.survey = !!cfg.survey
+        effectiveModulations.synthetic_caller = !!cfg.synthetic_caller
+        if (typeof cfg.translate_from === 'string') effectiveModulations.translate_from = cfg.translate_from
+        if (typeof cfg.translate_to === 'string') effectiveModulations.translate_to = cfg.translate_to
+      }
+    } catch (e) {
+      // best-effort: if voice_configs absent or lookup fails, keep conservative defaults
+    }
+
     if (!membershipRows || membershipRows.length === 0) {
       const err = new AppError({ code: 'AUTH_ORG_MISMATCH', message: 'Actor not authorized for organization', user_message: 'Not authorized for this organization', severity: 'HIGH', retriable: false })
       await writeAuditError('org_members', null, err.toJSON())
@@ -318,8 +338,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
     }
 
-    // enqueue ai run if requested
-    if (modulations.transcribe) {
+    // enqueue ai run if requested (driven by voice_configs, not client input)
+    if (effectiveModulations.transcribe) {
       if (!systemAiId) {
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Transcription unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
@@ -337,9 +357,33 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         }
       }
     }
+    // enqueue translation run if requested (driven by voice_configs)
+    if (effectiveModulations.translate) {
+      // require languages to be present; if missing, record an audit and skip enqueuing
+      const fromLang = effectiveModulations.translate_from ?? null
+      const toLang = effectiveModulations.translate_to ?? null
+      if (!fromLang || !toLang) {
+        await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_LANG_MISSING', message: 'Translation configured but language codes missing', user_message: 'Translation configuration incomplete; skipping translation.', severity: 'MEDIUM', retriable: false }).toJSON())
+      } else if (!systemAiId) {
+        await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Translation unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
+      } else {
+        const aiId = uuidv4()
+        const aiRow = { id: aiId, call_id: callId, system_id: systemAiId, model: 'assemblyai-translation-v1', status: 'queued', meta: { translate_from: fromLang, translate_to: toLang } }
+        try {
+          const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
+          if (aiErr) {
+            // eslint-disable-next-line no-console
+            console.error('startCallHandler: failed to insert ai_run (translation)', { callId, error: aiErr?.message })
+            await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
+          }
+        } catch (e) {
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+        }
+      }
+    }
 
-    // recording intent audit
-    if (modulations.record) {
+    // recording intent audit (driven by voice_configs)
+    if (effectiveModulations.record) {
       const orgToolId = org?.tool_id ?? null
       if (!orgToolId) {
         await writeAuditError('calls', callId, new AppError({ code: 'RECORDING_TOOL_NOT_FOUND', message: 'No recording tool available for organization', user_message: 'No recording tool available for your organization', severity: 'MEDIUM', retriable: false }).toJSON())
@@ -362,7 +406,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const canonicalCall = persistedCall[0]
     try {
-      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', before: null, after: { ...canonicalCall, config: modulations, call_sid }, created_at: new Date().toISOString() })
+      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', before: null, after: { ...canonicalCall, config: effectiveModulations, call_sid }, created_at: new Date().toISOString() })
     } catch (auditErr) {
       // eslint-disable-next-line no-console
       console.error('startCallHandler: failed to insert audit log', { callId, error: (auditErr as any)?.message })
@@ -378,7 +422,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
       return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
     }
-
+    // log the unexpected error for debugging
+    // eslint-disable-next-line no-console
+    console.error('startCallHandler unexpected error', err)
     const unexpected = new AppError({ code: 'CALL_START_UNEXPECTED', message: err?.message ?? 'Unexpected error', user_message: 'An unexpected error occurred while starting the call.', severity: 'CRITICAL', retriable: true, details: { stack: err?.stack } })
     const payload = unexpected.toJSON()
     try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
