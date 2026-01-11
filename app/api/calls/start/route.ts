@@ -7,8 +7,42 @@ function isE164(n: string) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { organization_id, phone_number, modulations } = body
+    const contentType = String(req.headers.get('content-type') || '')
+    let body: any = null
+    // Try to parse JSON, but be tolerant: fall back to form-encoded parsing
+    if (contentType.includes('application/json')) {
+      try {
+        body = await req.json()
+      } catch (jsonErr) {
+        const txt = await req.text()
+        try {
+          body = JSON.parse(txt)
+        } catch (e) {
+          // final fallback: attempt to parse as URLSearchParams
+          const params = new URLSearchParams(txt)
+          if ([...params.keys()].length > 0) body = Object.fromEntries(params.entries())
+          else throw jsonErr
+        }
+      }
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const txt = await req.text()
+      body = Object.fromEntries(new URLSearchParams(txt).entries())
+    } else {
+      // unknown content type: attempt JSON then form parsing
+      try {
+        body = await req.json()
+      } catch {
+        const txt = await req.text()
+        body = Object.fromEntries(new URLSearchParams(txt).entries())
+      }
+    }
+
+    // normalize modulations (allow JSON string or object)
+    if (body && typeof body.modulations === 'string') {
+      try { body.modulations = JSON.parse(body.modulations) } catch { /* leave as-is */ }
+    }
+
+    const { organization_id, phone_number, modulations } = body || {}
     if (!organization_id) {
       return NextResponse.json({ success: false, error: { id: 'invalid_input', code: 'INVALID_INPUT', message: 'organization_id required', severity: 'MEDIUM' } })
     }
