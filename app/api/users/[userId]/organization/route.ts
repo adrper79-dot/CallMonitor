@@ -24,15 +24,41 @@ export async function GET(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get user's organization from org_members table
-    const { data: membership, error } = await supabase
+    // Try org_members first, fallback to users.organization_id
+    let organizationId: string | null = null
+    
+    // Check org_members
+    const { data: membership } = await supabase
       .from('org_members')
       .select('organization_id')
       .eq('user_id', params.userId)
       .limit(1)
       .single()
+    
+    if (membership?.organization_id) {
+      organizationId = membership.organization_id
+    } else {
+      // Fallback to users table
+      const { data: user } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('id', params.userId)
+        .limit(1)
+        .single()
+      
+      if (user?.organization_id) {
+        organizationId = user.organization_id
+        
+        // Auto-create missing org_members record
+        await supabase.from('org_members').insert({
+          organization_id: user.organization_id,
+          user_id: params.userId,
+          role: 'member'
+        }).catch(() => {}) // Ignore errors if already exists
+      }
+    }
 
-    if (error || !membership) {
+    if (!organizationId) {
       return NextResponse.json(
         { error: 'No organization found' },
         { status: 404 }
@@ -40,7 +66,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      organization_id: membership.organization_id
+      organization_id: organizationId
     })
   } catch (err: any) {
     console.error('Failed to fetch user organization:', err)

@@ -229,7 +229,7 @@ export const authOptions = {
                 
                 if (orgId) {
                   // Create user record
-                  await supabase.from('users').insert({
+                  const { error: userInsertErr } = await supabase.from('users').insert({
                     id: token.id,
                     email: session.user.email,
                     organization_id: orgId,
@@ -237,12 +237,24 @@ export const authOptions = {
                     is_admin: false
                   })
                   
+                  if (userInsertErr) {
+                    console.error('Session callback: failed to create user:', userInsertErr.message)
+                  } else {
+                    console.log('Session callback: created user record for', session.user.email)
+                  }
+                  
                   // Create org membership
-                  await supabase.from('org_members').insert({
+                  const { error: memberInsertErr } = await supabase.from('org_members').insert({
                     organization_id: orgId,
                     user_id: token.id,
                     role: 'member'
                   })
+                  
+                  if (memberInsertErr) {
+                    console.error('Session callback: failed to create org membership:', memberInsertErr.message)
+                  } else {
+                    console.log('Session callback: created org_members record for', session.user.email)
+                  }
                 }
               }
             }

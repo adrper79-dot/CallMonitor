@@ -148,17 +148,20 @@ export async function POST(req: Request) {
           console.error('Failed to create user in public.users:', userError)
         }
         
-        // Create org membership
+        // Create org membership (first user becomes owner, others are members)
+        const isFirstUser = !orgs || orgs.length === 0
         const { error: memberError } = await supabase
           .from('org_members')
           .insert({
             organization_id: orgId,
             user_id: data.id,
-            role: 'member'
+            role: isFirstUser ? 'owner' : 'member'
           })
         
         if (memberError) {
           console.error('Failed to create org membership:', memberError)
+        } else {
+          console.log(`Created org_members record for ${email} as ${isFirstUser ? 'owner' : 'member'}`)
         }
       }
     }
