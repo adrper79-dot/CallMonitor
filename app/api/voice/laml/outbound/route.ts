@@ -57,14 +57,18 @@ export async function POST(req: Request) {
   // eslint-disable-next-line no-console
   console.log('laml/outbound webhook', { from, to, callSid: callSid ? '[REDACTED]' : null })
 
-  // Try to fetch dynamic XML script from app; fall back to generated LaML
-  const dynamic = await tryFetchDynamicScript(callSid)
-  if (dynamic) {
-    return new NextResponse(dynamic, { status: 200, headers: { 'Content-Type': 'application/xml' } })
-  }
+  // DISABLED: Dynamic script endpoint always returns 404 because call_sid is not saved to DB
+  // This is intentional per TOOL_TABLE_ALIGNMENT - call_sid only stored in tools table
+  // const dynamic = await tryFetchDynamicScript(callSid)
+  // if (dynamic) {
+  //   return new NextResponse(dynamic, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+  // }
 
   // Generate LaML based on voice_configs
   const xml = await generateLaML(callSid, to)
+  
+  // eslint-disable-next-line no-console
+  console.log('laml/outbound: generated XML', { length: xml.length, callSid: callSid ? '[REDACTED]' : null })
 
   return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
 }
