@@ -20,16 +20,32 @@ export default function Home() {
   // Fetch user's organization from their profile
   useEffect(() => {
     async function fetchOrganization() {
-      if (!session?.user?.id) return
+      console.log('fetchOrganization: checking session', { 
+        hasSession: !!session, 
+        hasUser: !!session?.user, 
+        userId: session?.user?.id || null 
+      })
+      
+      if (!session?.user?.id) {
+        console.log('fetchOrganization: no session user ID, skipping')
+        return
+      }
       
       try {
+        console.log('fetchOrganization: fetching for user', session.user.id)
         const res = await fetch(`/api/users/${session.user.id}/organization`)
+        console.log('fetchOrganization: response', { status: res.status, ok: res.ok })
+        
         if (res.ok) {
           const data = await res.json()
+          console.log('fetchOrganization: got organization', data.organization_id)
           setOrganizationId(data.organization_id)
+        } else {
+          const error = await res.text()
+          console.error('fetchOrganization: API error', { status: res.status, error })
         }
       } catch (err) {
-        console.error('Failed to fetch organization:', err)
+        console.error('fetchOrganization: fetch failed', err)
       }
     }
     
@@ -82,6 +98,13 @@ export default function Home() {
       <section className="max-w-4xl mx-auto grid grid-cols-3 gap-6">
         <article className="col-span-2 bg-slate-900 p-6 rounded shadow">
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+          
+          {/* Debug: Show session and org status */}
+          <div className="mb-4 p-3 bg-slate-800 rounded text-xs">
+            <div>Session: {session ? '✅ Logged in' : '❌ Not logged in'}</div>
+            <div>Organization: {organizationId ? `✅ ${organizationId}` : '❌ Not found'}</div>
+          </div>
+          
           <div className="flex gap-3 mb-6">
             <Link href="/voice"><Button>Open Voice Operations</Button></Link>
             <Link href="/voice"><Button>Recent Calls</Button></Link>
