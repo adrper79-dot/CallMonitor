@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { AppError } from '@/types/app-error'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -61,7 +62,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   }
 
   // helper to place a single SignalWire call (returns sid)
-  const placeSignalWireCall = async (toNumber: string) => {
+  const placeSignalWireCall = async (toNumber: string, useLiveTranslation: boolean = false) => {
     const swProject = env.SIGNALWIRE_PROJECT_ID
     const swToken = env.SIGNALWIRE_TOKEN
     const swNumber = env.SIGNALWIRE_NUMBER
@@ -82,7 +83,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const params = new URLSearchParams()
     params.append('From', swNumber)
     params.append('To', toNumber)
-    params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
+    
+    // Route to SWML endpoint for live translation, LaML for regular calls
+    if (useLiveTranslation && callId) {
+      params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}`)
+      // eslint-disable-next-line no-console
+      console.log('startCallHandler: routing to SWML endpoint for live translation', { callId })
+    } else {
+      params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
+    }
     params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
 
     const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
@@ -318,16 +327,23 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       }
     } else {
       // no injected caller: use shared helper which handles config and mocks
+      // Check if live translation should be enabled (Business plan + feature flag + translate enabled)
+      const plan = String(org.plan ?? '').toLowerCase()
+      const isBusinessPlan = ['business', 'enterprise'].includes(plan)
+      const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
+      const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && effectiveModulations.translate_from && effectiveModulations.translate_to
+      
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
-        const sidA = await placeSignalWireCall(from_number)
-        const sidB = await placeSignalWireCall(phone_number)
+        // Bridge calls don't support live translation (complexity)
+        const sidA = await placeSignalWireCall(from_number, false)
+        const sidB = await placeSignalWireCall(phone_number, false)
         call_sid = sidB
         // eslint-disable-next-line no-console
         console.log('startCallHandler: signalwire bridge created', { a: sidA ? '[REDACTED]' : null, b: sidB ? '[REDACTED]' : null })
       } else {
-        call_sid = await placeSignalWireCall(phone_number)
+        call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
         // eslint-disable-next-line no-console
-        console.log('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null })
+        console.log('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null, liveTranslation: shouldUseLiveTranslation })
       }
     }
 

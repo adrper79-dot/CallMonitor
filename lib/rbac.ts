@@ -24,6 +24,7 @@ const FEATURE_PLANS: Record<string, Plan[]> = {
   'recording': ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'],
   'transcription': ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'],
   'translation': ['global', 'enterprise'],
+  'real_time_translation_preview': ['business', 'enterprise'],
   'survey': ['insights', 'global', 'enterprise'],
   'secret_shopper': ['insights', 'global', 'enterprise'],
 }

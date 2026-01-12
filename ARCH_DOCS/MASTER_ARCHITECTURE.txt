@@ -11,6 +11,111 @@
 * SignalWire is the authoritative **media execution plane**.
 * AssemblyAI is the intelligence plane.
 * No FreeSWITCH dependency exists in v1 (explicitly deferred).
+2.1 SignalWire AI Agents – Live Translation Execution (v1 Optional)
+
+Purpose: Enable real-time bi-directional translation without self-hosted media plane.
+
+Boundaries (non-negotiable):
+- **Execution only** — SignalWire AI Agent handles live STT/TTS/translation
+- **Non-authoritative** — AssemblyAI remains the canonical transcript source
+- **Capability-gated** — Business plan + feature flag: `translation_live_assist_preview`
+- **Replaceable** — Zero contract change when moving to FreeSWITCH v2
+- **Minimal vendor lock-in** — All persistence and evidence stay in your stack
+- Live output is ephemeral and non-authoritative
+- Agents do not own, decide, persist, or score
+
+Data Flow:
+```
+SignalWire AI Agent (live STT → LLM → TTS injection)
+   ↓ (events + partial transcripts - non-authoritative)
+COE (normalization + validation)
+   ↓
+AssemblyAI (canonical transcript + translation)
+   ↓
+Supabase (recordings, ai_runs, evidence_manifests)
+```
+
+SignalWire AI Agent Configuration:
+- Agent executes live translation during call
+- Listens to one speaker, translates, and speaks translation immediately
+- Preserves tone, intent, and nuance
+- Auto-detects language switches
+- Does NOT persist data — ephemeral execution only
+- Falls back gracefully on failure (continue without translation)
+
+Agent Config Payload Structure:
+```json
+{
+  "agent": {
+    "name": "CallMonitor Live Translation Agent (Preview)",
+    "version": "1.0.0",
+    "languages": {
+      "primary": "en-US",
+      "secondary": "{{dynamic:detected_language}}",
+      "target": "{{dynamic:translation_to}}"
+    },
+    "prompt": {
+      "system": "You are a live, real-time translator for phone calls...",
+      "user": "Translate from {{primary}} to {{target}} in real time."
+    },
+    "voice": {
+      "primary": "en-US-Neural2-J",
+      "secondary": "{{dynamic:detected_voice}}"
+    },
+    "model": "gpt-4o-mini",
+    "temperature": 0.3,
+    "max_tokens": 150,
+    "timeout": 30000
+  },
+  "execution": {
+    "type": "live_translation",
+    "trigger": "call_answered",
+    "on_event": ["speech_detected", "language_changed", "silence_timeout"]
+  },
+  "metadata": {
+    "callmonitor_call_id": "{{dynamic:call_id}}",
+    "callmonitor_org_id": "{{dynamic:organization_id}}",
+    "canonical_transcript_source": "assemblyai",
+    "feature_flag": "translation_live_assist_preview"
+  },
+  "fallback": {
+    "on_failure": "continue_without_translation",
+    "log_to": "callmonitor_audit_logs",
+    "notify": "callmonitor_kpi_live_translation_failure"
+  }
+}
+```
+
+Implementation Requirements:
+1. **Capability Check (GET /api/call-capabilities)**
+   - If `real_time_translation_preview` enabled (Business plan + flag)
+   - Return `{ translation_live: true }`
+   - UI enables toggle + shows "(Preview)" badge
+
+2. **Voice Config Validation (PUT /api/voice/config)**
+   - Require `translation_from` and `translation_to` when `translation_enabled: true`
+   - Store in `voice_configs` table (intent only)
+
+3. **Call Initiation (startCall server action)**
+   - If live translation requested and capability allows:
+     - Attach agent to SignalWire call with config payload
+     - Pass dynamic values (call_id, org_id, languages)
+   - Continue as normal → COE queues AssemblyAI for canonical processing
+
+4. **Webhook Handling (AssemblyAI)**
+   - Update `ai_runs` status
+   - Generate `evidence_manifests` from AssemblyAI output
+   - **Ignore** SignalWire AI transcript — it is non-authoritative
+
+Schema Additions (minimal):
+```sql
+recordings
+  - has_live_translation boolean DEFAULT false
+  - live_translation_provider text NULLABLE ('signalwire')
+
+ai_runs
+  - Optional: model = 'signalwire-live-translate' (non-authoritative)
+```
 
 **3. One Voice Operations UI**
 

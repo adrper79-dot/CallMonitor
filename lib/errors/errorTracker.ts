@@ -83,13 +83,17 @@ export function trackError(
     organizationId: tracked.organizationId ? '[REDACTED]' : null
   })
 
-  // Send to monitoring (Sentry integration)
+  // Send to monitoring (Sentry integration) - async, non-blocking
   if (errorDef.shouldAlert) {
-    const { captureError } = await import('@/lib/monitoring')
-    captureError(tracked, {
-      endpoint: tracked.endpoint,
-      method: tracked.method,
-      organizationId: tracked.organizationId
+    // Use dynamic import without await to avoid blocking
+    import('@/lib/monitoring').then(({ captureError }) => {
+      captureError(tracked, {
+        endpoint: tracked.endpoint,
+        method: tracked.method,
+        organizationId: tracked.organizationId
+      })
+    }).catch(() => {
+      // Silently fail if monitoring is not available
     })
   }
 

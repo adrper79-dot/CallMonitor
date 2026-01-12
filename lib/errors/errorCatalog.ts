@@ -140,6 +140,26 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     shouldAlert: false,
     trackKPI: true
   },
+  'LIVE_TRANSLATE_EXECUTION_FAILED': {
+    code: 'LIVE_TRANSLATE_EXECUTION_FAILED',
+    category: 'EXTERNAL',
+    severity: 'MEDIUM',
+    internalMessage: 'Live translation execution failed',
+    userMessage: 'Live translation encountered an issue. Post-call transcript is still available.',
+    httpStatus: 500,
+    shouldAlert: false,
+    trackKPI: true
+  },
+  'LIVE_TRANSLATE_VENDOR_DOWN': {
+    code: 'LIVE_TRANSLATE_VENDOR_DOWN',
+    category: 'EXTERNAL',
+    severity: 'HIGH',
+    internalMessage: 'Live translation vendor service unavailable',
+    userMessage: 'Live translation service is temporarily unavailable. Post-call transcript will be available.',
+    httpStatus: 503,
+    shouldAlert: true,
+    trackKPI: true
+  },
 
   // Organization/Plan errors
   'PLAN_LIMIT_EXCEEDED': {

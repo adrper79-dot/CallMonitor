@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
 import { AppError } from '@/types/app-error'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
-type Capabilities = Record<'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller', boolean>
+type Capabilities = Record<'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller' | 'real_time_translation_preview', boolean>
 
-const defaultCaps = (): Capabilities => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false })
+const defaultCaps = (): Capabilities => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false, real_time_translation_preview: false })
 
 export async function GET(req: Request) {
   try {
@@ -73,9 +74,14 @@ export async function GET(req: Request) {
     // base capabilities by plan
     const plan = String(org.plan ?? '').toLowerCase()
     let capabilities = defaultCaps()
-    if (plan === 'enterprise') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true }
-    else if (['pro', 'standard', 'active', 'trial'].includes(plan)) capabilities = { record: true, transcribe: true, translate: false, survey: true, synthetic_caller: false }
+    if (plan === 'enterprise') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true, real_time_translation_preview: false }
+    else if (['pro', 'standard', 'active', 'trial'].includes(plan)) capabilities = { record: true, transcribe: true, translate: false, survey: true, synthetic_caller: false, real_time_translation_preview: false }
     else capabilities = defaultCaps()
+
+    // Live translation preview requires Business plan (or enterprise) + feature flag
+    const isBusinessPlan = ['business', 'enterprise'].includes(plan)
+    const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
+    capabilities.real_time_translation_preview = isBusinessPlan && isFeatureFlagEnabled
 
     // consult voice_configs (optional; table added to ARCH_DOCS Schema)
     try {

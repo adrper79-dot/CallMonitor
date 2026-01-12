@@ -22,7 +22,7 @@ async function handlePOST(req: Request) {
     const result = await startCallHandler(
       {
         organization_id: body.organization_id || body.orgId,
-        phone_to: body.phone_to || body.to,
+        phone_number: body.phone_to || body.phone_number || body.to,
         modulations: body.modulations || {}
       },
       {

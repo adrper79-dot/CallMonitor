@@ -6,38 +6,41 @@ vi.mock('uuid', () => ({
   v4: () => 'test-uuid-123'
 }))
 
-// Mock Supabase
-const mockSupabase = {
-  from: vi.fn(() => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        limit: vi.fn(() => ({
-          data: [{
-            plan: 'global'
-          }],
-          error: null
+// Mock Supabase - define inside factory to avoid hoisting issues
+vi.mock('@/lib/supabaseAdmin', () => {
+  const mockSupabase = {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            data: [{
+              plan: 'global'
+            }],
+            error: null
           }))
         }))
       })),
-    update: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        data: null,
-        error: null
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          data: null,
+          error: null
+        }))
       }))
     }))
-  }))
-}
-
-vi.mock('@/lib/supabaseAdmin', () => ({
-  default: mockSupabase
-}))
+  }
+  return { default: mockSupabase }
+})
 
 // Mock OpenAI
 global.fetch = vi.fn()
 
 describe('Translation Service', () => {
-  beforeEach(() => {
+  let mockSupabase: any
+
+  beforeEach(async () => {
     vi.clearAllMocks()
+    // Get the mock instance
+    mockSupabase = (await import('@/lib/supabaseAdmin')).default
     process.env.OPENAI_API_KEY = 'test-key'
   })
 

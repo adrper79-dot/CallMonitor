@@ -13,6 +13,23 @@ This document describes the error handling architecture, philosophy, and impleme
 - Customer-facing messages are separated from internal/debug messages.
 - All API endpoints use a consistent error response structure.
 
+**New error codes for live translation (SignalWire AI Agents):**
+- `LIVE_TRANSLATE_EXECUTION_FAILED` (MEDIUM, EXTERNAL category)
+  - User message: "Live translation encountered an issue. Post-call transcript is still available."
+  - Category: EXTERNAL
+  - Severity: MEDIUM
+  - HTTP Status: 500
+  - Track KPI: true
+  - Should alert: false
+- `LIVE_TRANSLATE_VENDOR_DOWN` (HIGH, EXTERNAL category)
+  - User message: "Live translation service is temporarily unavailable. Post-call transcript will be available."
+  - Category: EXTERNAL
+  - Severity: HIGH
+  - HTTP Status: 503
+  - Track KPI: true
+  - Should alert: true
+  - Triggers KPI increment for vendor health monitoring
+
 ---
 
 ## 2. Error Catalog

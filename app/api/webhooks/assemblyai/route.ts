@@ -83,6 +83,7 @@ async function processWebhookAsync(req: Request) {
     const words = payload.words // Word-level timestamps
     const confidence = payload.confidence // Overall confidence score
     const audioUrl = payload.audio_url // Original audio URL
+    const languageCode = payload.language_code || payload.language_detection?.language_code // Detected language (e.g., 'en', 'es', 'fr')
 
     // eslint-disable-next-line no-console
     console.log('assemblyai webhook processing', { 
@@ -170,6 +171,7 @@ async function processWebhookAsync(req: Request) {
       words: words || [],
       confidence: confidence || null,
       transcript_id: transcriptId,
+      language_code: languageCode || null, // Store detected language
       completed_at: new Date().toISOString()
     }
 
@@ -233,7 +235,7 @@ async function processWebhookAsync(req: Request) {
 
       // Check if translation is enabled and trigger if needed
       if (organizationId) {
-        await checkAndTriggerTranslation(callId, organizationId, text)
+        await checkAndTriggerTranslation(callId, organizationId, text, languageCode)
       }
 
       // Check if survey is enabled and process if needed
@@ -270,7 +272,7 @@ async function getCallSidFromCallId(callId: string): Promise<string | null> {
 /**
  * Check if translation is enabled and trigger translation pipeline
  */
-async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string) {
+async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string, detectedLanguage?: string) {
   try {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
@@ -279,7 +281,74 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       .limit(1)
 
     const config = vcRows?.[0]
-    if (!config?.translate || !config.translate_from || !config.translate_to) {
+    if (!config?.translate) {
+      return
+    }
+
+    // Handle auto-detection: if translate_from or translate_to is 'auto', use detected language
+    let fromLanguage = config.translate_from
+    let toLanguage = config.translate_to
+
+    // For bridge calls, we need to handle bidirectional translation
+    // Check if this is a bridge call
+    const { data: callRows } = await supabaseAdmin
+      .from('calls')
+      .select('id, flow_type')
+      .eq('id', callId)
+      .limit(1)
+
+    const isBridgeCall = callRows?.[0]?.flow_type === 'bridge'
+
+    if (isBridgeCall) {
+      // For bridge calls with auto-detection, we need to:
+      // 1. Detect language from this transcript
+      // 2. Find the other leg's transcript
+      // 3. Detect its language
+      // 4. Translate between them
+      
+      if (detectedLanguage) {
+        fromLanguage = detectedLanguage
+      }
+
+      // Get all recordings for this call to find the other leg
+      const { data: recordingRows } = await supabaseAdmin
+        .from('recordings')
+        .select('id, transcript_json')
+        .eq('call_id', callId)
+
+      if (recordingRows && recordingRows.length >= 2) {
+        // Find the other leg's transcript
+        const otherLeg = recordingRows.find(r => r.transcript_json?.language_code !== detectedLanguage)
+        if (otherLeg?.transcript_json?.language_code) {
+          toLanguage = otherLeg.transcript_json.language_code
+        } else if (toLanguage === 'auto') {
+          // If we can't detect the other language yet, wait for it
+          // eslint-disable-next-line no-console
+          console.log('translation: waiting for other leg transcript to detect language', { callId })
+          return
+        }
+      } else if (toLanguage === 'auto') {
+        // Wait for both legs to complete
+        // eslint-disable-next-line no-console
+        console.log('translation: waiting for both bridge legs to complete', { callId })
+        return
+      }
+    } else {
+      // Single leg call: use detected language if auto
+      if (fromLanguage === 'auto' && detectedLanguage) {
+        fromLanguage = detectedLanguage
+      }
+      // For single leg, toLanguage should be specified (not auto)
+      if (toLanguage === 'auto') {
+        // eslint-disable-next-line no-console
+        console.warn('translation: toLanguage cannot be auto for single-leg calls', { callId })
+        return
+      }
+    }
+
+    if (!fromLanguage || !toLanguage || fromLanguage === 'auto' || toLanguage === 'auto') {
+      // eslint-disable-next-line no-console
+      console.log('translation: language detection incomplete', { callId, fromLanguage, toLanguage, detectedLanguage })
       return
     }
 
@@ -307,9 +376,11 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
         status: 'queued',
         started_at: new Date().toISOString(),
         output: {
-          from_language: config.translate_from,
-          to_language: config.translate_to,
-          source_text: transcriptText
+          from_language: fromLanguage,
+          to_language: toLanguage,
+          source_text: transcriptText,
+          detected_language: detectedLanguage,
+          bridge_call: isBridgeCall
         }
       })
 
@@ -319,8 +390,8 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       callId,
       translationRunId,
       text: transcriptText,
-      fromLanguage: config.translate_from,
-      toLanguage: config.translate_to,
+      fromLanguage: fromLanguage,
+      toLanguage: toLanguage,
       organizationId
     })
 

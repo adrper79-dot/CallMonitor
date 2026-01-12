@@ -6,41 +6,44 @@ vi.mock('uuid', () => ({
   v4: () => 'test-uuid-123'
 }))
 
-// Mock Supabase
-const mockSupabase = {
-  from: vi.fn(() => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        limit: vi.fn(() => ({
-          data: [],
+// Mock Supabase - define inside factory to avoid hoisting issues
+vi.mock('@/lib/supabaseAdmin', () => {
+  const mockSupabase = {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            data: [],
+            error: null
+          }))
+        }))
+      })),
+      insert: vi.fn(() => ({
+        data: null,
+        error: null
+      })),
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          data: null,
           error: null
         }))
       }))
-    })),
-    insert: vi.fn(() => ({
-      data: null,
-      error: null
-    })),
-    update: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        data: null,
-        error: null
-      }))
     }))
-  }))
-}
-
-vi.mock('@/lib/supabaseAdmin', () => ({
-  default: mockSupabase
-}))
+  }
+  return { default: mockSupabase }
+})
 
 describe('Scoring Service', () => {
-  beforeEach(() => {
+  let mockSupabase: any
+
+  beforeEach(async () => {
     vi.clearAllMocks()
+    // Get the mock instance
+    mockSupabase = (await import('@/lib/supabaseAdmin')).default
   })
 
   it('should score recording based on scorecard', async () => {
-    // Mock scorecard
+    // Mock scorecard lookup
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
@@ -74,7 +77,7 @@ describe('Scoring Service', () => {
       }))
     })
 
-    // Mock recording
+    // Mock recording lookup
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
@@ -86,6 +89,40 @@ describe('Scoring Service', () => {
               },
               duration_seconds: 120
             }],
+            error: null
+          }))
+        }))
+      }))
+    })
+
+    // Mock scored_recordings lookup (check if exists)
+    mockSupabase.from.mockReturnValueOnce({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              data: [],
+              error: null
+            }))
+          }))
+        }))
+      }))
+    })
+
+    // Mock scored_recordings insert
+    mockSupabase.from.mockReturnValueOnce({
+      insert: vi.fn(() => ({
+        data: null,
+        error: null
+      }))
+    })
+
+    // Mock evidence_manifests lookup (to update manifest with score)
+    mockSupabase.from.mockReturnValueOnce({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            data: [],
             error: null
           }))
         }))

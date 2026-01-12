@@ -72,7 +72,9 @@ export async function translateText(input: TranslationInput): Promise<void> {
             messages: [
               {
                 role: 'system',
-                content: `You are a professional translator. Translate the following text from ${fromLanguage} to ${toLanguage}. Only return the translated text, no explanations.`
+                content: (fromLanguage === 'auto' || toLanguage === 'auto')
+                  ? `You are a professional translator. First detect the language of the following text. Then translate it to the most appropriate target language. If the text is in English, translate to Spanish. If the text is in Spanish, translate to English. If the text is in another language, translate to English. Only return the translated text, no explanations or language labels.`
+                  : `You are a professional translator. Translate the following text from ${fromLanguage} to ${toLanguage}. Only return the translated text, no explanations.`
               },
               {
                 role: 'user',

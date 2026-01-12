@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { verifySignalWireSignature } from '@/lib/webhookSecurity'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 function parseFormUrlEncoded(body: string) {
   return Object.fromEntries(new URLSearchParams(body))
@@ -138,6 +139,59 @@ async function processWebhookAsync(req: Request) {
     const callId = call.id
     const organizationId = call.organization_id
 
+    // Detect if this call used live translation (SWML endpoint with AI agent)
+    // 
+    // IMPORTANT: This is a HEURISTIC detection, not authoritative.
+    // 
+    // Rationale for v1:
+    // - Live translation is enabled via routing logic in startCallHandler
+    // - No explicit flag is stored in the `calls` table at call initiation
+    // - We reconstruct the decision using the same logic: Business plan + feature flag + voice_configs
+    // 
+    // Limitations:
+    // - If voice_configs change between call initiation and completion, detection may be incorrect
+    // - If feature flag changes mid-call, detection may be incorrect
+    // - Cannot distinguish between SWML calls that failed vs. LaML fallback
+    // 
+    // Future Enhancement (v2):
+    // - Store explicit `use_live_translation` boolean in `calls` table at initiation
+    // - Pass flag in webhook payload metadata (if SignalWire supports custom fields)
+    // - Eliminates heuristic and provides authoritative source of truth
+    // 
+    // Accepted for v1 Preview:
+    // - Heuristic is reasonable for capability-gated preview feature
+    // - Risk is low: worst case is incorrect `has_live_translation` flag on recording
+    // - Does not impact core call functionality, recording, or canonical transcription
+    let hasLiveTranslation = false
+    try {
+      const { data: orgRows } = await supabaseAdmin
+        .from('organizations')
+        .select('plan')
+        .eq('id', organizationId)
+        .limit(1)
+
+      const plan = String(orgRows?.[0]?.plan ?? '').toLowerCase()
+      const isBusinessPlan = ['business', 'enterprise'].includes(plan)
+      const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
+
+      if (isBusinessPlan && isFeatureFlagEnabled) {
+        const { data: vcRows } = await supabaseAdmin
+          .from('voice_configs')
+          .select('translate, translate_from, translate_to')
+          .eq('organization_id', organizationId)
+          .limit(1)
+
+        const voiceConfig = vcRows?.[0]
+        if (voiceConfig?.translate === true && voiceConfig?.translate_from && voiceConfig?.translate_to) {
+          hasLiveTranslation = true
+        }
+      }
+    } catch (e) {
+      // Best-effort: if check fails, default to false
+      // eslint-disable-next-line no-console
+      console.warn('signalwire webhook: failed to check live translation', { error: e })
+    }
+
     // Handle CallStatus events
     if (eventType === 'call' || callStatus) {
       const statusMap: Record<string, string> = {
@@ -209,14 +263,22 @@ async function processWebhookAsync(req: Request) {
 
         if (existingRec) {
           // Update existing recording
+          const updateData: any = {
+            recording_url: recordingUrl,
+            duration_seconds: durationSeconds,
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          }
+
+          // Set live translation flags if this call used live translation
+          if (hasLiveTranslation) {
+            updateData.has_live_translation = true
+            updateData.live_translation_provider = 'signalwire'
+          }
+
           const { error: updateRecErr } = await supabaseAdmin
             .from('recordings')
-            .update({
-              recording_url: recordingUrl,
-              duration_seconds: durationSeconds,
-              status: 'completed',
-              updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', existingRec.id)
 
           if (updateRecErr) {
@@ -232,20 +294,28 @@ async function processWebhookAsync(req: Request) {
         } else {
           // Create new recording
           const recordingId = uuidv4()
+          const insertData: any = {
+            id: recordingId,
+            organization_id: organizationId,
+            call_sid: callSid,
+            recording_sid: recordingSid,
+            recording_url: recordingUrl,
+            duration_seconds: durationSeconds,
+            status: 'completed',
+            tool_id: orgToolId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+
+          // Set live translation flags if this call used live translation
+          if (hasLiveTranslation) {
+            insertData.has_live_translation = true
+            insertData.live_translation_provider = 'signalwire'
+          }
+
           const { error: insertRecErr } = await supabaseAdmin
             .from('recordings')
-            .insert({
-              id: recordingId,
-              organization_id: organizationId,
-              call_sid: callSid,
-              recording_sid: recordingSid,
-              recording_url: recordingUrl,
-              duration_seconds: durationSeconds,
-              status: 'completed',
-              tool_id: orgToolId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
+            .insert(insertData)
 
           if (insertRecErr) {
             // eslint-disable-next-line no-console

@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
 import { useRBAC, usePermission } from '@/hooks/useRBAC'
 import { planSupportsFeature } from '@/lib/rbac'
 import { Select } from '@/components/ui/select'
@@ -27,9 +28,52 @@ const TOGGLES: { key: ModKey; label: string; desc: string; feature: string; plan
   { key: 'synthetic_caller', label: 'Secret Shopper', desc: 'Use secret shopper script', feature: 'secret_shopper', plan: 'Insights+' }
 ]
 
+/**
+ * Hook to fetch call capabilities
+ */
+function useCallCapabilities(organizationId: string | null) {
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!organizationId) {
+      setCapabilities({})
+      setLoading(false)
+      return
+    }
+
+    let mounted = true
+    setLoading(true)
+
+    fetch(`/api/call-capabilities?orgId=${encodeURIComponent(organizationId)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!mounted) return
+        if (json.success && json.capabilities) {
+          setCapabilities(json.capabilities)
+        } else {
+          setCapabilities({})
+        }
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!mounted) return
+        setCapabilities({})
+        setLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [organizationId])
+
+  return { capabilities, loading }
+}
+
 export default function CallModulations({ callId, organizationId, initialModulations, onChange }: CallModulationsProps) {
   const { role, plan, loading: rbacLoading } = useRBAC(organizationId)
   const { config, updateConfig } = useVoiceConfig(organizationId)
+  const { capabilities, loading: capabilitiesLoading } = useCallCapabilities(organizationId)
   const [mods, setMods] = useState<Record<ModKey, boolean>>(() => ({ ...initialModulations }))
   const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }))
   const [error, setError] = useState<string | null>(null)
@@ -106,21 +150,44 @@ export default function CallModulations({ callId, organizationId, initialModulat
         {TOGGLES.map(t => {
           const { disabled, reason } = getToggleDisabled(t.key, t.feature)
           const checked = mods[t.key]
+          const hasLiveTranslationPreview = t.key === 'translate' && capabilities.real_time_translation_preview === true
+          const displayLabel = hasLiveTranslationPreview ? 'Live Translation' : t.label
+          const displayDesc = hasLiveTranslationPreview 
+            ? 'Real-time voice translation (post-call transcripts are authoritative)'
+            : t.desc
           
           return (
             <div key={t.key} className="flex items-center justify-between p-3 rounded-md bg-slate-800 hover:bg-slate-700">
               <div className="flex flex-col flex-1">
                 <div className="flex items-center gap-2">
                   <Label htmlFor={`mod-${t.key}`} className="text-sm text-slate-100">
-                    {t.label}
+                    {displayLabel}
                   </Label>
-                  {disabled && reason && (
-                    <Tooltip content={reason}>
-                      <span className="text-xs text-amber-400" aria-label={reason}>⚠</span>
-                    </Tooltip>
+                  {hasLiveTranslationPreview && (
+                    <Badge variant="default" className="text-xs bg-blue-600 text-white">
+                      Preview
+                    </Badge>
+                  )}
+                  {hasLiveTranslationPreview && (
+                    <span 
+                      className="text-xs text-blue-400 cursor-help" 
+                      aria-label="Live translation info"
+                      title="Live translation is immediate. Post-call transcripts are authoritative."
+                    >
+                      ℹ️
+                    </span>
+                  )}
+                  {disabled && reason && !hasLiveTranslationPreview && (
+                    <span 
+                      className="text-xs text-amber-400" 
+                      aria-label={reason}
+                      title={reason}
+                    >
+                      ⚠
+                    </span>
                   )}
                 </div>
-                <span className="text-xs text-slate-400">{t.desc}</span>
+                <span className="text-xs text-slate-400">{displayDesc}</span>
                 
                 {/* Additional config for specific modulations */}
                 {checked && t.key === 'translate' && (

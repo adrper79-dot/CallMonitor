@@ -72,6 +72,12 @@ const ENV_VARS: EnvVar[] = [
     required: false,
     description: 'OpenAI API key for translation (optional)',
     validate: (v) => v.length > 0 || 'Must not be empty if provided'
+  },
+  {
+    name: 'TRANSLATION_LIVE_ASSIST_PREVIEW',
+    required: false,
+    description: 'Enable live translation preview feature (SignalWire AI Agents)',
+    validate: (v) => v === 'true' || v === 'false' || 'Must be "true" or "false"'
   }
 ]
 
@@ -145,4 +151,11 @@ export function validateEnvVarsOrThrow(): void {
     // eslint-disable-next-line no-console
     console.warn(`Environment variable warnings:\n${warningMessages}`)
   }
+}
+
+/**
+ * Check if live translation preview feature is enabled
+ */
+export function isLiveTranslationPreviewEnabled(): boolean {
+  return process.env.TRANSLATION_LIVE_ASSIST_PREVIEW === 'true'
 }

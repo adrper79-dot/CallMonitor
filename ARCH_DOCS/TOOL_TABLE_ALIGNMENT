@@ -36,9 +36,9 @@
     "DELETE": ["id"]
   },
   "recordings": {
-    "GET": ["id", "organization_id", "call_sid", "recording_sid", "recording_url", "duration_seconds", "transcript_json", "status", "created_at", "updated_at", "source", "ai_metadata"],
+    "GET": ["id", "organization_id", "call_sid", "recording_sid", "recording_url", "duration_seconds", "transcript_json", "status", "created_at", "updated_at", "source", "ai_metadata", "has_live_translation", "live_translation_provider"],
     "POST": ["organization_id", "call_sid", "recording_url", "duration_seconds", "source", "ai_metadata"],
-    "PUT": ["status", "transcript_json", "ai_metadata"],
+    "PUT": ["status", "transcript_json", "ai_metadata", "has_live_translation", "live_translation_provider"],
     "DELETE": ["id"]
   },
   "scorecards": {

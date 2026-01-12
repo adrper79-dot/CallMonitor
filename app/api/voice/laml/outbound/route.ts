@@ -24,6 +24,18 @@ function parseFormEncoded(text: string) {
  * Per MEDIA_PLANE_ARCHITECTURE.txt: SignalWire handles all media via LaML
  */
 export async function POST(req: Request) {
+  // Check URL query parameters first (for bridge calls with conference)
+  const url = new URL(req.url)
+  const callId = url.searchParams.get('callId')
+  const conference = url.searchParams.get('conference')
+  const leg = url.searchParams.get('leg') // '1' or '2' for bridge calls
+
+  // If this is a bridge call with a conference, generate conference LaML
+  if (conference && callId) {
+    const xml = await generateBridgeLaML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
+    return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+  }
+
   const ct = String(req.headers.get('content-type') || '')
   let payload: any = {}
   try {
@@ -207,6 +219,52 @@ ${elements.map(el => `  ${el}`).join('\n')}
 }
 
 /**
+ * Generate LaML for bridge call with conference
+ */
+async function generateBridgeLaML(conferenceName: string, callId: string, leg?: number): Promise<string> {
+  // Get voice_configs for this call to check recording settings
+  const { data: callRows } = await supabaseAdmin
+    .from('calls')
+    .select('organization_id')
+    .eq('id', callId)
+    .limit(1)
+
+  const organizationId = callRows?.[0]?.organization_id
+  let recordEnabled = false
+
+  if (organizationId) {
+    const { data: vcRows } = await supabaseAdmin
+      .from('voice_configs')
+      .select('record')
+      .eq('organization_id', organizationId)
+      .limit(1)
+
+    recordEnabled = vcRows?.[0]?.record === true
+  }
+
+  const elements: string[] = []
+  
+  // Record the conference if enabled
+  if (recordEnabled) {
+    const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+    elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
+  } else {
+    elements.push('<Dial>')
+  }
+  
+  // Join conference room
+  elements.push(`<Conference>${escapeXml(conferenceName)}</Conference>`)
+  elements.push('</Dial>')
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+${elements.map(el => `  ${el}`).join('\n')}
+</Response>`
+
+  return xml
+}
+
+/**
  * Escape XML special characters
  */
 function escapeXml(text: string): string {
@@ -218,6 +276,8 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;')
 }
 
-export async function GET() {
-  return NextResponse.json({ ok: true, route: '/api/voice/laml/outbound' })
+export async function GET(req: Request) {
+  // For GET requests, return route info (useful for testing)
+  // For actual LaML generation, use POST
+  return NextResponse.json({ ok: true, route: '/api/voice/laml/outbound', method: 'Use POST for LaML generation' })
 }
