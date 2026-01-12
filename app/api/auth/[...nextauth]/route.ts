@@ -104,10 +104,20 @@ providers.push(CredentialsProvider({
       return null
     }
 
+    // For password-based auth, use the ANON key, not service role key
+    // Service role key bypasses RLS and is for admin operations only
+    // Password auth needs anon key to work with Supabase Auth's user sessions
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!anonKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY not configured for password login')
+
     const endpoint = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+      headers: { 
+        'Content-Type': 'application/json', 
+        'apikey': anonKey,  // Use anon key for password auth
+        'Authorization': `Bearer ${anonKey}`  // Also in Authorization header
+      },
       body: JSON.stringify({ email: emailToUse, password: credentials.password })
     })
     if (!res.ok) {
