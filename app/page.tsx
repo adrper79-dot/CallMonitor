@@ -1,27 +1,65 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '../components/ui/button'
 import { toast } from '../components/ui/use-toast'
 import Link from 'next/link'
 import BulkCallUpload from '../components/BulkCallUpload'
+import { useSession } from 'next-auth/react'
 
 export default function Home() {
+  const { data: session } = useSession()
   const [phone, setPhone] = useState('')
   const [from, setFrom] = useState('')
   const [record, setRecord] = useState(true)
   const [transcribe, setTranscribe] = useState(true)
   const [loading, setLoading] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
+
+  // Fetch user's organization from their profile
+  useEffect(() => {
+    async function fetchOrganization() {
+      if (!session?.user?.id) return
+      
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/organization`)
+        if (res.ok) {
+          const data = await res.json()
+          setOrganizationId(data.organization_id)
+        }
+      } catch (err) {
+        console.error('Failed to fetch organization:', err)
+      }
+    }
+    
+    fetchOrganization()
+  }, [session?.user?.id])
 
   async function startCall(e: React.FormEvent) {
     e.preventDefault()
+    
+    if (!organizationId) {
+      toast({ 
+        title: 'Error', 
+        description: 'No organization found. Please contact support.', 
+        variant: 'destructive' 
+      })
+      return
+    }
+    
     setLoading(true)
     try {
       const res = await fetch('/api/calls/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organization_id: '00000000-0000-0000-0000-000000000000', from_number: from || undefined, phone_number: phone, flow_type: from ? 'bridge' : 'outbound', modulations: { record, transcribe } })
+        body: JSON.stringify({ 
+          organization_id: organizationId, 
+          from_number: from || undefined, 
+          phone_number: phone, 
+          flow_type: from ? 'bridge' : 'outbound', 
+          modulations: { record, transcribe } 
+        })
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error?.message || 'Failed')
@@ -54,7 +92,7 @@ export default function Home() {
           </div>
 
           {showBulkUpload ? (
-            <BulkCallUpload organizationId="00000000-0000-0000-0000-000000000000" />
+            <BulkCallUpload organizationId={organizationId || ''} />
           ) : (
             <form onSubmit={startCall} className="space-y-3">
               <div>
