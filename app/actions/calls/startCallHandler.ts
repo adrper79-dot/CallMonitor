@@ -69,12 +69,29 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
 
     if (!(swProject && swToken && swSpace && swNumber)) {
+      // Build detailed error message showing what's missing
+      const missing = []
+      if (!swProject) missing.push('SIGNALWIRE_PROJECT_ID')
+      if (!swToken) missing.push('SIGNALWIRE_TOKEN')
+      if (!swSpace) missing.push('SIGNALWIRE_SPACE')
+      if (!swNumber) missing.push('SIGNALWIRE_NUMBER')
+      
       if (env.NODE_ENV === 'production') {
-        const e = new AppError({ code: 'SIGNALWIRE_CONFIG_MISSING', message: 'SignalWire credentials missing', user_message: 'System configuration error', severity: 'CRITICAL', retriable: false })
+        const e = new AppError({ 
+          code: 'SIGNALWIRE_CONFIG_MISSING', 
+          message: `SignalWire credentials missing: ${missing.join(', ')}`, 
+          user_message: 'System configuration error - please contact support', 
+          severity: 'CRITICAL', 
+          retriable: false 
+        })
         await writeAuditError('systems', null, e.toJSON())
+        // eslint-disable-next-line no-console
+        console.error('❌ CRITICAL: SignalWire config missing:', missing.join(', '))
         throw e
       }
       // mock SID in non-production
+      // eslint-disable-next-line no-console
+      console.warn('⚠️ SignalWire config incomplete (using mock):', missing.join(', '))
       return `mock-${uuidv4()}`
     }
 
