@@ -214,67 +214,65 @@ export default function Home() {
                   </label>
                 </div>
 
-                {/* Translation Toggle */}
-                {capabilities.real_time_translation_preview && (
-                  <div className="p-3 bg-slate-800 rounded border border-slate-700">
-                    <div className="flex items-center gap-2 mb-2">
-                      <label className="flex items-center gap-2">
-                        <input 
-                          type="checkbox" 
-                          checked={translate} 
-                          onChange={(e) => handleTranslateToggle(e.target.checked)} 
-                        /> 
-                        Live Translation
-                      </label>
-                      <Badge className="text-xs bg-blue-600 text-white">Preview</Badge>
-                      <span 
-                        className="text-xs text-blue-400 cursor-help" 
-                        title="Real-time voice translation. Post-call transcripts are authoritative."
-                      >
-                        ℹ️
-                      </span>
-                    </div>
-                    
-                    {translate && (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div>
-                          <label className="block text-xs text-slate-400 mb-1">From Language</label>
-                          <select 
-                            value={translateFrom} 
-                            onChange={(e) => handleTranslateFromChange(e.target.value)}
-                            className="w-full p-2 rounded bg-slate-700 text-white text-sm"
-                          >
-                            <option value="en">English</option>
-                            <option value="es">Spanish</option>
-                            <option value="fr">French</option>
-                            <option value="de">German</option>
-                            <option value="it">Italian</option>
-                            <option value="pt">Portuguese</option>
-                            <option value="zh">Chinese</option>
-                            <option value="ja">Japanese</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs text-slate-400 mb-1">To Language</label>
-                          <select 
-                            value={translateTo} 
-                            onChange={(e) => handleTranslateToChange(e.target.value)}
-                            className="w-full p-2 rounded bg-slate-700 text-white text-sm"
-                          >
-                            <option value="en">English</option>
-                            <option value="es">Spanish</option>
-                            <option value="fr">French</option>
-                            <option value="de">German</option>
-                            <option value="it">Italian</option>
-                            <option value="pt">Portuguese</option>
-                            <option value="zh">Chinese</option>
-                            <option value="ja">Japanese</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
+                {/* Translation Toggle - TESTING MODE (capability gating disabled) */}
+                <div className="p-3 bg-slate-800 rounded border border-slate-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        checked={translate} 
+                        onChange={(e) => handleTranslateToggle(e.target.checked)} 
+                      /> 
+                      Live Translation
+                    </label>
+                    <Badge className="text-xs bg-blue-600 text-white">Preview</Badge>
+                    <span 
+                      className="text-xs text-blue-400 cursor-help" 
+                      title="Real-time voice translation. Post-call transcripts are authoritative."
+                    >
+                      ℹ️
+                    </span>
                   </div>
-                )}
+                  
+                  {translate && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">From Language</label>
+                        <select 
+                          value={translateFrom} 
+                          onChange={(e) => handleTranslateFromChange(e.target.value)}
+                          className="w-full p-2 rounded bg-slate-700 text-white text-sm"
+                        >
+                          <option value="en">English</option>
+                          <option value="es">Spanish</option>
+                          <option value="fr">French</option>
+                          <option value="de">German</option>
+                          <option value="it">Italian</option>
+                          <option value="pt">Portuguese</option>
+                          <option value="zh">Chinese</option>
+                          <option value="ja">Japanese</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-1">To Language</label>
+                        <select 
+                          value={translateTo} 
+                          onChange={(e) => handleTranslateToChange(e.target.value)}
+                          className="w-full p-2 rounded bg-slate-700 text-white text-sm"
+                        >
+                          <option value="en">English</option>
+                          <option value="es">Spanish</option>
+                          <option value="fr">French</option>
+                          <option value="de">German</option>
+                          <option value="it">Italian</option>
+                          <option value="pt">Portuguese</option>
+                          <option value="zh">Chinese</option>
+                          <option value="ja">Japanese</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
