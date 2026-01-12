@@ -196,13 +196,10 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   // Just record the call (already connected to destination)
   if (recordingEnabled) {
     elements.push(`<Record action="${recordingAction}" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed" maxLength="3600"/>`)
-  } else {
-    // No recording - just a simple call with optional Say elements
-    if (elements.length === 0) {
-      // If no other elements (say/pause), add a simple message
-      elements.push('<Say voice="alice">This is a test call.</Say>')
-    }
   }
+  
+  // Note: If no recording and no other elements (Say/Pause), we return an empty <Response>
+  // This keeps the call connected without any actions - just a normal phone call
 
   // If recording was enabled but not via Dial, add Record verb
   if (recordingEnabled && !toNumber) {
