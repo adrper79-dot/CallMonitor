@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import startCall from '../../../actions/calls/startCall'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '../../auth/[...nextauth]/route'
 
 function isE164(n: string) {
   return /^\+?[1-9]\d{1,14}$/.test(n)
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     // Get actor_id from session
-    const session = await getServerSession().catch(() => null)
+    const session = await getServerSession(authOptions as any).catch(() => null)
     const actorId = session?.user?.id ?? null
 
     // In non-production, use a fallback actor for testing

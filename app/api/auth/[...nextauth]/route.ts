@@ -165,7 +165,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   }))
 }
 
-const authOptions = {
+export const authOptions = {
   ...(adapter ? { adapter } : {}),
   providers,
   secret: process.env.NEXTAUTH_SECRET,
