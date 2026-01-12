@@ -61,7 +61,7 @@ async function run() {
     modulations: { record: true, transcribe: true, translate: true }
   }
 
-  const res = await startCallHandler(input as any, { supabaseAdmin: mockSupabase as any, getSession: mockGetSession as any, signalwireCall: mockSignalwireCall as any, env: { SIGNALWIRE_NUMBER: '+15551234567', NEXT_PUBLIC_APP_URL: 'https://example.test' } })
+  const res = await startCallHandler(input as any, { supabaseAdmin: mockSupabase as any, signalwireCall: mockSignalwireCall as any, env: { SIGNALWIRE_NUMBER: '+15551234567', NEXT_PUBLIC_APP_URL: 'https://example.test' } })
   console.log('startCallHandler result:', res)
 }
 

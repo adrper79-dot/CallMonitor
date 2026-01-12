@@ -3,6 +3,7 @@ import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
+import { isApiError } from '@/types/api'
 
 /**
  * Voice Call API
@@ -26,18 +27,17 @@ async function handlePOST(req: Request) {
         modulations: body.modulations || {}
       },
       {
-        supabaseAdmin: (await import('@/lib/supabaseAdmin')).default,
-        getServerSession: (await import('next-auth/next')).getServerSession
+        supabaseAdmin: (await import('@/lib/supabaseAdmin')).default
       }
     )
 
     if (result.success) {
       return NextResponse.json(result)
     } else {
-      const error = result.error || { code: 'CALL_START_FAILED', message: 'Failed to start call', severity: 'HIGH' }
+      const error = isApiError(result) ? result.error : { code: 'CALL_START_FAILED', message: 'Failed to start call', severity: 'HIGH' as const }
       return NextResponse.json(
         { success: false, error },
-        { status: error.httpStatus || 500 }
+        { status: (error as any).httpStatus || 500 }
       )
     }
   } catch (err: any) {

@@ -64,7 +64,7 @@ async function main() {
   // import application handler only after confirmation and required envs are present
   const { default: startCallHandler } = await import('../app/actions/calls/startCallHandler')
 
-  const res = await startCallHandler(input as any, { supabaseAdmin: supabase as any, getSession: async () => ({ user: { id: process.env.TEST_ACTOR_ID ?? null } }), signalwireCall: signalwireCall as any, env: process.env })
+  const res = await startCallHandler(input as any, { supabaseAdmin: supabase as any, signalwireCall: signalwireCall as any, env: process.env })
   console.log('prod startCall result:', res)
 }
 

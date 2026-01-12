@@ -32,7 +32,7 @@ async function run() {
   }
 
   try {
-    const res = await startCallHandler(input as any, { supabaseAdmin: mockSupabase as any, getSession: mockGetSession as any, env: { SIGNALWIRE_NUMBER: '+15550001111', NEXT_PUBLIC_APP_URL: 'https://example.test' } })
+    const res = await startCallHandler(input as any, { supabaseAdmin: mockSupabase as any, env: { SIGNALWIRE_NUMBER: '+15550001111', NEXT_PUBLIC_APP_URL: 'https://example.test' } })
     console.log('handler response', res)
     console.log('aiRunInserted:', aiRunInserted)
     if (aiRunInserted) process.exit(2)

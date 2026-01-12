@@ -66,7 +66,6 @@ async function main() {
       },
       {
         supabaseAdmin: supabase as any,
-        getSession: async () => ({ user: { id: userId } }),
         env: process.env
       }
     )

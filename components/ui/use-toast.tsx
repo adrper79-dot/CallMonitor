@@ -4,4 +4,9 @@ export function toast({ title, description, variant }: { title?: string; descrip
   console.log('TOAST', { title, description, variant })
 }
 
+// Named export for compatibility
+export function useToast() {
+  return { toast }
+}
+
 export default toast

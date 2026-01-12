@@ -22,7 +22,6 @@ export type StartCallInput = {
 
 export type StartCallDeps = {
   supabaseAdmin: any
-  getSession: () => Promise<any>
   signalwireCall?: (params: { from: string; to: string; url: string; statusCallback: string }) => Promise<{ call_sid: string }>
   env?: Record<string, string | undefined>
 }
@@ -32,7 +31,7 @@ type ApiResponseError = { success: false; error: any }
 type ApiResponse = ApiResponseSuccess | ApiResponseError
 
 export default async function startCallHandler(input: StartCallInput, deps: StartCallDeps): Promise<ApiResponse> {
-  const { supabaseAdmin, getSession, signalwireCall, env = process.env } = deps
+  const { supabaseAdmin, signalwireCall, env = process.env } = deps
   let capturedActorId: string | null = null
   let capturedSystemCpidId: string | null = null
   let callId: string | null = null
@@ -331,7 +330,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       const plan = String(org.plan ?? '').toLowerCase()
       const isBusinessPlan = ['business', 'enterprise'].includes(plan)
       const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
-      const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && effectiveModulations.translate_from && effectiveModulations.translate_to
+      const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && !!effectiveModulations.translate_from && !!effectiveModulations.translate_to
       
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
         // Bridge calls don't support live translation (complexity)

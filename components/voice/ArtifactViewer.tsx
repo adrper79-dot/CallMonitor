@@ -57,32 +57,32 @@ export default function ArtifactViewer({
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="w-full border-b border-slate-800">
           {hasRecording && (
-            <TabsTrigger value="recording" id="artifact-recording">
+            <TabsTrigger value="recording">
               Recording
             </TabsTrigger>
           )}
           {hasTranscript && (
-            <TabsTrigger value="transcript" id="artifact-transcript">
+            <TabsTrigger value="transcript">
               Transcript
             </TabsTrigger>
           )}
           {hasTranslation && (
-            <TabsTrigger value="translation" id="artifact-translation">
+            <TabsTrigger value="translation">
               Translation
             </TabsTrigger>
           )}
           {hasSurvey && (
-            <TabsTrigger value="survey" id="artifact-survey">
+            <TabsTrigger value="survey">
               Survey
             </TabsTrigger>
           )}
           {hasManifest && (
-            <TabsTrigger value="manifest" id="artifact-manifest">
+            <TabsTrigger value="manifest">
               Manifest
             </TabsTrigger>
           )}
           {hasScore && (
-            <TabsTrigger value="score" id="artifact-score">
+            <TabsTrigger value="score">
               Score
             </TabsTrigger>
           )}

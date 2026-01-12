@@ -62,7 +62,7 @@ async function main() {
     modulations: { record: true, transcribe: true, translate: true }
   }
 
-  const res = await startCallHandler(input as any, { supabaseAdmin: supabase as any, getSession: async () => ({ user: { id: process.env.TEST_ACTOR_ID ?? null } }), signalwireCall: signalwireCall as any, env: process.env })
+  const res = await startCallHandler(input as any, { supabaseAdmin: supabase as any, signalwireCall: signalwireCall as any, env: process.env })
   console.log('prod startCall result:', res)
 }
 

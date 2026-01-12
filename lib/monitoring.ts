@@ -31,7 +31,7 @@ export function captureError(error: TrackedError | Error, context?: Record<strin
   const logData = {
     errorId: 'id' in error ? error.id : undefined,
     code: 'code' in error ? error.code : undefined,
-    message: error.message,
+    message: 'message' in error ? error.message : String(error),
     severity: 'severity' in error ? error.severity : 'MEDIUM',
     context
   }
