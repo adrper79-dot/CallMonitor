@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import startCall from '../../../actions/calls/startCall'
+import { getServerSession } from 'next-auth/next'
 
 function isE164(n: string) {
   return /^\+?[1-9]\d{1,14}$/.test(n)
@@ -50,8 +51,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: { id: 'invalid_phone', code: 'INVALID_PHONE', message: 'phone_number must be E.164', severity: 'MEDIUM' } })
     }
 
+    // Get actor_id from session
+    const session = await getServerSession().catch(() => null)
+    const actorId = session?.user?.id ?? null
+
+    // In non-production, use a fallback actor for testing
+    const effectiveActorId = actorId || (process.env.NODE_ENV !== 'production' ? '28d68e05-ab20-40ee-b935-b19e8927ae68' : null)
+
     // Delegate to server action which performs DB/audit and SignalWire call
-    const result = await startCall({ organization_id, phone_number, modulations })
+    const result = await startCall({ 
+      organization_id, 
+      phone_number, 
+      modulations,
+      actor_id: effectiveActorId 
+    } as any)
     return NextResponse.json(result)
   } catch (err: any) {
     return NextResponse.json({ success: false, error: { id: 'route_error', code: 'ROUTE_ERROR', message: String(err?.message ?? err), severity: 'HIGH' } })
