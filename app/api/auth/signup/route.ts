@@ -111,6 +111,7 @@ export async function POST(req: Request) {
       if (orgs && orgs.length > 0) {
         // Use existing organization
         orgId = orgs[0].id
+        console.log(`Signup: using existing organization ${orgId} for ${email}`)
       } else {
         // Create new organization for this user
         const { data: newOrg, error: orgError } = await supabase
@@ -126,44 +127,92 @@ export async function POST(req: Request) {
         
         if (orgError) {
           console.error('Failed to create organization:', orgError)
-          // Continue without org - we'll handle this gracefully
-        } else {
-          orgId = newOrg.id
+          return NextResponse.json(
+            { success: false, error: { code: 'ORG_CREATION_FAILED', message: 'Failed to create organization. Please try again.' } },
+            { status: 500 }
+          )
+        }
+        
+        orgId = newOrg.id
+        console.log(`Signup: created organization ${orgId} for ${email}`)
+        
+        // Create default tool for this organization
+        const { data: tool, error: toolError } = await supabase
+          .from('tools')
+          .insert({
+            name: `${name || email}'s Recording Tool`,
+            type: 'recording',
+            organization_id: orgId,
+            created_by: data.id
+          })
+          .select('id')
+          .single()
+        
+        if (toolError) {
+          console.error('Failed to create tool:', toolError)
+          // Continue without tool - organization will still work but recording might fail
+        } else if (tool) {
+          // Link tool to organization
+          const { error: updateError } = await supabase
+            .from('organizations')
+            .update({ tool_id: tool.id })
+            .eq('id', orgId)
+          
+          if (updateError) {
+            console.error('Failed to link tool to organization:', updateError)
+          } else {
+            console.log(`Signup: created and linked tool ${tool.id} to organization ${orgId}`)
+          }
         }
       }
       
-      // Create user in public.users
-      if (orgId) {
-        const { error: userError } = await supabase
-          .from('users')
-          .insert({
-            id: data.id,
-            email: data.email,
-            organization_id: orgId,
-            role: 'member',
-            is_admin: false
-          })
-        
-        if (userError) {
-          console.error('Failed to create user in public.users:', userError)
-        }
-        
-        // Create org membership (first user becomes owner, others are members)
-        const isFirstUser = !orgs || orgs.length === 0
-        const { error: memberError } = await supabase
-          .from('org_members')
-          .insert({
-            organization_id: orgId,
-            user_id: data.id,
-            role: isFirstUser ? 'owner' : 'member'
-          })
-        
-        if (memberError) {
-          console.error('Failed to create org membership:', memberError)
-        } else {
-          console.log(`Created org_members record for ${email} as ${isFirstUser ? 'owner' : 'member'}`)
-        }
+      // CRITICAL: Always create user in public.users (orgId is now guaranteed to exist)
+      if (!orgId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'ORG_REQUIRED', message: 'Organization is required but missing' } },
+          { status: 500 }
+        )
       }
+      
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: data.id,
+          email: data.email,
+          organization_id: orgId,
+          role: 'member',
+          is_admin: false
+        })
+      
+      if (userError) {
+        console.error('Failed to create user in public.users:', userError)
+        return NextResponse.json(
+          { success: false, error: { code: 'USER_CREATION_FAILED', message: 'Failed to create user record' } },
+          { status: 500 }
+        )
+      }
+      
+      console.log(`Signup: created user ${data.id} in public.users with organization ${orgId}`)
+      
+      // Create org membership (first user becomes owner, others are members)
+      const isFirstUser = !orgs || orgs.length === 0
+      const { error: memberError } = await supabase
+        .from('org_members')
+        .insert({
+          organization_id: orgId,
+          user_id: data.id,
+          role: isFirstUser ? 'owner' : 'member'
+        })
+      
+      if (memberError) {
+        console.error('Failed to create org membership:', memberError)
+        return NextResponse.json(
+          { success: false, error: { code: 'MEMBER_CREATION_FAILED', message: 'Failed to create organization membership' } },
+          { status: 500 }
+        )
+      }
+      
+      console.log(`Signup: created org_members record for ${email} as ${isFirstUser ? 'owner' : 'member'}`)
     }
 
     return NextResponse.json({

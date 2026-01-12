@@ -206,14 +206,15 @@ export const authOptions = {
                 // Get most recent organization or create one
                 const { data: orgs } = await supabase
                   .from('organizations')
-                  .select('id')
+                  .select('id, tool_id')
                   .order('created_at', { ascending: false })
                   .limit(1)
                 
                 if (orgs && orgs.length > 0) {
                   orgId = orgs[0].id
+                  console.log('Session callback: using existing organization', orgId, 'for', session.user.email)
                 } else {
-                  const { data: newOrg } = await supabase
+                  const { data: newOrg, error: orgError } = await supabase
                     .from('organizations')
                     .insert({
                       name: `${session.user.email}'s Organization`,
@@ -224,38 +225,77 @@ export const authOptions = {
                     .select('id')
                     .single()
                   
-                  if (newOrg) orgId = newOrg.id
+                  if (orgError) {
+                    console.error('Session callback: failed to create organization:', orgError.message)
+                    throw new Error('Failed to create organization')
+                  }
+                  
+                  orgId = newOrg.id
+                  console.log('Session callback: created organization', orgId, 'for', session.user.email)
+                  
+                  // Create default tool for this organization
+                  const { data: tool, error: toolError } = await supabase
+                    .from('tools')
+                    .insert({
+                      name: `${session.user.email}'s Recording Tool`,
+                      type: 'recording',
+                      organization_id: orgId,
+                      created_by: token.id
+                    })
+                    .select('id')
+                    .single()
+                  
+                  if (toolError) {
+                    console.error('Session callback: failed to create tool:', toolError.message)
+                  } else if (tool) {
+                    // Link tool to organization
+                    const { error: updateError } = await supabase
+                      .from('organizations')
+                      .update({ tool_id: tool.id })
+                      .eq('id', orgId)
+                    
+                    if (updateError) {
+                      console.error('Session callback: failed to link tool to organization:', updateError.message)
+                    } else {
+                      console.log('Session callback: created and linked tool', tool.id, 'to organization', orgId)
+                    }
+                  }
                 }
                 
-                if (orgId) {
-                  // Create user record
-                  const { error: userInsertErr } = await supabase.from('users').insert({
-                    id: token.id,
-                    email: session.user.email,
-                    organization_id: orgId,
-                    role: 'member',
-                    is_admin: false
-                  })
-                  
-                  if (userInsertErr) {
-                    console.error('Session callback: failed to create user:', userInsertErr.message)
-                  } else {
-                    console.log('Session callback: created user record for', session.user.email)
-                  }
-                  
-                  // Create org membership
-                  const { error: memberInsertErr } = await supabase.from('org_members').insert({
-                    organization_id: orgId,
-                    user_id: token.id,
-                    role: 'member'
-                  })
-                  
-                  if (memberInsertErr) {
-                    console.error('Session callback: failed to create org membership:', memberInsertErr.message)
-                  } else {
-                    console.log('Session callback: created org_members record for', session.user.email)
-                  }
+                // CRITICAL: orgId must exist at this point
+                if (!orgId) {
+                  throw new Error('Organization is required but missing')
                 }
+                
+                // Create user record
+                const { error: userInsertErr } = await supabase.from('users').insert({
+                  id: token.id,
+                  email: session.user.email,
+                  organization_id: orgId,
+                  role: 'member',
+                  is_admin: false
+                })
+                
+                if (userInsertErr) {
+                  console.error('Session callback: failed to create user:', userInsertErr.message)
+                  throw new Error('Failed to create user record')
+                }
+                
+                console.log('Session callback: created user record for', session.user.email)
+                
+                // Create org membership
+                const { error: memberInsertErr } = await supabase.from('org_members').insert({
+                  organization_id: orgId,
+                  user_id: token.id,
+                  role: 'member'
+                })
+                
+                if (memberInsertErr) {
+                  console.error('Session callback: failed to create org membership:', memberInsertErr.message)
+                  throw new Error('Failed to create organization membership')
+                }
+                
+                console.log('Session callback: created org_members record for', session.user.email)
               }
             }
           } catch (err) {
