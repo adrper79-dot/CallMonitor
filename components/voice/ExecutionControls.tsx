@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRBAC, usePermission } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { useRealtime } from '@/hooks/useRealtime'
@@ -24,6 +24,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   const [activeCallId, setActiveCallId] = useState<string | null>(null)
   const [callStatus, setCallStatus] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
+  const isPlacingCallRef = useRef(false)
 
   // Monitor real-time updates for active call
   useEffect(() => {
@@ -54,6 +55,12 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   }, [activeCallId, callStatus])
 
   async function handlePlaceCall() {
+    // Prevent double submission (race condition protection)
+    if (isPlacingCallRef.current) {
+      console.warn('handlePlaceCall: already placing call, ignoring duplicate click')
+      return
+    }
+    
     if (!organizationId || !canPlaceCall || !config?.target_id) {
       toast({
         title: 'Error',
@@ -64,6 +71,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
     }
 
     try {
+      isPlacingCallRef.current = true
       setPlacing(true)
       setCallStatus('initiating')
       
@@ -110,6 +118,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       })
     } finally {
       setPlacing(false)
+      isPlacingCallRef.current = false
     }
   }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '../components/ui/button'
 import { toast } from '../components/ui/use-toast'
 import Link from 'next/link'
@@ -16,6 +16,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const isSubmittingRef = useRef(false)
 
   // Fetch user's organization from their profile
   useEffect(() => {
@@ -55,6 +56,12 @@ export default function Home() {
   async function startCall(e: React.FormEvent) {
     e.preventDefault()
     
+    // Prevent double submission (race condition protection)
+    if (isSubmittingRef.current) {
+      console.warn('startCall: already submitting, ignoring duplicate click')
+      return
+    }
+    
     if (!organizationId) {
       toast({ 
         title: 'Error', 
@@ -64,6 +71,7 @@ export default function Home() {
       return
     }
     
+    isSubmittingRef.current = true
     setLoading(true)
     try {
       const res = await fetch('/api/calls/start', {
@@ -85,6 +93,7 @@ export default function Home() {
       toast({ title: 'Error', description: String(err?.message ?? err), variant: 'destructive' })
     } finally {
       setLoading(false)
+      isSubmittingRef.current = false
     }
   }
 

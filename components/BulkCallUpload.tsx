@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Button } from './ui/button'
 
 interface BulkUploadResult {
@@ -21,6 +21,7 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<BulkUploadResult[]>([])
   const [summary, setSummary] = useState<{ total: number; successful: number; failed: number } | null>(null)
+  const isUploadingRef = useRef(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -50,7 +51,14 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
 
   const handleUpload = async () => {
     if (!file) return
+    
+    // Prevent double submission (race condition protection)
+    if (isUploadingRef.current) {
+      console.warn('handleUpload: already uploading, ignoring duplicate click')
+      return
+    }
 
+    isUploadingRef.current = true
     setUploading(true)
     setResults([])
     setSummary(null)
@@ -82,6 +90,7 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
       alert('Upload failed')
     } finally {
       setUploading(false)
+      isUploadingRef.current = false
     }
   }
 
