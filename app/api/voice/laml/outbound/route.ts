@@ -176,40 +176,40 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   const recordingAction = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
   const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
 
-  // Survey prompts (if survey enabled)
+  // Main call flow for standard outbound calls
+  // 
+  // IMPORTANT: When SignalWire REST API is called with From/To/Url/Record=true:
+  // 1. SignalWire dials the To number
+  // 2. When call is answered, SignalWire calls our Url webhook
+  // 3. SignalWire automatically records the call (Record=true in REST API)
+  // 4. LaML just needs to keep the call alive and optionally add features
+  //
+  // Key: Recording happens at REST API level, NOT via LaML <Record> verb
+  // LaML <Record> is for voicemail recording (waits for input), NOT call recording
+  
+  // For secret shopper, inject script FIRST (before call connects to agent)
+  if (voiceConfig?.synthetic_caller) {
+    // Secret shopper scripts already added above (lines 129-163)
+    // Add closing message
+    elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
+  }
+  
+  // Survey prompts AFTER call (if survey enabled)
   if (voiceConfig?.survey) {
-    // Inject survey prompts before recording
     elements.push('<Say voice="alice">Thank you for your time. Before we end, I have a quick survey.</Say>')
     elements.push('<Pause length="1"/>')
     elements.push('<Say>On a scale of 1 to 5, how satisfied were you with this call?</Say>')
     elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
   }
-
-  // Main call flow
-  // IMPORTANT: For single-leg calls, 'to' is the destination we're ALREADY calling
-  // Don't use <Dial> or it will create a second call leg to the same number!
-  // 
-  // Single-leg: SignalWire calls destination directly → Just answer + record
-  // Two-leg bridge: Would need <Dial> to connect two parties (future feature)
   
-  // For now, all calls via /api/calls/start are single-leg outbound
-  // Just record the call (already connected to destination)
-  if (recordingEnabled) {
-    elements.push(`<Record action="${recordingAction}" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed" maxLength="3600"/>`)
-  }
+  // Keep call alive for conversation
+  // Call will naturally end when either party hangs up
+  // This prevents premature timeout while keeping call connected
+  // Using very long Pause (1 hour) - call ends when parties hang up
+  elements.push('<Pause length="3600"/>')
   
-  // Note: If no recording and no other elements (Say/Pause), we return an empty <Response>
-  // This keeps the call connected without any actions - just a normal phone call
-
-  // If recording was enabled but not via Dial, add Record verb
-  if (recordingEnabled && !toNumber) {
-    elements.push(`<Record action="${recordingAction}" recordingStatusCallback="${recordingStatusCallback}" maxLength="3600"/>`)
-  }
-
-  // Closing message for secret shopper
-  if (voiceConfig?.synthetic_caller) {
-    elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
-  }
+  // Fallback hangup (only reached if call somehow lasts over 1 hour)
+  elements.push('<Hangup/>')
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -221,6 +221,13 @@ ${elements.map(el => `  ${el}`).join('\n')}
 
 /**
  * Generate LaML for bridge call with conference
+ * 
+ * Bridge calls connect two parties via a conference room:
+ * - Leg 1: Your agent/number → Conference
+ * - Leg 2: Destination number → Conference
+ * 
+ * CRITICAL: Recording must be on <Conference>, NOT on <Dial>
+ * Recording on <Dial> creates duplicate recordings (one per leg)
  */
 async function generateBridgeLaML(conferenceName: string, callId: string, leg?: number): Promise<string> {
   // Get voice_configs for this call to check recording settings
@@ -244,17 +251,20 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
   }
 
   const elements: string[] = []
+  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
   
-  // Record the conference if enabled
+  // Dial into conference (no recording attribute on Dial)
+  elements.push('<Dial>')
+  
+  // Conference with recording (if enabled)
+  // IMPORTANT: Use record="record-from-answer" on Conference, not Dial
+  // This creates ONE recording for the entire conference, not per leg
   if (recordEnabled) {
-    const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
-    elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
+    elements.push(`  <Conference record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
   } else {
-    elements.push('<Dial>')
+    elements.push(`  <Conference>${escapeXml(conferenceName)}</Conference>`)
   }
   
-  // Join conference room
-  elements.push(`<Conference>${escapeXml(conferenceName)}</Conference>`)
   elements.push('</Dial>')
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

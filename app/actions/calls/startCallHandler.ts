@@ -61,9 +61,20 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   }
 
   // helper to place a single SignalWire call (returns sid)
-  const placeSignalWireCall = async (toNumber: string, useLiveTranslation: boolean = false) => {
+  const placeSignalWireCall = async (
+    toNumber: string, 
+    useLiveTranslation: boolean = false, 
+    conference?: string,
+    leg?: string
+  ) => {
     // eslint-disable-next-line no-console
-    console.log('placeSignalWireCall: ENTERED function', { toNumber: toNumber ? '[REDACTED]' : null, useLiveTranslation, callId })
+    console.log('placeSignalWireCall: ENTERED function', { 
+      toNumber: toNumber ? '[REDACTED]' : null, 
+      useLiveTranslation, 
+      callId,
+      conference: conference || 'none',
+      leg: leg || 'single'
+    })
     
     const swProject = env.SIGNALWIRE_PROJECT_ID
     const swToken = env.SIGNALWIRE_TOKEN
@@ -119,9 +130,30 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       // eslint-disable-next-line no-console
       console.log('startCallHandler: routing to SWML endpoint for live translation', { callId })
     } else {
-      params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound`)
+      // Build LaML URL with parameters
+      let lamlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound?callId=${encodeURIComponent(callId)}`
+      
+      // Add conference parameters for bridge calls
+      if (conference) {
+        lamlUrl += `&conference=${encodeURIComponent(conference)}`
+        if (leg) {
+          lamlUrl += `&leg=${encodeURIComponent(leg)}`
+        }
+      }
+      
+      params.append('Url', lamlUrl)
     }
     params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+    
+    // Enable recording at REST API level if requested
+    // This is the CORRECT way to record calls - NOT via LaML <Record> verb
+    // SignalWire will automatically record the call and POST recording to StatusCallback
+    // NOTE: For conference/bridge calls, recording is handled by <Conference record="..."> in LaML
+    if (!conference) {
+      params.append('Record', 'true')
+      params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+      params.append('RecordingStatusCallbackEvent', 'completed')
+    }
 
     const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
     // eslint-disable-next-line no-console
@@ -354,12 +386,21 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       })
       
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
-        // Bridge calls don't support live translation (complexity)
-        const sidA = await placeSignalWireCall(from_number, false)
-        const sidB = await placeSignalWireCall(phone_number, false)
+        // Bridge calls: Connect two parties via conference room
+        // Create unique conference name for this call
+        const conferenceName = `bridge-${callId}`
+        
+        // Call leg A (your agent/number) - joins conference
+        const sidA = await placeSignalWireCall(from_number, false, conferenceName, '1')
+        // Call leg B (destination) - joins same conference
+        const sidB = await placeSignalWireCall(phone_number, false, conferenceName, '2')
         call_sid = sidB
         // eslint-disable-next-line no-console
-        console.log('startCallHandler: signalwire bridge created', { a: sidA ? '[REDACTED]' : null, b: sidB ? '[REDACTED]' : null })
+        console.log('startCallHandler: signalwire bridge created', { 
+          conference: conferenceName,
+          legA: sidA ? '[REDACTED]' : null, 
+          legB: sidB ? '[REDACTED]' : null 
+        })
       } else {
         call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
         // eslint-disable-next-line no-console
