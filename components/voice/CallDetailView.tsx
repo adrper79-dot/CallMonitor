@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useCallDetails } from '@/hooks/useCallDetails'
+import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import CallModulations from './CallModulations'
@@ -15,6 +16,7 @@ export interface CallDetailViewProps {
 
 export default function CallDetailView({ callId, organizationId, onModulationChange }: CallDetailViewProps) {
   const { call, recording, transcript, translation, manifest, score, loading, error } = useCallDetails(callId)
+  const { config } = useVoiceConfig(organizationId)
 
   if (!callId) {
     return (
@@ -162,11 +164,11 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
           callId={call.id}
           organizationId={organizationId}
           initialModulations={{
-            record: false, // Would come from voice_configs
-            transcribe: false,
-            translate: false,
-            survey: false,
-            synthetic_caller: false,
+            record: config?.recording_enabled ?? false,
+            transcribe: config?.transcription_enabled ?? false,
+            translate: config?.translation_enabled ?? false,
+            survey: config?.survey_enabled ?? false,
+            synthetic_caller: config?.secret_shopper_enabled ?? false,
           }}
           onChange={onModulationChange || (async () => {})}
         />
