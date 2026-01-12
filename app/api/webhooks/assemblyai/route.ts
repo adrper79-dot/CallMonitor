@@ -118,8 +118,7 @@ async function processWebhookAsync(req: Request) {
               status: 'failed',
               completed_at: new Date().toISOString(),
               output: { ...aiRows[0].output, error: payload.error, status: 'error' }
-            })
-            .eq('id', aiRows[0].id)
+            }).eq('id', aiRows[0].id)
         }
       }
       return
@@ -186,8 +185,7 @@ async function processWebhookAsync(req: Request) {
           transcript: transcriptJson,
           status: 'completed'
         }
-      })
-      .eq('id', aiRunId)
+      }).eq('id', aiRunId)
 
     if (updateAiErr) {
       // eslint-disable-next-line no-console
@@ -449,8 +447,7 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
           survey_results: surveyResults,
           completed_at: new Date().toISOString()
         }
-      })
-      .eq('id', surveyRun.id)
+      }).eq('id', surveyRun.id)
 
     // Store survey in evidence manifest (will be included when manifest is generated)
     // eslint-disable-next-line no-console

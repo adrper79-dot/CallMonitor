@@ -140,8 +140,7 @@ export async function scoreRecording(
           scores_json: scores,
           total_score: totalScore,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', scoredRecordingId)
+        }).eq('id', scoredRecordingId)
     } else {
       // Insert new
       await supabaseAdmin
@@ -168,8 +167,7 @@ export async function scoreRecording(
 
       await supabaseAdmin
         .from('evidence_manifests')
-        .update({ manifest })
-        .eq('id', manifestRows[0].id)
+        .update({ manifest }).eq('id', manifestRows[0].id)
     }
 
     return {

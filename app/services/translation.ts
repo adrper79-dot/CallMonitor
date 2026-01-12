@@ -46,8 +46,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
           status: 'failed',
           completed_at: new Date().toISOString(),
           output: { error: 'Plan does not support translation', plan: orgPlan }
-        })
-        .eq('id', translationRunId)
+        }).eq('id', translationRunId)
       return
     }
 
@@ -122,8 +121,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
             provider: 'openai',
             completed_at: new Date().toISOString()
           }
-        })
-        .eq('id', translationRunId)
+        }).eq('id', translationRunId)
 
       // eslint-disable-next-line no-console
       console.log('translation: completed', { translationRunId, callId, fromLanguage, toLanguage })
@@ -160,7 +158,6 @@ export async function translateText(input: TranslationInput): Promise<void> {
           error: err?.message || 'Translation service error',
           failed_at: new Date().toISOString()
         }
-      })
-      .eq('id', translationRunId)
+      }).eq('id', translationRunId)
   }
 }

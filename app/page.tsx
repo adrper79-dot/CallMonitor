@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Button } from '../components/ui/button'
 import { toast } from '../components/ui/use-toast'
 import Link from 'next/link'
+import BulkCallUpload from '../components/BulkCallUpload'
 
 export default function Home() {
   const [phone, setPhone] = useState('')
@@ -11,6 +12,7 @@ export default function Home() {
   const [record, setRecord] = useState(true)
   const [transcribe, setTranscribe] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   async function startCall(e: React.FormEvent) {
     e.preventDefault()
@@ -45,27 +47,34 @@ export default function Home() {
           <div className="flex gap-3 mb-6">
             <Link href="/voice"><Button>Open Voice Operations</Button></Link>
             <Link href="/voice"><Button>Recent Calls</Button></Link>
+            <Button onClick={() => setShowBulkUpload(!showBulkUpload)} variant="outline">
+              {showBulkUpload ? '📞 Single Call' : '📋 Bulk Upload'}
+            </Button>
             <a href="/ARCH_DOCS/FE_GUIDE" className="inline-block"><Button>FE Guide</Button></a>
           </div>
 
-          <form onSubmit={startCall} className="space-y-3">
-            <div>
-              <label className="block text-sm text-slate-300 mb-1">From (Agent or From number, optional)</label>
-              <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="+15551234 or agent-id" className="w-full p-2 rounded bg-slate-800 text-white mb-2" />
-              <label className="block text-sm text-slate-300 mb-1">To (E.164)</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+15555551234" className="w-full p-2 rounded bg-slate-800 text-white" />
-              <p className="text-xs text-slate-500 mt-1">Provide both From and To to create a bridged two-leg call; leave From empty for single outbound.</p>
-            </div>
+          {showBulkUpload ? (
+            <BulkCallUpload organizationId="00000000-0000-0000-0000-000000000000" />
+          ) : (
+            <form onSubmit={startCall} className="space-y-3">
+              <div>
+                <label className="block text-sm text-slate-300 mb-1">From (Agent or From number, optional)</label>
+                <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="+15551234 or agent-id" className="w-full p-2 rounded bg-slate-800 text-white mb-2" />
+                <label className="block text-sm text-slate-300 mb-1">To (E.164)</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+15555551234" className="w-full p-2 rounded bg-slate-800 text-white" />
+                <p className="text-xs text-slate-500 mt-1">Provide both From and To to create a bridged two-leg call; leave From empty for single outbound.</p>
+              </div>
 
-            <div className="flex gap-4 items-center">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={record} onChange={() => setRecord(r => !r)} /> Record</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={transcribe} onChange={() => setTranscribe(t => !t)} /> Transcribe</label>
-            </div>
+              <div className="flex gap-4 items-center">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={record} onChange={() => setRecord(r => !r)} /> Record</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={transcribe} onChange={() => setTranscribe(t => !t)} /> Transcribe</label>
+              </div>
 
-            <div>
-              <Button type="submit" disabled={loading || !phone}>{loading ? 'Starting…' : 'Start Call'}</Button>
-            </div>
-          </form>
+              <div>
+                <Button type="submit" disabled={loading || !phone}>{loading ? 'Starting…' : 'Start Call'}</Button>
+              </div>
+            </form>
+          )}
         </article>
 
         <aside className="bg-slate-900 p-6 rounded shadow">

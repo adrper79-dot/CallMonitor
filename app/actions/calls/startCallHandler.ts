@@ -163,8 +163,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     console.log('startCallHandler: initiating call', { organization_id, from_number, phone_number, flow_type, modulations })
 
     // actor/session lookup
-    const session = await getSession().catch(() => null)
-    let actorId = session?.user?.id ?? null
+    // Note: Session lookup removed - actorId must be provided in input or handled by caller
+    let actorId = (input as any).actor_id ?? null
     capturedActorId = actorId
     if (!actorId) {
       // allow a developer/testing fallback actor in non-production using the

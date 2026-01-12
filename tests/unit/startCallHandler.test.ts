@@ -137,7 +137,7 @@ describe('startCallHandler (unit)', () => {
 
     if (!res.success) {
       // eslint-disable-next-line no-console
-      console.error('startCallHandler test failed:', JSON.stringify(!res.success ? res.error : null, null, 2))
+      console.error('startCallHandler test failed:', JSON.stringify(res.error, null, 2))
     }
     expect(res.success).toBe(true)
     if (res.success) expect(res.call_id).toBeDefined()

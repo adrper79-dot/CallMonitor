@@ -219,8 +219,7 @@ async function processWebhookAsync(req: Request) {
 
       const { error: updateErr } = await supabaseAdmin
         .from('calls')
-        .update(updateData)
-        .eq('id', callId)
+        .update(updateData).eq('id', callId)
 
       if (updateErr) {
         // eslint-disable-next-line no-console
@@ -278,8 +277,7 @@ async function processWebhookAsync(req: Request) {
 
           const { error: updateRecErr } = await supabaseAdmin
             .from('recordings')
-            .update(updateData)
-            .eq('id', existingRec.id)
+            .update(updateData).eq('id', existingRec.id)
 
           if (updateRecErr) {
             // eslint-disable-next-line no-console
@@ -500,8 +498,7 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
         .update({ 
           status: 'failed',
           output: { error: errText, status_code: aaiRes.status }
-        })
-        .eq('id', aiRunId)
+        }).eq('id', aiRunId)
     }
 
   } catch (err: any) {

@@ -70,8 +70,7 @@ export async function storeRecording(
         // Note: storage_path column may need to be added to recordings table
         // For now, we'll store it in a metadata field or add the column
         updated_at: new Date().toISOString()
-      })
-      .eq('id', recordingId)
+      }).eq('id', recordingId)
 
     // eslint-disable-next-line no-console
     console.log('recordingStorage: stored recording', { recordingId, storagePath })

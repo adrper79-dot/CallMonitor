@@ -62,7 +62,9 @@ describe('Webhook Integration Flow', () => {
             error: null
           }))
         }))
-      }))
+      })),
+      insert: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })),
+      update: vi.fn(() => ({ eq: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })) }))
     })
 
     const formData = new URLSearchParams({
@@ -103,7 +105,24 @@ describe('Webhook Integration Flow', () => {
             error: null
           }))
         }))
-      }))
+      })),
+      insert: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })),
+      update: vi.fn(() => ({ eq: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })) }))
+    }).mockReturnValueOnce({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            data: [{
+              id: 'recording-123',
+              organization_id: 'org-123',
+              call_sid: 'CA123'
+            }],
+            error: null
+          }))
+        }))
+      })),
+      insert: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })),
+      update: vi.fn(() => ({ eq: vi.fn(() => ({ data: { id: 'mock-id' }, error: null })) }))
     }).mockReturnValueOnce({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({

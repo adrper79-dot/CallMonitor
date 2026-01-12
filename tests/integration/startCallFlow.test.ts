@@ -168,9 +168,11 @@ describe('startCall flow integration', () => {
     const result = await startCall(input as any)
     
     expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
-    // Zod validation catches this before handler, so we get CALL_START_INVALID_INPUT
-    expect(result.error?.code).toBe('CALL_START_INVALID_INPUT')
+    if (!result.success) {
+      expect(result.error).toBeDefined()
+      // Zod validation catches this before handler, so we get CALL_START_INVALID_INPUT
+      expect(result.error?.code).toBe('CALL_START_INVALID_INPUT')
+    }
     // Note: Since validation fails at Zod level, handler never runs, so audit_logs won't be called
     // This is expected behavior - validation errors don't trigger audit logs
   })
