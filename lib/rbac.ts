@@ -8,7 +8,7 @@
  */
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
-export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
+export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'business' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
 
 export interface PermissionCheck {
   role: UserRole
@@ -21,12 +21,12 @@ export interface PermissionCheck {
  * Feature-to-Plan mapping
  */
 const FEATURE_PLANS: Record<string, Plan[]> = {
-  'recording': ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'],
-  'transcription': ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'],
-  'translation': ['global', 'enterprise'],
+  'recording': ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+  'transcription': ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+  'translation': ['global', 'business', 'enterprise'],
   'real_time_translation_preview': ['business', 'enterprise'],
-  'survey': ['insights', 'global', 'enterprise'],
-  'secret_shopper': ['insights', 'global', 'enterprise'],
+  'survey': ['insights', 'global', 'business', 'enterprise'],
+  'secret_shopper': ['insights', 'global', 'business', 'enterprise'],
 }
 
 /**
@@ -153,13 +153,13 @@ export function canPerformAction(role: UserRole, resource: string, action: 'read
  * API endpoint permission requirements
  */
 export const API_PERMISSIONS: Record<string, { role: UserRole[], plan?: Plan[], action: 'read' | 'write' | 'execute' }> = {
-  'POST /api/voice/call': { role: ['owner', 'admin', 'operator'], plan: ['base', 'pro', 'insights', 'global', 'enterprise', 'standard', 'active'], action: 'execute' },
-  'PUT /api/voice/config': { role: ['owner', 'admin'], plan: ['base', 'pro', 'insights', 'global', 'enterprise', 'standard', 'active'], action: 'write' },
-  'GET /api/voice/config': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['base', 'pro', 'insights', 'global', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/recordings': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/transcripts': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/surveys/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'enterprise'], action: 'read' },
-  'GET /api/shopper/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'enterprise'], action: 'read' },
+  'POST /api/voice/call': { role: ['owner', 'admin', 'operator'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'execute' },
+  'PUT /api/voice/config': { role: ['owner', 'admin'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'write' },
+  'GET /api/voice/config': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
+  'GET /api/recordings': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
+  'GET /api/transcripts': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
+  'GET /api/surveys/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'business', 'enterprise'], action: 'read' },
+  'GET /api/shopper/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'business', 'enterprise'], action: 'read' },
 }
 
 /**

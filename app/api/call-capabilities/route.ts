@@ -75,6 +75,7 @@ export async function GET(req: Request) {
     const plan = String(org.plan ?? '').toLowerCase()
     let capabilities = defaultCaps()
     if (plan === 'enterprise') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true, real_time_translation_preview: false }
+    else if (plan === 'business') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true, real_time_translation_preview: false }
     else if (['pro', 'standard', 'active', 'trial'].includes(plan)) capabilities = { record: true, transcribe: true, translate: false, survey: true, synthetic_caller: false, real_time_translation_preview: false }
     else capabilities = defaultCaps()
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
-export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
+export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'business' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
 
 export interface RBACState {
   role: UserRole | null
