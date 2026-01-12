@@ -64,7 +64,9 @@ export default function Home() {
   useEffect(() => {
     if (!organizationId) return
     
-    fetch(`/api/call-capabilities?orgId=${encodeURIComponent(organizationId)}`)
+    fetch(`/api/call-capabilities?orgId=${encodeURIComponent(organizationId)}`, {
+      credentials: 'include' // Include session cookies for auth
+    })
       .then(res => res.json())
       .then(json => {
         if (json.success && json.capabilities) {

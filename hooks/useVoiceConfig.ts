@@ -32,7 +32,9 @@ export function useVoiceConfig(organizationId: string | null) {
       try {
         setLoading(true)
         setError(null)
-        const res = await fetch(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
+        const res = await fetch(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`, {
+          credentials: 'include' // CRITICAL: Include session cookies for auth
+        })
         if (!res.ok) {
           throw new Error('Failed to fetch voice config')
         }
@@ -59,9 +61,10 @@ export function useVoiceConfig(organizationId: string | null) {
       const res = await fetch('/api/voice/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // CRITICAL: Include session cookies for auth
         body: JSON.stringify({
           orgId: organizationId,
-          ...updates,
+          modulations: updates, // FIX: Wrap updates in modulations object per API contract
         }),
       })
 
