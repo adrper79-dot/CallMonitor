@@ -182,6 +182,75 @@ export const authOptions = {
       // Add user ID to the session from the token
       if (session?.user && token?.id) {
         (session.user as any).id = token.id
+        
+        // Ensure user exists in public.users with organization
+        if (typeof token.id === 'string') {
+          try {
+            const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+            
+            if (supabaseUrl && serviceKey) {
+              const supabase = createClient(supabaseUrl, serviceKey)
+              
+              // Check if user exists in public.users
+              const { data: existingUser } = await supabase
+                .from('users')
+                .select('id, organization_id')
+                .eq('id', token.id)
+                .single()
+              
+              if (!existingUser) {
+                // User doesn't exist in public.users - create them
+                let orgId: string | null = null
+                
+                // Get most recent organization or create one
+                const { data: orgs } = await supabase
+                  .from('organizations')
+                  .select('id')
+                  .order('created_at', { ascending: false })
+                  .limit(1)
+                
+                if (orgs && orgs.length > 0) {
+                  orgId = orgs[0].id
+                } else {
+                  const { data: newOrg } = await supabase
+                    .from('organizations')
+                    .insert({
+                      name: `${session.user.email}'s Organization`,
+                      plan: 'professional',
+                      plan_status: 'active',
+                      created_by: token.id
+                    })
+                    .select('id')
+                    .single()
+                  
+                  if (newOrg) orgId = newOrg.id
+                }
+                
+                if (orgId) {
+                  // Create user record
+                  await supabase.from('users').insert({
+                    id: token.id,
+                    email: session.user.email,
+                    organization_id: orgId,
+                    role: 'member',
+                    is_admin: false
+                  })
+                  
+                  // Create org membership
+                  await supabase.from('org_members').insert({
+                    organization_id: orgId,
+                    user_id: token.id,
+                    role: 'member'
+                  })
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Failed to ensure user organization setup:', err)
+            // Don't block login, just log the error
+          }
+        }
       }
       return session
     }

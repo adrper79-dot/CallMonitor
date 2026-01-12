@@ -62,11 +62,24 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
   // helper to place a single SignalWire call (returns sid)
   const placeSignalWireCall = async (toNumber: string, useLiveTranslation: boolean = false) => {
+    // eslint-disable-next-line no-console
+    console.log('placeSignalWireCall: ENTERED function', { toNumber: toNumber ? '[REDACTED]' : null, useLiveTranslation, callId })
+    
     const swProject = env.SIGNALWIRE_PROJECT_ID
     const swToken = env.SIGNALWIRE_TOKEN
     const swNumber = env.SIGNALWIRE_NUMBER
     const rawSpace = String(env.SIGNALWIRE_SPACE || '')
     const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
+
+    // eslint-disable-next-line no-console
+    console.log('placeSignalWireCall: extracted config', { 
+      hasProject: !!swProject, 
+      hasToken: !!swToken, 
+      hasSpace: !!swSpace, 
+      hasNumber: !!swNumber,
+      rawSpace: rawSpace ? rawSpace.substring(0, 20) + '...' : null,
+      extractedSpace: swSpace || null
+    })
 
     if (!(swProject && swToken && swSpace && swNumber)) {
       // Build detailed error message showing what's missing
@@ -328,6 +341,17 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       const isBusinessPlan = ['business', 'enterprise'].includes(plan)
       const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
       const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && !!effectiveModulations.translate_from && !!effectiveModulations.translate_to
+      
+      // eslint-disable-next-line no-console
+      console.log('startCallHandler: about to place SignalWire call', { 
+        flow_type, 
+        has_from_number: !!from_number, 
+        from_number_valid: from_number ? E164_REGEX.test(from_number) : false,
+        shouldUseLiveTranslation,
+        plan,
+        isBusinessPlan,
+        isFeatureFlagEnabled
+      })
       
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
         // Bridge calls don't support live translation (complexity)

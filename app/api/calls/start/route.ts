@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       try { body.modulations = JSON.parse(body.modulations) } catch { /* leave as-is */ }
     }
 
-    const { organization_id, phone_number, modulations } = body || {}
+    const { organization_id, from_number, phone_number, flow_type, modulations } = body || {}
     if (!organization_id) {
       return NextResponse.json({ success: false, error: { id: 'invalid_input', code: 'INVALID_INPUT', message: 'organization_id required', severity: 'MEDIUM' } })
     }
@@ -71,8 +71,10 @@ export async function POST(req: Request) {
 
     // Delegate to server action which performs DB/audit and SignalWire call
     const result = await startCall({ 
-      organization_id, 
-      phone_number, 
+      organization_id,
+      from_number,
+      phone_number,
+      flow_type,
       modulations,
       actor_id: effectiveActorId 
     } as any)

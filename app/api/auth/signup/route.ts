@@ -87,6 +87,82 @@ export async function POST(req: Request) {
       )
     }
 
+    // Create user in public.users and organization
+    const supabase = createClient(supabaseUrl, serviceKey)
+    
+    // Check if user already exists in public.users
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', data.id)
+      .single()
+    
+    if (!existingUser) {
+      // Get or create default organization
+      let orgId: string | null = null
+      
+      // Try to find existing organizations
+      const { data: orgs } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (orgs && orgs.length > 0) {
+        // Use existing organization
+        orgId = orgs[0].id
+      } else {
+        // Create new organization for this user
+        const { data: newOrg, error: orgError } = await supabase
+          .from('organizations')
+          .insert({
+            name: `${name || email}'s Organization`,
+            plan: 'professional',
+            plan_status: 'active',
+            created_by: data.id
+          })
+          .select()
+          .single()
+        
+        if (orgError) {
+          console.error('Failed to create organization:', orgError)
+          // Continue without org - we'll handle this gracefully
+        } else {
+          orgId = newOrg.id
+        }
+      }
+      
+      // Create user in public.users
+      if (orgId) {
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: data.id,
+            email: data.email,
+            organization_id: orgId,
+            role: 'member',
+            is_admin: false
+          })
+        
+        if (userError) {
+          console.error('Failed to create user in public.users:', userError)
+        }
+        
+        // Create org membership
+        const { error: memberError } = await supabase
+          .from('org_members')
+          .insert({
+            organization_id: orgId,
+            user_id: data.id,
+            role: 'member'
+          })
+        
+        if (memberError) {
+          console.error('Failed to create org membership:', memberError)
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Account created successfully. You can now sign in.',
