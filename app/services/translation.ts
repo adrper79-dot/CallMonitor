@@ -1,11 +1,14 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
+import { generateSpeech } from './elevenlabs'
 
 /**
  * Translation Service
  * 
  * Translates transcript text using available translation providers.
  * Per MASTER_ARCHITECTURE.txt: Translation is a call modulation.
+ * 
+ * Enhanced with ElevenLabs TTS for audio playback of translations.
  */
 
 export interface TranslationInput {
@@ -108,6 +111,57 @@ export async function translateText(input: TranslationInput): Promise<void> {
 
     // Update ai_run with translation result
     if (translatedText) {
+      let audioUrl: string | null = null
+      
+      // Generate audio with ElevenLabs (if API key is configured)
+      if (process.env.ELEVENLABS_API_KEY) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log('translation: generating audio with ElevenLabs', { translationRunId, chars: translatedText.length })
+          
+          const audioStream = await generateSpeech(translatedText, toLanguage)
+          
+          // Convert stream to buffer
+          const reader = audioStream.getReader()
+          const chunks: Uint8Array[] = []
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            chunks.push(value)
+          }
+          const audioBuffer = Buffer.concat(chunks)
+          
+          // Upload to Supabase storage
+          const audioFileName = `translations/${translationRunId}.mp3`
+          const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+            .from('recordings')
+            .upload(audioFileName, audioBuffer, {
+              contentType: 'audio/mpeg',
+              upsert: true
+            })
+          
+          if (uploadError) {
+            console.error('translation: audio upload failed', { error: uploadError.message, translationRunId })
+          } else {
+            // Get public URL
+            const { data: { publicUrl } } = supabaseAdmin.storage
+              .from('recordings')
+              .getPublicUrl(audioFileName)
+            
+            audioUrl = publicUrl
+            // eslint-disable-next-line no-console
+            console.log('translation: audio generated and uploaded', { translationRunId, audioUrl })
+          }
+        } catch (audioError: any) {
+          // eslint-disable-next-line no-console
+          console.error('translation: ElevenLabs audio generation failed', { 
+            error: audioError?.message, 
+            translationRunId 
+          })
+          // Continue without audio - translation text is still valid
+        }
+      }
+      
       await supabaseAdmin
         .from('ai_runs')
         .update({
@@ -118,13 +172,21 @@ export async function translateText(input: TranslationInput): Promise<void> {
             to_language: toLanguage,
             source_text: text,
             translated_text: translatedText,
+            translated_audio_url: audioUrl, // ← New: Audio URL from ElevenLabs
             provider: 'openai',
+            tts_provider: audioUrl ? 'elevenlabs' : null,
             completed_at: new Date().toISOString()
           }
         }).eq('id', translationRunId)
 
       // eslint-disable-next-line no-console
-      console.log('translation: completed', { translationRunId, callId, fromLanguage, toLanguage })
+      console.log('translation: completed', { 
+        translationRunId, 
+        callId, 
+        fromLanguage, 
+        toLanguage,
+        hasAudio: !!audioUrl 
+      })
     } else {
       await supabaseAdmin
         .from('ai_runs')

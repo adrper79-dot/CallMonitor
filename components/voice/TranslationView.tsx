@@ -27,6 +27,9 @@ export default function TranslationView({ translation, originalTranscript }: Tra
 
   const fromLang = translation?.from_language || translation?.from || 'Unknown'
   const toLang = translation?.to_language || translation?.to || 'Unknown'
+  
+  // Extract audio URL from translation output
+  const audioUrl = translation?.translated_audio_url || translation?.audio_url || null
 
   return (
     <section aria-labelledby="translation-view" className="w-full space-y-4">
@@ -69,6 +72,19 @@ export default function TranslationView({ translation, originalTranscript }: Tra
             <div className="flex items-center justify-between mb-2">
               <Badge variant="info">{toLang}</Badge>
             </div>
+            {audioUrl && (
+              <div className="mb-3">
+                <audio 
+                  controls 
+                  className="w-full h-8" 
+                  style={{ maxWidth: '100%' }}
+                  preload="metadata"
+                >
+                  <source src={audioUrl} type="audio/mpeg" />
+                  Your browser does not support audio playback.
+                </audio>
+              </div>
+            )}
             <div className="text-sm text-slate-100 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
               {translatedText}
             </div>
@@ -93,6 +109,19 @@ export default function TranslationView({ translation, originalTranscript }: Tra
             </Button>
           </div>
           <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
+            {!showOriginal && audioUrl && (
+              <div className="mb-3">
+                <audio 
+                  controls 
+                  className="w-full h-8" 
+                  style={{ maxWidth: '100%' }}
+                  preload="metadata"
+                >
+                  <source src={audioUrl} type="audio/mpeg" />
+                  Your browser does not support audio playback.
+                </audio>
+              </div>
+            )}
             <div className="text-sm text-slate-100 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
               {showOriginal ? originalText : translatedText}
             </div>

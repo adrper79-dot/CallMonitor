@@ -74,6 +74,12 @@ const ENV_VARS: EnvVar[] = [
     validate: (v) => v.length > 0 || 'Must not be empty if provided'
   },
   {
+    name: 'ELEVENLABS_API_KEY',
+    required: false,
+    description: 'ElevenLabs API key for text-to-speech (optional)',
+    validate: (v) => v.startsWith('sk_') || 'Must start with "sk_"'
+  },
+  {
     name: 'TRANSLATION_LIVE_ASSIST_PREVIEW',
     required: false,
     description: 'Enable live translation preview feature (SignalWire AI Agents)',
