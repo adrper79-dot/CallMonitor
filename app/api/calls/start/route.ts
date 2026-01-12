@@ -8,6 +8,9 @@ function isE164(n: string) {
 }
 
 export async function POST(req: Request) {
+  const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  console.log(`[${requestId}] POST /api/calls/start: REQUEST RECEIVED`)
+  
   try {
     const contentType = String(req.headers.get('content-type') || '')
     let body: any = null
@@ -57,12 +60,15 @@ export async function POST(req: Request) {
     const actorId = session?.user?.id ?? null
 
     // Log for debugging
-    console.log('startCall route: session check', { 
+    console.log(`[${requestId}] startCall route: session check`, { 
       hasSession: !!session, 
       hasUser: !!session?.user, 
       hasId: !!session?.user?.id,
       actorId: actorId ? '[REDACTED]' : null,
-      nodeEnv: process.env.NODE_ENV 
+      nodeEnv: process.env.NODE_ENV,
+      phone_number: phone_number ? '[REDACTED]' : null,
+      from_number: from_number ? '[REDACTED]' : null,
+      flow_type
     })
 
     // TEMPORARY: Always use fallback actor if session is missing (for debugging)
@@ -70,6 +76,7 @@ export async function POST(req: Request) {
     const effectiveActorId = actorId || '28d68e05-ab20-40ee-b935-b19e8927ae68'
 
     // Delegate to server action which performs DB/audit and SignalWire call
+    console.log(`[${requestId}] startCall route: delegating to startCall handler`)
     const result = await startCall({ 
       organization_id,
       from_number,
@@ -78,8 +85,10 @@ export async function POST(req: Request) {
       modulations,
       actor_id: effectiveActorId 
     } as any)
+    console.log(`[${requestId}] startCall route: handler returned`, { success: result.success, callId: result.success ? result.call_id : null })
     return NextResponse.json(result)
   } catch (err: any) {
+    console.error(`[${requestId}] startCall route: ERROR`, err)
     return NextResponse.json({ success: false, error: { id: 'route_error', code: 'ROUTE_ERROR', message: String(err?.message ?? err), severity: 'HIGH' } })
   }
 }
