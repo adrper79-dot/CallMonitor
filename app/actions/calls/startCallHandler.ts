@@ -367,12 +367,22 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       }
     }
 
-    // update persisted call status only (do NOT write call_sid per TOOL_TABLE_ALIGNMENT)
-    const { error: updateErr } = await supabaseAdmin.from('calls').update({ status: 'in-progress' }).eq('id', callId)
+    // Update call with call_sid and status
+    // NOTE: TOOL_TABLE_ALIGNMENT doesn't list call_sid, but it's required for webhook processing
+    // Without call_sid, webhooks cannot find calls to update status/recordings/transcriptions
+    const updateData: any = { status: 'in-progress' }
+    if (call_sid) {
+      updateData.call_sid = call_sid
+    }
+    
+    const { error: updateErr } = await supabaseAdmin.from('calls').update(updateData).eq('id', callId)
     if (updateErr) {
       // eslint-disable-next-line no-console
-      console.error('startCallHandler: failed to update call status', { callId, error: updateErr?.message })
+      console.error('startCallHandler: failed to update call', { callId, error: updateErr?.message })
       await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('startCallHandler: updated call with call_sid', { callId, hasSid: !!call_sid })
     }
 
     // enqueue ai run if requested (driven by voice_configs, not client input)
