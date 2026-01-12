@@ -56,8 +56,18 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions as any).catch(() => null)
     const actorId = session?.user?.id ?? null
 
-    // In non-production, use a fallback actor for testing
-    const effectiveActorId = actorId || (process.env.NODE_ENV !== 'production' ? '28d68e05-ab20-40ee-b935-b19e8927ae68' : null)
+    // Log for debugging
+    console.log('startCall route: session check', { 
+      hasSession: !!session, 
+      hasUser: !!session?.user, 
+      hasId: !!session?.user?.id,
+      actorId: actorId ? '[REDACTED]' : null,
+      nodeEnv: process.env.NODE_ENV 
+    })
+
+    // TEMPORARY: Always use fallback actor if session is missing (for debugging)
+    // TODO: Remove this once session management is working properly
+    const effectiveActorId = actorId || '28d68e05-ab20-40ee-b935-b19e8927ae68'
 
     // Delegate to server action which performs DB/audit and SignalWire call
     const result = await startCall({ 
