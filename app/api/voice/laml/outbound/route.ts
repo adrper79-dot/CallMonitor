@@ -185,23 +185,23 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
   }
 
-  // Main call flow - Dial to destination
-  if (toNumber) {
-    const dialElements: string[] = []
-    
-    // If recording enabled, add Record attribute to Dial
-    if (recordingEnabled) {
-      dialElements.push(`<Number>${escapeXml(toNumber)}</Number>`)
-      elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
-      elements.push(...dialElements)
-      elements.push('</Dial>')
-    } else {
-      elements.push(`<Dial><Number>${escapeXml(toNumber)}</Number></Dial>`)
-    }
+  // Main call flow
+  // IMPORTANT: For single-leg calls, 'to' is the destination we're ALREADY calling
+  // Don't use <Dial> or it will create a second call leg to the same number!
+  // 
+  // Single-leg: SignalWire calls destination directly → Just answer + record
+  // Two-leg bridge: Would need <Dial> to connect two parties (future feature)
+  
+  // For now, all calls via /api/calls/start are single-leg outbound
+  // Just record the call (already connected to destination)
+  if (recordingEnabled) {
+    elements.push(`<Record action="${recordingAction}" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed" maxLength="3600"/>`)
   } else {
-    // Fallback: conference bridge
-    const confName = callSid || `conf-${Date.now()}`
-    elements.push(`<Dial><Conference>${escapeXml(confName)}</Conference></Dial>`)
+    // No recording - just a simple call with optional Say elements
+    if (elements.length === 0) {
+      // If no other elements (say/pause), add a simple message
+      elements.push('<Say voice="alice">This is a test call.</Say>')
+    }
   }
 
   // If recording was enabled but not via Dial, add Record verb
