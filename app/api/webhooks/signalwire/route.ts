@@ -107,14 +107,37 @@ async function processWebhookAsync(req: Request) {
     const recordingDuration = payload.RecordingDuration || payload.RecordingDuration || payload.recording_duration
     const callDuration = payload.CallDuration || payload.CallDuration || payload.call_duration
     const eventType = payload.EventType || payload.event_type || (recordingSid ? 'recording' : 'call')
+    const recordingStatus = payload.RecordingStatus || payload.recording_status
 
     // eslint-disable-next-line no-console
     console.log('signalwire webhook processing', { 
       callSid: callSid ? '[REDACTED]' : null, 
       callStatus, 
       eventType,
-      hasRecording: !!recordingSid 
+      hasRecording: !!recordingSid,
+      hasRecordingUrl: !!recordingUrl,
+      recordingStatus: recordingStatus || 'not-present',
+      payloadKeys: Object.keys(payload).sort()
     })
+    
+    // DIAGNOSTIC: Log recording-related fields
+    if (recordingSid || recordingUrl || recordingStatus) {
+      // eslint-disable-next-line no-console
+      console.log('signalwire webhook: RECORDING DETECTED', {
+        recordingSid: recordingSid ? '[REDACTED]' : 'MISSING',
+        recordingUrl: recordingUrl ? recordingUrl.substring(0, 50) + '...' : 'MISSING',
+        recordingDuration: recordingDuration || 'MISSING',
+        recordingStatus: recordingStatus || 'MISSING'
+      })
+    } else if (callStatus === 'completed') {
+      // eslint-disable-next-line no-console
+      console.warn('signalwire webhook: Call completed but NO RECORDING FIELDS in payload', {
+        callSid: callSid ? '[REDACTED]' : null,
+        payloadKeys: Object.keys(payload).sort(),
+        // Log first 200 chars of payload for debugging
+        payloadPreview: JSON.stringify(payload).substring(0, 200)
+      })
+    }
 
     if (!callSid) {
       // eslint-disable-next-line no-console

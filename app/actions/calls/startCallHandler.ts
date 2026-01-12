@@ -153,11 +153,33 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       params.append('Record', 'true')
       params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
       params.append('RecordingStatusCallbackEvent', 'completed')
+      // eslint-disable-next-line no-console
+      console.log('placeSignalWireCall: RECORDING ENABLED', {
+        Record: 'true',
+        RecordingStatusCallback: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`,
+        isSingleLeg: !conference
+      })
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('placeSignalWireCall: Recording SKIPPED (conference call - handled by LaML)', { conference })
     }
 
     const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+    
+    // Log ALL parameters being sent to SignalWire (for debugging)
+    const paramsForLog = Object.fromEntries(params.entries())
     // eslint-disable-next-line no-console
-    console.log('startCallHandler: sending SignalWire POST', { endpoint: swEndpoint, to: toNumber, from: swNumber })
+    console.log('placeSignalWireCall: FULL REST API REQUEST', { 
+      endpoint: swEndpoint, 
+      to: toNumber ? '[REDACTED]' : null,
+      from: swNumber ? '[REDACTED]' : null,
+      hasRecord: params.has('Record'),
+      recordValue: params.get('Record'),
+      hasRecordingCallback: params.has('RecordingStatusCallback'),
+      urlCallback: params.get('Url'),
+      statusCallback: params.get('StatusCallback'),
+      allParamKeys: Object.keys(paramsForLog)
+    })
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
