@@ -170,6 +170,22 @@ export const authOptions = {
   providers,
   secret: process.env.NEXTAUTH_SECRET,
   // Use default session strategy (JWT) unless adapter is configured
+  callbacks: {
+    async jwt({ token, user }) {
+      // Add user ID to the token when user signs in
+      if (user) {
+        token.id = user.id
+      }
+      return token
+    },
+    async session({ session, token }) {
+      // Add user ID to the session from the token
+      if (session?.user && token?.id) {
+        (session.user as any).id = token.id
+      }
+      return session
+    }
+  }
 }
 
 const handler = NextAuth(authOptions as any)
