@@ -292,5 +292,28 @@ export function getAuthOptions() {
   }
 }
 
-// Export for backward compatibility with getServerSession
-export const authOptions = getAuthOptions()
+// Export authOptions - use function form to avoid build-time evaluation
+// Files using getServerSession should use: getServerSession(authOptions)
+export const authOptions = (() => {
+  // During build phase, return a minimal config that won't fail
+  if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
+    return {
+      providers: [],
+      secret: 'build-time-placeholder',
+      callbacks: {}
+    } as any
+  }
+  
+  // At runtime, return the real config
+  try {
+    return getAuthOptions()
+  } catch (e) {
+    // If config fails (missing env vars), return minimal config
+    console.error('Failed to initialize auth options:', e)
+    return {
+      providers: [],
+      secret: process.env.NEXTAUTH_SECRET || 'fallback',
+      callbacks: {}
+    } as any
+  }
+})()
