@@ -12,6 +12,7 @@
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.30.0",
     "@next-auth/supabase-adapter": "^0.2.1",
+    "@supabase/supabase-js": "^2.27.0",
     "csv-parse": "^6.1.0",
     "elevenlabs": "^1.59.0",
     "next": "14.2.35",
@@ -19,12 +20,13 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "resend": "^6.7.0",
+    "uuid": "^11.1.0",
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "@supabase/supabase-js": "^2.27.0",
     "@types/node": "^25.0.6",
     "@types/react": "^19.2.8",
+    "@types/uuid": "^10.0.0",
     "dotenv": "^17.2.3",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
