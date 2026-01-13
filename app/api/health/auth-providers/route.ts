@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - health checks should always be fresh
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const adapterEnv = Boolean((process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) && process.env.SUPABASE_SERVICE_ROLE_KEY)

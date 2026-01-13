@@ -1,7 +1,7 @@
 # CallMonitor Architecture Documentation
 
-**Last Updated:** January 12, 2026  
-**Version:** 1.0  
+**Last Updated:** January 13, 2026  
+**Version:** 1.1  
 **Status:** ✅ Production Ready
 
 ---
@@ -9,15 +9,18 @@
 ## 📖 **Quick Navigation**
 
 ### **🎯 Start Here:**
+- **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - System overview, health metrics, deployment status
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
 - **[MASTER_ARCHITECTURE.txt](01-CORE/MASTER_ARCHITECTURE.txt)** - Complete system architecture
-- **[Schema.txt](01-CORE/Schema.txt)** - Database schema
-- **[Translation_Agent](02-FEATURES/Translation_Agent)** - Live translation feature guide
+- **[V4_Issues.txt](../V4_Issues.txt)** - Current status of fixes and issues
 
 ### **📁 Folder Structure:**
 
 ```
 ARCH_DOCS/
 ├── 00-README.md (this file) - Navigation index
+├── CURRENT_STATUS.md - System status & health
+├── QUICK_REFERENCE.md - Quick cheat sheet
 ├── 01-CORE/ - Core architecture & system design
 ├── 02-FEATURES/ - Feature-specific documentation
 ├── 03-INFRASTRUCTURE/ - Infrastructure & deployment
@@ -25,6 +28,26 @@ ARCH_DOCS/
 ├── 05-REFERENCE/ - Reference materials & samples
 └── archive/ - Historical documents & resolved issues
 ```
+
+---
+
+## 📊 **Current System Status**
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| **Build** | Clean | ✅ |
+| **Tests** | 98.5% (64/65) | ✅ |
+| **API Routes** | 38 (all dynamic) | ✅ |
+| **Services** | 6 configured | ✅ |
+| **Critical Issues** | 0 | ✅ |
+
+**Services Verified:**
+- ✅ Supabase (DB + Storage)
+- ✅ SignalWire (Voice)
+- ✅ AssemblyAI (Transcription)
+- ✅ ElevenLabs (TTS)
+- ✅ Resend (Email)
+- ✅ NextAuth (Auth)
 
 ---
 
@@ -83,6 +106,7 @@ UX design principles and deployment guidelines:
 Sample data and reference materials:
 
 - **evidence_manifest_sample.json** - Example evidence manifest structure
+- **JSON_MAPPING** - JSON field mappings
 
 **When to read:** Understanding data structures
 
@@ -100,6 +124,7 @@ Historical reviews, fixes, and completed implementations:
 - Authentication 401 fixes
 - Type duplication root cause analysis
 - Translation toggle visibility fix
+- SignalWire number missing fix
 - Missed issues analysis
 
 #### **archive/implementations/** - Completed Work
@@ -114,24 +139,28 @@ Historical reviews, fixes, and completed implementations:
 ## 🚀 **Quick Start Guides**
 
 ### **For New Developers:**
-1. Read `01-CORE/MASTER_ARCHITECTURE.txt`
-2. Review `01-CORE/Schema.txt`
-3. Check `04-DESIGN/UX_DESIGN_PRINCIPLES.txt`
+1. Read `CURRENT_STATUS.md` for system overview
+2. Read `01-CORE/MASTER_ARCHITECTURE.txt`
+3. Review `01-CORE/Schema.txt`
+4. Check `QUICK_REFERENCE.md` for common tasks
 
 ### **For Feature Development:**
 1. Check `02-FEATURES/` for existing feature docs
 2. Follow patterns in `01-CORE/MASTER_ARCHITECTURE.txt`
 3. Review `01-CORE/ERROR_HANDLING_PLAN.txt`
+4. Add `export const dynamic = 'force-dynamic'` to new API routes
 
 ### **For Debugging:**
-1. Check feature-specific docs in `02-FEATURES/`
-2. Review `archive/fixes/` for similar issues
-3. Consult `01-CORE/ERROR_HANDLING_PLAN.txt`
+1. Check `V4_Issues.txt` for recent fixes
+2. Check feature-specific docs in `02-FEATURES/`
+3. Review `archive/fixes/` for similar issues
+4. Consult `01-CORE/ERROR_HANDLING_PLAN.txt`
 
 ### **For Deployment:**
 1. Read `04-DESIGN/DEPLOYMENT_NOTES.md`
-2. Review `03-INFRASTRUCTURE/MEDIA_PLANE_ARCHITECTURE.txt`
-3. Check environment requirements in feature docs
+2. Check environment variables in `QUICK_REFERENCE.md`
+3. Verify via `/api/health` endpoint
+4. Check `/test` dashboard
 
 ---
 
@@ -139,12 +168,31 @@ Historical reviews, fixes, and completed implementations:
 
 | Document | Purpose | Audience | Status |
 |----------|---------|----------|--------|
+| CURRENT_STATUS.md | System status | All | ✅ Current |
+| QUICK_REFERENCE.md | Cheat sheet | All | ✅ Current |
 | MASTER_ARCHITECTURE.txt | System design | All devs | ✅ Current |
 | Schema.txt | Database schema | Backend devs | ✅ Current |
 | Translation_Agent | Live translation | Feature devs | ✅ Complete |
 | SECRET_SHOPPER_INFRASTRUCTURE.md | Secret shopper | Feature devs | ✅ Complete |
 | UX_DESIGN_PRINCIPLES.txt | UI/UX standards | Frontend devs | ✅ Current |
+| V4_Issues.txt | Current fixes | DevOps | ✅ Current |
 | FREESWITCH_RUNBOOK.md | Media ops | DevOps | 🟡 Future |
+
+---
+
+## 🔧 **Recent Updates (January 13, 2026)**
+
+### **Codebase Fixes Applied:**
+1. ✅ Added `export const dynamic = 'force-dynamic'` to all 38 API routes
+2. ✅ Fixed Supabase client centralization (3 files)
+3. ✅ Fixed NextAuth adapter build-time initialization
+4. ✅ Fixed test mock for NextResponse constructor
+5. ✅ Verified all service integrations in Vercel
+
+### **Documentation Updates:**
+- ✅ Updated `CURRENT_STATUS.md` with current metrics
+- ✅ Updated `QUICK_REFERENCE.md` with new info
+- ✅ Updated this README with current status
 
 ---
 
@@ -171,6 +219,7 @@ Historical reviews, fixes, and completed implementations:
 - Infrastructure changes → Update `03-INFRASTRUCTURE/`
 - Resolved issues → Move to `archive/fixes/`
 - Completed reviews → Move to `archive/reviews/`
+- Status changes → Update `CURRENT_STATUS.md`
 
 ### **Archive Policy:**
 - Code review documents → Archive after addressed
@@ -180,27 +229,36 @@ Historical reviews, fixes, and completed implementations:
 
 ---
 
-## 🎉 **Recent Changes**
+## 🎉 **Changelog**
 
-### **January 12, 2026:**
+### **v1.1 - January 13, 2026:**
+- ✅ Updated all documentation for current codebase state
+- ✅ Added service configuration verification
+- ✅ Updated test pass rates (98.5%)
+- ✅ Added API route count (38 dynamic routes)
+- ✅ Added V4_Issues.txt reference
+
+### **v1.0 - January 12, 2026:**
 - ✅ Reorganized ARCH_DOCS into logical structure
 - ✅ Archived 20+ historical documents
 - ✅ Consolidated duplicate reviews
-- ✅ Added comprehensive index (this file)
-- ✅ Updated folder structure for clarity
+- ✅ Added comprehensive index
 
 ---
 
 ## 📞 **Support**
 
 **Questions about:**
+- Current status → See `CURRENT_STATUS.md`
+- Quick help → See `QUICK_REFERENCE.md`
 - Architecture → See `01-CORE/MASTER_ARCHITECTURE.txt`
 - Features → See `02-FEATURES/`
 - Deployment → See `04-DESIGN/DEPLOYMENT_NOTES.md`
+- Recent fixes → See `V4_Issues.txt`
 - Historical issues → See `archive/`
 
 ---
 
 **Maintained by:** Development Team  
-**Last Review:** January 12, 2026  
+**Last Review:** January 13, 2026  
 **Next Review:** Quarterly or on major releases

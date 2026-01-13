@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 
+// Force dynamic rendering - uses request.url
+export const dynamic = 'force-dynamic'
+
 /**
  * Dynamic LaML Script Endpoint
  * 

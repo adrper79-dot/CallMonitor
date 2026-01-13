@@ -1,183 +1,316 @@
-# Live Translation Feature - Deployment Notes
+# CallMonitor - Deployment Notes
 
-**Feature:** SignalWire AI Agents Live Translation (Preview)  
-**Date:** January 14, 2026  
-**Status:** Implementation Complete - Pending SignalWire API Verification
+**Last Updated:** January 13, 2026  
+**Version:** 1.1.0  
+**Status:** Production Ready
 
 ---
 
-## Environment Variables
+## 🚀 **Quick Deployment Checklist**
 
-### Required for Feature
+### **Pre-Deployment:**
+- [ ] All environment variables configured
+- [ ] Database migrations applied
+- [ ] `npm run build` succeeds (all routes dynamic)
+- [ ] `npm test` passes (98%+)
+- [ ] SignalWire webhooks configured
+- [ ] AssemblyAI webhooks configured
 
-Add the following environment variable to enable the live translation preview feature:
+### **Post-Deployment:**
+- [ ] `/api/health` returns OK
+- [ ] `/test` dashboard shows green
+- [ ] Test call works end-to-end
+- [ ] Check Vercel logs for errors
 
+---
+
+## 🔧 **Environment Variables**
+
+### **Required (All Environments)**
+
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+
+# SignalWire
+SIGNALWIRE_PROJECT_ID=xxx
+SIGNALWIRE_TOKEN=PTxxx                    # Or SIGNALWIRE_API_TOKEN
+SIGNALWIRE_SPACE=xxx.signalwire.com
+SIGNALWIRE_NUMBER=+15551234567            # E.164 format
+
+# NextAuth
+NEXTAUTH_SECRET=xxx                       # Minimum 32 characters
+NEXTAUTH_URL=https://your-domain.com
+
+# App URL
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
+
+### **Intelligence Services (Recommended)**
+
+```bash
+# AssemblyAI - For transcription
+ASSEMBLYAI_API_KEY=xxx
+
+# ElevenLabs - For TTS audio
+ELEVENLABS_API_KEY=xxx
+```
+
+### **Optional Features**
+
+```bash
+# Live Translation Preview (Business+ plan)
+TRANSLATION_LIVE_ASSIST_PREVIEW=true
+
+# OpenAI - For translation service
+OPENAI_API_KEY=xxx
+
+# Resend - For transactional emails
+RESEND_API_KEY=xxx
+
+# Google OAuth
+GOOGLE_CLIENT_ID=xxx
+GOOGLE_CLIENT_SECRET=xxx
+```
+
+---
+
+## 📦 **Build Requirements**
+
+### **Critical: All API Routes Must Be Dynamic**
+
+All 38 API routes in `/app/api/` require:
+
+```typescript
+export const dynamic = 'force-dynamic'
+```
+
+This is required because:
+- Routes use `headers()`, `searchParams`, or `request.url`
+- Next.js 14 App Router defaults to static generation
+- Without this export, builds fail with static generation errors
+
+**Verification:**
+```bash
+npm run build
+# All routes should show ƒ (dynamic) in build output
+```
+
+### **Build Output Example:**
+```
+Route (app)                              Size     First Load JS
+├ ƒ /api/voice/call                      0 B                0 B
+├ ƒ /api/webhooks/signalwire             0 B                0 B
+├ ƒ /api/health                          0 B                0 B
+...
+```
+
+All API routes should show `ƒ` (function/dynamic).
+
+---
+
+## 🗄️ **Database Setup**
+
+### **Run Migrations:**
+```bash
+# Using Supabase CLI
+supabase db push
+
+# Or manually
+psql "$DATABASE_URL" -f migrations/*.sql
+```
+
+### **Key Tables:**
+- `organizations` - Organization and plan data
+- `users` - User accounts
+- `org_members` - Organization membership and roles
+- `calls` - Call records
+- `recordings` - Recording metadata
+- `voice_configs` - Voice configuration per organization
+- `ai_runs` - AI processing jobs
+- `audit_logs` - Audit trail
+
+---
+
+## 🔌 **Webhook Configuration**
+
+### **SignalWire Webhooks**
+
+Configure in SignalWire dashboard:
+- **Voice Status URL:** `https://your-domain.com/api/webhooks/signalwire`
+- **Method:** POST
+- **Events:** All call status events
+
+### **AssemblyAI Webhooks**
+
+Configure when submitting transcription jobs:
+- **Webhook URL:** `https://your-domain.com/api/webhooks/assemblyai`
+- **Events:** Transcription completed
+
+---
+
+## 📊 **Verification Steps**
+
+### **1. Health Check**
+```bash
+curl https://your-domain.com/api/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "database": "ok",
+    "signalwire": "ok",
+    "assemblyai": "ok"
+  }
+}
+```
+
+### **2. Environment Check**
+```bash
+curl https://your-domain.com/api/health/env
+```
+
+All required variables should show `[SET]`.
+
+### **3. Test Dashboard**
+Navigate to `/test` and run all tests.
+- All critical tests should pass (green)
+- 98%+ pass rate expected
+
+### **4. Test Call**
+1. Navigate to `/`
+2. Enter a valid phone number
+3. Click "Start Call"
+4. Verify call is placed and status updates
+
+---
+
+## 🌐 **Live Translation Feature**
+
+### **Requirements:**
+- Business or Enterprise plan
+- Feature flag: `TRANSLATION_LIVE_ASSIST_PREVIEW=true`
+- SignalWire AI Agents enabled on account
+
+### **Enable:**
 ```bash
 TRANSLATION_LIVE_ASSIST_PREVIEW=true
 ```
 
-**Default:** `false` (feature disabled when not set)
+### **Verification:**
+1. Go to `/settings`
+2. Toggle "Live Translation (Preview)" should be visible
+3. Select source and target languages
+4. Place test call with translation enabled
 
-**Usage:**
-- Set to `true` to enable live translation preview for Business/Enterprise plan organizations
-- Set to `false` or omit to disable the feature globally
-- Feature is capability-gated (requires Business plan + feature flag)
-
----
-
-## Database Migration
-
-Run the following migration to add live translation tracking columns:
-
-```bash
-psql "$DATABASE_URL" -f migrations/2026-01-14-add-live-translation-fields.sql
-```
-
-**Migration adds:**
-- `recordings.has_live_translation` (boolean, default false)
-- `recordings.live_translation_provider` (text, nullable, check constraint)
-
-**Rollback (if needed):**
-```sql
-ALTER TABLE recordings DROP COLUMN IF EXISTS has_live_translation;
-ALTER TABLE recordings DROP COLUMN IF EXISTS live_translation_provider;
-DROP INDEX IF EXISTS idx_recordings_has_live_translation;
-```
-
----
-
-## Feature Flag Deployment
-
-### Staged Rollout
-
-1. **Phase 1: Internal Testing**
-   - Set `TRANSLATION_LIVE_ASSIST_PREVIEW=true` for test/staging environments
-   - Verify SWML endpoint works with SignalWire test account
-   - Test capability gating (Business plan only)
-   - Verify webhook handler sets `has_live_translation` flag
-
-2. **Phase 2: Beta Users**
-   - Enable feature flag for specific Business plan organizations
-   - Monitor error rates and KPI metrics
-   - Verify AssemblyAI canonical transcripts still work correctly
-
-3. **Phase 3: General Availability**
-   - Enable feature flag globally
-   - Monitor for issues
-   - Collect user feedback
-
-### Rollback Procedure
-
-If issues occur, disable the feature by setting:
-
+### **Rollback:**
 ```bash
 TRANSLATION_LIVE_ASSIST_PREVIEW=false
 ```
 
-This will:
-- Disable the capability for all organizations
-- Prevent routing to SWML endpoint
-- Calls will continue using standard LaML endpoint
-- No data loss or corruption
+---
+
+## 🚨 **Troubleshooting**
+
+### **Build Fails with Static Generation Error**
+
+**Error:** "couldn't be rendered statically because it used `headers`"
+
+**Fix:** Ensure all API routes have:
+```typescript
+export const dynamic = 'force-dynamic'
+```
+
+### **Supabase Adapter Error During Build**
+
+**Error:** "supabaseUrl is required"
+
+**Fix:** The `lib/auth.ts` file should detect build phase:
+```typescript
+if (process.env.NEXT_PHASE === 'phase-production-build') {
+  return undefined
+}
+```
+
+### **SignalWire Calls Not Working**
+
+**Check:**
+1. `SIGNALWIRE_NUMBER` is set (E.164 format)
+2. `SIGNALWIRE_TOKEN` or `SIGNALWIRE_API_TOKEN` is set
+3. `SIGNALWIRE_SPACE` is correct
+4. Webhooks are configured in SignalWire dashboard
+
+### **401 Authentication Errors**
+
+**Check:**
+1. Both Supabase keys are set
+2. `NEXTAUTH_SECRET` is at least 32 characters
+3. `NEXTAUTH_URL` matches your domain
+
+### **Tests Failing**
+
+**Check:**
+1. Run `npm test` for detailed output
+2. Most failures are mock setup issues, not production code
+3. Check `/test` dashboard for visual status
 
 ---
 
-## SignalWire Configuration
+## 📈 **Monitoring**
 
-### Prerequisites
+### **Key Endpoints:**
+- `/api/health` - System health
+- `/api/health/env` - Environment validation
+- `/api/errors/metrics` - Error KPIs
 
-- SignalWire account with AI Agents enabled
-- SignalWire project credentials configured
-- Webhook endpoint accessible: `/api/webhooks/signalwire`
+### **Logs:**
+- Vercel dashboard for deployment logs
+- Application logs for API errors
+- SignalWire dashboard for call logs
 
-### Verification Steps
-
-1. **Verify SWML Support**
-   - Test SWML JSON syntax with SignalWire account
-   - Confirm AI Agent node structure is correct
-   - Verify voice IDs are supported
-
-2. **Test SWML Endpoint**
-   - Call `/api/voice/swml/outbound?callId={test-id}` manually
-   - Verify JSON response format
-   - Check error handling for missing configs
-
-3. **Test Call Flow**
-   - Place test call with translation enabled
-   - Verify routing to SWML endpoint
-   - Check webhook events are received
-   - Verify `has_live_translation` flag is set
+### **Metrics to Watch:**
+- Build success rate
+- Test pass rate (target: 98%+)
+- API response times
+- Error rates by endpoint
 
 ---
 
-## Monitoring
+## 🔒 **Security Notes**
 
-### Key Metrics
+### **Environment Variables:**
+- Never commit `.env` files
+- Use Vercel environment variables
+- Rotate secrets periodically
 
-Monitor the following KPIs:
+### **API Security:**
+- All webhooks verify signatures
+- Rate limiting on all endpoints
+- Idempotency keys prevent duplicate operations
+- RLS enabled on Supabase
 
-1. **Error Rates**
-   - `LIVE_TRANSLATE_EXECUTION_FAILED` frequency
-   - `LIVE_TRANSLATE_VENDOR_DOWN` frequency
-   - SWML endpoint error rate
-
-2. **Feature Usage**
-   - Number of calls with live translation enabled
-   - Capability check success/failure rate
-   - Organization adoption rate
-
-3. **System Health**
-   - SWML endpoint response times
-   - SignalWire API call success rate
-   - Webhook processing latency
-
-### Dashboards
-
-- Error metrics: `/api/errors/metrics`
-- KPI tracking: Monitor error catalog KPIs
-- Application logs: Check for SWML endpoint errors
+### **Audit Trail:**
+- All significant actions logged
+- Audit logs are immutable
+- Available via `/api/audit-logs`
 
 ---
 
-## Troubleshooting
+## 📚 **References**
 
-### Common Issues
-
-1. **Feature Not Available**
-   - Check feature flag: `TRANSLATION_LIVE_ASSIST_PREVIEW=true`
-   - Verify organization plan is Business or Enterprise
-   - Check capability API response: `/api/call-capabilities?orgId={org-id}`
-
-2. **SWML Endpoint Errors**
-   - Check application logs for SWML endpoint errors
-   - Verify voice_configs has `translate=true` and language codes set
-   - Test endpoint manually: `GET /api/voice/swml/outbound`
-
-3. **Live Translation Not Working**
-   - Verify SignalWire account has AI Agents enabled
-   - Check SWML JSON syntax is correct
-   - Verify call is routed to SWML endpoint (check logs)
-   - Check SignalWire webhooks are being received
-
-4. **Webhook Handler Issues**
-   - Check `has_live_translation` flag is being set
-   - Verify webhook detection logic (plan + feature flag + voice_configs)
-   - Check database for flag updates
+- **Architecture:** `ARCH_DOCS/01-CORE/MASTER_ARCHITECTURE.txt`
+- **Database Schema:** `ARCH_DOCS/01-CORE/Schema.txt`
+- **Current Status:** `ARCH_DOCS/CURRENT_STATUS.md`
+- **Issue Tracking:** `V4_Issues.txt`
+- **SignalWire Docs:** https://developer.signalwire.com
+- **AssemblyAI Docs:** https://www.assemblyai.com/docs
 
 ---
 
-## Support
-
-For issues related to:
-- **SignalWire API**: Contact SignalWire support
-- **Feature functionality**: Check application logs and error metrics
-- **Database issues**: Review migration logs and schema
-
----
-
-## References
-
-- Implementation Summary: `ARCH_DOCS/IMPLEMENTATION_SUMMARY.md`
-- SignalWire Research: `ARCH_DOCS/SIGNALWIRE_AI_AGENTS_RESEARCH.md`
-- Error Handling: `ARCH_DOCS/ERROR_HANDLING_PLAN.txt`
-- Translation Agent Design: `ARCH_DOCS/Translation_Agent`
+**Maintained by:** Development Team  
+**Last Review:** January 13, 2026

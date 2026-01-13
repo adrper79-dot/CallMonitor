@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { getRBACContext } from '@/lib/middleware/rbac'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 /**
  * Get RBAC context for current user and organization
  */

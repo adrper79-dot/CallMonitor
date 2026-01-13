@@ -7,6 +7,9 @@ import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
+// Force dynamic rendering - webhooks must be processed dynamically
+export const dynamic = 'force-dynamic'
+
 function parseFormUrlEncoded(body: string) {
   return Object.fromEntries(new URLSearchParams(body))
 }

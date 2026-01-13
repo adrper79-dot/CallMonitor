@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // debug-only endpoint: disabled in production
   if (process.env.NODE_ENV === 'production') {

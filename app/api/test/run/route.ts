@@ -3,6 +3,9 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 
+// Force dynamic rendering - test execution must be dynamic
+export const dynamic = 'force-dynamic'
+
 const execAsync = promisify(exec)
 
 export async function POST(request: NextRequest) {

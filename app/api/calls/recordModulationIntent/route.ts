@@ -5,6 +5,9 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 type Modulations = { record?: boolean; transcribe?: boolean; translate?: boolean; survey?: boolean; synthetic_caller?: boolean }
 
 export async function POST(req: Request) {

@@ -5,6 +5,9 @@ import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
+// Force dynamic rendering - uses headers via getServerSession and request.url
+export const dynamic = 'force-dynamic'
+
 type Capabilities = Record<'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller' | 'real_time_translation_preview', boolean>
 
 const defaultCaps = (): Capabilities => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false, real_time_translation_preview: false })

@@ -3,6 +3,9 @@ import startCall from '../../../actions/calls/startCall'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 function isE164(n: string) {
   return /^\+?[1-9]\d{1,14}$/.test(n)
 }

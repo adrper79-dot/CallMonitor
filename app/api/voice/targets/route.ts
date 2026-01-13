@@ -5,6 +5,9 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 /**
  * Voice Targets API
  * 

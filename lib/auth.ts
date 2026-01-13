@@ -29,6 +29,11 @@ async function sendViaResend(to: string, html: string) {
 
 // Lazily configure Supabase adapter (avoid failing at build-time when env missing)
 function getAdapter() {
+  // Skip adapter creation during build phase
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return undefined
+  }
+  
   try {
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
     if (supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -36,7 +41,10 @@ function getAdapter() {
       return SupabaseAdapter(supabaseForAdapter as any)
     }
   } catch (e) {
-    console.error('Failed to initialize Supabase adapter for NextAuth', e)
+    // Only log error if not during build phase
+    if (process.env.NEXT_PHASE !== 'phase-production-build') {
+      console.error('Failed to initialize Supabase adapter for NextAuth', e)
+    }
   }
   return undefined
 }

@@ -3,6 +3,9 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { buildSWML } from '@/lib/signalwire/swmlBuilder'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
+// Force dynamic rendering - SWML must be generated dynamically
+export const dynamic = 'force-dynamic'
+
 /**
  * Parse form-encoded data
  */

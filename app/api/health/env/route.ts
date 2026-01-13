@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { validateEnvVars } from '@/lib/env-validation'
 
+// Force dynamic rendering - env checks should always be fresh
+export const dynamic = 'force-dynamic'
+
 /**
  * Environment Variables Health Check
  * 

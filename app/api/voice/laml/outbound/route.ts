@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 
+// Force dynamic rendering - uses request.url for query params
+export const dynamic = 'force-dynamic'
+
 function parseFormEncoded(text: string) {
   try {
     const params = new URLSearchParams(text)

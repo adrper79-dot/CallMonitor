@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
+// Use centralized admin client to avoid build-time initialization issues
+const supabase = supabaseAdmin
 
 export async function POST(request: NextRequest) {
   try {

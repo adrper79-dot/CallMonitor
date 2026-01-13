@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()

@@ -164,11 +164,11 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
           callId={call.id}
           organizationId={organizationId}
           initialModulations={{
-            record: config?.recording_enabled ?? false,
-            transcribe: config?.transcription_enabled ?? false,
-            translate: config?.translation_enabled ?? false,
-            survey: config?.survey_enabled ?? false,
-            synthetic_caller: config?.secret_shopper_enabled ?? false,
+            record: config?.record ?? false,
+            transcribe: config?.transcribe ?? false,
+            translate: config?.translate ?? false,
+            survey: config?.survey ?? false,
+            synthetic_caller: config?.synthetic_caller ?? false,
           }}
           onChange={onModulationChange || (async () => {})}
         />

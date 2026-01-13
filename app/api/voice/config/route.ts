@@ -7,6 +7,9 @@ import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 
+// Force dynamic rendering - uses headers via getServerSession and request.url
+export const dynamic = 'force-dynamic'
+
 type VoiceConfigRow = {
   id?: string
   organization_id: string
@@ -96,32 +99,38 @@ async function handlePUT(req: Request) {
     }
 
     // Map incoming modulation keys to columns allowed by Schema
-    const allowedKeys = ['record', 'transcribe', 'translate', 'translate_from', 'translate_to', 'survey', 'synthetic_caller']
+    const allowedKeys = ['record', 'transcribe', 'translate', 'translate_from', 'translate_to', 'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id']
+    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id']
+    const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning']
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.
     // Keep `organization_id` only for the INSERT row below.
     const updatePayload: any = { updated_by: actorId }
     for (const k of Object.keys(modulations || {})) {
       const v = (modulations as any)[k]
-      // accept booleans for boolean columns, strings for translate_from/translate_to
+      // accept booleans for boolean columns, strings for string columns
       if (allowedKeys.includes(k)) {
-        if ((k === 'translate_from' || k === 'translate_to')) {
+        if (stringKeys.includes(k)) {
           if (v === null || typeof v === 'string') updatePayload[k] = v
-        } else {
+        } else if (booleanKeys.includes(k)) {
           if (typeof v === 'boolean') updatePayload[k] = v
         }
       }
     }
 
-    // translation validation: if translate enabled then language codes required and valid
-    if (updatePayload.translate === true) {
-      const from = updatePayload.translate_from ?? modulations.translate_from
-      const to = updatePayload.translate_to ?? modulations.translate_to
-      if (!isValidLangCode(from) || !isValidLangCode(to)) {
-        const err = new AppError({ code: 'INVALID_LANGUAGE', message: 'Invalid language codes', user_message: 'Invalid language codes for translation', severity: 'MEDIUM' })
+    // Translation validation: if language codes are provided, validate them
+    // Note: We allow enabling translate=true first, then setting language codes
+    // The call initiation endpoint will enforce language codes at execution time
+    if (updatePayload.translate_from !== undefined && updatePayload.translate_from !== null) {
+      if (!isValidLangCode(updatePayload.translate_from)) {
+        const err = new AppError({ code: 'INVALID_LANGUAGE', message: 'Invalid from language code', user_message: 'Invalid source language code', severity: 'MEDIUM' })
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
       }
-      updatePayload.translate_from = from
-      updatePayload.translate_to = to
+    }
+    if (updatePayload.translate_to !== undefined && updatePayload.translate_to !== null) {
+      if (!isValidLangCode(updatePayload.translate_to)) {
+        const err = new AppError({ code: 'INVALID_LANGUAGE', message: 'Invalid to language code', user_message: 'Invalid target language code', severity: 'MEDIUM' })
+        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      }
     }
 
     // fetch existing for audit

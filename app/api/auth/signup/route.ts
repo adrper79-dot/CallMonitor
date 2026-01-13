@@ -4,6 +4,9 @@ import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { logger } from '@/lib/logger'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 /**
  * Public Signup API
  * 

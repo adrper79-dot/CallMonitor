@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 
+// Force dynamic rendering - webhooks must be processed dynamically
+export const dynamic = 'force-dynamic'
+
 /**
  * Survey Response Webhook Handler
  * 

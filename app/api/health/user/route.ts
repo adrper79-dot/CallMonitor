@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Force dynamic rendering - uses request.url
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const url = process.env.SUPABASE_URL

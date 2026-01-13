@@ -83,11 +83,11 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
           target_id: config.target_id,
           campaign_id: config.campaign_id || null,
           modulations: {
-            record: config.recording_enabled || false,
-            transcribe: config.transcription_enabled || false,
-            translate: config.translation_enabled || false,
-            survey: config.survey_enabled || false,
-            synthetic_caller: config.secret_shopper_enabled || false,
+            record: config.record || false,
+            transcribe: config.transcribe || false,
+            translate: config.translate || false,
+            survey: config.survey || false,
+            synthetic_caller: config.synthetic_caller || false,
           },
         }),
       })

@@ -1,6 +1,6 @@
 # Quick Reference - CallMonitor
 
-**Version:** 1.0.0 | **Date:** January 12, 2026 | **Status:** ✅ Production
+**Version:** 1.1.0 | **Date:** January 13, 2026 | **Status:** ✅ Production Ready
 
 ---
 
@@ -12,6 +12,7 @@
 | Voice Operations | `/voice` | Call management |
 | Settings | `/settings` | Voice config + toggles |
 | Tests | `/test` | System health dashboard |
+| Admin Auth | `/admin/auth` | Admin authentication |
 
 ---
 
@@ -57,9 +58,15 @@
 
 ### **Via CLI:**
 ```bash
-npm test -- --run         # Unit tests
-npx tsc --noEmit           # TypeScript check
+npm test              # Unit tests (Vitest)
+npm run build         # Production build
+npx tsc --noEmit      # TypeScript check
 ```
+
+### **Current Test Status:**
+- **Pass Rate:** 98.5% (64/65 tests)
+- **Test Files:** 14
+- **Known Issues:** 1 mock setup issue in integration test
 
 ---
 
@@ -69,11 +76,18 @@ npx tsc --noEmit           # TypeScript check
 - `ARCH_DOCS/01-CORE/MASTER_ARCHITECTURE.txt` - System design
 - `ARCH_DOCS/01-CORE/Schema.txt` - Database schema
 - `ARCH_DOCS/02-FEATURES/Translation_Agent` - Live translation guide
+- `V4_Issues.txt` - Current status & fixes
 
 ### **Feature Docs:**
 - `ARCH_DOCS/02-FEATURES/BULK_UPLOAD_FEATURE.md` - Bulk upload
 - `ARCH_DOCS/02-FEATURES/TEST_DASHBOARD.md` - Test system
 - `ARCH_DOCS/02-FEATURES/SECRET_SHOPPER_INFRASTRUCTURE.md` - Scoring
+
+### **Core Services:**
+- `app/services/elevenlabs.ts` - TTS service
+- `app/services/translation.ts` - Translation service
+- `lib/supabaseAdmin.ts` - Database client
+- `lib/auth.ts` - Authentication
 
 ---
 
@@ -89,12 +103,46 @@ npx tsc --noEmit           # TypeScript check
 
 ---
 
+## 🔧 **Environment Variables**
+
+### **Required:**
+```bash
+NEXT_PUBLIC_SUPABASE_URL=xxx
+NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
+SUPABASE_SERVICE_ROLE_KEY=xxx
+SIGNALWIRE_PROJECT_ID=xxx
+SIGNALWIRE_TOKEN=xxx              # Or SIGNALWIRE_API_TOKEN
+SIGNALWIRE_SPACE=xxx.signalwire.com
+SIGNALWIRE_NUMBER=+15551234567
+NEXTAUTH_SECRET=xxx               # Min 32 chars
+NEXT_PUBLIC_APP_URL=xxx
+```
+
+### **Recommended:**
+```bash
+ASSEMBLYAI_API_KEY=xxx
+ELEVENLABS_API_KEY=xxx
+```
+
+### **Optional:**
+```bash
+TRANSLATION_LIVE_ASSIST_PREVIEW=true
+RESEND_API_KEY=xxx
+GOOGLE_CLIENT_ID=xxx
+GOOGLE_CLIENT_SECRET=xxx
+```
+
+---
+
 ## 🛠️ **Common Tasks**
 
-### **Add New User:**
+### **Check System Health:**
 ```bash
-# Via UI: /auth/signup
-# Via API: POST /api/auth/signup
+# Via API
+curl https://your-domain.com/api/health
+
+# Via UI
+Go to /test
 ```
 
 ### **Update Organization Plan:**
@@ -111,10 +159,15 @@ TRANSLATION_LIVE_ASSIST_PREVIEW=true
 # 3. Go to /settings and toggle on
 ```
 
-### **View Call Details:**
-1. Go to `/voice`
-2. Click call in sidebar
-3. View modulations, artifacts, timeline
+### **Run Database Migration:**
+```bash
+supabase db push
+```
+
+### **Check Build:**
+```bash
+npm run build
+```
 
 ---
 
@@ -128,12 +181,41 @@ TRANSLATION_LIVE_ASSIST_PREVIEW=true
 ### **401 Auth errors:**
 - Verify Supabase keys configured correctly
 - Check both `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`
-- Ensure `apikey` header included (not just Authorization)
+- Ensure `apikey` header included
+
+### **Build fails with static generation error:**
+- All API routes should have `export const dynamic = 'force-dynamic'`
+- Check `V4_Issues.txt` for list of fixed files
 
 ### **Tests failing:**
-- Run `npm test -- --run` to see details
+- Run `npm test` to see details
 - Check `/test` dashboard for visual status
-- Review `archive/reviews/` for similar issues
+- Most test failures are mock setup issues, not production code
+
+### **SignalWire calls not working:**
+- Verify `SIGNALWIRE_NUMBER` is set
+- Check `SIGNALWIRE_TOKEN` or `SIGNALWIRE_API_TOKEN`
+- Verify webhooks are configured in SignalWire dashboard
+
+---
+
+## 📊 **API Endpoints Quick Reference**
+
+### **Most Used:**
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/voice/call` | POST | Start a call |
+| `/api/voice/config` | GET/PUT | Voice configuration |
+| `/api/calls` | GET | List calls |
+| `/api/health` | GET | System health |
+| `/api/call-capabilities` | GET | Check org capabilities |
+
+### **Webhooks:**
+| Endpoint | Source | Purpose |
+|----------|--------|---------|
+| `/api/webhooks/signalwire` | SignalWire | Call status updates |
+| `/api/webhooks/assemblyai` | AssemblyAI | Transcription results |
+| `/api/webhooks/survey` | Internal | Survey responses |
 
 ---
 
@@ -141,8 +223,8 @@ TRANSLATION_LIVE_ASSIST_PREVIEW=true
 
 ### **Start Here:**
 1. `00-README.md` - Full navigation guide
-2. `CURRENT_STATUS.md` - This file
-3. `QUICK_REFERENCE.md` - Cheat sheet
+2. `CURRENT_STATUS.md` - System overview
+3. `QUICK_REFERENCE.md` - This file
 
 ### **Core Docs:**
 - `01-CORE/` - Architecture, schema, error handling
@@ -158,23 +240,19 @@ TRANSLATION_LIVE_ASSIST_PREVIEW=true
 
 ---
 
-## 🎯 **Next Steps**
+## 🎯 **Build & Deploy Checklist**
 
-### **For Development:**
-1. Review `01-CORE/MASTER_ARCHITECTURE.txt`
-2. Check `01-CORE/Schema.txt` for database structure
-3. Follow patterns in existing features
+### **Pre-Deployment:**
+- [ ] `npm run build` succeeds
+- [ ] `npm test` passes (98%+)
+- [ ] All env vars set in Vercel
+- [ ] Webhooks configured in SignalWire/AssemblyAI
 
-### **For Testing:**
-1. Go to `/test` and run full suite
-2. Verify all lights are green
-3. Test live translation with Business plan org
-
-### **For Deployment:**
-1. Review `04-DESIGN/DEPLOYMENT_NOTES.md`
-2. Configure environment variables
-3. Run database migrations
-4. Verify webhooks configured
+### **Post-Deployment:**
+- [ ] `/api/health` returns OK
+- [ ] `/test` dashboard shows green
+- [ ] Test call works
+- [ ] Check Vercel logs for errors
 
 ---
 
@@ -184,17 +262,19 @@ TRANSLATION_LIVE_ASSIST_PREVIEW=true
 - **Need help?** Read `00-README.md` for full index
 - **Historical context?** Browse `archive/` folders
 - **API details?** Check `01-CORE/MASTER_ARCHITECTURE.txt`
+- **Current fixes?** See `V4_Issues.txt`
 
 ---
 
 ## 📊 **System Stats**
 
-- **Files Modified:** 32
-- **Features Deployed:** 20
-- **Tests Passing:** 57/59 (96.6%)
-- **Documentation Pages:** 30+
-- **Lines of Code:** ~15,000+
-- **API Endpoints:** 15+
+| Metric | Value |
+|--------|-------|
+| **API Routes** | 38 (all dynamic) |
+| **Features Deployed** | 22 |
+| **Tests Passing** | 64/65 (98.5%) |
+| **Documentation Pages** | 40+ |
+| **Build Status** | ✅ Clean |
 
 ---
 

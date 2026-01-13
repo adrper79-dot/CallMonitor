@@ -81,9 +81,9 @@ export default function Home() {
   // Load translation settings from voice config
   useEffect(() => {
     if (config) {
-      setTranslate(config.translation_enabled ?? false)
-      setTranslateFrom(config.translation_from || 'en')
-      setTranslateTo(config.translation_to || 'es')
+      setTranslate(config.translate ?? false)
+      setTranslateFrom(config.translate_from || 'en')
+      setTranslateTo(config.translate_to || 'es')
     }
   }, [config])
 
@@ -139,7 +139,7 @@ export default function Home() {
     setTranslate(enabled)
     if (organizationId && updateConfig) {
       try {
-        await updateConfig({ translation_enabled: enabled })
+        await updateConfig({ translate: enabled })
       } catch (err) {
         console.error('Failed to update translation setting:', err)
       }
@@ -150,9 +150,9 @@ export default function Home() {
     setTranslateFrom(lang)
     if (organizationId && updateConfig) {
       try {
-        await updateConfig({ translation_from: lang })
+        await updateConfig({ translate_from: lang })
       } catch (err) {
-        console.error('Failed to update translation_from:', err)
+        console.error('Failed to update translate_from:', err)
       }
     }
   }
@@ -161,9 +161,9 @@ export default function Home() {
     setTranslateTo(lang)
     if (organizationId && updateConfig) {
       try {
-        await updateConfig({ translation_to: lang })
+        await updateConfig({ translate_to: lang })
       } catch (err) {
-        console.error('Failed to update translation_to:', err)
+        console.error('Failed to update translate_to:', err)
       }
     }
   }

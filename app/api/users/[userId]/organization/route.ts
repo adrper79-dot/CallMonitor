@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   req: Request,
   { params }: { params: { userId: string } }

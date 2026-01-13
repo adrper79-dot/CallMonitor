@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Force dynamic rendering - health checks should always be fresh
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const url = process.env.SUPABASE_URL

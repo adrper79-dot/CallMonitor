@@ -3,17 +3,42 @@
 import { useState, useEffect } from 'react'
 
 export interface VoiceConfig {
-  recording_enabled?: boolean
-  transcription_enabled?: boolean
-  translation_enabled?: boolean
-  translation_from?: string
-  translation_to?: string
-  survey_enabled?: boolean
+  // Database column names (what comes from API)
+  record?: boolean
+  transcribe?: boolean
+  translate?: boolean
+  translate_from?: string
+  translate_to?: string
+  survey?: boolean
+  synthetic_caller?: boolean
+  // Additional fields
   survey_id?: string | null
-  secret_shopper_enabled?: boolean
   script_id?: string | null
   target_id?: string | null
   campaign_id?: string | null
+  // Voice cloning
+  use_voice_cloning?: boolean
+  cloned_voice_id?: string | null
+}
+
+// Map frontend-friendly names to database column names
+const FIELD_MAP: Record<string, string> = {
+  recording_enabled: 'record',
+  transcription_enabled: 'transcribe',
+  translation_enabled: 'translate',
+  translation_from: 'translate_from',
+  translation_to: 'translate_to',
+  survey_enabled: 'survey',
+  secret_shopper_enabled: 'synthetic_caller',
+}
+
+function mapFieldsToDb(updates: Record<string, any>): Record<string, any> {
+  const mapped: Record<string, any> = {}
+  for (const [key, value] of Object.entries(updates)) {
+    const dbKey = FIELD_MAP[key] || key
+    mapped[dbKey] = value
+  }
+  return mapped
 }
 
 export function useVoiceConfig(organizationId: string | null) {
@@ -59,19 +84,22 @@ export function useVoiceConfig(organizationId: string | null) {
 
     try {
       setError(null)
+      // Map frontend field names to database column names
+      const mappedUpdates = mapFieldsToDb(updates)
+      
       const res = await fetch('/api/voice/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // CRITICAL: Include session cookies for auth
         body: JSON.stringify({
           orgId: organizationId,
-          modulations: updates, // FIX: Wrap updates in modulations object per API contract
+          modulations: mappedUpdates,
         }),
       })
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Failed to update config' }))
-        throw new Error(errorData.error || 'Failed to update config')
+        throw new Error(errorData.error?.message || errorData.error || 'Failed to update config')
       }
 
       const data = await res.json()

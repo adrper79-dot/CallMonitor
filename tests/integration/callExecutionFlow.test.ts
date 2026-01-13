@@ -186,13 +186,16 @@ describe('Call Execution Integration Flow', () => {
       user: { id: 'user-123' }
     })
 
+    // Use valid UUID format for organization_id
+    const validOrgId = '5f64d900-e212-42ab-bf41-7518f0bbcd4f'
+
     const req = new Request('http://localhost/api/voice/call', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        organization_id: 'org-123',
+        organization_id: validOrgId,
         phone_to: '+1234567890',
         modulations: {
           record: true,

@@ -5,6 +5,9 @@ import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { isApiError } from '@/types/api'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 /**
  * Voice Call API
  * 

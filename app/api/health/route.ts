@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 
+// Force dynamic rendering - health checks should always be fresh
+export const dynamic = 'force-dynamic'
+
 /**
  * Health Check Endpoint
  * 

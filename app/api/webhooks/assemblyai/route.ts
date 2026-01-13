@@ -5,6 +5,9 @@ import { verifyAssemblyAISignature } from '@/lib/webhookSecurity'
 import { logger } from '@/lib/logger'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
+// Force dynamic rendering - webhooks must be processed dynamically
+export const dynamic = 'force-dynamic'
+
 /**
  * AssemblyAI Webhook Handler
  * 
@@ -255,7 +258,15 @@ async function processWebhookAsync(req: Request) {
 
       // Check if translation is enabled and trigger if needed
       if (organizationId) {
-        await checkAndTriggerTranslation(callId, organizationId, text, languageCode)
+        // Get recording URL for voice cloning
+        const { data: recUrlRows } = await supabaseAdmin
+          .from('recordings')
+          .select('recording_url')
+          .eq('id', recordingId)
+          .limit(1)
+        const recordingUrl = recUrlRows?.[0]?.recording_url || undefined
+        
+        await checkAndTriggerTranslation(callId, organizationId, text, languageCode, recordingUrl)
       }
 
       // Check if survey is enabled and process if needed
@@ -293,11 +304,11 @@ async function getCallSidFromCallId(callId: string): Promise<string | null> {
 /**
  * Check if translation is enabled and trigger translation pipeline
  */
-async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string, detectedLanguage?: string) {
+async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string, detectedLanguage?: string, recordingUrl?: string) {
   try {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('translate, translate_from, translate_to')
+      .select('translate, translate_from, translate_to, use_voice_cloning')
       .eq('organization_id', organizationId)
       .limit(1)
 
@@ -392,6 +403,18 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
         }
       })
 
+    // Get recording URL if voice cloning is enabled
+    let finalRecordingUrl = recordingUrl
+    if (config.use_voice_cloning && !finalRecordingUrl) {
+      // Try to get recording URL from recordings table
+      const { data: recRows } = await supabaseAdmin
+        .from('recordings')
+        .select('recording_url')
+        .eq('call_id', callId)
+        .limit(1)
+      finalRecordingUrl = recRows?.[0]?.recording_url || undefined
+    }
+
     // Trigger translation via translation service
     const { translateText } = await import('@/app/services/translation')
     await translateText({
@@ -400,7 +423,9 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       text: transcriptText,
       fromLanguage: fromLanguage,
       toLanguage: toLanguage,
-      organizationId
+      organizationId,
+      recordingUrl: finalRecordingUrl,
+      useVoiceCloning: config.use_voice_cloning || false
     })
 
   } catch (err: any) {

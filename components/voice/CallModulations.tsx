@@ -99,14 +99,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
     setPending(p => ({ ...p, [key]: true }))
     
     try {
-      // Update via voice config API
-      const configKey = key === 'record' ? 'recording_enabled' :
-                       key === 'transcribe' ? 'transcription_enabled' :
-                       key === 'translate' ? 'translation_enabled' :
-                       key === 'survey' ? 'survey_enabled' :
-                       'secret_shopper_enabled'
-      
-      await updateConfig({ [configKey]: next[key] })
+      // Update via voice config API using database column names directly
+      // The useVoiceConfig hook maps frontend names to DB names if needed,
+      // but we use DB names directly here for clarity
+      await updateConfig({ [key]: next[key] })
       await onChange(next)
     } catch (e: any) {
       // Rollback
@@ -191,33 +187,65 @@ export default function CallModulations({ callId, organizationId, initialModulat
                 
                 {/* Additional config for specific modulations */}
                 {checked && t.key === 'translate' && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Select
-                      label="From Language"
-                      value={config?.translation_from || ''}
-                      onChange={(e) => updateConfig({ translation_from: e.target.value })}
-                      disabled={!canEdit}
-                      className="text-sm"
-                    >
-                      <option value="">Select...</option>
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
-                    </Select>
-                    <Select
-                      label="To Language"
-                      value={config?.translation_to || ''}
-                      onChange={(e) => updateConfig({ translation_to: e.target.value })}
-                      disabled={!canEdit}
-                      className="text-sm"
-                    >
-                      <option value="">Select...</option>
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
-                    </Select>
+                  <div className="mt-2 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Select
+                        label="From Language"
+                        value={config?.translate_from || ''}
+                        onChange={(e) => updateConfig({ translate_from: e.target.value || undefined })}
+                        disabled={!canEdit}
+                        className="text-sm"
+                      >
+                        <option value="">Select...</option>
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="ar">Arabic</option>
+                        <option value="hi">Hindi</option>
+                        <option value="ru">Russian</option>
+                      </Select>
+                      <Select
+                        label="To Language"
+                        value={config?.translate_to || ''}
+                        onChange={(e) => updateConfig({ translate_to: e.target.value || undefined })}
+                        disabled={!canEdit}
+                        className="text-sm"
+                      >
+                        <option value="">Select...</option>
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="zh">Chinese</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="ar">Arabic</option>
+                        <option value="hi">Hindi</option>
+                        <option value="ru">Russian</option>
+                      </Select>
+                    </div>
+                    {/* Voice cloning toggle */}
+                    <div className="flex items-center justify-between p-2 rounded bg-slate-700/50">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-slate-200">Voice Cloning</span>
+                        <span className="text-xs text-slate-400">Clone caller&apos;s voice for translated audio</span>
+                      </div>
+                      <Switch
+                        id="voice-cloning-toggle"
+                        checked={config?.use_voice_cloning || false}
+                        onCheckedChange={(checked) => updateConfig({ use_voice_cloning: checked })}
+                        disabled={!canEdit}
+                        aria-label="Voice Cloning"
+                      />
+                    </div>
                   </div>
                 )}
                 

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateSpeech } from '@/app/services/elevenlabs'
-import { createClient } from '@supabase/supabase-js'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
+// Use centralized admin client to avoid build-time initialization issues
+const supabase = supabaseAdmin
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,10 +74,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // Generate signed URL with 1-hour expiration for better security
+    // This prevents permanent public access to audio files
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('recordings')
-      .getPublicUrl(filePath)
+      .createSignedUrl(filePath, 3600) // 1 hour expiration
+
+    // Fallback to public URL if signed URL fails
+    let audioUrl: string
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.warn('Failed to create signed URL, falling back to public URL:', signedUrlError?.message)
+      const { data: urlData } = supabase.storage
+        .from('recordings')
+        .getPublicUrl(filePath)
+      audioUrl = urlData.publicUrl
+    } else {
+      audioUrl = signedUrlData.signedUrl
+    }
 
     // Create AI run record for tracking
     await supabase
@@ -92,7 +107,8 @@ export async function POST(request: NextRequest) {
           text,
           voice_id,
           language,
-          audio_url: urlData.publicUrl,
+          audio_url: audioUrl,
+          storage_path: filePath, // Store path for regenerating signed URLs
           character_count: text.length,
           organization_id
         }
@@ -100,7 +116,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      audio_url: urlData.publicUrl,
+      audio_url: audioUrl,
+      storage_path: filePath, // Client can request new signed URL if expired
+      expires_in: 3600, // 1 hour
       character_count: text.length
     })
   } catch (error: any) {

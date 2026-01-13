@@ -11,10 +11,13 @@ process.env.ASSEMBLYAI_API_KEY = 'test-aai-key'
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
 process.env.NEXTAUTH_SECRET = 'test-secret-min-32-chars-long-for-testing'
 
-// Mock Next.js
-vi.mock('next/server', () => ({
-  NextResponse: {
-    json: (body: any, init?: ResponseInit) => {
+// Mock Next.js - support both constructor and static methods
+vi.mock('next/server', () => {
+  class MockNextResponse extends Response {
+    constructor(body?: BodyInit | null, init?: ResponseInit) {
+      super(body, init)
+    }
+    static json(body: any, init?: ResponseInit) {
       return new Response(JSON.stringify(body), {
         ...init,
         headers: {
@@ -24,7 +27,11 @@ vi.mock('next/server', () => ({
       })
     }
   }
-}))
+  return {
+    NextResponse: MockNextResponse,
+    NextRequest: Request
+  }
+})
 
 // Mock uuid
 vi.mock('uuid', () => ({

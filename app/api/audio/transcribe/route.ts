@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
 
-const assemblyAIKey = process.env.ASSEMBLYAI_API_KEY!
+// Use centralized admin client to avoid build-time initialization issues
+const supabase = supabaseAdmin
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,6 +17,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    // Get AssemblyAI key at runtime
+    const assemblyAIKey = process.env.ASSEMBLYAI_API_KEY
+    if (!assemblyAIKey) {
+      return NextResponse.json(
+        { error: 'AssemblyAI not configured' },
+        { status: 503 }
       )
     }
 

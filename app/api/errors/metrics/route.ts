@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { getErrorKPIs, getEndpointKPIs, getSystemHealth } from '@/lib/errors/kpi'
 
+// Force dynamic rendering - uses headers via getServerSession
+export const dynamic = 'force-dynamic'
+
 /**
  * Error Metrics Endpoint
  * 
