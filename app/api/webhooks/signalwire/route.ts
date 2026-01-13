@@ -4,6 +4,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { verifySignalWireSignature } from '@/lib/webhookSecurity'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
+import { logger } from '@/lib/logger'
 
 function parseFormUrlEncoded(body: string) {
   return Object.fromEntries(new URLSearchParams(body))
@@ -26,13 +27,8 @@ function parseFormUrlEncoded(body: string) {
  * Security: Validates webhook signature if SIGNALWIRE_TOKEN is configured
  */
 export async function POST(req: Request) {
-  // TEMPORARILY DISABLED: Webhook signature validation
-  // TODO: Fix signature validation - currently failing with valid SignalWire webhooks
-  // The signature verification algorithm might need adjustment for SignalWire's format
-  
-  /*
   // Validate webhook signature if token is configured
-  const authToken = process.env.SIGNALWIRE_TOKEN
+  const authToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
   if (authToken) {
     const signature = req.headers.get('X-SignalWire-Signature') || 
                      req.headers.get('X-Signature') ||
@@ -44,9 +40,10 @@ export async function POST(req: Request) {
       const isValid = verifySignalWireSignature(rawBody, signature, authToken)
       
       if (!isValid) {
-        // eslint-disable-next-line no-console
-        console.error('signalwire webhook: invalid signature', { 
-          signature: signature.substring(0, 10) + '...' 
+        // Log invalid signature attempt (security event)
+        logger.error('SignalWire webhook: Invalid signature - potential spoofing attempt', undefined, { 
+          signaturePrefix: signature.substring(0, 10),
+          source: 'signalwire-webhook'
         })
         return NextResponse.json(
           { success: false, error: { code: 'WEBHOOK_SIGNATURE_INVALID', message: 'Invalid webhook signature' } },
@@ -63,8 +60,10 @@ export async function POST(req: Request) {
     } else {
       // Signature header missing but token configured - log warning but allow in development
       if (process.env.NODE_ENV === 'production') {
-        // eslint-disable-next-line no-console
-        console.warn('signalwire webhook: signature header missing in production')
+        logger.warn('SignalWire webhook: Signature header missing in production', {
+          source: 'signalwire-webhook',
+          environment: 'production'
+        })
         return NextResponse.json(
           { success: false, error: { code: 'WEBHOOK_SIGNATURE_MISSING', message: 'Webhook signature required' } },
           { status: 401 }
@@ -72,13 +71,14 @@ export async function POST(req: Request) {
       }
     }
   }
-  */
 
   // Return 200 OK immediately - SignalWire requires quick response
-  // Process webhook asynchronously
+  // Process webhook asynchronously per architecture: SignalWire is execution plane
   void processWebhookAsync(req).catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('signalwire webhook async processing error', { error: err?.message ?? String(err) })
+    logger.error('SignalWire webhook async processing failed', err, { 
+      source: 'signalwire-webhook',
+      phase: 'async-processing'
+    })
   })
 
   return NextResponse.json({ ok: true, received: true })
@@ -109,25 +109,27 @@ async function processWebhookAsync(req: Request) {
     const eventType = payload.EventType || payload.event_type || (recordingSid ? 'recording' : 'call')
     const recordingStatus = payload.RecordingStatus || payload.recording_status
 
-    // eslint-disable-next-line no-console
-    console.log('signalwire webhook processing', { 
+    // Log webhook processing per architecture: SignalWire = authoritative media plane
+    logger.info('SignalWire webhook received', { 
       callSid: callSid ? '[REDACTED]' : null, 
       callStatus, 
       eventType,
       hasRecording: !!recordingSid,
       hasRecordingUrl: !!recordingUrl,
       recordingStatus: recordingStatus || 'not-present',
-      payloadKeys: Object.keys(payload).sort()
+      payloadKeys: Object.keys(payload).sort(),
+      source: 'signalwire-webhook'
     })
     
-    // DIAGNOSTIC: Log recording-related fields
+    // DIAGNOSTIC: Log recording-related fields (call artifacts are first-class per architecture)
     if (recordingSid || recordingUrl || recordingStatus) {
-      // eslint-disable-next-line no-console
-      console.log('signalwire webhook: RECORDING DETECTED', {
+      logger.info('SignalWire webhook: Recording artifact detected', {
         recordingSid: recordingSid ? '[REDACTED]' : 'MISSING',
-        recordingUrl: recordingUrl ? recordingUrl.substring(0, 50) + '...' : 'MISSING',
+        recordingUrlPrefix: recordingUrl ? recordingUrl.substring(0, 50) : 'MISSING',
         recordingDuration: recordingDuration || 'MISSING',
-        recordingStatus: recordingStatus || 'MISSING'
+        recordingStatus: recordingStatus || 'MISSING',
+        source: 'signalwire-webhook',
+        artifactType: 'recording'
       })
     } else if (callStatus === 'completed') {
       // eslint-disable-next-line no-console

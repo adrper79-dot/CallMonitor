@@ -38,9 +38,10 @@ export async function POST(req: Request) {
       )
     }
 
-    // Support both SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    // Use centralized config per architecture
+    const { config } = await import('@/lib/config')
+    const supabaseUrl = config.supabase.url
+    const serviceKey = config.supabase.serviceRoleKey
 
     if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(
@@ -250,3 +251,13 @@ export async function POST(req: Request) {
     )
   }
 }
+
+// Apply rate limiting per architecture: Security boundaries
+export const POST = withRateLimit(handleSignup, {
+  identifier: (req) => getClientIP(req),
+  config: {
+    maxAttempts: 5, // 5 signup attempts
+    windowMs: 60 * 60 * 1000, // per hour
+    blockMs: 60 * 60 * 1000 // 1 hour block on abuse
+  }
+})

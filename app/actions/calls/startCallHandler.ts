@@ -76,10 +76,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       leg: leg || 'single'
     })
     
-    const swProject = env.SIGNALWIRE_PROJECT_ID
-    const swToken = env.SIGNALWIRE_TOKEN
-    const swNumber = env.SIGNALWIRE_NUMBER
-    const rawSpace = String(env.SIGNALWIRE_SPACE || '')
+    // Use centralized config per architecture (with fallback to env for testing)
+    const { config: appConfig } = env.SIGNALWIRE_PROJECT_ID ? { config: null } : await import('@/lib/config')
+    const swProject = env.SIGNALWIRE_PROJECT_ID || appConfig?.signalwire.projectId
+    const swToken = env.SIGNALWIRE_TOKEN || env.SIGNALWIRE_API_TOKEN || appConfig?.signalwire.token
+    const swNumber = env.SIGNALWIRE_NUMBER || appConfig?.signalwire.number
+    const rawSpace = String(env.SIGNALWIRE_SPACE || appConfig?.signalwire.space || '')
     const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
 
     // eslint-disable-next-line no-console
