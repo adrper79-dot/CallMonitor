@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import startCall from '../../../actions/calls/startCall'
 import { getServerSession } from 'next-auth/next'
-import { authOptions } from '../../auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 
 function isE164(n: string) {
   return /^\+?[1-9]\d{1,14}$/.test(n)
