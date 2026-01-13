@@ -50,11 +50,15 @@ export async function GET(
         organizationId = user.organization_id
         
         // Auto-create missing org_members record
-        await supabase.from('org_members').insert({
+        const { error: orgMemberError } = await supabase.from('org_members').insert({
           organization_id: user.organization_id,
           user_id: params.userId,
           role: 'member'
-        }).catch(() => {}) // Ignore errors if already exists
+        })
+        // Ignore error if already exists (unique constraint violation)
+        if (orgMemberError && !orgMemberError.message.includes('duplicate')) {
+          console.error('Failed to create org_members record:', orgMemberError)
+        }
       }
     }
 
