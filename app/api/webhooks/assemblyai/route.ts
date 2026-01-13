@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { verifyAssemblyAISignature } from '@/lib/webhookSecurity'
+import { logger } from '@/lib/logger'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 /**
  * AssemblyAI Webhook Handler
@@ -17,9 +19,11 @@ import { verifyAssemblyAISignature } from '@/lib/webhookSecurity'
  * 
  * Returns 200 OK immediately, processes asynchronously
  * 
- * Security: Validates webhook signature if ASSEMBLYAI_API_KEY is configured
+ * Security: 
+ * - Validates webhook signature if ASSEMBLYAI_API_KEY is configured
+ * - Rate limited: 1000 requests/minute per source (DoS protection)
  */
-export async function POST(req: Request) {
+async function handleWebhook(req: Request) {
   // Validate webhook signature if API key is configured
   const apiKey = process.env.ASSEMBLYAI_API_KEY
   if (apiKey) {
@@ -33,9 +37,9 @@ export async function POST(req: Request) {
       const isValid = verifyAssemblyAISignature(rawBody, signature, apiKey)
       
       if (!isValid) {
-        // eslint-disable-next-line no-console
-        console.error('assemblyai webhook: invalid signature', { 
-          signature: signature.substring(0, 10) + '...' 
+        logger.error('AssemblyAI webhook: Invalid signature - potential spoofing attempt', undefined, { 
+          signaturePrefix: signature.substring(0, 10),
+          source: 'assemblyai-webhook'
         })
         return NextResponse.json(
           { success: false, error: { code: 'WEBHOOK_SIGNATURE_INVALID', message: 'Invalid webhook signature' } },
@@ -52,8 +56,10 @@ export async function POST(req: Request) {
     } else {
       // Signature header missing but API key configured - log warning but allow in development
       if (process.env.NODE_ENV === 'production') {
-        // eslint-disable-next-line no-console
-        console.warn('assemblyai webhook: signature header missing in production')
+        logger.warn('AssemblyAI webhook: Signature header missing in production', {
+          source: 'assemblyai-webhook',
+          environment: 'production'
+        })
         return NextResponse.json(
           { success: false, error: { code: 'WEBHOOK_SIGNATURE_MISSING', message: 'Webhook signature required' } },
           { status: 401 }
@@ -63,10 +69,12 @@ export async function POST(req: Request) {
   }
 
   // Return 200 OK immediately - AssemblyAI requires quick response
-  // Process webhook asynchronously
+  // Process webhook asynchronously per architecture: AssemblyAI is intelligence plane
   void processWebhookAsync(req).catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('assemblyai webhook async processing error', { error: err?.message ?? String(err) })
+    logger.error('AssemblyAI webhook async processing failed', err, { 
+      source: 'assemblyai-webhook',
+      phase: 'async-processing'
+    })
   })
 
   return NextResponse.json({ ok: true, received: true })
@@ -83,41 +91,47 @@ async function processWebhookAsync(req: Request) {
     const words = payload.words // Word-level timestamps
     const confidence = payload.confidence // Overall confidence score
     const audioUrl = payload.audio_url // Original audio URL
-    const languageCode = payload.language_code || payload.language_detection?.language_code // Detected language (e.g., 'en', 'es', 'fr')
+    const languageCode = payload.language_code || payload.language_detection?.language_code
 
-    // eslint-disable-next-line no-console
-    console.log('assemblyai webhook processing', { 
+    logger.info('AssemblyAI webhook received', { 
       transcriptId: transcriptId ? '[REDACTED]' : null, 
       status,
-      hasText: !!text 
+      hasText: !!text,
+      source: 'assemblyai-webhook',
+      artifactType: 'transcript'
     })
 
     if (!transcriptId) {
-      // eslint-disable-next-line no-console
-      console.warn('assemblyai webhook: missing transcript_id, skipping')
+      logger.warn('AssemblyAI webhook: Missing transcript_id, skipping', {
+        source: 'assemblyai-webhook'
+      })
       return
     }
 
     if (status !== 'completed') {
       if (status === 'error') {
-        // eslint-disable-next-line no-console
-        console.error('assemblyai webhook: transcription failed', { transcriptId: '[REDACTED]', error: payload.error })
+        logger.error('AssemblyAI webhook: Transcription failed', undefined, { 
+          transcriptId: '[REDACTED]', 
+          error: payload.error,
+          source: 'assemblyai-webhook'
+        })
         
         // Find and update ai_run to failed status
         const { data: aiRows } = await supabaseAdmin
           .from('ai_runs')
-          .select('id, call_id')
+          .select('id, call_id, output')
           .eq('model', 'assemblyai-v1')
           .contains('output', { job_id: transcriptId })
           .limit(1)
 
         if (aiRows && aiRows.length > 0) {
+          const existingOutput = typeof aiRows[0].output === 'object' ? aiRows[0].output : {}
           await supabaseAdmin
             .from('ai_runs')
             .update({
               status: 'failed',
               completed_at: new Date().toISOString(),
-              output: { ...aiRows[0].output, error: payload.error, status: 'error' }
+              output: { ...existingOutput, error: payload.error, status: 'error' }
             }).eq('id', aiRows[0].id)
         }
       }
@@ -133,15 +147,19 @@ async function processWebhookAsync(req: Request) {
       .limit(1)
 
     if (aiErr) {
-      // eslint-disable-next-line no-console
-      console.error('assemblyai webhook: failed to find ai_run', { error: aiErr.message, transcriptId: '[REDACTED]' })
+      logger.error('AssemblyAI webhook: Failed to find ai_run', aiErr, { 
+        transcriptId: '[REDACTED]',
+        source: 'assemblyai-webhook'
+      })
       return
     }
 
     const aiRun = aiRows?.[0]
     if (!aiRun) {
-      // eslint-disable-next-line no-console
-      console.warn('assemblyai webhook: ai_run not found', { transcriptId: '[REDACTED]' })
+      logger.warn('AssemblyAI webhook: ai_run not found', { 
+        transcriptId: '[REDACTED]',
+        source: 'assemblyai-webhook'
+      })
       return
     }
 
@@ -156,21 +174,20 @@ async function processWebhookAsync(req: Request) {
       .limit(1)
 
     if (recErr || !recRows || recRows.length === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('assemblyai webhook: recording not found for call', { callId })
+      logger.warn('AssemblyAI webhook: Recording not found for call', { callId })
       // Continue anyway - we can still update ai_run
     }
 
     const recordingId = recRows?.[0]?.id
     const organizationId = recRows?.[0]?.organization_id
 
-    // Build transcript JSON structure
+    // Build transcript JSON structure (first-class artifact per architecture)
     const transcriptJson = {
       text,
       words: words || [],
       confidence: confidence || null,
       transcript_id: transcriptId,
-      language_code: languageCode || null, // Store detected language
+      language_code: languageCode || null,
       completed_at: new Date().toISOString()
     }
 
@@ -188,11 +205,14 @@ async function processWebhookAsync(req: Request) {
       }).eq('id', aiRunId)
 
     if (updateAiErr) {
-      // eslint-disable-next-line no-console
-      console.error('assemblyai webhook: failed to update ai_run', { error: updateAiErr.message, aiRunId })
+      logger.error('AssemblyAI webhook: Failed to update ai_run', updateAiErr, { aiRunId })
     } else {
-      // eslint-disable-next-line no-console
-      console.log('assemblyai webhook: updated ai_run', { aiRunId, callId })
+      logger.info('AssemblyAI webhook: Updated ai_run with transcript', { 
+        aiRunId, 
+        callId,
+        source: 'assemblyai-webhook',
+        artifactType: 'transcript'
+      })
       
       // Audit log: transcription completed
       try {
@@ -224,11 +244,13 @@ async function processWebhookAsync(req: Request) {
         .eq('id', recordingId)
 
       if (updateRecErr) {
-        // eslint-disable-next-line no-console
-        console.error('assemblyai webhook: failed to update recording', { error: updateRecErr.message, recordingId })
+        logger.error('AssemblyAI webhook: Failed to update recording', updateRecErr, { recordingId })
       } else {
-        // eslint-disable-next-line no-console
-        console.log('assemblyai webhook: updated recording transcript', { recordingId })
+        logger.info('AssemblyAI webhook: Updated recording with transcript', { 
+          recordingId,
+          source: 'assemblyai-webhook',
+          artifactType: 'recording-transcript'
+        })
       }
 
       // Check if translation is enabled and trigger if needed
@@ -249,8 +271,9 @@ async function processWebhookAsync(req: Request) {
     }
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('assemblyai webhook processing error', { error: err?.message ?? String(err) })
+    logger.error('AssemblyAI webhook processing error', err, { 
+      source: 'assemblyai-webhook'
+    })
   }
 }
 
@@ -288,7 +311,6 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     let toLanguage = config.translate_to
 
     // For bridge calls, we need to handle bidirectional translation
-    // Check if this is a bridge call
     const { data: callRows } = await supabaseAdmin
       .from('calls')
       .select('id, flow_type')
@@ -298,12 +320,6 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     const isBridgeCall = callRows?.[0]?.flow_type === 'bridge'
 
     if (isBridgeCall) {
-      // For bridge calls with auto-detection, we need to:
-      // 1. Detect language from this transcript
-      // 2. Find the other leg's transcript
-      // 3. Detect its language
-      // 4. Translate between them
-      
       if (detectedLanguage) {
         fromLanguage = detectedLanguage
       }
@@ -315,20 +331,15 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
         .eq('call_id', callId)
 
       if (recordingRows && recordingRows.length >= 2) {
-        // Find the other leg's transcript
         const otherLeg = recordingRows.find(r => r.transcript_json?.language_code !== detectedLanguage)
         if (otherLeg?.transcript_json?.language_code) {
           toLanguage = otherLeg.transcript_json.language_code
         } else if (toLanguage === 'auto') {
-          // If we can't detect the other language yet, wait for it
-          // eslint-disable-next-line no-console
-          console.log('translation: waiting for other leg transcript to detect language', { callId })
+          logger.info('AssemblyAI webhook: Waiting for other leg transcript', { callId })
           return
         }
       } else if (toLanguage === 'auto') {
-        // Wait for both legs to complete
-        // eslint-disable-next-line no-console
-        console.log('translation: waiting for both bridge legs to complete', { callId })
+        logger.info('AssemblyAI webhook: Waiting for both bridge legs', { callId })
         return
       }
     } else {
@@ -336,17 +347,16 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       if (fromLanguage === 'auto' && detectedLanguage) {
         fromLanguage = detectedLanguage
       }
-      // For single leg, toLanguage should be specified (not auto)
       if (toLanguage === 'auto') {
-        // eslint-disable-next-line no-console
-        console.warn('translation: toLanguage cannot be auto for single-leg calls', { callId })
+        logger.warn('AssemblyAI webhook: toLanguage cannot be auto for single-leg calls', { callId })
         return
       }
     }
 
     if (!fromLanguage || !toLanguage || fromLanguage === 'auto' || toLanguage === 'auto') {
-      // eslint-disable-next-line no-console
-      console.log('translation: language detection incomplete', { callId, fromLanguage, toLanguage, detectedLanguage })
+      logger.info('AssemblyAI webhook: Language detection incomplete', { 
+        callId, fromLanguage, toLanguage, detectedLanguage 
+      })
       return
     }
 
@@ -394,8 +404,7 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     })
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('assemblyai webhook: translation trigger error', { error: err?.message, callId })
+    logger.error('AssemblyAI webhook: Translation trigger error', err, { callId })
   }
 }
 
@@ -425,14 +434,12 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
       .limit(1)
 
     if (!surveyRows || surveyRows.length === 0) {
-      // No survey response recorded yet
       return
     }
 
     const surveyRun = surveyRows[0]
 
     // Process survey using AssemblyAI NLP to extract answers from transcript
-    // Use AssemblyAI's summarization or custom prompts to extract survey responses
     const surveyResults = await processSurveyWithNLP(transcriptText, surveyRun.output)
 
     // Update survey ai_run with results
@@ -449,13 +456,15 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
         }
       }).eq('id', surveyRun.id)
 
-    // Store survey in evidence manifest (will be included when manifest is generated)
-    // eslint-disable-next-line no-console
-    console.log('assemblyai webhook: survey processed', { surveyRunId: surveyRun.id, callId, recordingId })
+    logger.info('AssemblyAI webhook: Survey processed', { 
+      surveyRunId: surveyRun.id, 
+      callId, 
+      recordingId,
+      source: 'assemblyai-webhook'
+    })
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('assemblyai webhook: survey processing error', { error: err?.message, callId })
+    logger.error('AssemblyAI webhook: Survey processing error', err, { callId })
   }
 }
 
@@ -463,10 +472,6 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
  * Process survey responses using NLP
  */
 async function processSurveyWithNLP(transcriptText: string, surveyData: any): Promise<any> {
-  // Use AssemblyAI or OpenAI to extract survey answers from transcript
-  // For now, we'll use a simple pattern matching approach
-  // In production, this would use AssemblyAI's summarization or custom prompts
-
   const results: any = {
     responses: [],
     score: null,
@@ -487,10 +492,8 @@ async function processSurveyWithNLP(transcriptText: string, surveyData: any): Pr
   }
 
   // Extract additional answers from transcript using keyword matching
-  // This is a simple implementation - in production, use AssemblyAI NLP
   const lowerText = transcriptText.toLowerCase()
   
-  // Look for satisfaction keywords
   if (lowerText.includes('very satisfied') || lowerText.includes('extremely happy')) {
     results.sentiment = 'very_positive'
   } else if (lowerText.includes('satisfied') || lowerText.includes('happy')) {
@@ -559,4 +562,15 @@ async function processSurveyWithNLP(transcriptText: string, surveyData: any): Pr
   return results
 }
 
-
+// HIGH-1: Apply rate limiting per architecture: Security boundaries (1000/min per source)
+export const POST = withRateLimit(handleWebhook, {
+  identifier: (req) => {
+    // Rate limit by source IP - AssemblyAI sends from known IPs
+    return `webhook-assemblyai-${getClientIP(req)}`
+  },
+  config: {
+    maxAttempts: 1000, // 1000 requests per minute
+    windowMs: 60 * 1000, // 1 minute window
+    blockMs: 5 * 60 * 1000 // 5 minute block on abuse
+  }
+})

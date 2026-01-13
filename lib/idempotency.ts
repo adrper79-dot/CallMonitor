@@ -117,15 +117,19 @@ export function hashRequest(body: any): string {
 export function withIdempotency(
   handler: (req: Request) => Promise<Response>,
   options?: {
-    getKey?: (req: Request) => string
+    getKey?: (req: Request) => string | Promise<string>
     ttlSeconds?: number
   }
 ) {
   return async (req: Request): Promise<Response> => {
     // Get idempotency key from header or generate from request
-    const idempotencyKey = req.headers.get('Idempotency-Key') || 
-                          options?.getKey?.(req) ||
-                          null
+    const headerKey = req.headers.get('Idempotency-Key')
+    let idempotencyKey: string | null = headerKey
+    
+    if (!idempotencyKey && options?.getKey) {
+      const keyResult = options.getKey(req)
+      idempotencyKey = keyResult instanceof Promise ? await keyResult : keyResult
+    }
 
     if (!idempotencyKey) {
       // No idempotency key, proceed normally

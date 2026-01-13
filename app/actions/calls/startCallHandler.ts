@@ -132,8 +132,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       // eslint-disable-next-line no-console
       console.log('startCallHandler: routing to SWML endpoint for live translation', { callId })
     } else {
-      // Build LaML URL with parameters
-      let lamlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound?callId=${encodeURIComponent(callId)}`
+      // Build LaML URL with parameters (use empty string if callId not yet set)
+      const callIdParam = callId || ''
+      let lamlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound?callId=${encodeURIComponent(callIdParam)}`
       
       // Add conference parameters for bridge calls
       if (conference) {

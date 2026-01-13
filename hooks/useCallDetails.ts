@@ -42,6 +42,7 @@ export function useCallDetails(callId: string | null) {
     }
 
     async function fetchDetails() {
+      if (!callId) return // Guard for TypeScript
       try {
         setLoading(true)
         setError(null)

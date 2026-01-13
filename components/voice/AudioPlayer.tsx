@@ -18,10 +18,10 @@ export default function AudioPlayer({ recordingUrl, transcriptPreview, onPlay }:
   useEffect(() => {
     const el = audioRef.current
     if (!el) return
-    function onTime() { setTime(el.currentTime) }
-    function onDur() { setDuration(isFinite(el.duration) ? el.duration : null) }
-    function onPlayEvt() { setPlaying(true); onPlay?.() }
-    function onPauseEvt() { setPlaying(false) }
+    const onTime = () => { if (el) setTime(el.currentTime) }
+    const onDur = () => { if (el) setDuration(isFinite(el.duration) ? el.duration : null) }
+    const onPlayEvt = () => { setPlaying(true); onPlay?.() }
+    const onPauseEvt = () => { setPlaying(false) }
     el.addEventListener('timeupdate', onTime)
     el.addEventListener('durationchange', onDur)
     el.addEventListener('play', onPlayEvt)

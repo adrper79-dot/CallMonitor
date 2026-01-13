@@ -42,12 +42,12 @@ export async function generateSpeech(
   try {
     const audio = await client.textToSpeech.convert(voiceId, {
       text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
+      modelId: 'eleven_multilingual_v2',
+      voiceSettings: {
         stability: 0.5,
-        similarity_boost: 0.75,
+        similarityBoost: 0.75,
         style: 0.0,
-        use_speaker_boost: true
+        useSpeakerBoost: true
       }
     })
     

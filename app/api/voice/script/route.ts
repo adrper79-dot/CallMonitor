@@ -58,7 +58,7 @@ export async function GET(req: Request) {
       const script = voiceConfig.shopper_script || 
                     'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
       
-      const scriptLines = (script || '').split(/\n|\|/).filter(line => line.trim())
+      const scriptLines = (script || '').split(/\n|\|/).filter((line: string) => line.trim())
       
       for (let i = 0; i < scriptLines.length; i++) {
         const line = scriptLines[i].trim()

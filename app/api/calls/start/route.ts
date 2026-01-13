@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       modulations,
       actor_id: effectiveActorId 
     } as any)
-    console.log(`[${requestId}] startCall route: handler returned`, { success: result.success, callId: result.success ? result.call_id : null })
+    console.log(`[${requestId}] startCall route: handler returned`, { success: result.success, callId: result.success && 'call_id' in result ? result.call_id : null })
     return NextResponse.json(result)
   } catch (err: any) {
     console.error(`[${requestId}] startCall route: ERROR`, err)

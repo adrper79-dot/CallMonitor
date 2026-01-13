@@ -30,6 +30,7 @@ export function useRBAC(organizationId: string | null): RBACState {
     }
 
     async function fetchRBAC() {
+      if (!organizationId) return // Guard for TypeScript
       try {
         // Fetch user's role and org plan
         // This would typically come from a session or API endpoint

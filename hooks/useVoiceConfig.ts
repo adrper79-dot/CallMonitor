@@ -29,6 +29,7 @@ export function useVoiceConfig(organizationId: string | null) {
     }
 
     async function fetchConfig() {
+      if (!organizationId) return // Guard for TypeScript
       try {
         setLoading(true)
         setError(null)

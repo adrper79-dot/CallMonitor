@@ -1,0 +1,975 @@
+===================================================================================
+                    CALLMONITOR V3 - COMPREHENSIVE PRODUCTION ISSUES
+                    FRESH REVIEW - STARTING FROM SCRATCH
+===================================================================================
+Date: January 13, 2026
+Engineer: Principal Web Engineer (AI Assistant)
+Review Scope: Complete codebase, architecture alignment, production readiness
+
+Architecture References:
+- ARCH_DOCS/01-CORE/MASTER_ARCHITECTURE.txt (Voice-First, Call-Rooted Design)
+- ARCH_DOCS/01-CORE/Schema.txt (Database Schema)
+- SignalWire-First v1, AssemblyAI Intelligence Plane
+- Call is the root object, Recording/Translation/Survey are modulations
+
+CLI Connectivity Status:
+✅ Vercel CLI: 50.1.6
+✅ Supabase CLI: 2.67.1
+✅ Resend: Listed in package.json v6.7.0
+
+===================================================================================
+CRITICAL ISSUES (PRODUCTION BLOCKERS)
+===================================================================================
+
+CRITICAL-1: TypeScript Build Timeout/Failure
+Priority: 🔴 CRITICAL (BLOCKS DEPLOYMENT)
+Status: NOT FIXED
+
+Issue:
+- npm run build times out (>60 seconds)
+- TypeScript strict mode is enabled (tsconfig.json: "strict": true)
+- ignoreBuildErrors is disabled (next.config.js: ignoreBuildErrors: false)
+- Build likely failing on type errors but timeout prevents seeing them
+
+Impact:
+- Cannot deploy to Vercel production
+- Type errors hidden by timeout
+- No production build possible
+
+Fix Required:
+1. Run: npm run build with longer timeout to see actual errors
+2. Fix all TypeScript errors one by one
+3. Ensure build completes within reasonable time (<5 minutes)
+
+Architecture Alignment:
+✅ Correct: Type safety enforced (strict mode ON, ignoreBuildErrors OFF)
+❌ Problem: Build not completing successfully
+
+Estimated Time: 6-12 hours (depends on number of type errors)
+
+---
+
+CRITICAL-2: Massive Console.log Usage (278 instances)
+Priority: 🔴 CRITICAL (SECURITY & OBSERVABILITY)
+Status: PARTIALLY ADDRESSED (5/278 migrated)
+
+Issue:
+- 278 console.log/error/warn statements across 59 files
+- Direct console usage exposes sensitive data in production logs
+- No structured logging for filtering/analysis
+- Violates architecture: proper observability needed
+
+Files Most Affected:
+- app/api/webhooks/signalwire/route.ts: 21 console statements
+- app/actions/calls/startCallHandler.ts: 28 console statements
+- app/api/webhooks/assemblyai/route.ts: 21 console statements
+- app/api/auth/signup/route.ts: 12 console statements
+- app/services/* (various): 50+ console statements
+- 54 additional files with console usage
+
+Fix Required:
+1. ✅ Created lib/logger.ts (DONE)
+2. ⚠️  Migrated 5 critical statements in SignalWire webhook
+3. ❌ Need to migrate remaining 273 statements
+
+Migration Strategy:
+Phase 1 (Immediate - 4-6 hours):
+- Webhooks: signalwire (21), assemblyai (21)
+- startCallHandler (28)
+- Critical API routes (20)
+- Total: ~90 statements
+
+Phase 2 (This Week - 8-12 hours):
+- All API routes (60 statements)
+- Services layer (50 statements)
+- Remaining components (73 statements)
+
+Phase 3 (Incremental):
+- Tests, scripts, tools
+
+Architecture Alignment:
+✅ Infrastructure created (lib/logger.ts)
+⚠️  Migration incomplete (2% done: 5/278)
+📋 Per MASTER_ARCHITECTURE: Proper logging is critical for SignalWire execution plane monitoring
+
+Estimated Time: 20-30 hours total
+
+---
+
+CRITICAL-3: Environment Variable Sprawl (283 usages)
+Priority: 🔴 CRITICAL (CONFIGURATION MANAGEMENT)
+Status: PARTIALLY ADDRESSED (2/81 files migrated)
+
+Issue:
+- 283 direct process.env. accesses across 81 files
+- No centralized validation
+- Configuration errors only discovered at runtime
+- No type safety for env variables
+
+Files Most Affected:
+- app/api/webhooks/signalwire/route.ts: 6 process.env
+- app/api/webhooks/assemblyai/route.ts: 4 process.env
+- app/api/auth/[...nextauth]/route.ts: 19 process.env
+- app/actions/calls/startCallHandler.ts: Multiple env accesses
+- 77 additional files with process.env usage
+
+Fix Required:
+1. ✅ Created lib/config.ts with type-safe config (DONE)
+2. ⚠️  Migrated 2 critical files (signup, startCallHandler)
+3. ❌ Need to migrate remaining 79 files
+
+Migration Priority:
+Critical (Immediate - 4-6 hours):
+- app/api/voice/config/route.ts
+- app/api/voice/laml/outbound/route.ts
+- app/api/voice/swml/outbound/route.ts
+- app/api/webhooks/assemblyai/route.ts
+
+High (This Week - 8-12 hours):
+- All remaining API routes (35 files)
+- Services layer (15 files)
+
+Medium (Incremental):
+- Scripts, tools, tests
+
+Architecture Alignment:
+✅ Infrastructure created (lib/config.ts with validation)
+⚠️  Migration incomplete (2% done: 2/81)
+📋 Per MASTER_ARCHITECTURE: Centralized config supports capability-driven architecture
+
+Estimated Time: 25-35 hours total
+
+---
+
+CRITICAL-4: No .env.example File
+Priority: 🟡 HIGH (DEVELOPER EXPERIENCE)
+Status: MISSING
+
+Issue:
+- .env.example is filtered by .gitignore
+- New developers cannot see required environment variables
+- No documentation of config requirements
+- Deployment setup is unclear
+
+Impact:
+- Onboarding friction
+- Configuration errors
+- Undocumented dependencies
+
+Fix Required:
+Create .env.example with:
+```env
+# Supabase
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# SignalWire
+SIGNALWIRE_PROJECT_ID=
+SIGNALWIRE_TOKEN=
+SIGNALWIRE_SPACE=
+SIGNALWIRE_NUMBER=
+
+# NextAuth
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+
+# AssemblyAI (Optional)
+ASSEMBLYAI_API_KEY=
+
+# ElevenLabs (Optional)
+ELEVENLABS_API_KEY=
+
+# Resend (Optional)
+RESEND_API_KEY=
+
+# Feature Flags
+TRANSLATION_LIVE_ASSIST_PREVIEW=false
+
+# App
+NEXT_PUBLIC_APP_URL=
+NODE_ENV=development
+```
+
+Architecture Alignment:
+✅ Aligns with centralized config strategy
+📋 Required for proper developer onboarding
+
+Estimated Time: 30 minutes
+
+---
+
+CRITICAL-5: Database Migration Files Not Organized
+Priority: 🟡 HIGH (MAINTAINABILITY)
+Status: MIXED
+
+Issue:
+- Multiple SQL fix files exist but migration folder is empty
+- No clear migration history
+- Manual SQL fixes scattered
+- migrations/fixes/ folder exists but needs documentation
+
+Fix Required:
+1. ✅ Created migrations/fixes/README.md (DONE)
+2. ⚠️  Some SQL files moved to migrations/fixes/
+3. ❌ Need comprehensive migration strategy
+
+Required Files in migrations/fixes/:
+- FIX_NEW_USER_adrper792.sql (exists)
+- DIAGNOSE_AND_CLEANUP_USER.sql (exists)
+- CHECK_*.sql files (exists)
+- FIX_*.sql files (exists)
+- CLEANUP_*.sql files (exists)
+
+Missing:
+- Numbered migration files (001_*, 002_*, etc.)
+- Rollback scripts
+- Migration execution log
+
+Architecture Alignment:
+✅ Manual fixes documented
+⚠️  No formal migration system
+📋 Per Schema.txt: Need clear schema evolution path
+
+Estimated Time: 2-4 hours
+
+===================================================================================
+HIGH PRIORITY ISSUES
+===================================================================================
+
+HIGH-1: Rate Limiting Incomplete
+Priority: 🟠 HIGH (SECURITY)
+Status: PARTIALLY COMPLETE (2/3 endpoints)
+
+Current State:
+✅ /api/voice/call - Rate limited (10 req/min per IP+org)
+✅ /api/auth/signup - Rate limited (5 req/hour per IP) [JUST ADDED]
+❌ /api/webhooks/signalwire - NO rate limiting
+❌ /api/webhooks/assemblyai - NO rate limiting
+
+Issue:
+- Webhook endpoints vulnerable to DoS attacks
+- No protection against webhook flooding
+- Could exhaust database connections
+
+Fix Required:
+Apply rate limiting to webhooks:
+- SignalWire: 1000 requests/minute per source
+- AssemblyAI: 1000 requests/minute per source
+
+Implementation:
+```typescript
+// In webhook routes
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
+
+export const POST = withRateLimit(handleWebhook, {
+  identifier: (req) => getClientIP(req),
+  config: {
+    maxAttempts: 1000,
+    windowMs: 60 * 1000, // 1 minute
+    blockMs: 5 * 60 * 1000 // 5 minute block
+  }
+})
+```
+
+Architecture Alignment:
+✅ Security boundaries (per MASTER_ARCHITECTURE)
+⚠️  Incomplete coverage
+📋 Critical for production: prevent execution plane abuse
+
+Estimated Time: 2-3 hours
+
+---
+
+HIGH-2: RLS Policies Unverified in Production
+Priority: 🟠 HIGH (SECURITY)
+Status: UNKNOWN (REQUIRES DB ACCESS)
+
+Issue:
+- Cannot verify RLS policies without production database access
+- Cross-org data leakage risk
+- No test suite for RLS
+- Per RBAC matrix (MASTER_ARCHITECTURE): roles must be enforced
+
+Critical Tables Needing RLS:
+- calls
+- recordings
+- organizations
+- users
+- voice_configs
+- evidence_manifests
+- scored_recordings
+- test_configs
+
+Fix Required:
+1. Connect to production Supabase
+2. Run verification query:
+```sql
+SELECT schemaname, tablename, policyname, roles, cmd
+FROM pg_policies 
+WHERE schemaname = 'public'
+AND tablename IN ('calls', 'recordings', 'organizations', 'users', 'voice_configs')
+ORDER BY tablename, policyname;
+```
+3. Verify RBAC alignment:
+   - Owner: Full access
+   - Admin: Manage organization and calls
+   - Operator: Execute calls, view data
+   - Viewer: Read-only access
+4. Create RLS test suite
+5. Test cross-org access (should be blocked)
+
+Architecture Alignment:
+📋 CRITICAL per MASTER_ARCHITECTURE: Capability-driven security
+❌ Cannot verify without production access
+🔒 SOC 2 Control: CC6.1 (Access Controls)
+
+Estimated Time: 2-3 hours (requires production access)
+
+---
+
+HIGH-3: No Idempotency on Critical Endpoints
+Priority: 🟠 HIGH (DATA INTEGRITY)
+Status: PARTIALLY COMPLETE
+
+Current State:
+✅ /api/voice/call - Has idempotency wrapper
+❌ /api/auth/signup - NO idempotency
+❌ /api/voice/config - NO idempotency (PUT should be idempotent by nature)
+
+Issue:
+- Signup can create duplicate users on retry
+- Config updates could be applied twice
+- No protection against network retries
+
+Fix Required:
+Apply idempotency to signup:
+```typescript
+import { withIdempotency } from '@/lib/idempotency'
+
+export const POST = withRateLimit(
+  withIdempotency(handleSignup, {
+    getKey: (req) => {
+      const body = await req.json()
+      return `signup-${body.email}`
+    },
+    ttlSeconds: 3600
+  }),
+  { ... }
+)
+```
+
+Architecture Alignment:
+✅ Infrastructure exists (lib/idempotency.ts)
+⚠️  Not applied to all critical endpoints
+📋 Per MASTER_ARCHITECTURE: Processing Integrity (PI1.1)
+
+Estimated Time: 1-2 hours
+
+---
+
+HIGH-4: Error Boundary Not Tested
+Priority: 🟠 HIGH (USER EXPERIENCE)
+Status: CREATED BUT UNTESTED
+
+Current State:
+✅ ErrorBoundary component created
+✅ Applied to root layout
+❌ No test coverage
+❌ No verification of error handling
+
+Issue:
+- Unknown if ErrorBoundary actually catches errors
+- No fallback UI tested
+- Could show blank screen on error
+
+Fix Required:
+1. Create error test component
+2. Trigger intentional error
+3. Verify fallback UI displays
+4. Test error logging
+5. Add unit tests
+
+Test Script:
+```typescript
+// Test component
+export function ErrorTest() {
+  throw new Error('Test error for ErrorBoundary')
+}
+```
+
+Architecture Alignment:
+✅ Infrastructure created
+⚠️  No verification
+📋 Critical for UX: graceful degradation
+
+Estimated Time: 1-2 hours
+
+---
+
+HIGH-5: Missing Webhook Signature Validation (AssemblyAI)
+Priority: 🟠 HIGH (SECURITY)
+Status: INCOMPLETE
+
+Current State:
+✅ SignalWire webhook - Signature validation ENABLED
+❌ AssemblyAI webhook - NO signature validation
+
+Issue:
+- AssemblyAI webhooks can be spoofed
+- Potential for fake transcription data
+- Security vulnerability in intelligence plane
+
+Fix Required:
+1. Research AssemblyAI webhook signature format
+2. Implement validation in /api/webhooks/assemblyai/route.ts
+3. Test with real webhook calls
+4. Log invalid signatures as security events
+
+Architecture Alignment:
+📋 Per MASTER_ARCHITECTURE: AssemblyAI is intelligence plane
+🔒 Must validate all external execution plane inputs
+⚠️  SignalWire validated, but AssemblyAI not
+
+Estimated Time: 2-3 hours
+
+---
+
+HIGH-6: No Production User Fix Applied
+Priority: 🟠 HIGH (USER BLOCKER)
+Status: SCRIPT READY, NOT EXECUTED
+
+Issue:
+- User adrper792@gmail.com cannot use system
+- organizations_created_by_fkey constraint violation
+- Broken user state in production database
+
+Fix Available:
+✅ DIAGNOSE_AND_CLEANUP_USER.sql created
+✅ Architecture-aligned solution (respects auth as source of truth)
+
+Fix Required:
+1. Connect to Supabase SQL Editor (production)
+2. Run: migrations/fixes/DIAGNOSE_AND_CLEANUP_USER.sql
+3. Follow recommendations from diagnostic output
+4. Verify user can sign up fresh
+
+If user doesn't exist in auth.users:
+- Clean up orphaned data (recommended by script)
+- Have user sign up again with fixed code
+
+If user exists in auth.users but not public.users:
+- Complete signup flow OR
+- Clean up and sign up again
+
+Architecture Alignment:
+✅ Follows "if no auth user, nothing to fix" principle
+✅ Respects call-rooted design (no orphan calls)
+✅ Capability-driven (auth user = system capability)
+
+Estimated Time: 15-30 minutes (manual SQL execution)
+
+===================================================================================
+MEDIUM PRIORITY ISSUES
+===================================================================================
+
+MEDIUM-1: Build Performance (Slow/Timeout)
+Priority: 🟡 MEDIUM (DEVELOPER EXPERIENCE)
+Status: IDENTIFIED
+
+Issue:
+- npm run build takes >60 seconds (times out)
+- Likely due to TypeScript strict mode errors
+- Impacts development iteration speed
+- Vercel builds may also be slow
+
+Contributing Factors:
+- TypeScript strict mode enabled (good, but reveals errors)
+- Large codebase (60+ API routes, 36+ components)
+- All errors must be fixed before build completes
+- Possible type checking inefficiency
+
+Fix Required:
+1. Fix all TypeScript errors (PRIMARY)
+2. Review tsconfig.json for optimization
+3. Consider incremental builds
+4. Check for circular dependencies
+
+Architecture Alignment:
+✅ Strict mode is correct (type safety)
+⚠️  Performance issue due to errors, not config
+
+Estimated Time: Addressed by fixing TypeScript errors
+
+---
+
+MEDIUM-2: No Production Logging/Monitoring
+Priority: 🟡 MEDIUM (OBSERVABILITY)
+Status: INFRASTRUCTURE READY
+
+Current State:
+✅ lib/logger.ts created with environment-aware logging
+⚠️  Only 2% migrated (5/278 console statements)
+❌ No external monitoring (DataDog, Sentry, etc.)
+❌ No alert system for production errors
+
+Issue:
+- Production errors only visible in Vercel logs
+- No proactive alerting
+- Difficult to debug production issues
+- No performance monitoring
+
+Fix Required:
+1. Complete logger migration (see CRITICAL-2)
+2. Consider external monitoring:
+   - Sentry for error tracking
+   - DataDog/New Relic for APM
+   - Or: Leverage Vercel Analytics
+3. Set up alert rules for critical errors
+
+Architecture Alignment:
+✅ Logger infrastructure ready
+📋 Per MASTER_ARCHITECTURE: Monitoring critical for execution plane
+⚠️  No external monitoring yet
+
+Estimated Time: 4-6 hours (external setup) + logger migration time
+
+---
+
+MEDIUM-3: No API Documentation
+Priority: 🟡 MEDIUM (MAINTAINABILITY)
+Status: MINIMAL
+
+Current State:
+✅ Some inline comments in route files
+❌ No OpenAPI/Swagger spec
+❌ No API documentation site
+❌ No client SDK
+
+Issue:
+- Frontend developers must read route files to understand APIs
+- No versioning strategy
+- Difficult to maintain API contracts
+- No automated API testing from spec
+
+Fix Required:
+1. Create OpenAPI 3.0 spec for critical routes:
+   - POST /api/voice/call
+   - PUT /api/voice/config
+   - GET /api/voice/config
+   - POST /api/webhooks/signalwire
+   - POST /api/webhooks/assemblyai
+2. Use @next/swagger or similar
+3. Generate API documentation site
+
+Architecture Alignment:
+📋 Per MASTER_ARCHITECTURE: UI→API→Table contract must be documented
+⚠️  Currently only documented in ARCH_DOCS, not as OpenAPI
+
+Estimated Time: 6-10 hours
+
+---
+
+MEDIUM-4: Test Coverage Minimal
+Priority: 🟡 MEDIUM (QUALITY)
+Status: PARTIAL
+
+Current State:
+✅ Vitest configured
+✅ Some unit tests exist (startCallHandler.test.ts)
+❌ No integration tests
+❌ No E2E tests
+❌ No webhook tests
+❌ No RLS tests
+
+Critical Test Gaps:
+- Webhook signature validation
+- Rate limiting behavior
+- Idempotency behavior
+- Error boundary rendering
+- RLS policy enforcement
+- Cross-org data isolation
+
+Fix Required:
+1. Add integration tests for critical paths:
+   - Call initiation → webhook → recording
+   - Transcription flow
+   - Translation flow
+2. Add security tests:
+   - Invalid webhook signatures
+   - Rate limit enforcement
+   - RLS policy violations
+3. Add E2E tests (Playwright):
+   - Full call flow from UI
+   - Error scenarios
+
+Architecture Alignment:
+📋 Per MASTER_ARCHITECTURE: Negative test cases defined
+⚠️  Not implemented in test suite
+
+Estimated Time: 12-20 hours for comprehensive coverage
+
+---
+
+MEDIUM-5: No Backup/Recovery Process Documented
+Priority: 🟡 MEDIUM (AVAILABILITY)
+Status: MISSING
+
+Current State:
+✅ Supabase has automatic backups
+❌ Recovery process not documented
+❌ No disaster recovery plan
+❌ No tested restore procedure
+
+Issue:
+- Unknown RTO (Recovery Time Objective)
+- Unknown RPO (Recovery Point Objective)
+- No incident response plan
+- SOC 2 Control A2.1 not fully satisfied
+
+Fix Required:
+1. Document Supabase backup schedule
+2. Create recovery procedure:
+   - Database restore process
+   - Environment variable restore
+   - Vercel deployment restore
+3. Test recovery in staging environment
+4. Document in ARCH_DOCS/05-OPERATIONS/
+
+Architecture Alignment:
+📋 Per SOC 2 mapping (MASTER_ARCHITECTURE): A2.1 Backup & Recovery
+⚠️  Supabase has backups, but process not documented
+
+Estimated Time: 3-4 hours
+
+---
+
+MEDIUM-6: No Security Headers Testing
+Priority: 🟡 MEDIUM (SECURITY)
+Status: CONFIGURED BUT UNTESTED
+
+Current State:
+✅ Security headers configured in next.config.js:
+   - Strict-Transport-Security
+   - X-Frame-Options: SAMEORIGIN
+   - X-Content-Type-Options: nosniff
+   - X-XSS-Protection
+   - Referrer-Policy
+   - Permissions-Policy
+❌ Not verified in production
+❌ No automated testing
+
+Fix Required:
+1. Deploy to Vercel
+2. Test with securityheaders.com
+3. Verify all headers present
+4. Create automated test:
+   ```typescript
+   test('Security headers present', async () => {
+     const res = await fetch('https://yourdomain.com')
+     expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN')
+     expect(res.headers.get('strict-transport-security')).toContain('max-age=31536000')
+   })
+   ```
+
+Architecture Alignment:
+✅ Headers configured correctly
+⚠️  No verification
+
+Estimated Time: 1 hour
+
+===================================================================================
+LOW PRIORITY ISSUES (NICE TO HAVE)
+===================================================================================
+
+LOW-1: CHANGELOG.md Not Maintained
+Priority: 🟢 LOW (COMMUNICATION)
+Status: CREATED BUT NOT MAINTAINED
+
+Issue:
+✅ CHANGELOG.md created
+⚠️  Only contains recent V3 repairs
+❌ No historical releases
+❌ No versioning strategy
+
+Fix: Update CHANGELOG.md as changes are made
+
+Estimated Time: Ongoing (15 min per release)
+
+---
+
+LOW-2: No CI/CD Pipeline
+Priority: 🟢 LOW (AUTOMATION)
+Status: MANUAL DEPLOYMENT
+
+Current State:
+✅ Vercel auto-deploys on git push
+❌ No automated testing in CI
+❌ No linting in CI
+❌ No type checking in CI
+❌ No security scanning
+
+Fix: Create GitHub Actions workflow for:
+- Linting (ESLint)
+- Type checking (tsc --noEmit)
+- Unit tests (Vitest)
+- Security audit (npm audit)
+
+Estimated Time: 2-4 hours
+
+---
+
+LOW-3: No Docker Development Environment
+Priority: 🟢 LOW (DEVELOPER EXPERIENCE)
+Status: MISSING
+
+Issue:
+- Developers must install Node.js, npm, Supabase CLI, Vercel CLI
+- Environment setup is manual
+- Inconsistent local environments
+
+Fix: Create docker-compose.yml for:
+- Next.js app
+- Supabase local (with migrations)
+- Test database
+
+Estimated Time: 4-6 hours
+
+---
+
+LOW-4: No Load Testing
+Priority: 🟢 LOW (PERFORMANCE)
+Status: NOT PERFORMED
+
+Issue:
+- Unknown system capacity
+- Unknown bottlenecks
+- No performance baseline
+
+Fix: Use k6 or Artillery to test:
+- Call initiation throughput
+- Webhook processing capacity
+- Database connection limits
+
+Estimated Time: 4-6 hours
+
+===================================================================================
+ARCHITECTURE ALIGNMENT ASSESSMENT
+===================================================================================
+
+Core Principles (per MASTER_ARCHITECTURE.txt):
+
+1. Voice-First, Call-Rooted Design
+   Status: ✅ ALIGNED
+   - Call is the root object in schema
+   - Recording/translation/survey are modulations
+   - No tool sprawl
+   Evidence: Schema.txt shows proper foreign keys
+
+2. SignalWire-First v1
+   Status: ✅ ALIGNED
+   - SignalWire is media execution plane
+   - Webhooks handle call events
+   - Signature validation enabled
+   Evidence: app/api/webhooks/signalwire/route.ts
+
+3. One Voice Operations UI
+   Status: ✅ ALIGNED
+   - Single /voice page
+   - Feature toggles, not separate pages
+   - Modulations configured inline
+   Evidence: app/voice/page.tsx
+
+4. Clean Pre-/Post-FreeSWITCH Alignment
+   Status: ✅ ALIGNED
+   - No FreeSWITCH dependencies in v1
+   - SignalWire-only execution
+   - Forward compatible design
+   Evidence: No FreeSWITCH imports found
+
+5. Artifact Integrity Preserved
+   Status: ✅ ALIGNED
+   - Recordings are first-class (recordings table)
+   - Evidence manifests immutable
+   - Foreign keys enforce relationships
+   Evidence: Schema.txt, evidence_manifests table
+
+6. Capability-Driven, Not UI-Driven
+   Status: ⚠️  PARTIALLY ALIGNED
+   ✅ Plan-based features (voice_configs.translate requires plan)
+   ✅ RBAC matrix defined (MASTER_ARCHITECTURE)
+   ❌ RLS policies unverified in production
+   ❌ No RLS test suite
+   Evidence: Need production RLS verification
+
+Overall Architecture Compliance: 92% (5.5/6 principles)
+
+===================================================================================
+PRODUCTION READINESS CHECKLIST
+===================================================================================
+
+CRITICAL (Must Fix Before Production):
+[ ] Fix TypeScript build errors (CRITICAL-1)
+[ ] Complete critical logging migration (CRITICAL-2) - at least Phase 1
+[ ] Apply rate limiting to webhooks (HIGH-1)
+[ ] Verify RLS policies (HIGH-2)
+[ ] Run production user fix script (HIGH-6)
+
+HIGH (Should Fix Before Production):
+[ ] Complete config migration for critical routes (CRITICAL-3) - Phase 1
+[ ] Add idempotency to signup (HIGH-3)
+[ ] Test ErrorBoundary (HIGH-4)
+[ ] Add AssemblyAI webhook validation (HIGH-5)
+
+MEDIUM (Can Fix After Initial Deployment):
+[ ] Complete all logging migration (CRITICAL-2) - Phases 2-3
+[ ] Complete all config migration (CRITICAL-3) - All phases
+[ ] Create .env.example (CRITICAL-4)
+[ ] Set up external monitoring (MEDIUM-2)
+[ ] Add integration tests (MEDIUM-4)
+[ ] Verify security headers (MEDIUM-6)
+
+LOW (Continuous Improvement):
+[ ] API documentation (MEDIUM-3)
+[ ] Backup/recovery docs (MEDIUM-5)
+[ ] CI/CD pipeline (LOW-2)
+[ ] Load testing (LOW-4)
+
+===================================================================================
+ESTIMATED TIME TO PRODUCTION READY
+===================================================================================
+
+CRITICAL PATH (Minimum to Deploy):
+- Fix TypeScript errors: 6-12 hours
+- Critical logging migration: 4-6 hours
+- Rate limiting webhooks: 2-3 hours
+- Verify RLS policies: 2-3 hours (requires DB access)
+- Production user fix: 0.5 hours
+
+MINIMUM TOTAL: 14.5-24.5 hours (2-3 work days)
+
+RECOMMENDED PATH (Production Ready + Stable):
+- All critical: 14.5-24.5 hours
+- High priority: 6-10 hours
+- Key medium items: 4-6 hours
+
+RECOMMENDED TOTAL: 24.5-40.5 hours (3-5 work days)
+
+FULL COMPLETION (All Issues):
+- Critical + High + Medium: 35-55 hours
+- Low priority: 10-16 hours
+
+FULL TOTAL: 45-71 hours (6-9 work days)
+
+===================================================================================
+RISK ASSESSMENT
+===================================================================================
+
+Current Risk Level: 🟡 MEDIUM-HIGH
+
+Risk Breakdown:
+
+1. TECHNICAL RISK: 🟡 MEDIUM
+   - Build not completing (CRITICAL)
+   - TypeScript errors unknown (CRITICAL)
+   - Logging migration incomplete (HIGH)
+   - Config sprawl (HIGH)
+
+2. SECURITY RISK: 🟡 MEDIUM
+   - RLS unverified (HIGH)
+   - Webhooks unprotected (HIGH)
+   - Console.log exposure (CRITICAL)
+   - AssemblyAI webhooks unsigned (HIGH)
+
+3. OPERATIONAL RISK: 🟢 LOW-MEDIUM
+   - Manual processes (MEDIUM)
+   - Limited monitoring (MEDIUM)
+   - No CI/CD (LOW)
+
+4. USER IMPACT RISK: 🟢 LOW
+   - One known broken user (HIGH for that user)
+   - ErrorBoundary in place (GOOD)
+   - Core functionality works (GOOD)
+
+5. COMPLIANCE RISK: 🟡 MEDIUM
+   - SOC 2 controls partially met
+   - RLS unverified (HIGH)
+   - Audit logs in place (GOOD)
+   - Backups undocumented (MEDIUM)
+
+Target Risk Level After Critical Fixes: 🟢 LOW
+
+===================================================================================
+RECOMMENDATIONS
+===================================================================================
+
+IMMEDIATE (Today):
+1. Run npm run build with 10-minute timeout to see TypeScript errors
+2. Create list of all type errors
+3. Start fixing highest-impact type errors
+4. Run production user fix script (15 minutes)
+
+THIS WEEK:
+1. Complete TypeScript error fixes
+2. Migrate critical logging (Phase 1)
+3. Apply webhook rate limiting
+4. Verify RLS policies in production
+5. Deploy to Vercel staging for testing
+
+NEXT WEEK:
+1. Complete high-priority items
+2. Continue logging migration (Phase 2)
+3. Add integration tests
+4. Set up monitoring
+5. Deploy to production
+
+ONGOING:
+1. Incremental logging migration (Phase 3)
+2. Incremental config migration
+3. Add more tests
+4. Performance optimization
+5. API documentation
+
+===================================================================================
+CONCLUSION
+===================================================================================
+
+STATUS: ⚠️  NOT PRODUCTION READY
+
+The CallMonitor V3 application has a STRONG architectural foundation:
+- Architecture principles well-defined and mostly followed (92% compliance)
+- Core functionality implemented correctly
+- SignalWire-first v1 design is sound
+- Call-rooted data model is clean
+
+However, there are CRITICAL production blockers:
+1. TypeScript build not completing
+2. Massive console.log usage (278 instances)
+3. Environment variable sprawl (283 usages)
+4. Unverified RLS policies
+5. Missing rate limiting on webhooks
+
+GOOD NEWS:
+- Infrastructure for fixes already created (logger, config, ErrorBoundary)
+- Migration strategy clear and incremental
+- No fundamental architecture changes needed
+- Most fixes are "search and replace" style migrations
+
+TIMELINE:
+- Minimum viable production: 2-3 days (14-24 hours)
+- Recommended production ready: 3-5 days (25-40 hours)
+- Full issue resolution: 6-9 days (45-71 hours)
+
+CONFIDENCE LEVEL: 🟡 MEDIUM-HIGH
+
+With focused effort on critical path items, this application can reach
+production-ready state within 3-5 days. The architecture is sound, the
+infrastructure is in place, and the remaining work is primarily execution
+and migration.
+
+===================================================================================
+END OF FRESH REVIEW
+===================================================================================
+Generated: January 13, 2026
+Next Review: After critical fixes complete
+Principal Web Engineer: AI Assistant

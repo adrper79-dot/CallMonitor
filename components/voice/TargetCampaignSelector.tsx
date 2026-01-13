@@ -45,6 +45,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
     if (!organizationId) return
 
     async function fetchData() {
+      if (!organizationId) return // Guard for TypeScript
       try {
         setLoading(true)
         const [targetsRes, campaignsRes] = await Promise.all([

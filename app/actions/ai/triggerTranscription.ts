@@ -70,7 +70,7 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     // verify recording exists and belongs to organization
     const { data: recRows, error: recErr } = await supabaseAdmin
       .from('recordings')
-      .select('id,organization_id,call_sid,status,tool_id,created_by')
+      .select('id,organization_id,call_sid,status,tool_id,created_by,recording_url')
       .eq('id', recording_id)
       .limit(1)
 

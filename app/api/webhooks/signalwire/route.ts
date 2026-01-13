@@ -5,6 +5,7 @@ import { AppError } from '@/types/app-error'
 import { verifySignalWireSignature } from '@/lib/webhookSecurity'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 function parseFormUrlEncoded(body: string) {
   return Object.fromEntries(new URLSearchParams(body))
@@ -24,9 +25,11 @@ function parseFormUrlEncoded(body: string) {
  * 
  * Returns 200 OK immediately, processes asynchronously
  * 
- * Security: Validates webhook signature if SIGNALWIRE_TOKEN is configured
+ * Security: 
+ * - Validates webhook signature if SIGNALWIRE_TOKEN is configured
+ * - Rate limited: 1000 requests/minute per source (DoS protection)
  */
-export async function POST(req: Request) {
+async function handleWebhook(req: Request) {
   // Validate webhook signature if token is configured
   const authToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
   if (authToken) {
@@ -533,7 +536,19 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
     }
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('signalwire webhook: transcription trigger error', { error: err?.message, callId })
+    logger.error('SignalWire webhook: Transcription trigger error', err, { callId })
   }
 }
+
+// HIGH-1: Apply rate limiting per architecture: Security boundaries (1000/min per source)
+export const POST = withRateLimit(handleWebhook, {
+  identifier: (req) => {
+    // Rate limit by source IP - SignalWire sends from known IPs
+    return `webhook-signalwire-${getClientIP(req)}`
+  },
+  config: {
+    maxAttempts: 1000, // 1000 requests per minute
+    windowMs: 60 * 1000, // 1 minute window
+    blockMs: 5 * 60 * 1000 // 5 minute block on abuse
+  }
+})

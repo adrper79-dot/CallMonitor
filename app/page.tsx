@@ -82,8 +82,8 @@ export default function Home() {
   useEffect(() => {
     if (config) {
       setTranslate(config.translation_enabled ?? false)
-      setTranslateFrom(config.translate_from || 'en')
-      setTranslateTo(config.translate_to || 'es')
+      setTranslateFrom(config.translation_from || 'en')
+      setTranslateTo(config.translation_to || 'es')
     }
   }, [config])
 
@@ -150,9 +150,9 @@ export default function Home() {
     setTranslateFrom(lang)
     if (organizationId && updateConfig) {
       try {
-        await updateConfig({ translate_from: lang })
+        await updateConfig({ translation_from: lang })
       } catch (err) {
-        console.error('Failed to update translate_from:', err)
+        console.error('Failed to update translation_from:', err)
       }
     }
   }
@@ -161,9 +161,9 @@ export default function Home() {
     setTranslateTo(lang)
     if (organizationId && updateConfig) {
       try {
-        await updateConfig({ translate_to: lang })
+        await updateConfig({ translation_to: lang })
       } catch (err) {
-        console.error('Failed to update translate_to:', err)
+        console.error('Failed to update translation_to:', err)
       }
     }
   }

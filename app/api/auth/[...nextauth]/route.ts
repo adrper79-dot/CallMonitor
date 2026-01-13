@@ -171,14 +171,14 @@ export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   // Use default session strategy (JWT) unless adapter is configured
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: any; user: any }) {
       // Add user ID to the token when user signs in
       if (user) {
         token.id = user.id
       }
       return token
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       // Add user ID to the session from the token
       if (session?.user && token?.id) {
         (session.user as any).id = token.id

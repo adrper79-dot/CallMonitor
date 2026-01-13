@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
+import { withIdempotency } from '@/lib/idempotency'
+import { logger } from '@/lib/logger'
 
 /**
  * Public Signup API
  * 
  * Allows users to create new accounts.
  * Creates a user in Supabase Auth and returns success.
+ * 
+ * Per MASTER_ARCHITECTURE: Capability-driven security with rate limiting
+ * Security: Rate limited (5/hour per IP) + idempotent (prevents duplicate accounts)
  */
-export async function POST(req: Request) {
+async function handleSignup(req: Request) {
   try {
     const body = await req.json()
     const email = body?.email
@@ -44,6 +50,7 @@ export async function POST(req: Request) {
     const serviceKey = config.supabase.serviceRoleKey
 
     if (!supabaseUrl || !serviceKey) {
+      logger.error('Signup: Server configuration missing', undefined, { email: '[REDACTED]' })
       return NextResponse.json(
         { success: false, error: { code: 'CONFIG_ERROR', message: 'Server configuration error' } },
         { status: 500 }
@@ -66,7 +73,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         email,
         password,
-        email_confirm: true, // Auto-confirm email (you may want to change this)
+        email_confirm: true,
         user_metadata: Object.keys(userMetadata).length ? userMetadata : undefined,
       }),
     })
@@ -82,6 +89,10 @@ export async function POST(req: Request) {
         )
       }
 
+      logger.warn('Signup: Auth user creation failed', { 
+        status: res.status, 
+        email: '[REDACTED]' 
+      })
       return NextResponse.json(
         { success: false, error: { code: 'SIGNUP_FAILED', message: data?.message || 'Failed to create account' } },
         { status: res.status }
@@ -112,7 +123,7 @@ export async function POST(req: Request) {
       if (orgs && orgs.length > 0) {
         // Use existing organization
         orgId = orgs[0].id
-        console.log(`Signup: using existing organization ${orgId} for ${email}`)
+        logger.info('Signup: Using existing organization', { orgId, email: '[REDACTED]' })
       } else {
         // Create new organization for this user
         const { data: newOrg, error: orgError } = await supabase
@@ -127,7 +138,7 @@ export async function POST(req: Request) {
           .single()
         
         if (orgError) {
-          console.error('Failed to create organization:', orgError)
+          logger.error('Signup: Failed to create organization', orgError, { email: '[REDACTED]' })
           return NextResponse.json(
             { success: false, error: { code: 'ORG_CREATION_FAILED', message: 'Failed to create organization. Please try again.' } },
             { status: 500 }
@@ -135,7 +146,7 @@ export async function POST(req: Request) {
         }
         
         orgId = newOrg.id
-        console.log(`Signup: created organization ${orgId} for ${email}`)
+        logger.info('Signup: Created organization', { orgId, email: '[REDACTED]' })
         
         // Create default tool for this organization
         const { data: tool, error: toolError } = await supabase
@@ -148,7 +159,7 @@ export async function POST(req: Request) {
           .single()
         
         if (toolError) {
-          console.error('Failed to create tool:', toolError)
+          logger.warn('Signup: Failed to create tool', { error: toolError.message, orgId })
           // Continue without tool - organization will still work but recording might fail
         } else if (tool) {
           // Link tool to organization
@@ -158,9 +169,9 @@ export async function POST(req: Request) {
             .eq('id', orgId)
           
           if (updateError) {
-            console.error('Failed to link tool to organization:', updateError)
+            logger.warn('Signup: Failed to link tool to organization', { error: updateError.message, orgId })
           } else {
-            console.log(`Signup: created and linked tool ${tool.id} to organization ${orgId}`)
+            logger.info('Signup: Created and linked tool', { toolId: tool.id, orgId })
           }
         }
       }
@@ -184,14 +195,14 @@ export async function POST(req: Request) {
         })
       
       if (userError) {
-        console.error('Failed to create user in public.users:', userError)
+        logger.error('Signup: Failed to create user in public.users', userError, { email: '[REDACTED]' })
         return NextResponse.json(
           { success: false, error: { code: 'USER_CREATION_FAILED', message: 'Failed to create user record' } },
           { status: 500 }
         )
       }
       
-      console.log(`Signup: created user ${data.id} in public.users with organization ${orgId}`)
+      logger.info('Signup: Created user in public.users', { userId: data.id, orgId })
       
       // Create org membership (first user becomes owner, others are members)
       const isFirstUser = !orgs || orgs.length === 0
@@ -204,14 +215,17 @@ export async function POST(req: Request) {
         })
       
       if (memberError) {
-        console.error('Failed to create org membership:', memberError)
+        logger.error('Signup: Failed to create org membership', memberError, { email: '[REDACTED]' })
         return NextResponse.json(
           { success: false, error: { code: 'MEMBER_CREATION_FAILED', message: 'Failed to create organization membership' } },
           { status: 500 }
         )
       }
       
-      console.log(`Signup: created org_members record for ${email} as ${isFirstUser ? 'owner' : 'member'}`)
+      logger.info('Signup: Created org_members record', { 
+        userId: data.id, 
+        role: isFirstUser ? 'owner' : 'member' 
+      })
       
       // Create default voice_configs for new organization
       const { error: voiceConfigError } = await supabase
@@ -228,10 +242,10 @@ export async function POST(req: Request) {
         })
       
       if (voiceConfigError) {
-        console.error('Failed to create voice_configs:', voiceConfigError)
+        logger.warn('Signup: Failed to create voice_configs', { error: voiceConfigError.message, orgId })
         // Don't fail signup, but log the error
       } else {
-        console.log(`Signup: created voice_configs for organization ${orgId}`)
+        logger.info('Signup: Created voice_configs', { orgId })
       }
     }
 
@@ -245,6 +259,7 @@ export async function POST(req: Request) {
     })
 
   } catch (err: any) {
+    logger.error('Signup: Unexpected error', err)
     return NextResponse.json(
       { success: false, error: { code: 'SERVER_ERROR', message: err?.message || 'Internal server error' } },
       { status: 500 }
@@ -252,12 +267,29 @@ export async function POST(req: Request) {
   }
 }
 
-// Apply rate limiting per architecture: Security boundaries
-export const POST = withRateLimit(handleSignup, {
-  identifier: (req) => getClientIP(req),
-  config: {
-    maxAttempts: 5, // 5 signup attempts
-    windowMs: 60 * 60 * 1000, // per hour
-    blockMs: 60 * 60 * 1000 // 1 hour block on abuse
+// HIGH-3: Apply idempotency to prevent duplicate account creation on retry
+// HIGH-1: Apply rate limiting per architecture: Security boundaries (5/hour per IP)
+export const POST = withRateLimit(
+  withIdempotency(handleSignup, {
+    getKey: async (req) => {
+      // Clone request to read body without consuming it
+      const clonedReq = req.clone()
+      try {
+        const body = await clonedReq.json()
+        // Use email as idempotency key - same email = same signup attempt
+        return `signup-${body?.email?.toLowerCase() || 'unknown'}`
+      } catch {
+        return `signup-${Date.now()}`
+      }
+    },
+    ttlSeconds: 3600 // 1 hour - matches rate limit window
+  }),
+  {
+    identifier: (req) => getClientIP(req),
+    config: {
+      maxAttempts: 5, // 5 signup attempts
+      windowMs: 60 * 60 * 1000, // per hour
+      blockMs: 60 * 60 * 1000 // 1 hour block on abuse
+    }
   }
-})
+)

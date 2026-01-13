@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       columns: true,
       skip_empty_lines: true,
       trim: true
-    })
+    }) as Record<string, string>[]
 
     // Validate and process each record
     const results = []

@@ -20,20 +20,20 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
     const el = audioRef.current
     if (!el) return
 
-    function onTime() {
-      setTime(el.currentTime)
+    const onTime = () => {
+      if (el) setTime(el.currentTime)
     }
-    function onDur() {
-      setDuration(isFinite(el.duration) ? el.duration : null)
+    const onDur = () => {
+      if (el) setDuration(isFinite(el.duration) ? el.duration : null)
     }
-    function onPlayEvt() {
+    const onPlayEvt = () => {
       setPlaying(true)
       onPlay?.()
     }
-    function onPauseEvt() {
+    const onPauseEvt = () => {
       setPlaying(false)
     }
-    function onEnded() {
+    const onEnded = () => {
       setPlaying(false)
       setTime(0)
     }
