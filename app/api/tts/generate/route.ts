@@ -62,8 +62,12 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Storage upload error:', uploadError)
+      // Provide more specific error messages
+      const errorMessage = uploadError.message?.includes('bucket')
+        ? 'Storage bucket not configured. Please create a "recordings" bucket in Supabase Storage.'
+        : `Failed to save audio: ${uploadError.message || 'Unknown storage error'}`
       return NextResponse.json(
-        { error: 'Failed to save audio' },
+        { error: errorMessage, details: uploadError.message },
         { status: 500 }
       )
     }
