@@ -145,24 +145,19 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
     params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
     
-    // Enable recording at REST API level if requested
-    // This is the CORRECT way to record calls - NOT via LaML <Record> verb
-    // SignalWire will automatically record the call and POST recording to StatusCallback
-    // NOTE: For conference/bridge calls, recording is handled by <Conference record="..."> in LaML
-    if (!conference) {
-      params.append('Record', 'true')
-      params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
-      params.append('RecordingStatusCallbackEvent', 'completed')
-      // eslint-disable-next-line no-console
-      console.log('placeSignalWireCall: RECORDING ENABLED', {
-        Record: 'true',
-        RecordingStatusCallback: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`,
-        isSingleLeg: !conference
-      })
-    } else {
-      // eslint-disable-next-line no-console
-      console.log('placeSignalWireCall: Recording SKIPPED (conference call - handled by LaML)', { conference })
-    }
+    // Enable recording at REST API level for ALL calls
+    // CRITICAL: Must use Record=true at REST API level for BOTH single-leg AND conference calls
+    // The <Conference record="..."> attribute alone is NOT sufficient - SignalWire ignores it
+    // Always use Record=true here, and the <Conference record="..."> in LaML acts as reinforcement
+    params.append('Record', 'true')
+    params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+    params.append('RecordingStatusCallbackEvent', 'completed')
+    // eslint-disable-next-line no-console
+    console.log('placeSignalWireCall: RECORDING ENABLED', {
+      Record: 'true',
+      RecordingStatusCallback: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`,
+      isConferenceCall: !!conference
+    })
 
     const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
     
