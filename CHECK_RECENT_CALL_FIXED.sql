@@ -63,12 +63,9 @@ SELECT
   translate_from,
   translate_to
 FROM voice_configs
-WHERE organization_id IN (
-  SELECT DISTINCT organization_id 
+WHERE organization_id = (
+  SELECT organization_id 
   FROM calls 
-  WHERE started_at > NOW() - INTERVAL '1 hour'
-     OR started_at IS NULL
-  ORDER BY COALESCE(started_at, '1970-01-01'::timestamp) DESC
+  ORDER BY COALESCE(started_at, NOW()) DESC
   LIMIT 1
-)
-LIMIT 5;
+);
