@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { AppError } from '@/types/app-error'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
+import { logger } from '@/lib/logger'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -55,8 +56,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       })
     } catch (e) {
       // best-effort
-      // eslint-disable-next-line no-console
-      console.error('failed to write audit error', e)
+      logger.error('failed to write audit error', e as Error)
     }
   }
 
@@ -67,8 +67,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     conference?: string,
     leg?: string
   ) => {
-    // eslint-disable-next-line no-console
-    console.log('placeSignalWireCall: ENTERED function', { 
+    logger.info('placeSignalWireCall: ENTERED function', { 
       toNumber: toNumber ? '[REDACTED]' : null, 
       useLiveTranslation, 
       callId,
@@ -84,8 +83,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const rawSpace = String(env.SIGNALWIRE_SPACE || appConfig?.signalwire.space || '')
     const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
 
-    // eslint-disable-next-line no-console
-    console.log('placeSignalWireCall: extracted config', { 
+    logger.debug('placeSignalWireCall: extracted config', { 
       hasProject: !!swProject, 
       hasToken: !!swToken, 
       hasSpace: !!swSpace, 
@@ -111,13 +109,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           retriable: false 
         })
         await writeAuditError('systems', null, e.toJSON())
-        // eslint-disable-next-line no-console
-        console.error('❌ CRITICAL: SignalWire config missing:', missing.join(', '))
+        logger.error('CRITICAL: SignalWire config missing', undefined, { missing: missing.join(', ') })
         throw e
       }
       // mock SID in non-production
-      // eslint-disable-next-line no-console
-      console.warn('⚠️ SignalWire config incomplete (using mock):', missing.join(', '))
+      logger.warn('SignalWire config incomplete (using mock)', { missing: missing.join(', ') })
       return `mock-${uuidv4()}`
     }
 
@@ -129,8 +125,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // Route to SWML endpoint for live translation, LaML for regular calls
     if (useLiveTranslation && callId) {
       params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}`)
-      // eslint-disable-next-line no-console
-      console.log('startCallHandler: routing to SWML endpoint for live translation', { callId })
+      logger.info('startCallHandler: routing to SWML endpoint for live translation', { callId })
     } else {
       // Build LaML URL with parameters (use empty string if callId not yet set)
       const callIdParam = callId || ''
@@ -155,8 +150,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     params.append('Record', 'true')
     params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
     params.append('RecordingStatusCallbackEvent', 'completed')
-    // eslint-disable-next-line no-console
-    console.log('placeSignalWireCall: RECORDING ENABLED', {
+    logger.info('placeSignalWireCall: RECORDING ENABLED', {
       Record: 'true',
       RecordingStatusCallback: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`,
       isConferenceCall: !!conference
@@ -166,8 +160,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     
     // Log ALL parameters being sent to SignalWire (for debugging)
     const paramsForLog = Object.fromEntries(params.entries())
-    // eslint-disable-next-line no-console
-    console.log('placeSignalWireCall: FULL REST API REQUEST', { 
+    logger.debug('placeSignalWireCall: FULL REST API REQUEST', { 
       endpoint: swEndpoint, 
       to: toNumber ? '[REDACTED]' : null,
       from: swNumber ? '[REDACTED]' : null,
@@ -190,8 +183,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         signal: controller.signal
       })
     } catch (fetchErr: any) {
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: SignalWire fetch error', { error: fetchErr?.message ?? String(fetchErr) })
+      logger.error('startCallHandler: SignalWire fetch error', fetchErr, { error: fetchErr?.message ?? String(fetchErr) })
       const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
@@ -201,16 +193,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     if (!swRes.ok) {
       const text = await swRes.text()
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: SignalWire POST failed', { status: swRes.status, body: text })
+      logger.error('startCallHandler: SignalWire POST failed', undefined, { status: swRes.status, body: text })
       const e = new AppError({ code: 'SIGNALWIRE_API_ERROR', message: `SignalWire Error: ${swRes.status}`, user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { provider_error: text } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
     }
 
     const swData = await swRes.json()
-    // eslint-disable-next-line no-console
-    console.log('startCallHandler: SignalWire responded', { sid: swData?.sid ? '[REDACTED]' : null })
+    logger.info('startCallHandler: SignalWire responded', { sid: swData?.sid ? '[REDACTED]' : null })
     return swData?.sid ?? null
   }
 
@@ -221,8 +211,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // lightweight tracing for debugging call placement (avoid logging secrets)
     // Logs: organization and phone to help trace attempts in runtime logs
     // DO NOT log credentials or provider tokens
-    // eslint-disable-next-line no-console
-    console.log('startCallHandler: initiating call', { organization_id, from_number, phone_number, flow_type, modulations })
+    logger.info('startCallHandler: initiating call', { organization_id, from_number: '[REDACTED]', phone_number: '[REDACTED]', flow_type, modulations })
 
     // actor/session lookup
     // Note: Session lookup removed - actorId must be provided in input or handled by caller
@@ -234,8 +223,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       if (env.NODE_ENV !== 'production') {
         actorId = '28d68e05-ab20-40ee-b935-b19e8927ae68'
         capturedActorId = actorId
-        // eslint-disable-next-line no-console
-        console.warn('startCallHandler: using dev fallback actorId', { actorId })
+        logger.warn('startCallHandler: using dev fallback actorId', { actorId })
       } else {
         const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH', retriable: false })
         await writeAuditError('organizations', null, err.toJSON())
@@ -359,8 +347,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const { error: insertErr } = await supabaseAdmin.from('calls').insert(callRow)
     if (insertErr) {
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: failed to insert call row', { callId, error: insertErr?.message })
+      logger.error('startCallHandler: failed to insert call row', undefined, { callId, error: insertErr?.message })
       const e = new AppError({ code: 'CALL_START_DB_INSERT', message: 'Failed to create call record', user_message: 'We encountered a system error while starting your call. Please try again.', severity: 'HIGH', retriable: true, details: { cause: insertErr.message } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
@@ -371,20 +358,17 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // execute SignalWire (via injected caller if available)
     let call_sid: string | null = null
     if (signalwireCall) {
-      // eslint-disable-next-line no-console
-      console.log('startCallHandler: using injected signalwireCall to place outbound call')
+      logger.info('startCallHandler: using injected signalwireCall to place outbound call')
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
         // place two legs: agent leg then destination leg
         const sidA = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: from_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
         const sidB = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
         call_sid = sidB.call_sid
-        // eslint-disable-next-line no-console
-        console.log('startCallHandler: injected signalwireCall bridge created', { a: sidA.call_sid ? '[REDACTED]' : null, b: sidB.call_sid ? '[REDACTED]' : null })
+        logger.info('startCallHandler: injected signalwireCall bridge created', { a: sidA.call_sid ? '[REDACTED]' : null, b: sidB.call_sid ? '[REDACTED]' : null })
       } else {
         const sw = await signalwireCall({ from: String(env.SIGNALWIRE_NUMBER || ''), to: phone_number, url: String(env.NEXT_PUBLIC_APP_URL) + '/api/voice/laml/outbound', statusCallback: String(env.NEXT_PUBLIC_APP_URL) + '/api/webhooks/signalwire' })
         call_sid = sw.call_sid
-        // eslint-disable-next-line no-console
-        console.log('startCallHandler: injected signalwireCall returned', { call_sid: call_sid ? '[REDACTED]' : null })
+        logger.info('startCallHandler: injected signalwireCall returned', { call_sid: call_sid ? '[REDACTED]' : null })
       }
     } else {
       // no injected caller: use shared helper which handles config and mocks
@@ -394,8 +378,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
       const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && !!effectiveModulations.translate_from && !!effectiveModulations.translate_to
       
-      // eslint-disable-next-line no-console
-      console.log('startCallHandler: about to place SignalWire call', { 
+      logger.info('startCallHandler: about to place SignalWire call', { 
         flow_type, 
         has_from_number: !!from_number, 
         from_number_valid: from_number ? E164_REGEX.test(from_number) : false,
@@ -415,16 +398,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         // Call leg B (destination) - joins same conference
         const sidB = await placeSignalWireCall(phone_number, false, conferenceName, '2')
         call_sid = sidB
-        // eslint-disable-next-line no-console
-        console.log('startCallHandler: signalwire bridge created', { 
+        logger.info('startCallHandler: signalwire bridge created', { 
           conference: conferenceName,
           legA: sidA ? '[REDACTED]' : null, 
           legB: sidB ? '[REDACTED]' : null 
         })
       } else {
         call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
-        // eslint-disable-next-line no-console
-        console.log('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null, liveTranslation: shouldUseLiveTranslation })
+        logger.info('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null, liveTranslation: shouldUseLiveTranslation })
       }
     }
 
@@ -438,12 +419,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     
     const { error: updateErr } = await supabaseAdmin.from('calls').update(updateData).eq('id', callId)
     if (updateErr) {
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: failed to update call', { callId, error: updateErr?.message })
+      logger.error('startCallHandler: failed to update call', undefined, { callId, error: updateErr?.message })
       await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
     } else {
-      // eslint-disable-next-line no-console
-      console.log('startCallHandler: updated call with call_sid', { callId, hasSid: !!call_sid })
+      logger.info('startCallHandler: updated call with call_sid', { callId, hasSid: !!call_sid })
     }
 
     // enqueue ai run if requested (driven by voice_configs, not client input)
@@ -456,8 +435,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         try {
           const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
           if (aiErr) {
-            // eslint-disable-next-line no-console
-            console.error('startCallHandler: failed to insert ai_run', { callId, error: aiErr?.message })
+            logger.error('startCallHandler: failed to insert ai_run', undefined, { callId, error: aiErr?.message })
             await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSC_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Transcription could not be started. The call will continue without transcription.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
           }
         } catch (e) {
@@ -480,8 +458,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         try {
           const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
           if (aiErr) {
-            // eslint-disable-next-line no-console
-            console.error('startCallHandler: failed to insert ai_run (translation)', { callId, error: aiErr?.message })
+            logger.error('startCallHandler: failed to insert ai_run (translation)', undefined, { callId, error: aiErr?.message })
             await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
           }
         } catch (e) {
@@ -505,8 +482,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // fetch canonical call
     const { data: persistedCall, error: fetchCallErr } = await supabaseAdmin.from('calls').select('*').eq('id', callId).limit(1)
     if (fetchCallErr || !persistedCall?.[0]) {
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: failed to fetch persisted call', { callId, error: fetchCallErr?.message })
+      logger.error('startCallHandler: failed to fetch persisted call', undefined, { callId, error: fetchCallErr?.message })
       const e = new AppError({ code: 'CALL_START_FETCH_PERSISTED_FAILED', message: 'Failed to read back persisted call', user_message: 'We started the call but could not verify its record. Please contact support.', severity: 'HIGH', retriable: true, details: { cause: fetchCallErr?.message } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
@@ -516,13 +492,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     try {
       await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', before: null, after: { ...canonicalCall, config: effectiveModulations, call_sid }, created_at: new Date().toISOString() })
     } catch (auditErr) {
-      // eslint-disable-next-line no-console
-      console.error('startCallHandler: failed to insert audit log', { callId, error: (auditErr as any)?.message })
+      logger.error('startCallHandler: failed to insert audit log', auditErr as Error, { callId })
       await writeAuditError('audit_logs', callId, new AppError({ code: 'AUDIT_LOG_INSERT_FAILED', message: 'Failed to write audit log', user_message: 'Call started but an internal audit log could not be saved.', severity: 'MEDIUM', retriable: true, details: { cause: (auditErr as any).message } }).toJSON())
     }
 
-    // eslint-disable-next-line no-console
-    console.log('startCallHandler: call flow completed', { callId })
+    logger.info('startCallHandler: call flow completed', { callId })
     return { success: true, call_id: callId }
   } catch (err: any) {
     if (err instanceof AppError) {
@@ -531,8 +505,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
     }
     // log the unexpected error for debugging
-    // eslint-disable-next-line no-console
-    console.error('startCallHandler unexpected error', err)
+    logger.error('startCallHandler unexpected error', err)
     const unexpected = new AppError({ code: 'CALL_START_UNEXPECTED', message: err?.message ?? 'Unexpected error', user_message: 'An unexpected error occurred while starting the call.', severity: 'CRITICAL', retriable: true, details: { stack: err?.stack } })
     const payload = unexpected.toJSON()
     try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
