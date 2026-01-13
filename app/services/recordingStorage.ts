@@ -17,11 +17,29 @@ export async function storeRecording(
   recordingId: string
 ): Promise<string | null> {
   try {
-    // Download recording from SignalWire
+    // Get SignalWire credentials for authentication
+    const signalwireProjectId = process.env.SIGNALWIRE_PROJECT_ID
+    const signalwireToken = process.env.SIGNALWIRE_TOKEN
+    
+    if (!signalwireProjectId || !signalwireToken) {
+      console.error('recordingStorage: SignalWire credentials not configured')
+      return null
+    }
+
+    // Create Basic Auth header for SignalWire API
+    const authHeader = `Basic ${Buffer.from(`${signalwireProjectId}:${signalwireToken}`).toString('base64')}`
+    
+    console.log('recordingStorage: downloading from SignalWire', { 
+      recordingId,
+      hasAuth: true 
+    })
+
+    // Download recording from SignalWire with authentication
     const response = await fetch(recordingUrl, {
       method: 'GET',
       headers: {
-        'Accept': 'audio/*'
+        'Accept': 'audio/*',
+        'Authorization': authHeader
       }
     })
 
@@ -29,10 +47,17 @@ export async function storeRecording(
       // eslint-disable-next-line no-console
       console.error('recordingStorage: failed to download from SignalWire', { 
         status: response.status, 
+        statusText: response.statusText,
         recordingUrl: '[REDACTED]' 
       })
       return null
     }
+
+    console.log('recordingStorage: download successful', { 
+      recordingId,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length')
+    })
 
     const audioBuffer = await response.arrayBuffer()
     const audioBlob = new Blob([audioBuffer])
@@ -63,17 +88,33 @@ export async function storeRecording(
       return null
     }
 
-    // Update recording with storage path
+    console.log('recordingStorage: uploaded to Supabase Storage', { 
+      recordingId, 
+      storagePath,
+      sizeBytes: audioBuffer.byteLength
+    })
+
+    // Get public URL for the recording
+    const { data: urlData } = supabaseAdmin.storage
+      .from('recordings')
+      .getPublicUrl(storagePath)
+
+    const publicUrl = urlData.publicUrl
+
+    // Update recording with Supabase Storage public URL
     await supabaseAdmin
       .from('recordings')
       .update({
-        // Note: storage_path column may need to be added to recordings table
-        // For now, we'll store it in a metadata field or add the column
+        recording_url: publicUrl, // Replace SignalWire URL with Supabase public URL
         updated_at: new Date().toISOString()
       }).eq('id', recordingId)
 
     // eslint-disable-next-line no-console
-    console.log('recordingStorage: stored recording', { recordingId, storagePath })
+    console.log('recordingStorage: stored recording and updated DB', { 
+      recordingId, 
+      storagePath,
+      publicUrl: publicUrl.substring(0, 50) + '...'
+    })
 
     return storagePath
   } catch (err: any) {
@@ -144,11 +185,11 @@ export async function ensureRecordingsBucket(): Promise<boolean> {
     const recordingsBucket = buckets?.find(b => b.name === 'recordings')
     
     if (!recordingsBucket) {
-      // Create bucket
+      // Create bucket as PUBLIC so recordings are accessible
       const { data, error: createError } = await supabaseAdmin.storage.createBucket('recordings', {
-        public: false,
+        public: true, // Public bucket for easy access
         fileSizeLimit: 104857600, // 100 MB max
-        allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a']
+        allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/mp4']
       })
 
       if (createError) {
@@ -158,7 +199,7 @@ export async function ensureRecordingsBucket(): Promise<boolean> {
       }
 
       // eslint-disable-next-line no-console
-      console.log('recordingStorage: created recordings bucket')
+      console.log('recordingStorage: created PUBLIC recordings bucket')
     }
 
     return true
