@@ -6,6 +6,8 @@ import { Badge } from '../components/ui/badge'
 import { toast } from '../components/ui/use-toast'
 import Link from 'next/link'
 import BulkCallUpload from '../components/BulkCallUpload'
+import AudioUpload from '../components/AudioUpload'
+import TTSGenerator from '../components/TTSGenerator'
 import { useSession } from 'next-auth/react'
 import { useVoiceConfig } from '../hooks/useVoiceConfig'
 
@@ -168,12 +170,12 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-8">
-      <header className="max-w-4xl mx-auto mb-8">
+      <header className="max-w-6xl mx-auto mb-8">
         <h1 className="text-3xl font-bold">CallMonitor • Voice Operations</h1>
         <p className="text-slate-400 mt-2">Single unified surface for call creation, modulation, and evidence review. See ARCH_DOCS/FE_GUIDE for UX guidance.</p>
       </header>
 
-      <section className="max-w-4xl mx-auto grid grid-cols-3 gap-6">
+      <section className="max-w-6xl mx-auto grid grid-cols-3 gap-6">
         <article className="col-span-2 bg-slate-900 p-6 rounded shadow">
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
           
@@ -293,6 +295,14 @@ export default function Home() {
           </ul>
         </aside>
       </section>
+
+      {/* Audio Tools Section */}
+      {organizationId && (
+        <section className="max-w-6xl mx-auto mt-6 grid grid-cols-2 gap-6">
+          <AudioUpload organizationId={organizationId} />
+          <TTSGenerator organizationId={organizationId} />
+        </section>
+      )}
     </main>
   )
 }

@@ -24,18 +24,20 @@ export function getElevenLabsClient() {
  * 
  * @param text - Text to convert to speech
  * @param targetLanguage - Target language code (e.g., 'es', 'en', 'fr')
+ * @param customVoiceId - Optional custom voice ID to use instead of default
  * @returns Audio buffer as ReadableStream
  */
 export async function generateSpeech(
   text: string,
-  targetLanguage: string = 'en'
+  targetLanguage: string = 'en',
+  customVoiceId?: string
 ): Promise<ReadableStream<Uint8Array>> {
   const client = getElevenLabsClient()
   
-  // Use Rachel voice for English, multilingual model for others
-  const voiceId = targetLanguage === 'en' 
+  // Use custom voice if provided, otherwise use default mapping
+  const voiceId = customVoiceId || (targetLanguage === 'en' 
     ? 'EXAVITQu4vr4xnSDxMaL' // Rachel - Natural, professional English
-    : 'pNInz6obpgDQGcFmaJgB' // Adam - Multilingual support
+    : 'pNInz6obpgDQGcFmaJgB') // Adam - Multilingual support
   
   try {
     const audio = await client.textToSpeech.convert(voiceId, {
