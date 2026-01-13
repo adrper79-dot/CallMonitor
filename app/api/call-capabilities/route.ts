@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
     }
 
     // require authenticated actor
-    const session = await getServerSession().catch(() => null)
+    const session = await getServerSession(authOptions).catch(() => null)
     const actorId = session?.user?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })

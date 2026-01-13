@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 
@@ -11,8 +12,8 @@ import { AppError } from '@/types/app-error'
  */
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession()
-    const userId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })

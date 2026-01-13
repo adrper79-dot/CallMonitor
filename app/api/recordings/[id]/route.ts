@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { createClient } from '@supabase/supabase-js'
 
@@ -8,8 +9,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions)
+    if (!(session?.user as any)?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

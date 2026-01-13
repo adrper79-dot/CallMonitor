@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { getRBACContext } from '@/lib/middleware/rbac'
 
 /**
@@ -7,8 +8,8 @@ import { getRBACContext } from '@/lib/middleware/rbac'
  */
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession()
-    const userId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
       return NextResponse.json(

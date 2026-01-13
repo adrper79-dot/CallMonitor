@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { validateEnvVars } from '@/lib/env-validation'
 
 /**
@@ -11,8 +12,8 @@ import { validateEnvVars } from '@/lib/env-validation'
 export async function GET(req: Request) {
   try {
     // Require authentication
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions)
+    if (!(session?.user as any)?.id) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required', severity: 'high' } },
         { status: 401 }

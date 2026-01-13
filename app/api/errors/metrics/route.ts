@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { getErrorKPIs, getEndpointKPIs, getSystemHealth } from '@/lib/errors/kpi'
 
 /**
@@ -11,8 +12,8 @@ import { getErrorKPIs, getEndpointKPIs, getSystemHealth } from '@/lib/errors/kpi
 export async function GET(req: Request) {
   try {
     // Require authentication (admin only in production)
-    const session = await getServerSession()
-    if (!session?.user?.id) {
+    const session = await getServerSession(authOptions)
+    if (!(session?.user as any)?.id) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required', severity: 'high' } },
         { status: 401 }

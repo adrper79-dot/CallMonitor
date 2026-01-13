@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 
 type Modulations = { record?: boolean; transcribe?: boolean; translate?: boolean; survey?: boolean; synthetic_caller?: boolean }
@@ -27,8 +28,8 @@ export async function POST(req: Request) {
     // session lookup (best-effort)
     let actorId: string | null = null
     try {
-      const session = await getServerSession()
-      actorId = session?.user?.id ?? null
+      const session = await getServerSession(authOptions)
+      actorId = (session?.user as any)?.id ?? null
     } catch (_) {
       actorId = null
     }

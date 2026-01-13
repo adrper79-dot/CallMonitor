@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
@@ -35,8 +36,8 @@ async function handleGET(req: Request) {
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
     }
 
-    const session = await getServerSession().catch(() => null)
-    const actorId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions).catch(() => null)
+    const actorId = (session?.user as any)?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
@@ -77,8 +78,8 @@ async function handlePUT(req: Request) {
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
     }
 
-    const session = await getServerSession().catch(() => null)
-    const actorId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions).catch(() => null)
+    const actorId = (session?.user as any)?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
