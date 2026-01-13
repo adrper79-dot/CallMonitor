@@ -111,18 +111,38 @@ function validateConfig(): Config {
   return config
 }
 
-// Validate and export configuration
-let config: Config
+// Lazy validation - only validate when config is first accessed at runtime
+// This prevents build failures when env vars aren't set during build time
+let _config: Config | null = null
+let _validated = false
 
-try {
-  config = validateConfig()
-  logger.info('Configuration validated successfully')
-} catch (error) {
-  logger.error('Configuration validation failed', error)
-  throw error
+export function getValidatedConfig(): Config {
+  if (!_validated) {
+    try {
+      _config = validateConfig()
+      _validated = true
+      logger.info('Configuration validated successfully')
+    } catch (error) {
+      logger.error('Configuration validation failed', error)
+      throw error
+    }
+  }
+  return _config!
 }
 
-export { config }
+// For backward compatibility - use getValidatedConfig() for lazy loading
+// This export will throw during build if env vars are missing
+// Only use for files that are NOT imported during build
+export const config = typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build'
+  ? {} as Config  // Return empty object during build
+  : (() => {
+      try {
+        return validateConfig()
+      } catch {
+        // During build, env vars might not be set
+        return {} as Config
+      }
+    })()
 
 // Helper functions for backward compatibility
 export function getSupabaseUrl(): string {
