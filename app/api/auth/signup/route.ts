@@ -140,10 +140,8 @@ export async function POST(req: Request) {
         const { data: tool, error: toolError } = await supabase
           .from('tools')
           .insert({
-            name: `${name || email}'s Recording Tool`,
-            type: 'recording',
-            organization_id: orgId,
-            created_by: data.id
+            name: `Default Voice Tool`,
+            description: `Default tool for call recordings and AI services`
           })
           .select('id')
           .single()
@@ -213,6 +211,27 @@ export async function POST(req: Request) {
       }
       
       console.log(`Signup: created org_members record for ${email} as ${isFirstUser ? 'owner' : 'member'}`)
+      
+      // Create default voice_configs for new organization
+      const { error: voiceConfigError } = await supabase
+        .from('voice_configs')
+        .insert({
+          organization_id: orgId,
+          record: true,
+          transcribe: true,
+          translate: false,
+          translate_from: 'en-US',
+          translate_to: 'es-ES',
+          survey: false,
+          synthetic_caller: false
+        })
+      
+      if (voiceConfigError) {
+        console.error('Failed to create voice_configs:', voiceConfigError)
+        // Don't fail signup, but log the error
+      } else {
+        console.log(`Signup: created voice_configs for organization ${orgId}`)
+      }
     }
 
     return NextResponse.json({
