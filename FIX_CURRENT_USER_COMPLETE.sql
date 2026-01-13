@@ -53,23 +53,16 @@ SELECT 'Org Members Created' as status;
 -- Create tool
 INSERT INTO tools (name, description)
 VALUES ('Default Voice Tool', 'Default tool for call recordings and AI services')
-ON CONFLICT DO NOTHING
 RETURNING id;
 
--- Get the tool ID (either just created or existing)
-WITH latest_tool AS (
-  SELECT id FROM tools 
-  ORDER BY created_at DESC 
-  LIMIT 1
-)
--- Link tool to organization if not already linked
-UPDATE organizations
-SET tool_id = (SELECT id FROM latest_tool)
-WHERE id = '688625da-c06b-4c51-bacd-1fc9543818e9'
-  AND tool_id IS NULL
-RETURNING id, tool_id;
+-- Get the tool ID we just created
+-- IMPORTANT: Copy the UUID from the result above and paste it below!
+-- Then uncomment and run the UPDATE statement:
 
-SELECT 'Tool Created and Linked' as status;
+-- UPDATE organizations
+-- SET tool_id = 'PASTE_TOOL_ID_HERE'
+-- WHERE id = '688625da-c06b-4c51-bacd-1fc9543818e9'
+-- RETURNING id, tool_id;
 
 -- =====================================================
 -- STEP 4: Ensure voice_configs exists
