@@ -250,17 +250,66 @@ export default function CallModulations({ callId, organizationId, initialModulat
                 )}
                 
                 {checked && t.key === 'survey' && (
-                  <div className="mt-2">
+                  <div className="mt-2 space-y-3">
+                    {/* AI Survey Bot Prompts */}
+                    <div>
+                      <label className="block text-xs text-slate-300 mb-1">Survey Questions (one per line)</label>
+                      <textarea
+                        placeholder="On a scale of 1-5, how satisfied were you?&#10;What could we improve?&#10;Would you recommend us to others?"
+                        value={config?.survey_prompts?.join('\n') || ''}
+                        onChange={(e) => {
+                          const prompts = e.target.value.split('\n').filter(q => q.trim())
+                          updateConfig({ survey_prompts: prompts.length > 0 ? prompts : [] })
+                        }}
+                        disabled={!canEdit}
+                        className="w-full text-sm p-2 rounded bg-slate-700 text-slate-100 border border-slate-600 focus:border-blue-500 focus:outline-none"
+                        rows={4}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        AI Survey Bot will ask each question and collect responses
+                      </p>
+                    </div>
+                    
+                    {/* Email for Results */}
+                    <div>
+                      <label className="block text-xs text-slate-300 mb-1">Email for Results (optional)</label>
+                      <input
+                        type="email"
+                        placeholder="results@yourcompany.com"
+                        value={config?.survey_webhook_email || ''}
+                        onChange={(e) => updateConfig({ survey_webhook_email: e.target.value || undefined })}
+                        disabled={!canEdit}
+                        className="w-full text-sm p-2 rounded bg-slate-700 text-slate-100 border border-slate-600 focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    
+                    {/* Voice Selection */}
                     <Select
-                      label="Survey"
-                      value={config?.survey_id || ''}
-                      onChange={(e) => updateConfig({ survey_id: e.target.value || null })}
+                      label="Bot Voice"
+                      value={config?.survey_voice || 'rime.spore'}
+                      onChange={(e) => updateConfig({ survey_voice: e.target.value })}
                       disabled={!canEdit}
                       className="text-sm"
                     >
-                      <option value="">Select a survey...</option>
-                      {/* Surveys would be loaded from API */}
+                      <option value="rime.spore">English - Spore (Default)</option>
+                      <option value="rime.alberto">Spanish - Alberto</option>
+                      <option value="rime.viola">French - Viola</option>
+                      <option value="rime.stella">German - Stella</option>
+                      <option value="rime.paola">Italian - Paola</option>
+                      <option value="rime.luana">Portuguese - Luana</option>
+                      <option value="rime.akari">Japanese - Akari</option>
+                      <option value="rime.ling">Chinese - Ling</option>
+                      <option value="rime.yeonjun">Korean - Yeonjun</option>
                     </Select>
+                    
+                    {/* Inbound Number Info */}
+                    {config?.survey_inbound_number && (
+                      <div className="p-2 rounded bg-green-900/30 border border-green-700">
+                        <span className="text-xs text-green-400">
+                          ✓ Inbound number configured for AI Survey Bot
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 

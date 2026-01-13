@@ -99,20 +99,29 @@ async function handlePUT(req: Request) {
     }
 
     // Map incoming modulation keys to columns allowed by Schema
-    const allowedKeys = ['record', 'transcribe', 'translate', 'translate_from', 'translate_to', 'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id']
-    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id']
+    const allowedKeys = [
+      'record', 'transcribe', 'translate', 'translate_from', 'translate_to', 
+      'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id',
+      // AI Survey Bot fields
+      'survey_prompts', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number'
+    ]
+    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number']
     const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning']
+    const jsonArrayKeys = ['survey_prompts'] // Array fields stored as JSONB
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.
     // Keep `organization_id` only for the INSERT row below.
     const updatePayload: any = { updated_by: actorId }
     for (const k of Object.keys(modulations || {})) {
       const v = (modulations as any)[k]
-      // accept booleans for boolean columns, strings for string columns
+      // accept booleans for boolean columns, strings for string columns, arrays for jsonb
       if (allowedKeys.includes(k)) {
         if (stringKeys.includes(k)) {
           if (v === null || typeof v === 'string') updatePayload[k] = v
         } else if (booleanKeys.includes(k)) {
           if (typeof v === 'boolean') updatePayload[k] = v
+        } else if (jsonArrayKeys.includes(k)) {
+          // Accept arrays for JSONB columns
+          if (v === null || Array.isArray(v)) updatePayload[k] = v
         }
       }
     }

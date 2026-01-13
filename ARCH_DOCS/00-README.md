@@ -1,7 +1,7 @@
 # CallMonitor Architecture Documentation
 
-**Last Updated:** January 13, 2026  
-**Version:** 1.1  
+**Last Updated:** January 14, 2026  
+**Version:** 1.2  
 **Status:** ✅ Production Ready
 
 ---
@@ -68,6 +68,7 @@ Essential documents defining system design:
 ### **02-FEATURES** - Feature Documentation
 Detailed guides for major features:
 
+- **AI_SURVEY_BOT.md** - AI-powered inbound survey calls (NEW)
 - **Translation_Agent** - Live translation architecture and implementation
 - **TRANSLATION_AGENT_IMPLEMENTATION_PLAN.md** - Implementation roadmap
 - **SECRET_SHOPPER_INFRASTRUCTURE.md** - Secret shopper feature design
@@ -172,6 +173,7 @@ Historical reviews, fixes, and completed implementations:
 | QUICK_REFERENCE.md | Cheat sheet | All | ✅ Current |
 | MASTER_ARCHITECTURE.txt | System design | All devs | ✅ Current |
 | Schema.txt | Database schema | Backend devs | ✅ Current |
+| AI_SURVEY_BOT.md | AI Survey Bot | Feature devs | ✅ Complete |
 | Translation_Agent | Live translation | Feature devs | ✅ Complete |
 | SECRET_SHOPPER_INFRASTRUCTURE.md | Secret shopper | Feature devs | ✅ Complete |
 | UX_DESIGN_PRINCIPLES.txt | UI/UX standards | Frontend devs | ✅ Current |
@@ -180,9 +182,17 @@ Historical reviews, fixes, and completed implementations:
 
 ---
 
-## 🔧 **Recent Updates (January 13, 2026)**
+## 🔧 **Recent Updates (January 14, 2026)**
 
-### **Codebase Fixes Applied:**
+### **New Features (v1.2):**
+1. ✅ **AI Survey Bot** - Inbound calls with SignalWire AI Agents
+   - Dynamic survey prompts, email results, conversation capture
+   - New: `AI_SURVEY_BOT.md` documentation
+2. ✅ **Voice Cloning** - Clone caller's voice for translations (ElevenLabs)
+3. ✅ **Email Artifacts** - Send recordings/transcripts/translations as attachments
+4. ✅ **SignalWire Numbers API** - Manage inbound phone numbers
+
+### **Codebase Fixes Applied (January 13):**
 1. ✅ Added `export const dynamic = 'force-dynamic'` to all 38 API routes
 2. ✅ Fixed Supabase client centralization (3 files)
 3. ✅ Fixed NextAuth adapter build-time initialization
@@ -190,9 +200,10 @@ Historical reviews, fixes, and completed implementations:
 5. ✅ Verified all service integrations in Vercel
 
 ### **Documentation Updates:**
-- ✅ Updated `CURRENT_STATUS.md` with current metrics
-- ✅ Updated `QUICK_REFERENCE.md` with new info
-- ✅ Updated this README with current status
+- ✅ Updated `CURRENT_STATUS.md` with new features and metrics
+- ✅ Added `AI_SURVEY_BOT.md` feature documentation
+- ✅ Updated `Schema.txt` with new voice_configs fields
+- ✅ Updated this README with v1.2 status
 
 ---
 

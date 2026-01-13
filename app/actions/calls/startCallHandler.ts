@@ -454,7 +454,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Translation unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        const aiRow = { id: aiId, call_id: callId, system_id: systemAiId, model: 'assemblyai-translation-v1', status: 'queued', meta: { translate_from: fromLang, translate_to: toLang } }
+        // Note: Using 'output' column for metadata since 'meta' doesn't exist in schema
+        const aiRow = { 
+          id: aiId, 
+          call_id: callId, 
+          system_id: systemAiId, 
+          model: 'assemblyai-translation-v1', 
+          status: 'queued',
+          output: { translate_from: fromLang, translate_to: toLang, pending: true }
+        }
         try {
           const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
           if (aiErr) {

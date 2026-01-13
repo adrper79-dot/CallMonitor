@@ -567,6 +567,11 @@ CREATE TABLE public.voice_configs (
   synthetic_caller boolean DEFAULT false,
   use_voice_cloning boolean DEFAULT false,  -- Enable voice cloning for translations
   cloned_voice_id text,                      -- ElevenLabs cloned voice ID
+  -- AI Survey Bot fields (January 2026)
+  survey_prompts jsonb DEFAULT '[]',         -- Array of survey questions
+  survey_voice text DEFAULT 'rime.spore',    -- SignalWire TTS voice for survey bot
+  survey_webhook_email text,                 -- Email address for survey results
+  survey_inbound_number text,                -- SignalWire phone number SID
   updated_by uuid,
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT voice_configs_pkey PRIMARY KEY (id),

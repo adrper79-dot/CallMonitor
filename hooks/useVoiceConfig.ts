@@ -19,6 +19,11 @@ export interface VoiceConfig {
   // Voice cloning
   use_voice_cloning?: boolean
   cloned_voice_id?: string | null
+  // AI Survey Bot fields
+  survey_prompts?: string[]
+  survey_voice?: string
+  survey_webhook_email?: string
+  survey_inbound_number?: string
 }
 
 // Map frontend-friendly names to database column names

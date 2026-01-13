@@ -1,7 +1,7 @@
 # CallMonitor - Current Status & Quick Reference
 
-**Last Updated:** January 13, 2026  
-**Version:** 1.1.0  
+**Last Updated:** January 14, 2026  
+**Version:** 1.2.0  
 **Status:** ✅ Production Ready
 
 ---
@@ -17,9 +17,10 @@ CallMonitor is a voice operations platform for managing calls with modulations (
 - **Auth:** NextAuth.js with Supabase Adapter
 - **Media Plane:** SignalWire (LaML for standard calls, SWML for AI Agents)
 - **Intelligence:** AssemblyAI (transcription, translation - authoritative)
-- **TTS:** ElevenLabs (text-to-speech for translated audio)
+- **TTS:** ElevenLabs (text-to-speech + voice cloning for translated audio)
 - **Live Translation:** SignalWire AI Agents (SWML - real-time, non-authoritative)
-- **Email:** Resend (transactional emails)
+- **AI Survey Bot:** SignalWire AI Agents (SWML - inbound survey calls)
+- **Email:** Resend (transactional emails + artifact delivery)
 
 ---
 
@@ -31,29 +32,39 @@ CallMonitor is a voice operations platform for managing calls with modulations (
 3. **Transcription** - Post-call via AssemblyAI
 4. **Translation** - Post-call via AssemblyAI + OpenAI
 5. **TTS Audio** - ElevenLabs audio generation for translations
-6. **After-call Surveys** - IVR surveys post-call
-7. **Secret Shopper** - AI-powered call scoring
-8. **Evidence Manifests** - Structured call evidence
+6. **Voice Cloning** - Clone caller's voice for translated audio (ElevenLabs)
+7. **After-call Surveys** - IVR surveys post-call
+8. **Secret Shopper** - AI-powered call scoring
+9. **Evidence Manifests** - Structured call evidence
+10. **Email Artifacts** - Send recordings/transcripts/translations via email
 
 ### **✅ Live Translation (Preview - Business+ Plan)**
-9. **Real-time Translation** - SignalWire AI Agents for live bi-directional translation
-10. **Language Detection** - Auto-detect language switches
-11. **Graceful Fallback** - Continue call without translation on failure
+11. **Real-time Translation** - SignalWire AI Agents for live bi-directional translation
+12. **Language Detection** - Auto-detect language switches
+13. **Graceful Fallback** - Continue call without translation on failure
+
+### **✅ AI Survey Bot (Business+ Plan)**
+14. **Dynamic Survey Prompts** - Configurable questions per organization
+15. **Inbound Call Handling** - SignalWire AI Agents for survey conversations
+16. **Email Results** - Automated survey result delivery
+17. **Conversation Capture** - Full transcript stored in ai_runs
 
 ### **✅ UI Features**
-12. **Navigation Bar** - Global nav (Home, Voice, Settings, Tests)
-13. **Voice Operations Page** - Call list, execution controls, detail view
-14. **Settings Page** - Voice config UI with modulation toggles
-15. **Test Dashboard** - Comprehensive test runner with visual KPIs (🔴🟡🟢)
-16. **Bulk Call Upload** - CSV upload for batch test calls
+18. **Navigation Bar** - Global nav (Home, Voice, Settings, Tests)
+19. **Voice Operations Page** - Call list, execution controls, detail view
+20. **Settings Page** - Voice config UI with modulation toggles
+21. **Test Dashboard** - Comprehensive test runner with visual KPIs (🔴🟡🟢)
+22. **Bulk Call Upload** - CSV upload for batch test calls
+23. **Email Artifacts Button** - Send call artifacts as email attachments
 
 ### **✅ Infrastructure**
-17. **RBAC System** - Role-based access control (Owner, Admin, Operator, Viewer)
-18. **Plan-based Capabilities** - Feature gating by organization plan
-19. **Error Tracking** - Comprehensive error handling with audit logs
-20. **Rate Limiting** - API endpoint rate limiting
-21. **Idempotency** - Idempotency keys for safe retries
-22. **Webhook Security** - Signature verification for external webhooks
+24. **RBAC System** - Role-based access control (Owner, Admin, Operator, Viewer)
+25. **Plan-based Capabilities** - Feature gating by organization plan
+26. **Error Tracking** - Comprehensive error handling with audit logs
+27. **Rate Limiting** - API endpoint rate limiting
+28. **Idempotency** - Idempotency keys for safe retries
+29. **Webhook Security** - Signature verification for external webhooks
+30. **SignalWire Numbers API** - Manage inbound phone numbers
 
 ---
 
@@ -69,9 +80,46 @@ CallMonitor is a voice operations platform for managing calls with modulations (
 
 ---
 
-## 🔧 **Recent Fixes (January 13, 2026)**
+## 🔧 **Recent Updates (January 14, 2026)**
 
-### **Critical Fixes Applied:**
+### **New Features Added:**
+
+1. **AI Survey Bot** - SignalWire AI Agents for inbound survey calls
+   - Dynamic survey prompts per organization
+   - Email results delivery via Resend
+   - Full conversation capture in ai_runs table
+   - New endpoints: `/api/voice/swml/survey`, `/api/survey/ai-results`
+
+2. **Voice Cloning** - ElevenLabs voice cloning for translations
+   - Clone caller's voice from recording
+   - Use cloned voice for translated audio
+   - New fields: `use_voice_cloning`, `cloned_voice_id`
+
+3. **Email Artifacts** - Send call artifacts as email attachments
+   - Recording, transcript, and translation files
+   - Not links - actual file attachments
+   - New endpoint: `/api/calls/[id]/email`
+
+4. **SignalWire Numbers API** - Manage inbound phone numbers
+   - List available numbers
+   - Assign webhook URLs
+   - New endpoint: `/api/signalwire/numbers`
+
+### **Production Fixes (Post-Deploy):**
+
+1. **Fixed `meta` column error** - `ai_runs` insert used non-existent `meta` column
+   - Changed to use existing `output` column for translation metadata
+   - Error: `Could not find the 'meta' column of 'ai_runs'`
+
+2. **Fixed SignalWire webhook signature validation** - Updated to match Twilio/SignalWire format
+   - Uses HMAC-SHA1 with Base64 encoding (not SHA256 hex)
+   - Includes URL in signature validation
+   - Added `SIGNALWIRE_SKIP_SIGNATURE_VALIDATION=true` fallback for proxy environments
+
+3. **Supabase adapter warning** - Expected behavior, auth continues with Credentials provider
+   - Warning is logged but doesn't affect functionality
+
+### **Critical Fixes Applied (January 13):**
 
 1. **Dynamic Route Exports** - Added `export const dynamic = 'force-dynamic'` to all 38 API routes
    - Fixes Next.js 14 static generation errors

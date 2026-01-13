@@ -1,6 +1,6 @@
 # Quick Reference - CallMonitor
 
-**Version:** 1.1.0 | **Date:** January 13, 2026 | **Status:** ✅ Production Ready
+**Version:** 1.2.0 | **Date:** January 14, 2026 | **Status:** ✅ Production Ready
 
 ---
 
@@ -196,6 +196,12 @@ npm run build
 - Verify `SIGNALWIRE_NUMBER` is set
 - Check `SIGNALWIRE_TOKEN` or `SIGNALWIRE_API_TOKEN`
 - Verify webhooks are configured in SignalWire dashboard
+
+### **SignalWire webhook 401 errors:**
+- If signature validation fails in production due to URL proxy issues:
+- Set `SIGNALWIRE_SKIP_SIGNATURE_VALIDATION=true` in Vercel
+- Rate limiting still protects against abuse
+- Alternative: Configure IP allowlist for SignalWire IPs
 
 ---
 

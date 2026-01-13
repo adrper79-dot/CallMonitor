@@ -34,22 +34,34 @@ function parseFormUrlEncoded(body: string) {
  */
 async function handleWebhook(req: Request) {
   // Validate webhook signature if token is configured
+  // NOTE: SignalWire signature validation can fail due to URL proxy/rewrite in serverless.
+  // Set SIGNALWIRE_SKIP_SIGNATURE_VALIDATION=true if validation fails, and use rate limiting.
+  const skipValidation = process.env.SIGNALWIRE_SKIP_SIGNATURE_VALIDATION === 'true'
   const authToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
-  if (authToken) {
+  
+  if (authToken && !skipValidation) {
     const signature = req.headers.get('X-SignalWire-Signature') || 
+                     req.headers.get('X-Twilio-Signature') ||
                      req.headers.get('X-Signature') ||
                      req.headers.get('Signature')
     
     if (signature) {
       // Get raw body for signature verification
       const rawBody = await req.text()
-      const isValid = verifySignalWireSignature(rawBody, signature, authToken)
+      
+      // Try validation with URL (standard Twilio/SignalWire approach)
+      const webhookUrl = process.env.NEXT_PUBLIC_APP_URL 
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+        : req.url
+      
+      const isValid = verifySignalWireSignature(rawBody, signature, authToken, webhookUrl)
       
       if (!isValid) {
         // Log invalid signature attempt (security event)
         logger.error('SignalWire webhook: Invalid signature - potential spoofing attempt', undefined, { 
           signaturePrefix: signature.substring(0, 10),
-          source: 'signalwire-webhook'
+          source: 'signalwire-webhook',
+          hint: 'Set SIGNALWIRE_SKIP_SIGNATURE_VALIDATION=true if this is a false positive from URL proxy issues'
         })
         return NextResponse.json(
           { success: false, error: { code: 'WEBHOOK_SIGNATURE_INVALID', message: 'Invalid webhook signature' } },

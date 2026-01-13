@@ -10,24 +10,59 @@ import crypto from 'crypto'
 /**
  * Verify SignalWire webhook signature
  * 
- * SignalWire signs webhooks with HMAC-SHA256 using the auth token
+ * SignalWire (like Twilio) signs webhooks with HMAC-SHA1 using the auth token.
+ * The signature is Base64-encoded and includes the full webhook URL + sorted form params.
+ * 
+ * For LaML webhooks, SignalWire uses the same signing algorithm as Twilio.
+ * 
+ * NOTE: Due to complexities with URL reconstruction in serverless environments,
+ * we provide a fallback mode that skips validation if env var is set.
+ * 
+ * Set SIGNALWIRE_SKIP_SIGNATURE_VALIDATION=true in production if validation fails
+ * due to URL proxy/rewrite issues, then configure IP allowlist instead.
  */
 export function verifySignalWireSignature(
   payload: string,
   signature: string,
-  authToken: string
+  authToken: string,
+  url?: string
 ): boolean {
+  // Skip validation if explicitly disabled (use IP allowlist instead)
+  if (process.env.SIGNALWIRE_SKIP_SIGNATURE_VALIDATION === 'true') {
+    return true
+  }
+
   try {
+    // SignalWire/Twilio uses HMAC-SHA1 with Base64 encoding
+    // The payload for LaML is: URL + sorted form-urlencoded params
+    
+    // If URL provided, use it in the hash (standard Twilio/SignalWire validation)
+    let dataToSign = payload
+    if (url) {
+      // Parse form data and sort alphabetically
+      const params = new URLSearchParams(payload)
+      const sortedParams = Array.from(params.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([k, v]) => `${k}${v}`)
+        .join('')
+      dataToSign = url + sortedParams
+    }
+
     const expectedSignature = crypto
-      .createHmac('sha256', authToken)
-      .update(payload)
-      .digest('hex')
+      .createHmac('sha1', authToken)
+      .update(dataToSign)
+      .digest('base64')
 
     // Use constant-time comparison to prevent timing attacks
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    )
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      )
+    } catch {
+      // If lengths don't match, timingSafeEqual throws
+      return signature === expectedSignature
+    }
   } catch (err) {
     return false
   }
