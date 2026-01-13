@@ -14,11 +14,15 @@ SELECT 'Before Cleanup' as step,
        (SELECT COUNT(*) FROM recordings) as recordings,
        (SELECT COUNT(*) FROM ai_runs) as ai_runs,
        (SELECT COUNT(*) FROM voice_configs) as voice_configs,
-       (SELECT COUNT(*) FROM tools) as tools;
+       (SELECT COUNT(*) FROM tools) as tools,
+       (SELECT COUNT(*) FROM audit_logs) as audit_logs;
 
 -- =====================================================
 -- STEP 2: Delete child records first (bottom-up)
 -- =====================================================
+
+-- Delete audit logs FIRST (references users, organizations)
+DELETE FROM audit_logs;
 
 -- Delete AI runs (references calls)
 DELETE FROM ai_runs;
@@ -69,7 +73,8 @@ SELECT 'After Cleanup' as step,
        (SELECT COUNT(*) FROM recordings) as recordings,
        (SELECT COUNT(*) FROM ai_runs) as ai_runs,
        (SELECT COUNT(*) FROM voice_configs) as voice_configs,
-       (SELECT COUNT(*) FROM tools) as tools;
+       (SELECT COUNT(*) FROM tools) as tools,
+       (SELECT COUNT(*) FROM audit_logs) as audit_logs;
 
 -- =====================================================
 -- NOTE: auth.users still exist but have no data
