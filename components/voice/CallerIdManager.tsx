@@ -45,7 +45,8 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
         setCurrentMask(data.current_mask)
         setSignalwireNumber(data.signalwire_number)
       } else {
-        setError(data.error)
+        // Handle error object {id, code, message} or string
+        setError(typeof data.error === 'object' ? data.error?.message : data.error)
       }
     } catch (err: any) {
       setError(err.message)
@@ -85,7 +86,8 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
           setVerificationStep('enter_code')
         }, 5000)
       } else {
-        setError(data.error)
+        // Handle error object {id, code, message} or string
+        setError(typeof data.error === 'object' ? data.error?.message : data.error)
       }
     } catch (err: any) {
       setError(err.message)
@@ -125,7 +127,9 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
         // Refresh list
         fetchNumbers()
       } else {
-        setError(data.error || 'Verification failed')
+        // Handle error object {id, code, message} or string
+        const errorMsg = typeof data.error === 'object' ? data.error?.message : data.error
+        setError(errorMsg || 'Verification failed')
       }
     } catch (err: any) {
       setError(err.message)

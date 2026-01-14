@@ -56,6 +56,8 @@ async function handlePOST(req: Request) {
       {
         organization_id: body.organization_id || body.orgId,
         phone_number: phoneNumber,
+        from_number: body.from_number || undefined,  // Agent's phone for bridge calls
+        flow_type: body.flow_type || (body.from_number ? 'bridge' : 'outbound'),
         modulations: body.modulations || {}
       },
       {

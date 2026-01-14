@@ -24,8 +24,9 @@ export interface VoiceConfig {
   survey_voice?: string
   survey_webhook_email?: string
   survey_inbound_number?: string
-  // Quick dial (transient - not persisted to DB)
-  quick_dial_number?: string | null
+  // Quick dial - transient fields (not persisted to DB, session-only)
+  quick_dial_number?: string | null  // Target number to call
+  from_number?: string | null         // Agent's phone number for bridge calls
 }
 
 // Map frontend-friendly names to database column names
@@ -92,17 +93,27 @@ export function useVoiceConfig(organizationId: string | null) {
     try {
       setError(null)
       
-      // Separate transient fields (local-only) from persistent fields
-      const { quick_dial_number, ...persistentUpdates } = updates
+      // Transient fields are stored locally only, not sent to server
+      const { quick_dial_number, from_number, ...persistentUpdates } = updates
       
-      // Update local state immediately for transient fields
+      // Build transient updates object
+      const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number'> = {}
       if ('quick_dial_number' in updates) {
-        setConfig(prev => ({ ...prev, quick_dial_number }))
+        transientUpdates.quick_dial_number = quick_dial_number
+      }
+      if ('from_number' in updates) {
+        transientUpdates.from_number = from_number
       }
       
-      // If only transient fields changed, don't hit the server
+      // Update local state immediately for transient fields
+      if (Object.keys(transientUpdates).length > 0) {
+        setConfig(prev => ({ ...(prev || {}), ...transientUpdates }))
+      }
+      
+      // If only transient fields changed, return immediately
       if (Object.keys(persistentUpdates).length === 0) {
-        return { ...config, quick_dial_number }
+        // Return the updated config with transient fields
+        return { ...(config || {}), ...transientUpdates }
       }
       
       // Map frontend field names to database column names
@@ -125,7 +136,12 @@ export function useVoiceConfig(organizationId: string | null) {
 
       const data = await res.json()
       // Preserve transient fields when updating from server response
-      const newConfig = { ...(data.config || {}), quick_dial_number: config?.quick_dial_number }
+      const currentTransient = {
+        quick_dial_number: config?.quick_dial_number,
+        from_number: config?.from_number,
+        ...transientUpdates
+      }
+      const newConfig = { ...(data.config || {}), ...currentTransient }
       setConfig(newConfig)
       return newConfig
     } catch (err: any) {

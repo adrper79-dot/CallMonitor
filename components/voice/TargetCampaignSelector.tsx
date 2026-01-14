@@ -41,7 +41,8 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   
   // Quick dial - enter a number directly without saving as target
   const [quickDialNumber, setQuickDialNumber] = useState('')
-  const [useQuickDial, setUseQuickDial] = useState(false)
+  const [fromNumber, setFromNumber] = useState('')  // Agent's phone number
+  const [useQuickDial, setUseQuickDial] = useState(true)  // Default to quick dial mode
 
   const canEdit = role === 'owner' || role === 'admin'
 
@@ -163,22 +164,26 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   }
 
   // Handle quick dial number change and sync to config
-  const handleQuickDialChange = async (number: string) => {
+  const handleQuickDialChange = (number: string) => {
     setQuickDialNumber(number)
-    if (number && canEdit) {
-      // Store the quick dial number in config for the call
-      await updateConfig({ quick_dial_number: number, target_id: null })
-    }
+    // Store the quick dial number in config for the call - immediate update
+    updateConfig({ quick_dial_number: number || null, target_id: null })
+  }
+  
+  // Handle from number (agent's phone) change
+  const handleFromNumberChange = (number: string) => {
+    setFromNumber(number)
+    updateConfig({ from_number: number || null })
   }
   
   // Toggle between saved targets and quick dial
-  const handleModeChange = async (useQuick: boolean) => {
+  const handleModeChange = (useQuick: boolean) => {
     setUseQuickDial(useQuick)
     if (!useQuick) {
       setQuickDialNumber('')
-      await updateConfig({ quick_dial_number: null })
+      updateConfig({ quick_dial_number: null })
     } else {
-      await updateConfig({ target_id: null })
+      updateConfig({ target_id: null })
     }
   }
 
@@ -220,29 +225,61 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
 
         {/* Quick Dial Mode */}
         {useQuickDial && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-[#333333] mb-1">
-                Phone Number to Call
+          <div className="space-y-4">
+            {/* Your Phone Number (Agent) - Optional for bridge calls */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <label className="block text-sm font-medium text-blue-900 mb-2">
+                📱 Your Phone Number (Agent)
+              </label>
+              <Input
+                type="tel"
+                value={fromNumber}
+                onChange={(e) => handleFromNumberChange(e.target.value)}
+                placeholder="+12025551234"
+                className="text-base font-mono bg-white"
+                aria-describedby="from-number-help"
+              />
+              <p id="from-number-help" className="text-xs text-blue-700 mt-1">
+                Optional: For bridge calls, we call you first then connect to the target
+              </p>
+            </div>
+
+            {/* Target Phone Number to Call */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <label className="block text-sm font-medium text-[#333333] mb-2">
+                📞 Phone Number to Call (Target)
               </label>
               <Input
                 type="tel"
                 value={quickDialNumber}
                 onChange={(e) => handleQuickDialChange(e.target.value)}
                 placeholder="+12025551234"
-                className="text-lg font-mono"
+                className="text-lg font-mono bg-white"
                 aria-describedby="quick-dial-help"
               />
               <p id="quick-dial-help" className="text-xs text-[#666666] mt-1">
-                Enter number in E.164 format (e.g., +12025551234)
+                E.164 format required (e.g., +12025551234)
               </p>
             </div>
             
+            {/* Status indicator */}
             {quickDialNumber && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="text-sm text-green-800">
-                  ✓ Ready to call: <span className="font-mono font-bold">{quickDialNumber}</span>
+                <div className="text-sm text-green-800 space-y-1">
+                  <div>✓ Target: <span className="font-mono font-bold">{quickDialNumber}</span></div>
+                  {fromNumber && (
+                    <div>✓ Agent: <span className="font-mono font-bold">{fromNumber}</span> (bridge call)</div>
+                  )}
+                  {!fromNumber && (
+                    <div className="text-green-600 text-xs">Direct call mode (no agent bridge)</div>
+                  )}
                 </div>
+              </div>
+            )}
+            
+            {!quickDialNumber && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                ⚠️ Enter a phone number to call above
               </div>
             )}
           </div>

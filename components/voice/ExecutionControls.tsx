@@ -58,6 +58,8 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   const hasDialTarget = config?.target_id || config?.quick_dial_number
   const dialTargetDisplay = config?.quick_dial_number || 
     (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
+  const fromNumberDisplay = config?.from_number || null
+  const isBridgeCall = !!config?.from_number
 
   async function handlePlaceCall() {
     // Prevent double submission (race condition protection)
@@ -93,10 +95,17 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
         },
       }
       
+      // Set target phone number (who to call)
       if (config.quick_dial_number) {
         requestBody.to_number = config.quick_dial_number
       } else if (config.target_id) {
         requestBody.target_id = config.target_id
+      }
+      
+      // Set from number (agent's phone for bridge calls)
+      if (config.from_number) {
+        requestBody.from_number = config.from_number
+        requestBody.flow_type = 'bridge'  // This is a bridge call
       }
       
       const res = await fetch('/api/voice/call', {
@@ -165,12 +174,23 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       </h3>
 
       <div className="space-y-4">
-        {/* Show current dial target */}
+        {/* Show current dial configuration */}
         {hasDialTarget && (
-          <div className="p-3 bg-slate-900 rounded-md border border-green-800">
+          <div className="p-3 bg-slate-900 rounded-md border border-green-800 space-y-2">
             <div className="text-sm text-green-400">
-              📞 Ready to dial: <span className="font-mono font-bold">{dialTargetDisplay}</span>
+              📞 Target: <span className="font-mono font-bold">{dialTargetDisplay}</span>
             </div>
+            {fromNumberDisplay && (
+              <div className="text-sm text-blue-400">
+                📱 Agent: <span className="font-mono font-bold">{fromNumberDisplay}</span>
+                <span className="text-xs ml-2">(bridge call)</span>
+              </div>
+            )}
+            {!fromNumberDisplay && (
+              <div className="text-xs text-slate-500">
+                Direct call mode (no agent bridge)
+              </div>
+            )}
           </div>
         )}
         
@@ -181,7 +201,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
           size="lg"
           aria-label="Place call"
         >
-          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : '📞 Place Call'}
+          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : isBridgeCall ? '📞 Place Bridge Call' : '📞 Place Call'}
         </Button>
 
         {activeCallId && callStatus && (
