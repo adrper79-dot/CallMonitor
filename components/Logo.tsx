@@ -37,24 +37,12 @@ export function Logo({
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      {/* Logo Image - Falls back to SVG if no image */}
+      {/* Logo - Using SVG (PNG fallback disabled until logo.png is added) */}
       <div 
         className={`relative flex-shrink-0 ${animated ? 'animate-float' : ''}`}
         style={{ width: icon, height: icon }}
       >
-        {!imgError ? (
-          <Image
-            src="/logo.png"
-            alt="Latimer + Woods Tech LLC"
-            width={icon}
-            height={icon}
-            className="object-contain"
-            onError={() => setImgError(true)}
-            priority
-          />
-        ) : (
-          <LogoSVG size={icon} />
-        )}
+        <LogoSVG size={icon} />
       </div>
       
       {showText && (

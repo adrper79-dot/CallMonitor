@@ -44,13 +44,23 @@ export async function GET(req: Request) {
     }
 
     // Fetch campaigns
+    // Note: campaigns table may not exist yet - return empty array if missing
     const { data: campaigns, error: campaignsErr } = await supabaseAdmin
       .from('campaigns')
       .select('id, name, description, is_active, created_at')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
 
+    // If table doesn't exist (42P01 error), return empty array instead of failing
     if (campaignsErr) {
+      if (campaignsErr.code === '42P01' || campaignsErr.message?.includes('does not exist')) {
+        logger.info('Campaigns table does not exist yet, returning empty array', { organizationId })
+        return NextResponse.json({
+          success: true,
+          campaigns: []
+        })
+      }
+      
       logger.error('Failed to fetch campaigns', campaignsErr, { organizationId, userId })
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch campaigns', user_message: 'Could not retrieve campaigns', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
