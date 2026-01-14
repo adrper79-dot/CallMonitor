@@ -141,6 +141,7 @@ Thank you for the information. I'll get back to you soon.`,
       const response = await fetch('/api/shopper/scripts/manage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ...editingScript,
           organization_id: organizationId

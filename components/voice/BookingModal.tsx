@@ -110,6 +110,7 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
       const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           title: title || `Call with ${attendeeName || attendeePhone}`,
           description,

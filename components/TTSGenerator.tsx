@@ -51,6 +51,7 @@ export default function TTSGenerator({ organizationId }: TTSGeneratorProps) {
       const response = await fetch('/api/tts/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           text: text.trim(),
           voice_id: selectedVoice,

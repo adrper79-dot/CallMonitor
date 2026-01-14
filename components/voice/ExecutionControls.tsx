@@ -111,6 +111,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       const res = await fetch('/api/voice/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // CRITICAL: Send session cookie for authentication
         body: JSON.stringify(requestBody),
       })
 

@@ -70,6 +70,7 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
 
       const response = await fetch('/api/voice/bulk-upload', {
         method: 'POST',
+        credentials: 'include',
         body: formData
       })
 

@@ -37,7 +37,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
   const fetchNumbers = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/caller-id/verify')
+      const res = await fetch('/api/caller-id/verify', { credentials: 'include' })
       const data = await res.json()
       
       if (data.success) {
@@ -71,6 +71,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       const res = await fetch('/api/caller-id/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           phone_number: newNumber,
           display_name: displayName || undefined
@@ -144,6 +145,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       const res = await fetch('/api/voice/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           caller_id_mask: phoneNumber,
           caller_id_verified: true

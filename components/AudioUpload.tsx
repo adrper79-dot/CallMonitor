@@ -59,6 +59,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
 
       const uploadRes = await fetch('/api/audio/upload', {
         method: 'POST',
+        credentials: 'include',
         body: formData
       })
 
@@ -77,6 +78,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       const transcribeRes = await fetch('/api/audio/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           organization_id: organizationId,
           audio_url: uploadData.url,

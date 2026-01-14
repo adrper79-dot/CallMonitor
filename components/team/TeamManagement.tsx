@@ -69,7 +69,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     
     try {
       setLoading(true)
-      const res = await fetch('/api/team/members')
+      const res = await fetch('/api/team/members', { credentials: 'include' })
       const data = await res.json()
       
       if (data.success) {
@@ -98,6 +98,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole })
       })
       
@@ -123,6 +124,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
       const res = await fetch('/api/team/members', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ member_id: memberId, role: newRole })
       })
       
