@@ -208,13 +208,13 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
               <label htmlFor="booking-title" className="block text-sm text-slate-300 mb-1">
                 Call Title
               </label>
-              <Input
+              <input
                 ref={firstFocusableRef}
                 id="booking-title"
                 placeholder="e.g., Follow-up Consultation"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 

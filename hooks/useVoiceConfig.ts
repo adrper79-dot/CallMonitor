@@ -24,6 +24,8 @@ export interface VoiceConfig {
   survey_voice?: string
   survey_webhook_email?: string
   survey_inbound_number?: string
+  // Quick dial (transient - not persisted to DB)
+  quick_dial_number?: string | null
 }
 
 // Map frontend-friendly names to database column names
@@ -89,8 +91,22 @@ export function useVoiceConfig(organizationId: string | null) {
 
     try {
       setError(null)
+      
+      // Separate transient fields (local-only) from persistent fields
+      const { quick_dial_number, ...persistentUpdates } = updates
+      
+      // Update local state immediately for transient fields
+      if ('quick_dial_number' in updates) {
+        setConfig(prev => ({ ...prev, quick_dial_number }))
+      }
+      
+      // If only transient fields changed, don't hit the server
+      if (Object.keys(persistentUpdates).length === 0) {
+        return { ...config, quick_dial_number }
+      }
+      
       // Map frontend field names to database column names
-      const mappedUpdates = mapFieldsToDb(updates)
+      const mappedUpdates = mapFieldsToDb(persistentUpdates)
       
       const res = await fetch('/api/voice/config', {
         method: 'PUT',
@@ -108,8 +124,10 @@ export function useVoiceConfig(organizationId: string | null) {
       }
 
       const data = await res.json()
-      setConfig(data.config || {})
-      return data.config
+      // Preserve transient fields when updating from server response
+      const newConfig = { ...(data.config || {}), quick_dial_number: config?.quick_dial_number }
+      setConfig(newConfig)
+      return newConfig
     } catch (err: any) {
       setError(err?.message || 'Failed to update config')
       throw err

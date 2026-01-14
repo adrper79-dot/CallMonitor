@@ -21,16 +21,45 @@ export const dynamic = 'force-dynamic'
 async function handlePOST(req: Request) {
   try {
     const body = await req.json()
+    const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
+    
+    // Determine phone number to call
+    let phoneNumber = body.phone_to || body.phone_number || body.to || body.to_number
+    
+    // If target_id provided, look up phone number from voice_targets
+    if (!phoneNumber && body.target_id) {
+      const { data: target, error: targetError } = await supabaseAdmin
+        .from('voice_targets')
+        .select('phone_number')
+        .eq('id', body.target_id)
+        .single()
+      
+      if (targetError || !target) {
+        return NextResponse.json(
+          { success: false, error: { code: 'TARGET_NOT_FOUND', message: 'Target not found' } },
+          { status: 404 }
+        )
+      }
+      
+      phoneNumber = target.phone_number
+    }
+    
+    if (!phoneNumber) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NO_PHONE_NUMBER', message: 'No phone number provided. Enter a number or select a target.' } },
+        { status: 400 }
+      )
+    }
     
     // Call the existing startCallHandler
     const result = await startCallHandler(
       {
         organization_id: body.organization_id || body.orgId,
-        phone_number: body.phone_to || body.phone_number || body.to,
+        phone_number: phoneNumber,
         modulations: body.modulations || {}
       },
       {
-        supabaseAdmin: (await import('@/lib/supabaseAdmin')).default
+        supabaseAdmin
       }
     )
 

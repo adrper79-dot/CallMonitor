@@ -54,6 +54,11 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
     return () => clearInterval(interval)
   }, [activeCallId, callStatus])
 
+  // Check if we have a valid dial target (either saved target or quick dial number)
+  const hasDialTarget = config?.target_id || config?.quick_dial_number
+  const dialTargetDisplay = config?.quick_dial_number || 
+    (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
+
   async function handlePlaceCall() {
     // Prevent double submission (race condition protection)
     if (isPlacingCallRef.current) {
@@ -61,10 +66,10 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       return
     }
     
-    if (!organizationId || !canPlaceCall || !config?.target_id) {
+    if (!organizationId || !canPlaceCall || !hasDialTarget) {
       toast({
         title: 'Error',
-        description: 'Cannot place call: missing target or insufficient permissions',
+        description: 'Cannot place call: enter a phone number or select a target first',
         variant: 'destructive',
       })
       return
@@ -75,21 +80,29 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       setPlacing(true)
       setCallStatus('initiating')
       
+      // Build request body - use quick_dial_number if set, otherwise target_id
+      const requestBody: Record<string, any> = {
+        organization_id: organizationId,
+        campaign_id: config.campaign_id || null,
+        modulations: {
+          record: config.record || false,
+          transcribe: config.transcribe || false,
+          translate: config.translate || false,
+          survey: config.survey || false,
+          synthetic_caller: config.synthetic_caller || false,
+        },
+      }
+      
+      if (config.quick_dial_number) {
+        requestBody.to_number = config.quick_dial_number
+      } else if (config.target_id) {
+        requestBody.target_id = config.target_id
+      }
+      
       const res = await fetch('/api/voice/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          organization_id: organizationId,
-          target_id: config.target_id,
-          campaign_id: config.campaign_id || null,
-          modulations: {
-            record: config.record || false,
-            transcribe: config.transcribe || false,
-            translate: config.translate || false,
-            survey: config.survey || false,
-            synthetic_caller: config.synthetic_caller || false,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       if (!res.ok) {
@@ -152,14 +165,23 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       </h3>
 
       <div className="space-y-4">
+        {/* Show current dial target */}
+        {hasDialTarget && (
+          <div className="p-3 bg-slate-900 rounded-md border border-green-800">
+            <div className="text-sm text-green-400">
+              📞 Ready to dial: <span className="font-mono font-bold">{dialTargetDisplay}</span>
+            </div>
+          </div>
+        )}
+        
         <Button
           onClick={handlePlaceCall}
-          disabled={placing || !config?.target_id || activeCallId !== null}
+          disabled={placing || !hasDialTarget || activeCallId !== null}
           className="w-full"
           size="lg"
           aria-label="Place call"
         >
-          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : 'Place Call'}
+          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : '📞 Place Call'}
         </Button>
 
         {activeCallId && callStatus && (
@@ -185,9 +207,9 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
           </div>
         )}
 
-        {!config?.target_id && (
+        {!hasDialTarget && (
           <p className="text-sm text-amber-400">
-            Please select a target number before placing a call.
+            ⚠️ Enter a phone number above or select a saved target to place a call.
           </p>
         )}
       </div>

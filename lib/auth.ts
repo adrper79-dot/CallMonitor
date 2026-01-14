@@ -32,24 +32,32 @@ async function sendViaResend(to: string, html: string) {
 
 // Lazily configure Supabase adapter (avoid failing at build-time when env missing)
 function getAdapter() {
-  // Skip adapter creation during build phase
+  // Skip adapter creation during build phase or when env vars not yet loaded
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     return undefined
   }
   
-  try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    if (supabaseUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const supabaseForAdapter = createClient(String(supabaseUrl), String(process.env.SUPABASE_SERVICE_ROLE_KEY))
-      return SupabaseAdapter(supabaseForAdapter as any)
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  // If URL is missing, return undefined silently (env vars not loaded yet in serverless cold start)
+  // Credentials provider will still work
+  if (!supabaseUrl || !serviceKey) {
+    // Only log if we're clearly in runtime (not during module initialization)
+    if (typeof globalThis !== 'undefined' && (globalThis as any).__NEXTAUTH_RUNTIME_INIT) {
+      console.warn('Supabase adapter skipped: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not available')
     }
-  } catch (e) {
-    // Only log error if not during build phase
-    if (process.env.NEXT_PHASE !== 'phase-production-build') {
-      console.error('Failed to initialize Supabase adapter for NextAuth', e)
-    }
+    return undefined
   }
-  return undefined
+  
+  try {
+    const supabaseForAdapter = createClient(supabaseUrl, serviceKey)
+    return SupabaseAdapter(supabaseForAdapter as any)
+  } catch (e) {
+    // Suppress noisy errors during serverless initialization
+    // Auth will continue to work via Credentials provider
+    return undefined
+  }
 }
 
 function getProviders(adapter: any) {
