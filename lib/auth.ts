@@ -210,6 +210,47 @@ export function getAuthOptions() {
     ...(adapter ? { adapter } : {}),
     providers,
     secret: process.env.NEXTAUTH_SECRET,
+    
+    // Mobile-friendly cookie settings
+    cookies: {
+      sessionToken: {
+        name: `next-auth.session-token`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax', // Changed from default 'strict' for mobile compatibility
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+      callbackUrl: {
+        name: `next-auth.callback-url`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+      csrfToken: {
+        name: `next-auth.csrf-token`,
+        options: {
+          httpOnly: true,
+          sameSite: 'lax', // Critical for mobile OAuth flows
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+        },
+      },
+    },
+    
+    // Use JWT for mobile compatibility
+    session: {
+      strategy: 'jwt',
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+    },
+    
+    // Trust proxy (Vercel)
+    useSecureCookies: process.env.NODE_ENV === 'production',
+    
     callbacks: {
       async jwt({ token, user }: { token: any; user: any }) {
         if (user) {
