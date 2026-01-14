@@ -201,29 +201,45 @@ export async function POST(req: Request) {
           }, { status: 400 })
         }
 
-        // Use startCallHandler directly
-        const callResult = await startCallHandler({
-          organization_id,
-          phone_number: phone_to,
-          from_number,
-          modulations: modulations || { record: true, transcribe: true }
-        } as any, { supabaseAdmin })
+        try {
+          // Use startCallHandler directly
+          const callResult = await startCallHandler({
+            organization_id,
+            phone_number: phone_to,
+            from_number,
+            modulations: modulations || { record: true, transcribe: true }
+          }, { supabaseAdmin })
 
-        if (callResult.success) {
-          const successResult = callResult as any
-          results.actions.push({ 
-            action: 'execute_call', 
-            success: true, 
-            call_id: successResult.call_id,
-            call_sid: successResult.call?.call_sid
-          })
-          results.call_id = successResult.call_id
-          results.call_sid = successResult.call?.call_sid
-        } else {
-          results.actions.push({ 
-            action: 'execute_call', 
-            success: false, 
-            error: callResult.error 
+          if (callResult.success) {
+            const successResult = callResult as any
+            results.actions.push({ 
+              action: 'execute_call', 
+              success: true, 
+              call_id: successResult.call_id,
+              call_sid: successResult.call?.call_sid || 'N/A'
+            })
+            results.call_id = successResult.call_id
+            results.call_sid = successResult.call?.call_sid
+          } else {
+            // Properly serialize error
+            const errorMsg = typeof callResult.error === 'string' 
+              ? callResult.error 
+              : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
+            
+            console.error('Execute call failed:', errorMsg, callResult)
+            
+            results.actions.push({ 
+              action: 'execute_call', 
+              success: false, 
+              error: errorMsg
+            })
+          }
+        } catch (callErr: any) {
+          console.error('Exception during execute_call:', callErr)
+          results.actions.push({
+            action: 'execute_call',
+            success: false,
+            error: callErr?.message || 'Unexpected error during call execution'
           })
         }
         break
@@ -294,16 +310,25 @@ export async function POST(req: Request) {
         }
 
         // Step 3: Execute call
-        const callResult = await startCallHandler({
-          organization_id,
-          phone_number: phone_to,
-          from_number,
-          modulations: { 
-            record: true, 
-            transcribe: true,
-            translate: enableTranslation
+        let callResult
+        try {
+          callResult = await startCallHandler({
+            organization_id,
+            phone_number: phone_to,
+            from_number,
+            modulations: { 
+              record: true, 
+              transcribe: true,
+              translate: enableTranslation
+            }
+          }, { supabaseAdmin })
+        } catch (callErr: any) {
+          console.error('Exception in startCallHandler:', callErr)
+          callResult = {
+            success: false,
+            error: callErr?.message || 'Unexpected error during call execution'
           }
-        } as any, { supabaseAdmin })
+        }
 
         if (callResult.success) {
           const successResult = callResult as any
@@ -317,12 +342,20 @@ export async function POST(req: Request) {
           results.call_sid = successResult.call?.call_sid
           results.success = true
         } else {
+          // Properly serialize error object
+          const errorMsg = typeof callResult.error === 'string' 
+            ? callResult.error 
+            : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
+          
+          console.error('Execute call failed:', errorMsg, callResult)
+          
           results.actions.push({
             action: 'execute_call',
             success: false,
-            error: callResult.error
+            error: errorMsg
           })
           results.success = false
+          results.error_details = callResult // Include full error for debugging
         }
         break
       }

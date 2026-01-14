@@ -136,7 +136,14 @@ async function main() {
   console.log('\n    Pipeline actions:')
   for (const action of pipeline.data.actions || []) {
     const icon = action.success ? '✅' : '❌'
-    console.log(`    ${icon} ${action.action}: ${action.success ? 'OK' : action.error}`)
+    const msg = action.success ? 'OK' : (action.error || 'Unknown error')
+    console.log(`    ${icon} ${action.action}: ${msg}`)
+  }
+  
+  // Show full error details if available
+  if (pipeline.data.error_details) {
+    console.log('\n    📋 Error Details:')
+    console.log(JSON.stringify(pipeline.data.error_details, null, 2))
   }
 
   if (!pipeline.data.call_id) {

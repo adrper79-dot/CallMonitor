@@ -32,16 +32,19 @@ function isValidLangCode(s: any) {
 }
 
 async function handleGET(req: Request) {
+  let orgId: string | undefined = undefined
+  let actorId: string | null = null
+  
   try {
     const url = new URL(req.url)
-    const orgId = url.searchParams.get('orgId') ?? undefined
+    orgId = url.searchParams.get('orgId') ?? undefined
     if (!orgId) {
       const err = new AppError({ code: 'INVALID_INPUT', message: 'orgId required', user_message: 'Organization id required', severity: 'MEDIUM' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
     }
 
     const session = await getServerSession(authOptions).catch(() => null)
-    const actorId = (session?.user as any)?.id ?? null
+    actorId = (session?.user as any)?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
@@ -72,10 +75,14 @@ async function handleGET(req: Request) {
 }
 
 async function handlePUT(req: Request) {
+  let orgId: string | undefined = undefined
+  let actorId: string | null = null
+  let modulations: any = {}
+  
   try {
     const body = await req.json()
-    const orgId = body?.orgId ?? undefined
-    const modulations = body?.modulations ?? {}
+    orgId = body?.orgId ?? undefined
+    modulations = body?.modulations ?? {}
 
     if (!orgId) {
       const err = new AppError({ code: 'INVALID_INPUT', message: 'orgId required', user_message: 'Organization id required', severity: 'MEDIUM' })
@@ -83,7 +90,7 @@ async function handlePUT(req: Request) {
     }
 
     const session = await getServerSession(authOptions).catch(() => null)
-    const actorId = (session?.user as any)?.id ?? null
+    actorId = (session?.user as any)?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
