@@ -1,215 +1,441 @@
 @import "tailwindcss";
 
-/* Base styles */
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOXSOUTH DESIGN SYSTEM
+   Inspired by: The Jetsons (Retro-Futurism) + Feng Shui (Flow) + 
+                1960s Playboy Ads (Sophisticated Copy)
+   
+   "For the discerning executive who demands tomorrow's technology today."
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   CSS CUSTOM PROPERTIES (Design Tokens)
+───────────────────────────────────────────────────────────────────────── */
 :root {
-  --brand-gold: #C5A045;
-  --brand-gold-light: #D4B860;
-  --brand-gold-dark: #A88A30;
+  /* Jetsons Palette */
+  --jetsons-teal: #00CED1;
+  --jetsons-teal-dark: #008B8B;
+  --jetsons-teal-glow: #40E0D0;
+  
+  /* Atomic Gold (Brand) */
+  --atomic-gold: #C5A045;
+  --atomic-amber: #FFB347;
+  --atomic-sunrise: #FF8C42;
+  --atomic-cream: #FFF8E7;
+  
+  /* Cosmic Coral */
+  --cosmic-coral: #FF6B6B;
+  --cosmic-rose: #FFB5B5;
+  
+  /* Space Void */
+  --space-void: #0A0A1A;
+  --space-night: #0F172A;
+  --space-nebula: #1E1E3F;
+  --space-stardust: #2D2D5A;
+  
+  /* Chrome */
+  --chrome-silver: #C0C0C0;
+  --chrome-platinum: #E5E4E2;
+  
+  /* Feng Shui Spacing (Golden Ratio: 1.618) */
+  --feng-xs: 0.382rem;
+  --feng-sm: 0.618rem;
+  --feng-md: 1rem;
+  --feng-lg: 1.618rem;
+  --feng-xl: 2.618rem;
+  --feng-2xl: 4.236rem;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   BASE STYLES
+───────────────────────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  background-color: rgb(2 6 23);
-  color: rgb(241 245 249);
+  background: linear-gradient(135deg, var(--space-void) 0%, var(--space-nebula) 50%, var(--space-night) 100%);
+  background-attachment: fixed;
+  color: var(--atomic-cream);
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
-/* Custom scrollbar */
+/* Starfield background effect */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.3), transparent),
+    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.2), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.4), transparent),
+    radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.2), transparent),
+    radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.3), transparent);
+  background-size: 200px 200px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JETSONS TYPOGRAPHY
+   "Headlines that soar, body copy that glides."
+───────────────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 3rem;
+  background: linear-gradient(135deg, var(--atomic-gold) 0%, var(--jetsons-teal-glow) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+h2 {
+  font-size: 2rem;
+  color: var(--jetsons-teal);
+}
+
+h3 {
+  font-size: 1.5rem;
+  color: var(--atomic-cream);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JETSONS BUTTONS
+   "Push the button, George."
+───────────────────────────────────────────────────────────────────────── */
+.btn-jetsons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 100px; /* Capsule shape - very Jetsons */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--jetsons-teal-dark) 0%, var(--jetsons-teal) 100%);
+  color: var(--space-void);
+  border: none;
+  box-shadow: 0 4px 20px rgba(0, 206, 209, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 206, 209, 0.5);
+}
+
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.btn-primary:active::after {
+  width: 200px;
+  height: 200px;
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, var(--atomic-gold) 0%, var(--atomic-amber) 100%);
+  color: var(--space-void);
+  border: none;
+  box-shadow: 0 4px 20px rgba(197, 160, 69, 0.3);
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(197, 160, 69, 0.5);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--jetsons-teal);
+  border: 2px solid var(--jetsons-teal);
+}
+
+.btn-ghost:hover {
+  background: var(--jetsons-teal);
+  color: var(--space-void);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JETSONS CARDS
+   "Floating platforms in the sky city."
+───────────────────────────────────────────────────────────────────────── */
+.card-jetsons {
+  background: linear-gradient(135deg, 
+    rgba(30, 30, 63, 0.8) 0%, 
+    rgba(15, 23, 42, 0.9) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 206, 209, 0.2);
+  border-radius: 1.5rem;
+  padding: var(--feng-lg);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-jetsons::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--jetsons-teal) 50%, 
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.card-jetsons:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 206, 209, 0.1);
+  border-color: rgba(0, 206, 209, 0.4);
+}
+
+.card-jetsons:hover::before {
+  opacity: 1;
+}
+
+/* Glass morphism variant */
+.card-glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FENG SHUI LAYOUT SYSTEM
+   Based on the 5 Elements: Wood, Fire, Earth, Metal, Water
+───────────────────────────────────────────────────────────────────────── */
+
+/* WOOD ELEMENT: Growth, Navigation (Left Rail - East) */
+.feng-wood {
+  background: linear-gradient(180deg, 
+    rgba(0, 100, 80, 0.1) 0%, 
+    rgba(30, 30, 63, 0.8) 100%
+  );
+  border-right: 1px solid rgba(0, 206, 209, 0.15);
+}
+
+/* FIRE ELEMENT: Energy, Action (Top Bar - South) */
+.feng-fire {
+  background: linear-gradient(90deg, 
+    rgba(197, 160, 69, 0.1) 0%, 
+    rgba(255, 140, 66, 0.05) 100%
+  );
+  border-bottom: 2px solid rgba(197, 160, 69, 0.3);
+}
+
+/* EARTH ELEMENT: Stability, Main Content (Center) */
+.feng-earth {
+  background: transparent;
+  padding: var(--feng-xl);
+}
+
+/* METAL ELEMENT: Precision, Details (Right Rail - West) */
+.feng-metal {
+  background: linear-gradient(180deg, 
+    rgba(192, 192, 192, 0.05) 0%, 
+    rgba(30, 30, 63, 0.8) 100%
+  );
+  border-left: 1px solid rgba(192, 192, 192, 0.15);
+}
+
+/* WATER ELEMENT: Flow, Communication (Bottom/Footer - North) */
+.feng-water {
+  background: linear-gradient(180deg, 
+    transparent 0%, 
+    rgba(0, 206, 209, 0.05) 100%
+  );
+  border-top: 1px solid rgba(0, 206, 209, 0.2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JETSONS INPUT FIELDS
+   "Sleek consoles for the space-age executive."
+───────────────────────────────────────────────────────────────────────── */
+.input-jetsons {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(10, 10, 26, 0.8);
+  border: 2px solid rgba(0, 206, 209, 0.2);
+  border-radius: 0.75rem;
+  color: var(--atomic-cream);
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.input-jetsons::placeholder {
+  color: rgba(255, 248, 231, 0.4);
+}
+
+.input-jetsons:focus {
+  outline: none;
+  border-color: var(--jetsons-teal);
+  box-shadow: 0 0 0 4px rgba(0, 206, 209, 0.1), 0 0 20px rgba(0, 206, 209, 0.2);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   JETSONS BADGES
+   "Small but distinguished insignias."
+───────────────────────────────────────────────────────────────────────── */
+.badge-jetsons {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 100px;
+}
+
+.badge-success {
+  background: rgba(0, 206, 209, 0.2);
+  color: var(--jetsons-teal-glow);
+  border: 1px solid rgba(0, 206, 209, 0.4);
+}
+
+.badge-warning {
+  background: rgba(197, 160, 69, 0.2);
+  color: var(--atomic-amber);
+  border: 1px solid rgba(197, 160, 69, 0.4);
+}
+
+.badge-error {
+  background: rgba(255, 107, 107, 0.2);
+  color: var(--cosmic-coral);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+}
+
+.badge-info {
+  background: rgba(192, 192, 192, 0.2);
+  color: var(--chrome-platinum);
+  border: 1px solid rgba(192, 192, 192, 0.4);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LOADING STATES
+   "Patience, dear executive. The future is loading."
+───────────────────────────────────────────────────────────────────────── */
+.loading-orbit {
+  width: 60px;
+  height: 60px;
+  position: relative;
+}
+
+.loading-orbit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid transparent;
+  border-top-color: var(--jetsons-teal);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-orbit::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 3px solid transparent;
+  border-top-color: var(--atomic-gold);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite reverse;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SCROLLBAR (Chrome-inspired)
+───────────────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background-color: rgb(15 23 42);
+  background: var(--space-void);
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgb(51 65 85);
-  border-radius: 9999px;
+  background: linear-gradient(180deg, var(--jetsons-teal-dark) 0%, var(--space-stardust) 100%);
+  border-radius: 100px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(71 85 105);
+  background: var(--jetsons-teal);
 }
 
-/* Loading animation styles */
-.loading-container {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: black;
+/* ─────────────────────────────────────────────────────────────────────────
+   UTILITY ANIMATIONS
+───────────────────────────────────────────────────────────────────────── */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
 }
 
-.loading-logo {
-  width: 8rem;
-  height: 8rem;
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
-.loading-spinner {
-  width: 3rem;
-  height: 3rem;
-  border-width: 4px;
-  border-style: solid;
-  border-color: rgb(51 65 85);
-  border-top-color: var(--brand-gold);
-  border-radius: 9999px;
-  animation: spin 1s linear infinite;
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
 }
 
-/* Focus styles for accessibility */
-:focus-visible {
-  outline-width: 2px;
-  outline-offset: 2px;
-  outline-color: rgb(59 130 246);
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px var(--jetsons-teal); }
+  50% { box-shadow: 0 0 30px var(--jetsons-teal), 0 0 60px rgba(0, 206, 209, 0.3); }
 }
 
-/* Button hover effects */
-.btn-glow {
-  transition: all 0.3s;
+/* Shimmer effect for loading states */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
-.btn-glow:hover {
-  box-shadow: 0 0 20px rgba(197, 160, 69, 0.4);
-}
-
-/* Card animations */
-.card-hover {
-  transition: all 0.3s;
-}
-
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-}
-
-/* Table styles */
-.table-striped tr:nth-child(even) {
-  background-color: rgba(30, 41, 59, 0.3);
-}
-
-/* Badge variants */
-.badge-success {
-  background-color: rgba(22, 101, 52, 0.5);
-  color: rgb(74 222 128);
-  border: 1px solid rgb(22 163 74);
-}
-
-.badge-warning {
-  background-color: rgba(113, 63, 18, 0.5);
-  color: rgb(250 204 21);
-  border: 1px solid rgb(161 98 7);
-}
-
-.badge-error {
-  background-color: rgba(127, 29, 29, 0.5);
-  color: rgb(248 113 113);
-  border: 1px solid rgb(185 28 28);
-}
-
-/* Toast animations */
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.toast-enter {
-  animation: slideIn 0.3s ease-out;
-}
-
-/* Call status indicators */
-.status-active {
-  position: relative;
-}
-
-.status-active::before {
-  content: '';
-  position: absolute;
-  left: -0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0.5rem;
-  height: 0.5rem;
-  background-color: rgb(34 197 94);
-  border-radius: 9999px;
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Gradient text for branding */
-.gradient-text {
-  background: linear-gradient(to right, var(--brand-gold), var(--brand-gold-light));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* Animation keyframes */
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Utility classes */
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-in-out;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }

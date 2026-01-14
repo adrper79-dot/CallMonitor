@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import CallModulations from './CallModulations'
 import ArtifactViewer from './ArtifactViewer'
+import CallAnalytics from './CallAnalytics'
 
 export interface CallDetailViewProps {
   callId: string | null
@@ -121,17 +122,16 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
       </section>
 
       {/* Quick Actions */}
-      <section aria-label="Quick actions" className="flex gap-2">
+      <section aria-label="Quick actions" className="flex flex-wrap gap-2">
         {recording?.recording_url && (
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              // Scroll to artifact viewer recording tab
               document.getElementById('artifact-recording')?.scrollIntoView({ behavior: 'smooth' })
             }}
           >
-            Play Recording
+            🎙️ Recording
           </Button>
         )}
         {transcript && (
@@ -142,7 +142,18 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
               document.getElementById('artifact-transcript')?.scrollIntoView({ behavior: 'smooth' })
             }}
           >
-            View Transcript
+            📝 Transcript
+          </Button>
+        )}
+        {transcript?.sentiment_analysis && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              document.getElementById('call-analytics')?.scrollIntoView({ behavior: 'smooth' })
+            }}
+          >
+            📊 Analytics
           </Button>
         )}
         {manifest && (
@@ -153,10 +164,17 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
               document.getElementById('artifact-manifest')?.scrollIntoView({ behavior: 'smooth' })
             }}
           >
-            View Manifest
+            📋 Manifest
           </Button>
         )}
       </section>
+
+      {/* Analytics Panel - AI-Powered Insights */}
+      {transcript && (transcript.sentiment_analysis || transcript.entities || transcript.chapters) && (
+        <section id="call-analytics" aria-label="Call Analytics">
+          <CallAnalytics transcriptJson={transcript} />
+        </section>
+      )}
 
       {/* Modulations Panel */}
       {organizationId && (

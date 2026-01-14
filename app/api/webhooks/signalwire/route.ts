@@ -551,7 +551,7 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       return
     }
 
-    // Call AssemblyAI
+    // Call AssemblyAI with full analytics enabled
     const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -560,7 +560,18 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       },
       body: JSON.stringify({
         audio_url: recordingUrl,
-        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`
+        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`,
+        // Analytics features
+        sentiment_analysis: true,        // Sentiment per sentence
+        entity_detection: true,          // People, companies, locations
+        auto_chapters: true,             // Topic segmentation with summaries
+        speaker_labels: true,            // Speaker diarization
+        // Content moderation
+        content_safety: true,            // Detect sensitive content
+        // Topic classification
+        iab_categories: true,            // IAB taxonomy topics
+        // Language detection (auto)
+        language_detection: true
       })
     })
 

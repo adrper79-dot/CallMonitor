@@ -1,37 +1,54 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import AuthProvider from "../components/AuthProvider"
 import UnlockForm from "../components/UnlockForm"
 import Navigation from "../components/Navigation"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 
-const inter = Inter({ subsets: ['latin'] })
+// Jetsons-inspired typography
+const spaceGrotesk = Space_Grotesk({ 
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+})
+
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'VoxSouth - Call Monitor & Analytics',
-  description: 'Enterprise voice operations, call monitoring, transcription, and analytics platform by Latimer + Woods Tech LLC',
-  keywords: ['call monitoring', 'voice analytics', 'transcription', 'SignalWire', 'call recording'],
+  title: 'VoxSouth | The Executive\'s Voice Intelligence Platform',
+  description: 'For the discerning executive who demands tomorrow\'s technology today. Enterprise call monitoring, transcription, and AI-powered analytics.',
+  keywords: ['call monitoring', 'voice analytics', 'transcription', 'AI', 'executive', 'enterprise'],
   authors: [{ name: 'Latimer + Woods Tech LLC' }],
   icons: {
     icon: '/favicon.ico',
     apple: '/logo.png',
   },
   openGraph: {
-    title: 'VoxSouth - Call Monitor & Analytics',
-    description: 'Enterprise voice operations platform',
+    title: 'VoxSouth | The Executive\'s Voice Intelligence Platform',
+    description: 'Tomorrow\'s voice technology, available today.',
     type: 'website',
   },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0f172a" />
+        <meta name="theme-color" content="#0A0A1A" />
       </head>
-      <body className={`${inter.className} bg-slate-950 text-slate-100 min-h-screen`}>
+      <body className="font-body min-h-screen">
         <ErrorBoundary>
           <AuthProvider>
             <UnlockForm />

@@ -3,8 +3,33 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
+import { AppError } from '@/types/app-error'
 
 export const dynamic = 'force-dynamic'
+
+// Helper to create structured error response per ERROR_HANDLING_PLAN
+function errorResponse(code: string, message: string, userMessage: string, severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', status: number) {
+  const err = new AppError({ code, message, user_message: userMessage, severity })
+  return NextResponse.json({ 
+    success: false, 
+    error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } 
+  }, { status })
+}
+
+// Verify org membership per Security requirements
+async function verifyMembership(userId: string, orgId: string): Promise<{ valid: boolean; role?: string }> {
+  const { data: memberRows } = await supabaseAdmin
+    .from('org_members')
+    .select('id, role')
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .limit(1)
+  
+  if (!memberRows?.[0]) {
+    return { valid: false }
+  }
+  return { valid: true, role: memberRows[0].role }
+}
 
 /**
  * POST /api/caller-id/verify
@@ -18,22 +43,19 @@ export async function POST(req: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Auth required' }, { status: 401 })
+      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in to continue', 'HIGH', 401)
     }
 
     const body = await req.json()
     const { phone_number, display_name } = body
 
     if (!phone_number) {
-      return NextResponse.json({ success: false, error: 'phone_number required' }, { status: 400 })
+      return errorResponse('INVALID_INPUT', 'phone_number required', 'Phone number is required', 'MEDIUM', 400)
     }
 
     // Validate E.164 format
     if (!phone_number.match(/^\+[1-9]\d{1,14}$/)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid phone format. Use E.164 (e.g., +12025551234)' 
-      }, { status: 400 })
+      return errorResponse('INVALID_INPUT', 'Invalid phone format', 'Use E.164 format (e.g., +12025551234)', 'MEDIUM', 400)
     }
 
     // Get user's org
@@ -45,7 +67,13 @@ export async function POST(req: NextRequest) {
 
     const orgId = userRows?.[0]?.organization_id
     if (!orgId) {
-      return NextResponse.json({ success: false, error: 'No org found' }, { status: 404 })
+      return errorResponse('ORG_NOT_FOUND', 'No org found', 'Organization not found', 'HIGH', 404)
+    }
+
+    // Verify membership (Security requirement)
+    const membership = await verifyMembership(userId, orgId)
+    if (!membership.valid) {
+      return errorResponse('UNAUTHORIZED', 'Not a member', 'You are not a member of this organization', 'HIGH', 403)
     }
 
     // Check if number already exists
@@ -99,15 +127,11 @@ export async function POST(req: NextRequest) {
     const swNumber = process.env.SIGNALWIRE_NUMBER
 
     if (!swProject || !swToken || !swSpace || !swNumber) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'SignalWire not configured' 
-      }, { status: 503 })
+      return errorResponse('SERVICE_UNAVAILABLE', 'SignalWire not configured', 'Voice service is not configured', 'HIGH', 503)
     }
 
     const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
     
-    // Create TwiML/LaML for verification call
     const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/caller-id/verification-twiml?code=${verificationCode}`
     
     const params = new URLSearchParams()
@@ -129,10 +153,7 @@ export async function POST(req: NextRequest) {
     if (!swRes.ok) {
       const errorText = await swRes.text()
       console.error('Verification call failed:', errorText)
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to place verification call' 
-      }, { status: 500 })
+      return errorResponse('EXTERNAL_SERVICE_FAILED', 'SignalWire call failed', 'Failed to place verification call', 'HIGH', 500)
     }
 
     const swData = await swRes.json()
@@ -147,12 +168,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Verification call initiated to ${phone_number}. Listen for the 6-digit code.`,
+      message: `Verification call initiated. Listen for the 6-digit code.`,
       record_id: recordId
     })
   } catch (err: any) {
     console.error('Caller ID verify error:', err)
-    return NextResponse.json({ success: false, error: err?.message }, { status: 500 })
+    return errorResponse('INTERNAL_ERROR', err?.message || 'Unexpected error', 'An unexpected error occurred', 'HIGH', 500)
   }
 }
 
@@ -167,17 +188,14 @@ export async function PUT(req: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Auth required' }, { status: 401 })
+      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in to continue', 'HIGH', 401)
     }
 
     const body = await req.json()
     const { phone_number, code } = body
 
     if (!phone_number || !code) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'phone_number and code required' 
-      }, { status: 400 })
+      return errorResponse('INVALID_INPUT', 'Missing fields', 'Phone number and code are required', 'MEDIUM', 400)
     }
 
     // Get user's org
@@ -189,7 +207,13 @@ export async function PUT(req: NextRequest) {
 
     const orgId = userRows?.[0]?.organization_id
     if (!orgId) {
-      return NextResponse.json({ success: false, error: 'No org found' }, { status: 404 })
+      return errorResponse('ORG_NOT_FOUND', 'No org found', 'Organization not found', 'HIGH', 404)
+    }
+
+    // Verify membership
+    const membership = await verifyMembership(userId, orgId)
+    if (!membership.valid) {
+      return errorResponse('UNAUTHORIZED', 'Not a member', 'You are not a member of this organization', 'HIGH', 403)
     }
 
     // Find the record
@@ -202,10 +226,7 @@ export async function PUT(req: NextRequest) {
 
     const record = cidRows?.[0]
     if (!record) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Number not found. Please initiate verification first.' 
-      }, { status: 404 })
+      return errorResponse('NOT_FOUND', 'Number not found', 'Number not found. Please initiate verification first.', 'MEDIUM', 404)
     }
 
     if (record.is_verified) {
@@ -218,10 +239,7 @@ export async function PUT(req: NextRequest) {
 
     // Check code
     if (record.verification_code !== code) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid verification code' 
-      }, { status: 400 })
+      return errorResponse('INVALID_CODE', 'Invalid code', 'Invalid verification code', 'MEDIUM', 400)
     }
 
     // Mark as verified
@@ -230,11 +248,11 @@ export async function PUT(req: NextRequest) {
       .update({
         is_verified: true,
         verified_at: new Date().toISOString(),
-        verification_code: null // Clear code after use
+        verification_code: null
       })
       .eq('id', record.id)
 
-    // Also update voice_configs if this is the first/only number
+    // Set as default if no other default exists
     const { data: existingDefault } = await supabaseAdmin
       .from('caller_id_numbers')
       .select('id')
@@ -243,7 +261,6 @@ export async function PUT(req: NextRequest) {
       .limit(1)
 
     if (!existingDefault?.[0]) {
-      // Set as default and update voice_configs
       await supabaseAdmin
         .from('caller_id_numbers')
         .update({ is_default: true })
@@ -268,7 +285,7 @@ export async function PUT(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Caller ID confirm error:', err)
-    return NextResponse.json({ success: false, error: err?.message }, { status: 500 })
+    return errorResponse('INTERNAL_ERROR', err?.message || 'Unexpected error', 'An unexpected error occurred', 'HIGH', 500)
   }
 }
 
@@ -283,7 +300,7 @@ export async function GET(req: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'Auth required' }, { status: 401 })
+      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in to continue', 'HIGH', 401)
     }
 
     // Get user's org
@@ -295,7 +312,13 @@ export async function GET(req: NextRequest) {
 
     const orgId = userRows?.[0]?.organization_id
     if (!orgId) {
-      return NextResponse.json({ success: false, error: 'No org found' }, { status: 404 })
+      return errorResponse('ORG_NOT_FOUND', 'No org found', 'Organization not found', 'HIGH', 404)
+    }
+
+    // Verify membership
+    const membership = await verifyMembership(userId, orgId)
+    if (!membership.valid) {
+      return errorResponse('UNAUTHORIZED', 'Not a member', 'You are not a member of this organization', 'HIGH', 403)
     }
 
     // Get all caller IDs
@@ -319,6 +342,6 @@ export async function GET(req: NextRequest) {
       signalwire_number: process.env.SIGNALWIRE_NUMBER || null
     })
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message }, { status: 500 })
+    return errorResponse('INTERNAL_ERROR', err?.message || 'Unexpected error', 'An unexpected error occurred', 'HIGH', 500)
   }
 }

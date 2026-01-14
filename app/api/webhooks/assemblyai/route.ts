@@ -95,6 +95,14 @@ async function processWebhookAsync(req: Request) {
     const confidence = payload.confidence // Overall confidence score
     const audioUrl = payload.audio_url // Original audio URL
     const languageCode = payload.language_code || payload.language_detection?.language_code
+    
+    // Analytics features (enabled in transcription request)
+    const sentimentAnalysis = payload.sentiment_analysis_results // Array of {text, start, end, sentiment, confidence}
+    const entities = payload.entities // Array of {entity_type, text, start, end}
+    const chapters = payload.chapters // Array of {headline, summary, start, end}
+    const contentSafety = payload.content_safety_labels // {status, results, summary}
+    const iabCategories = payload.iab_categories_result // {status, results, summary}
+    const utterances = payload.utterances // Speaker-labeled segments
 
     logger.info('AssemblyAI webhook received', { 
       transcriptId: transcriptId ? '[REDACTED]' : null, 
@@ -185,13 +193,38 @@ async function processWebhookAsync(req: Request) {
     const organizationId = recRows?.[0]?.organization_id
 
     // Build transcript JSON structure (first-class artifact per architecture)
-    const transcriptJson = {
+    // Includes full analytics from AssemblyAI
+    const transcriptJson: Record<string, any> = {
       text,
       words: words || [],
       confidence: confidence || null,
       transcript_id: transcriptId,
       language_code: languageCode || null,
-      completed_at: new Date().toISOString()
+      completed_at: new Date().toISOString(),
+      // Analytics
+      sentiment_analysis: sentimentAnalysis || null,
+      entities: entities || null,
+      chapters: chapters || null,
+      content_safety: contentSafety || null,
+      iab_categories: iabCategories || null,
+      utterances: utterances || null  // Speaker-labeled segments
+    }
+    
+    // Compute overall sentiment summary
+    if (sentimentAnalysis && Array.isArray(sentimentAnalysis) && sentimentAnalysis.length > 0) {
+      const sentiments = sentimentAnalysis.map((s: any) => s.sentiment)
+      const positive = sentiments.filter((s: string) => s === 'POSITIVE').length
+      const negative = sentiments.filter((s: string) => s === 'NEGATIVE').length
+      const neutral = sentiments.filter((s: string) => s === 'NEUTRAL').length
+      const total = sentiments.length
+      
+      transcriptJson.sentiment_summary = {
+        overall: positive > negative ? 'POSITIVE' : negative > positive ? 'NEGATIVE' : 'NEUTRAL',
+        positive_percent: Math.round((positive / total) * 100),
+        negative_percent: Math.round((negative / total) * 100),
+        neutral_percent: Math.round((neutral / total) * 100),
+        segment_count: total
+      }
     }
 
     // Update ai_run with completed status and transcript

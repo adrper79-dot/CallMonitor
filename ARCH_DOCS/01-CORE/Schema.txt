@@ -92,6 +92,7 @@ CREATE TABLE public.booking_events (
   attendee_name text,
   attendee_email text,
   attendee_phone text NOT NULL,                       -- Required for calling
+  from_number text,                                   -- Caller's phone (for bridge calls)
   status text NOT NULL DEFAULT 'pending',             -- pending, calling, completed, cancelled, failed
   reminder_sent boolean DEFAULT false,
   reminder_sent_at timestamptz,
@@ -100,6 +101,22 @@ CREATE TABLE public.booking_events (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   created_by uuid REFERENCES public.users(id)
+);
+
+-- Caller ID Numbers for Masking/Verification (January 2026)
+CREATE TABLE public.caller_id_numbers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  phone_number text NOT NULL,                          -- E.164 format
+  display_name text,                                   -- Friendly name
+  is_verified boolean DEFAULT false,                   -- Verification status
+  is_default boolean DEFAULT false,                    -- Default caller ID for org
+  verification_code text,                              -- Temporary code during verification
+  verified_at timestamptz,                             -- When verified
+  created_by uuid REFERENCES public.users(id),
+  signalwire_verification_sid text,                    -- Call SID for verification call
+  use_count integer DEFAULT 0,                         -- Usage tracking
+  created_at timestamptz DEFAULT now()
 );
 CREATE TABLE public.calls (
   id uuid NOT NULL,
@@ -596,11 +613,38 @@ CREATE TABLE public.voice_configs (
   survey_voice text DEFAULT 'rime.spore',    -- SignalWire TTS voice for survey bot
   survey_webhook_email text,                 -- Email address for survey results
   survey_inbound_number text,                -- SignalWire phone number SID
+  -- Caller ID Masking fields (January 2026)
+  caller_id_mask text,                       -- Custom caller ID to display
+  caller_id_verified boolean DEFAULT false,  -- Whether mask has been verified
+  caller_id_verified_at timestamptz,         -- When verified
+  -- Live Translation fields (January 2026)
+  live_translate boolean DEFAULT false,      -- Enable real-time translation
+  live_translate_from text,                  -- Source language for live translation
+  live_translate_to text,                    -- Target language for live translation
   updated_by uuid,
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT voice_configs_pkey PRIMARY KEY (id),
   CONSTRAINT voice_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT voice_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+
+-- Secret Shopper Scripts (January 2026)
+CREATE TABLE public.shopper_scripts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  name text NOT NULL,
+  description text,
+  persona_name text,                          -- Shopper persona name
+  persona_background text,                    -- Background story
+  scenario text NOT NULL,                     -- What the shopper is trying to accomplish
+  expected_outcomes jsonb DEFAULT '[]',       -- Expected agent behaviors
+  tts_voice text DEFAULT 'en-US-Jenny',       -- Voice for TTS
+  tts_provider text DEFAULT 'elevenlabs',     -- elevenlabs or signalwire
+  scoring_criteria jsonb DEFAULT '[]',        -- Custom scoring rubric
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  created_by uuid REFERENCES public.users(id)
 );
 CREATE TABLE public.webhook_configs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

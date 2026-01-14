@@ -9,6 +9,30 @@ import { planSupportsFeature } from '@/lib/rbac'
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
+// Helper for structured error responses per ERROR_HANDLING_PLAN
+function errorResponse(code: string, message: string, userMessage: string, severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', status: number) {
+  const err = new AppError({ code, message, user_message: userMessage, severity })
+  return NextResponse.json({ 
+    success: false, 
+    error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } 
+  }, { status })
+}
+
+// Verify org membership
+async function verifyMembership(userId: string, orgId: string): Promise<{ valid: boolean; role?: string }> {
+  const { data: memberRows } = await supabaseAdmin
+    .from('org_members')
+    .select('id, role')
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .limit(1)
+  
+  if (!memberRows?.[0]) {
+    return { valid: false }
+  }
+  return { valid: true, role: memberRows[0].role }
+}
+
 /**
  * GET /api/bookings
  * 
@@ -21,10 +45,7 @@ export async function GET(req: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
+      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in to continue', 'HIGH', 401)
     }
 
     // Get user's organization
