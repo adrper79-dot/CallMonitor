@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { ClientDate } from '@/components/ui/ClientDate'
 
 interface Booking {
   id: string
@@ -146,7 +147,7 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
                     {booking.attendee_name || booking.attendee_phone}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
-                    🕐 {formatDateTime(booking.start_time)}
+                    🕐 <ClientDate date={booking.start_time} format="short" />
                   </div>
                 </div>
               </div>

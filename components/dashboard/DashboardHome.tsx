@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRBAC } from '@/hooks/useRBAC'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { ProgressBar } from '@/components/tableau/ProgressBar'
+import { ClientDate } from '@/components/ui/ClientDate'
 
 interface DashboardStats {
   totalCalls: number
@@ -150,7 +151,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#333333] truncate">
-                          {new Date(call.created_at).toLocaleString()}
+                          <ClientDate date={call.created_at} format="short" />
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <StatusBadge status={call.status} />

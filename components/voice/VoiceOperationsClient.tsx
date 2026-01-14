@@ -47,7 +47,7 @@ export default function VoiceOperationsClient({
 
   async function handleModulationChange(mods: Record<string, boolean>) {
     // This would update voice_configs via API
-    console.log('Modulation change:', mods)
+    // Modulation changes are handled by CallModulations component directly
   }
 
   return (
@@ -63,7 +63,7 @@ export default function VoiceOperationsClient({
           <div className="border-b border-[#E5E5E5] p-3 bg-[#FAFAFA]">
             <BookingsList
               onBookingClick={(booking) => {
-                console.log('Booking clicked:', booking)
+                // Booking details would be shown in a modal or detail view
               }}
               onNewBooking={() => setShowBookingModal(true)}
               limit={3}
@@ -139,7 +139,7 @@ export default function VoiceOperationsClient({
         isOpen={showBookingModal}
         onClose={() => setShowBookingModal(false)}
         onSuccess={(booking) => {
-          console.log('Booking created:', booking)
+          // Booking created successfully - modal will close
           setShowBookingModal(false)
         }}
       />

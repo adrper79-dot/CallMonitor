@@ -53,10 +53,21 @@ export async function POST(req: NextRequest) {
 
     const swProject = process.env.SIGNALWIRE_PROJECT_ID
     const swToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
-    const swSpace = (process.env.SIGNALWIRE_SPACE || '').replace(/\.signalwire\.com$/i, '')
+    const rawSpace = process.env.SIGNALWIRE_SPACE || process.env.SIGNALWIRE_SPACE_URL || ''
+    // Normalize space: strip protocol and trailing slashes, keep domain
+    const swSpace = rawSpace
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '')
+      .trim()
     const swNumber = process.env.SIGNALWIRE_NUMBER
 
     if (!swProject || !swToken || !swSpace || !swNumber) {
+      logger.warn('SignalWire credentials missing', { 
+        hasProject: !!swProject, 
+        hasToken: !!swToken, 
+        hasSpace: !!swSpace, 
+        hasNumber: !!swNumber 
+      })
       return Errors.badRequest('Voice service is not configured')
     }
 
@@ -68,18 +79,25 @@ export async function POST(req: NextRequest) {
     params.append('To', phone_number)
     params.append('Url', verificationUrl)
 
-    const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+    // Construct endpoint - if swSpace already has .signalwire.com, don't add it again
+    const spaceDomain = swSpace.includes('.signalwire.com') ? swSpace : `${swSpace}.signalwire.com`
+    const swEndpoint = `https://${spaceDomain}/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
+
+    logger.debug('Placing verification call', { endpoint: swEndpoint, to: '[REDACTED]' })
 
     const swRes = await fetch(swEndpoint, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params
+    }).catch(fetchErr => {
+      logger.error('Fetch failed to SignalWire', fetchErr, { endpoint: swEndpoint })
+      throw new Error(`Network error calling SignalWire: ${fetchErr.message}`)
     })
 
     if (!swRes.ok) {
       const errorText = await swRes.text()
-      logger.error('Verification call failed', undefined, { error: errorText })
-      return Errors.badRequest('Failed to place verification call')
+      logger.error('Verification call failed', undefined, { status: swRes.status, error: errorText })
+      return Errors.badRequest(`Failed to place verification call: ${swRes.status}`)
     }
 
     const swData = await swRes.json()

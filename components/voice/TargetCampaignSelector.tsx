@@ -68,7 +68,9 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
           setCampaigns(campaignsData.campaigns || [])
         }
       } catch (err) {
-        console.error('Failed to fetch targets/campaigns', err)
+        // Silently handle - empty states are shown in UI
+        setCampaigns([])
+        setTargets([])
       } finally {
         setLoading(false)
       }

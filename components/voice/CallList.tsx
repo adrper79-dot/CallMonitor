@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ClientDate } from '@/components/ui/ClientDate'
 import { useRealtime, usePolling } from '@/hooks/useRealtime'
 
 export interface CallListProps {
@@ -263,7 +264,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
                       <Badge variant={statusVariant(c.status)}>{c.status ?? 'unknown'}</Badge>
                     </td>
                     <td className="px-4 py-3 text-sm text-[#333333]">
-                      {c.started_at ? new Date(c.started_at).toLocaleString() : '—'}
+                      <ClientDate date={c.started_at} format="short" />
                     </td>
                     <td className="px-4 py-3 text-sm text-[#666666]">
                       {c.created_by || '—'}

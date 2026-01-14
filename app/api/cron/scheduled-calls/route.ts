@@ -80,7 +80,8 @@ export async function GET(req: NextRequest) {
         const callInput: any = {
           organization_id: booking.organization_id,
           phone_number: booking.attendee_phone,
-          modulations
+          modulations,
+          actor_id: 'system-cron' // Cron jobs run as system, not a user
         }
         
         if (booking.from_number) {

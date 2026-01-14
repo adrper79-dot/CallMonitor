@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { BookingModal } from '@/components/voice/BookingModal'
+import { ClientDate } from '@/components/ui/ClientDate'
 
 interface Booking {
   id: string
@@ -236,7 +237,7 @@ export default function BookingsPage() {
                       <div>
                         <span className="text-slate-400">Scheduled:</span>
                         <span className="text-slate-200 ml-2">
-                          {formatDateTime(booking.start_time)}
+                          <ClientDate date={booking.start_time} format="short" />
                         </span>
                       </div>
                     </div>
@@ -255,7 +256,7 @@ export default function BookingsPage() {
                         </span>
                         {booking.calls.started_at && (
                           <span className="text-slate-400 ml-4">
-                            Started: {new Date(booking.calls.started_at).toLocaleTimeString()}
+                            Started: <ClientDate date={booking.calls.started_at} format="time" />
                           </span>
                         )}
                       </div>

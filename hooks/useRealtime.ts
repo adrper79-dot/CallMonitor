@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Real-time Updates Hook
  * 
  * Subscribes to Supabase real-time updates for calls, recordings, and AI runs.
- * Per PRODUCTION_READINESS_TASKS.md
+ * Uses a singleton client to avoid multiple GoTrueClient instances.
  */
 
 interface RealtimeConfig {
@@ -20,18 +20,40 @@ interface RealtimeConfig {
   }>
 }
 
+// Singleton Supabase client for real-time subscriptions
+let realtimeClient: SupabaseClient | null = null
+
+function getRealtimeClient(supabaseUrl: string, anonKey: string): SupabaseClient {
+  if (!realtimeClient) {
+    realtimeClient = createClient(supabaseUrl, anonKey, {
+      auth: {
+        persistSession: false, // Don't persist - just for realtime
+        autoRefreshToken: false
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10
+        }
+      }
+    })
+  }
+  return realtimeClient
+}
+
 export function useRealtime(organizationId: string | null) {
   const [updates, setUpdates] = useState<any[]>([])
   const [connected, setConnected] = useState(false)
   const channelsRef = useRef<any[]>([])
+  const setupAttemptedRef = useRef(false)
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || setupAttemptedRef.current) {
       return
     }
 
-    let supabase: any = null
+    setupAttemptedRef.current = true
     let mounted = true
+    let supabase: SupabaseClient | null = null
 
     async function setupRealtime() {
       try {
@@ -42,24 +64,30 @@ export function useRealtime(organizationId: string | null) {
           body: JSON.stringify({ organization_id: organizationId })
         })
 
-        if (!res.ok) {
-          // Fallback to polling if real-time fails
+        if (!res.ok || !mounted) {
           return
         }
 
         const { config } = await res.json()
-        const realtimeConfig: RealtimeConfig = config
+        if (!config || !mounted) return
 
-        // Initialize Supabase client
-        supabase = createClient(
-          realtimeConfig.supabaseUrl,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-        )
+        const realtimeConfig: RealtimeConfig = config
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+        
+        if (!anonKey) {
+          console.warn('useRealtime: NEXT_PUBLIC_SUPABASE_ANON_KEY not set')
+          return
+        }
+
+        // Use singleton client
+        supabase = getRealtimeClient(realtimeConfig.supabaseUrl, anonKey)
 
         // Subscribe to channels
         for (const channelConfig of realtimeConfig.channels) {
+          const channelName = `${channelConfig.name}-${organizationId?.slice(0, 8) || 'default'}`
+          
           const channel = supabase
-            .channel(channelConfig.name)
+            .channel(channelName)
             .on(
               'postgres_changes',
               {
@@ -70,9 +98,9 @@ export function useRealtime(organizationId: string | null) {
               },
               (payload: any) => {
                 if (mounted) {
-                  setUpdates(prev => [...prev, {
+                  setUpdates(prev => [...prev.slice(-50), { // Keep last 50 updates
                     ...payload,
-                    timestamp: new Date().toISOString()
+                    receivedAt: Date.now()
                   }])
                 }
               }
@@ -86,9 +114,7 @@ export function useRealtime(organizationId: string | null) {
           channelsRef.current.push(channel)
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('useRealtime: setup failed', err)
-        // Fallback to polling
+        console.warn('useRealtime: setup failed, using polling fallback')
       }
     }
 
@@ -99,17 +125,24 @@ export function useRealtime(organizationId: string | null) {
       // Unsubscribe from all channels
       channelsRef.current.forEach(channel => {
         if (supabase) {
-          supabase.removeChannel(channel)
+          try {
+            supabase.removeChannel(channel)
+          } catch {
+            // Ignore cleanup errors
+          }
         }
       })
       channelsRef.current = []
+      setupAttemptedRef.current = false
     }
   }, [organizationId])
+
+  const clearUpdates = useCallback(() => setUpdates([]), [])
 
   return {
     updates,
     connected,
-    clearUpdates: () => setUpdates([])
+    clearUpdates
   }
 }
 
