@@ -264,8 +264,8 @@ export function getAuthOptions() {
                     id: token.id,
                     email: session.user.email,
                     organization_id: orgId,
-                    role: 'member',
-                    is_admin: false
+                    role: 'owner',  // First user in org gets owner role
+                    is_admin: true
                   })
                   
                   if (userInsertErr) {
@@ -278,7 +278,7 @@ export function getAuthOptions() {
                   const { error: memberInsertErr } = await supabase.from('org_members').insert({
                     organization_id: orgId,
                     user_id: token.id,
-                    role: 'member'
+                    role: 'owner'  // Per RBAC matrix: owner has full access
                   })
                   
                   if (memberInsertErr) {

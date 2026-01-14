@@ -43,7 +43,9 @@ export async function translateText(input: TranslationInput): Promise<void> {
       .limit(1)
 
     const orgPlan = orgRows?.[0]?.plan?.toLowerCase()
-    if (orgPlan !== 'global' && orgPlan !== 'enterprise') {
+    // Translation requires Global, Business, or Enterprise plan
+    const translationPlans = ['global', 'enterprise', 'business', 'pro', 'standard', 'active']
+    if (!translationPlans.includes(orgPlan || '')) {
       // eslint-disable-next-line no-console
       console.warn('translation: plan does not support translation', { organizationId, plan: orgPlan })
       await supabaseAdmin

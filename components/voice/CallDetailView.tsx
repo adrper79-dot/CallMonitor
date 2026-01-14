@@ -15,7 +15,7 @@ export interface CallDetailViewProps {
 }
 
 export default function CallDetailView({ callId, organizationId, onModulationChange }: CallDetailViewProps) {
-  const { call, recording, transcript, translation, manifest, score, loading, error } = useCallDetails(callId)
+  const { call, recording, transcript, translation, manifest, score, survey, loading, error } = useCallDetails(callId)
   const { config } = useVoiceConfig(organizationId)
 
   if (!callId) {
@@ -182,6 +182,7 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
         translation={translation}
         manifest={manifest}
         score={score}
+        survey={survey}
       />
     </div>
   )

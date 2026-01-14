@@ -18,17 +18,36 @@ export interface Call {
 type PageProps = {}
 
 export default async function VoiceOperationsPage(_props: PageProps) {
-  // server-side session check
-  const session = await getServerSession()
-  if (!session?.user?.id) {
+  // server-side session check - import authOptions for proper session
+  const { authOptions } = await import('@/lib/auth')
+  const session = await getServerSession(authOptions)
+  
+  // Check for user ID in either standard location or custom extension
+  const userId = (session?.user as any)?.id || session?.user?.email
+  
+  if (!session?.user || !userId) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100">
         <div className="text-center">
           <h2 className="text-xl">Authentication required</h2>
           <p className="mt-2 text-slate-400">Please sign in to view Voice Operations.</p>
+          <a href="/admin/auth" className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white">
+            Sign In
+          </a>
         </div>
       </div>
     )
+  }
+  
+  // Get user ID - need to look up by email if id not in token
+  let actualUserId = (session.user as any)?.id
+  if (!actualUserId && session.user?.email) {
+    const { data: userData } = await (supabaseAdmin as any)
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .single()
+    actualUserId = userData?.id
   }
 
   // Get organization ID from session or user
@@ -36,11 +55,16 @@ export default async function VoiceOperationsPage(_props: PageProps) {
   let organizationName: string | null = null
   
   try {
-    // Fetch user's organization
+    // Fetch user's organization using actual user ID
+    const userIdToQuery = actualUserId || (session.user as any)?.id
+    if (!userIdToQuery) {
+      console.error('Voice page: No user ID available for org lookup')
+    }
+    
     const { data: userData } = await (supabaseAdmin as any)
       .from('users')
       .select('organization_id')
-      .eq('id', session.user.id)
+      .eq('id', userIdToQuery)
       .single()
 
     if (userData?.organization_id) {

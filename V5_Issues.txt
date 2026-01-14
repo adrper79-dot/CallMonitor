@@ -1,7 +1,52 @@
 # V5_Issues.txt - CallMonitor Production Deployment Review
 # Generated: January 14, 2026
 # Principal Engineer Review - Cross-Site and Cross-Function Analysis
-# Version: 5.0
+# Version: 5.1 - UPDATED with fixes
+
+================================================================================
+FIXES APPLIED IN THIS SESSION (January 14, 2026)
+================================================================================
+
+✅ FIX #1: AUTO-EMAIL ARTIFACTS ON COMPLETION
+   - Modified: app/api/webhooks/assemblyai/route.ts
+   - Added: sendArtifactsToUserEmail() function
+   - Now auto-emails recording, transcript, and translation as ATTACHMENTS
+   - No login required - files sent directly to user's email
+
+✅ FIX #2: CRON SCHEDULE CHANGED TO EVERY 5 MINUTES
+   - Modified: vercel.json
+   - Changed: "* * * * *" → "*/5 * * * *"
+   - Reduces Vercel cron invocations from 43k to 8.6k/month
+
+✅ FIX #3: TRANSLATION PLAN RESTRICTION LOOSENED
+   - Modified: app/services/translation.ts
+   - Added: 'pro', 'standard', 'active', 'business' plans can translate
+   - Previously only 'global' and 'enterprise' could translate
+
+✅ FIX #4: VOICE OPERATIONS ACCESS FIX
+   - Modified: app/voice/page.tsx
+   - Now properly imports authOptions
+   - Added fallback to lookup user by email if ID not in token
+   - Added sign-in button for unauthenticated users
+
+✅ FIX #5: SURVEY DATA NOW PASSED TO UI
+   - Modified: app/api/calls/[id]/route.ts
+   - Added: survey field to API response
+   - Modified: components/voice/CallDetailView.tsx
+   - Now passes survey prop to ArtifactViewer
+
+✅ FIX #6: USER ROLE ASSIGNMENT FIX
+   - Modified: lib/auth.ts
+   - Changed: new users get 'owner' role (was 'member')
+   - Changed: is_admin = true for new users
+   - Aligns with RBAC matrix requirements
+
+✅ FIX #7: TEST EMAIL ENDPOINT CREATED
+   - Created: app/api/test-email/route.ts
+   - Usage: GET /api/test-email?to=your@email.com
+   - Verifies Resend is working correctly
+
+================================================================================
 
 ================================================================================
 CLI CONNECTIVITY STATUS - CONFIRMED ✅

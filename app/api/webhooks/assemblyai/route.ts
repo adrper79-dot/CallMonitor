@@ -279,6 +279,11 @@ async function processWebhookAsync(req: Request) {
         const { checkAndGenerateManifest } = await import('@/app/services/evidenceManifest')
         await checkAndGenerateManifest(callId, recordingId, organizationId)
       }
+      
+      // Auto-email artifacts to user when transcription completes
+      if (organizationId && callId) {
+        await sendArtifactsToUserEmail(callId, organizationId)
+      }
     }
 
   } catch (err: any) {
@@ -585,6 +590,73 @@ async function processSurveyWithNLP(transcriptText: string, surveyData: any): Pr
   }
 
   return results
+}
+
+/**
+ * Auto-send artifacts to user's email when processing completes
+ * Sends recording, transcript, and translation as attachments
+ */
+async function sendArtifactsToUserEmail(callId: string, organizationId: string) {
+  try {
+    // Get call creator's email
+    const { data: callRows } = await supabaseAdmin
+      .from('calls')
+      .select('created_by')
+      .eq('id', callId)
+      .limit(1)
+
+    const createdBy = callRows?.[0]?.created_by
+    if (!createdBy) {
+      logger.warn('AssemblyAI webhook: No creator found for call, skipping auto-email', { callId })
+      return
+    }
+
+    // Get user's email
+    const { data: userRows } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('id', createdBy)
+      .limit(1)
+
+    const userEmail = userRows?.[0]?.email
+    if (!userEmail) {
+      logger.warn('AssemblyAI webhook: No email found for user, skipping auto-email', { callId, userId: createdBy })
+      return
+    }
+
+    // Check if Resend is configured
+    if (!process.env.RESEND_API_KEY) {
+      logger.warn('AssemblyAI webhook: RESEND_API_KEY not configured, skipping auto-email', { callId })
+      return
+    }
+
+    // Send artifacts via email service
+    const { sendArtifactEmail } = await import('@/app/services/emailService')
+    const result = await sendArtifactEmail({
+      callId,
+      organizationId,
+      recipientEmail: userEmail,
+      includeRecording: true,
+      includeTranscript: true,
+      includeTranslation: true
+    })
+
+    if (result.success) {
+      logger.info('AssemblyAI webhook: Auto-emailed artifacts to user', { 
+        callId, 
+        email: userEmail.substring(0, 3) + '***',
+        source: 'assemblyai-webhook'
+      })
+    } else {
+      logger.error('AssemblyAI webhook: Auto-email failed', undefined, { 
+        callId, 
+        error: result.error,
+        source: 'assemblyai-webhook'
+      })
+    }
+  } catch (err: any) {
+    logger.error('AssemblyAI webhook: Auto-email error', err, { callId })
+  }
 }
 
 // HIGH-1: Apply rate limiting per architecture: Security boundaries (1000/min per source)

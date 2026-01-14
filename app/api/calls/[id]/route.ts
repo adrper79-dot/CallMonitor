@@ -40,14 +40,15 @@ export async function GET(
       .eq('call_sid', call.call_sid)
       .single()
 
-    // Fetch transcript/translation from ai_runs
+    // Fetch transcript/translation/survey from ai_runs
     const { data: aiRuns } = await (supabaseAdmin as any)
       .from('ai_runs')
       .select('*')
       .eq('call_id', callId)
 
-    const transcript = aiRuns?.find((r: any) => r.model?.includes('transcription'))
+    const transcript = aiRuns?.find((r: any) => r.model?.includes('transcription') || r.model?.includes('assemblyai-v1'))
     const translation = aiRuns?.find((r: any) => r.model?.includes('translation'))
+    const survey = aiRuns?.find((r: any) => r.model?.includes('survey'))
 
     // Fetch evidence manifest
     const { data: manifest } = await (supabaseAdmin as any)
@@ -67,10 +68,11 @@ export async function GET(
       success: true,
       call,
       recording: recording || null,
-      transcript: transcript?.output || recording?.transcript_json || null,
+      transcript: transcript?.output?.transcript || transcript?.output || recording?.transcript_json || null,
       translation: translation?.output || null,
       manifest: manifest || null,
       score: score || null,
+      survey: survey?.output || null,
     })
   } catch (err: any) {
     console.error('GET /api/calls/[id] error:', err)
