@@ -1,7 +1,7 @@
 # CallMonitor - Current Status & Quick Reference
 
 **Last Updated:** January 14, 2026  
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 **Status:** ✅ Production Ready
 
 ---
@@ -57,14 +57,26 @@ CallMonitor is a voice operations platform for managing calls with modulations (
 22. **Bulk Call Upload** - CSV upload for batch test calls
 23. **Email Artifacts Button** - Send call artifacts as email attachments
 
+### **✅ Cal.com-Style Booking (Business+ Plan)**
+24. **Scheduled Calls** - Book calls for future automatic execution
+25. **Booking Management** - Create, update, cancel bookings
+26. **Cron Auto-Originate** - Vercel Cron triggers calls at scheduled time
+27. **Attendee Tracking** - Name, email, phone per booking
+
+### **✅ Chrome Extension**
+28. **Quick Call** - Make calls from browser popup
+29. **Click-to-Call** - Auto-detect phone numbers on any webpage
+30. **Context Menu** - Right-click to call/schedule
+31. **Notifications** - Real-time call status updates
+
 ### **✅ Infrastructure**
-24. **RBAC System** - Role-based access control (Owner, Admin, Operator, Viewer)
-25. **Plan-based Capabilities** - Feature gating by organization plan
-26. **Error Tracking** - Comprehensive error handling with audit logs
-27. **Rate Limiting** - API endpoint rate limiting
-28. **Idempotency** - Idempotency keys for safe retries
-29. **Webhook Security** - Signature verification for external webhooks
-30. **SignalWire Numbers API** - Manage inbound phone numbers
+32. **RBAC System** - Role-based access control (Owner, Admin, Operator, Viewer)
+33. **Plan-based Capabilities** - Feature gating by organization plan
+34. **Error Tracking** - Comprehensive error handling with audit logs
+35. **Rate Limiting** - API endpoint rate limiting
+36. **Idempotency** - Idempotency keys for safe retries
+37. **Webhook Security** - Signature verification for external webhooks
+38. **SignalWire Numbers API** - Manage inbound phone numbers
 
 ---
 
@@ -82,25 +94,39 @@ CallMonitor is a voice operations platform for managing calls with modulations (
 
 ## 🔧 **Recent Updates (January 14, 2026)**
 
-### **New Features Added:**
+### **New Features Added (v1.3):**
 
-1. **AI Survey Bot** - SignalWire AI Agents for inbound survey calls
+1. **Cal.com-Style Booking** - Schedule calls for future execution
+   - Create/update/cancel bookings via API
+   - Vercel Cron auto-originates calls at scheduled time
+   - Full booking → call → artifact audit trail
+   - New endpoints: `/api/bookings`, `/api/cron/scheduled-calls`
+
+2. **Chrome Extension** - Click-to-call from any webpage
+   - Quick call from popup
+   - Auto-detect phone numbers on pages
+   - Right-click context menu
+   - Settings page for customization
+
+### **Previous Features (v1.2):**
+
+3. **AI Survey Bot** - SignalWire AI Agents for inbound survey calls
    - Dynamic survey prompts per organization
    - Email results delivery via Resend
    - Full conversation capture in ai_runs table
    - New endpoints: `/api/voice/swml/survey`, `/api/survey/ai-results`
 
-2. **Voice Cloning** - ElevenLabs voice cloning for translations
+4. **Voice Cloning** - ElevenLabs voice cloning for translations
    - Clone caller's voice from recording
    - Use cloned voice for translated audio
    - New fields: `use_voice_cloning`, `cloned_voice_id`
 
-3. **Email Artifacts** - Send call artifacts as email attachments
+5. **Email Artifacts** - Send call artifacts as email attachments
    - Recording, transcript, and translation files
    - Not links - actual file attachments
    - New endpoint: `/api/calls/[id]/email`
 
-4. **SignalWire Numbers API** - Manage inbound phone numbers
+6. **SignalWire Numbers API** - Manage inbound phone numbers
    - List available numbers
    - Assign webhook URLs
    - New endpoint: `/api/signalwire/numbers`

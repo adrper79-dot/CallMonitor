@@ -1,5 +1,11 @@
 {
   "builds": [
     { "src": "package.json", "use": "@vercel/next" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/scheduled-calls",
+      "schedule": "* * * * *"
+    }
   ]
 }

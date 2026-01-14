@@ -68,10 +68,11 @@ export async function POST(req: Request) {
   // }
 
   // Generate LaML based on voice_configs
-  const xml = await generateLaML(callSid, to)
+  // Pass callId from URL (preferred) for reliable lookup without race condition
+  const xml = await generateLaML(callSid, to, callId)
   
   // eslint-disable-next-line no-console
-  console.log('laml/outbound: generated XML', { length: xml.length, callSid: callSid ? '[REDACTED]' : null })
+  console.log('laml/outbound: generated XML', { length: xml.length, callId, callSid: callSid ? '[REDACTED]' : null })
 
   return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
 }
@@ -99,13 +100,29 @@ const tryFetchDynamicScript = async (callSid?: string) => {
 
 /**
  * Generate LaML XML based on voice_configs modulations
+ * 
+ * @param callSid - SignalWire's call SID (from webhook payload)
+ * @param toNumber - Destination phone number
+ * @param callId - Our internal call ID (from URL parameter, preferred for lookup)
  */
-async function generateLaML(callSid: string | undefined, toNumber: string | undefined): Promise<string> {
+async function generateLaML(callSid: string | undefined, toNumber: string | undefined, callId?: string | null): Promise<string> {
   let voiceConfig: any = null
   let organizationId: string | null = null
 
-  // Find call by call_sid to get organization_id
-  if (callSid) {
+  // Strategy 1: Find call by our internal call_id (most reliable - no race condition)
+  if (callId) {
+    const { data: callRows } = await supabaseAdmin
+      .from('calls')
+      .select('organization_id')
+      .eq('id', callId)
+      .limit(1)
+
+    organizationId = callRows?.[0]?.organization_id || null
+    console.log('laml/outbound: lookup by callId', { callId, found: !!organizationId })
+  }
+
+  // Strategy 2: Fallback to call_sid lookup (may fail due to race condition)
+  if (!organizationId && callSid) {
     const { data: callRows } = await supabaseAdmin
       .from('calls')
       .select('organization_id')
@@ -113,17 +130,25 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       .limit(1)
 
     organizationId = callRows?.[0]?.organization_id || null
+    console.log('laml/outbound: fallback lookup by call_sid', { found: !!organizationId })
+  }
 
-    if (organizationId) {
-      // Get voice_configs for this organization
-      const { data: vcRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller')
-        .eq('organization_id', organizationId)
-        .limit(1)
+  if (organizationId) {
+    // Get voice_configs for this organization
+    const { data: vcRows } = await supabaseAdmin
+      .from('voice_configs')
+      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller')
+      .eq('organization_id', organizationId)
+      .limit(1)
 
-      voiceConfig = vcRows?.[0] || null
-    }
+    voiceConfig = vcRows?.[0] || null
+    console.log('laml/outbound: voice_configs loaded', { 
+      record: voiceConfig?.record, 
+      transcribe: voiceConfig?.transcribe,
+      translate: voiceConfig?.translate
+    })
+  } else {
+    console.warn('laml/outbound: could not find organization for call', { callSid: callSid ? '[REDACTED]' : null, callId })
   }
 
   // Build LaML response

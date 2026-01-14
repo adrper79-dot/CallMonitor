@@ -141,14 +141,17 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       
       params.append('Url', lamlUrl)
     }
-    params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+    // Pass callId in callback URLs so webhooks can definitively identify the call
+    // This solves the race condition when multiple calls happen simultaneously
+    const callIdParam = callId ? `?callId=${encodeURIComponent(callId)}` : ''
+    params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callIdParam}`)
     
     // Enable recording at REST API level for ALL calls
     // CRITICAL: Must use Record=true at REST API level for BOTH single-leg AND conference calls
     // The <Conference record="..."> attribute alone is NOT sufficient - SignalWire ignores it
     // Always use Record=true here, and the <Conference record="..."> in LaML acts as reinforcement
     params.append('Record', 'true')
-    params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`)
+    params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callIdParam}`)
     params.append('RecordingStatusCallbackEvent', 'completed')
     logger.info('placeSignalWireCall: RECORDING ENABLED', {
       Record: 'true',

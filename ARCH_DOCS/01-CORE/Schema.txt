@@ -77,6 +77,30 @@ CREATE TABLE public.audit_logs (
   CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT audit_logs_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id)
 );
+-- Cal.com-style Booking Events (January 2026)
+CREATE TABLE public.booking_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  user_id uuid REFERENCES public.users(id),
+  call_id uuid REFERENCES public.calls(id),           -- Link to resulting call
+  title text NOT NULL,
+  description text,
+  start_time timestamptz NOT NULL,
+  end_time timestamptz NOT NULL,
+  duration_minutes integer NOT NULL DEFAULT 30,
+  timezone text DEFAULT 'UTC',
+  attendee_name text,
+  attendee_email text,
+  attendee_phone text NOT NULL,                       -- Required for calling
+  status text NOT NULL DEFAULT 'pending',             -- pending, calling, completed, cancelled, failed
+  reminder_sent boolean DEFAULT false,
+  reminder_sent_at timestamptz,
+  modulations jsonb DEFAULT '{}',                     -- Override call modulations
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  created_by uuid REFERENCES public.users(id)
+);
 CREATE TABLE public.calls (
   id uuid NOT NULL,
   organization_id uuid,

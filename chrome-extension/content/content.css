@@ -1,0 +1,106 @@
+/**
+ * CallMonitor Chrome Extension - Content Styles
+ * 
+ * Styles for phone number highlighting and tooltip.
+ */
+
+/* Phone number highlighting */
+.callmonitor-phone {
+  cursor: pointer;
+  color: #3b82f6;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+
+.callmonitor-phone:hover {
+  background-color: #3b82f620;
+  text-decoration-style: solid;
+}
+
+/* Tooltip */
+.callmonitor-tooltip {
+  position: absolute;
+  z-index: 2147483647; /* Max z-index */
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  animation: callmonitor-fadeIn 0.15s ease;
+}
+
+@keyframes callmonitor-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.callmonitor-tooltip-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.callmonitor-tooltip-btn.callmonitor-call {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+}
+
+.callmonitor-tooltip-btn.callmonitor-call:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  transform: translateY(-1px);
+}
+
+.callmonitor-tooltip-btn.callmonitor-schedule {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.callmonitor-tooltip-btn.callmonitor-schedule:hover {
+  background: #475569;
+  transform: translateY(-1px);
+}
+
+/* Arrow pointer (optional) */
+.callmonitor-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 6px 6px 6px;
+  border-style: solid;
+  border-color: transparent transparent #334155 transparent;
+}
+
+/* Dark mode adjustments (for pages with dark backgrounds) */
+@media (prefers-color-scheme: dark) {
+  .callmonitor-phone {
+    color: #60a5fa;
+  }
+  
+  .callmonitor-phone:hover {
+    background-color: #3b82f630;
+  }
+}

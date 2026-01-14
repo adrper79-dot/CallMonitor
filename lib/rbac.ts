@@ -27,6 +27,8 @@ const FEATURE_PLANS: Record<string, Plan[]> = {
   'real_time_translation_preview': ['business', 'enterprise'],
   'survey': ['insights', 'global', 'business', 'enterprise'],
   'secret_shopper': ['insights', 'global', 'business', 'enterprise'],
+  'booking': ['business', 'enterprise'],  // Cal.com-style scheduling
+  'voice_cloning': ['business', 'enterprise'],  // ElevenLabs voice cloning
 }
 
 /**
@@ -41,6 +43,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     'translation': ['read'],
     'survey': ['read'],
     'secret_shopper': ['read', 'write', 'execute'],
+    'booking': ['read', 'write', 'execute'],  // Full booking access
   },
   admin: {
     'voice_config': ['read', 'write'],
@@ -50,6 +53,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     'translation': ['read'],
     'survey': ['read'],
     'secret_shopper': ['read', 'write', 'execute'],
+    'booking': ['read', 'write', 'execute'],  // Full booking access
   },
   operator: {
     'voice_config': ['read'],
@@ -59,6 +63,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     'translation': ['read'],
     'survey': ['read'],
     'secret_shopper': ['read', 'execute'],
+    'booking': ['read', 'write', 'execute'],  // Can create/manage bookings
   },
   analyst: {
     'voice_config': ['read'],
@@ -68,6 +73,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     'translation': ['read'],
     'survey': ['read'],
     'secret_shopper': ['read'],
+    'booking': ['read'],  // View only
   },
   viewer: {
     'voice_config': ['read'], // masked
@@ -77,6 +83,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     'translation': ['read'], // masked
     'survey': ['read'], // masked
     'secret_shopper': ['read'], // masked
+    'booking': ['read'],  // View only, masked
   },
 }
 

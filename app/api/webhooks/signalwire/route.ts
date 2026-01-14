@@ -128,13 +128,18 @@ async function processWebhookAsync(req: Request) {
     const recordingStatus = payload.RecordingStatus || payload.recording_status
 
     // Log webhook processing per architecture: SignalWire = authoritative media plane
+    // Note: SignalWire sends SEPARATE webhooks for call status and recording status
+    // Call status callback comes first (completed), Recording callback comes later
+    const isRecordingCallback = !!recordingSid || !!recordingUrl || recordingStatus
     logger.info('SignalWire webhook received', { 
       callSid: callSid ? '[REDACTED]' : null, 
       callStatus, 
       eventType,
+      isRecordingCallback,
       hasRecording: !!recordingSid,
       hasRecordingUrl: !!recordingUrl,
       recordingStatus: recordingStatus || 'not-present',
+      callbackSource: payload.CallbackSource || 'unknown',
       payloadKeys: Object.keys(payload).sort(),
       source: 'signalwire-webhook'
     })
@@ -165,23 +170,57 @@ async function processWebhookAsync(req: Request) {
       return
     }
 
-    // Find call by call_sid
-    const { data: callRows, error: callErr } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id, status, started_at, ended_at')
-      .eq('call_sid', callSid)
-      .limit(1)
-
-    if (callErr) {
-      // eslint-disable-next-line no-console
-      console.error('signalwire webhook: failed to find call', { error: callErr.message, callSid: '[REDACTED]' })
-      return
+    // Extract callId from URL query parameter (definitive identifier)
+    // This solves race conditions when multiple calls happen simultaneously
+    const webhookUrl = new URL(req.url)
+    const callIdFromUrl = webhookUrl.searchParams.get('callId')
+    
+    let call: any = null
+    
+    // Strategy 1: Use callId from URL (most reliable - no ambiguity)
+    if (callIdFromUrl) {
+      const { data: callRows, error: callErr } = await supabaseAdmin
+        .from('calls')
+        .select('id, organization_id, status, started_at, ended_at, call_sid')
+        .eq('id', callIdFromUrl)
+        .limit(1)
+      
+      if (!callErr && callRows?.[0]) {
+        call = callRows[0]
+        
+        // Update call_sid if not set yet (first webhook)
+        if (!call.call_sid && callSid) {
+          await supabaseAdmin
+            .from('calls')
+            .update({ call_sid: callSid })
+            .eq('id', call.id)
+          
+          console.log('signalwire webhook: linked call_sid via callId param', { 
+            callId: call.id 
+          })
+        }
+      }
     }
+    
+    // Strategy 2: Fallback to call_sid lookup (for older webhooks or if URL param missing)
+    if (!call) {
+      const { data: callRows, error: callErr } = await supabaseAdmin
+        .from('calls')
+        .select('id, organization_id, status, started_at, ended_at')
+        .eq('call_sid', callSid)
+        .limit(1)
 
-    const call = callRows?.[0]
+      if (!callErr && callRows?.[0]) {
+        call = callRows[0]
+      }
+    }
+    
     if (!call) {
       // eslint-disable-next-line no-console
-      console.warn('signalwire webhook: call not found', { callSid: '[REDACTED]' })
+      console.warn('signalwire webhook: call not found', { 
+        callSid: '[REDACTED]', 
+        callIdFromUrl: callIdFromUrl || 'not-provided' 
+      })
       return
     }
 
