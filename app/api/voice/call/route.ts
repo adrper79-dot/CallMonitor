@@ -20,6 +20,19 @@ export const dynamic = 'force-dynamic'
  */
 async function handlePOST(req: Request) {
   try {
+    // Get authenticated session
+    const { getServerSession } = await import('next-auth/next')
+    const { authOptions } = await import('@/lib/auth')
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as any)?.id ?? null
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
+        { status: 401 }
+      )
+    }
+    
     const body = await req.json()
     const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
     
@@ -51,14 +64,15 @@ async function handlePOST(req: Request) {
       )
     }
     
-    // Call the existing startCallHandler
+    // Call the existing startCallHandler with actor_id
     const result = await startCallHandler(
       {
         organization_id: body.organization_id || body.orgId,
         phone_number: phoneNumber,
         from_number: body.from_number || undefined,  // Agent's phone for bridge calls
         flow_type: body.flow_type || (body.from_number ? 'bridge' : 'outbound'),
-        modulations: body.modulations || {}
+        modulations: body.modulations || {},
+        actor_id: userId  // CRITICAL: Pass authenticated user ID
       },
       {
         supabaseAdmin
