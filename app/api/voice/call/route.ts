@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { isApiError } from '@/types/api'
+import { cookies, headers } from 'next/headers'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -20,15 +23,25 @@ export const dynamic = 'force-dynamic'
  */
 async function handlePOST(req: Request) {
   try {
+    // Force cookie read to ensure context is available
+    const cookieStore = await cookies()
+    const headersList = await headers()
+    
+    // Debug: Log session token presence (not value)
+    const hasSessionToken = cookieStore.has('next-auth.session-token') || 
+                            cookieStore.has('__Secure-next-auth.session-token')
+    console.log('[voice/call] Session token present:', hasSessionToken)
+    
     // Get authenticated session
-    const { getServerSession } = await import('next-auth/next')
-    const { authOptions } = await import('@/lib/auth')
     const session = await getServerSession(authOptions)
+    console.log('[voice/call] Session result:', session ? 'found' : 'null', session?.user?.email || 'no email')
+    
     const userId = (session?.user as any)?.id ?? null
     
     if (!userId) {
+      console.log('[voice/call] AUTH_REQUIRED - no userId in session')
       return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
+        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required. Please sign in again.' } },
         { status: 401 }
       )
     }

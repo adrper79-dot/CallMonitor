@@ -242,9 +242,9 @@ export function getAuthOptions() {
       },
     },
     
-    // Use JWT for mobile compatibility
+    // Use JWT for mobile compatibility - required for cross-device sessions
     session: {
-      strategy: 'jwt',
+      strategy: 'jwt' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
     
@@ -379,28 +379,38 @@ export function getAuthOptions() {
   }
 }
 
-// Export authOptions - use function form to avoid build-time evaluation
-// Files using getServerSession should use: getServerSession(authOptions)
-export const authOptions = (() => {
-  // During build phase, return a minimal config that won't fail
-  if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
-    return {
-      providers: [],
-      secret: 'build-time-placeholder',
-      callbacks: {}
-    } as any
+// Export authOptions as a getter to ensure fresh evaluation at runtime
+// This avoids build-time evaluation issues with environment variables
+let _authOptions: ReturnType<typeof getAuthOptions> | null = null
+
+export const authOptions = new Proxy({} as ReturnType<typeof getAuthOptions>, {
+  get(target, prop) {
+    // Lazy initialization on first access
+    if (!_authOptions) {
+      try {
+        _authOptions = getAuthOptions()
+      } catch (e) {
+        console.error('[auth] Failed to initialize auth options:', e)
+        // Return minimal fallback to prevent crashes
+        _authOptions = {
+          providers: [],
+          secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
+          session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
+          callbacks: {
+            jwt: async ({ token, user }: any) => {
+              if (user) token.id = user.id
+              return token
+            },
+            session: async ({ session, token }: any) => {
+              if (session?.user && token?.id) {
+                (session.user as any).id = token.id
+              }
+              return session
+            }
+          }
+        } as any
+      }
+    }
+    return (_authOptions as any)[prop]
   }
-  
-  // At runtime, return the real config
-  try {
-    return getAuthOptions()
-  } catch (e) {
-    // If config fails (missing env vars), return minimal config
-    console.error('Failed to initialize auth options:', e)
-    return {
-      providers: [],
-      secret: process.env.NEXTAUTH_SECRET || 'fallback',
-      callbacks: {}
-    } as any
-  }
-})()
+})
