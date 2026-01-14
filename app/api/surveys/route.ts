@@ -57,6 +57,7 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false })
 
     if (surveysErr) {
+      logger.error('Failed to fetch surveys', surveysErr, { organizationId, userId })
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch surveys', user_message: 'Could not retrieve surveys', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }
@@ -66,6 +67,7 @@ export async function GET(req: Request) {
       surveys: surveys || []
     })
   } catch (err: any) {
+    logger.error('GET /api/surveys failed', err, { organizationId, userId })
     const e = err instanceof AppError ? err : new AppError({ code: 'SURVEYS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to fetch surveys', severity: 'HIGH' })
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }

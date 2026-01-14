@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession and request.url
 export const dynamic = 'force-dynamic'
@@ -148,9 +149,14 @@ async function handlePUT(req: Request) {
 
     // upsert: insert if none, otherwise update permitted columns per TOOL_TABLE_ALIGNMENT
     if (!existing) {
-      const row = { id: uuidv4(), ...updatePayload }
+      const row = { 
+        id: uuidv4(), 
+        organization_id: orgId,  // Required: NOT NULL constraint
+        ...updatePayload 
+      }
       const { error: insertErr } = await supabaseAdmin.from('voice_configs').insert(row)
       if (insertErr) {
+        logger.error('Failed to insert voice_config', insertErr, { orgId, row })
         const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to insert voice config', user_message: 'Could not save configuration', severity: 'HIGH' })
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
       }
@@ -164,6 +170,7 @@ async function handlePUT(req: Request) {
     // Use `any` cast to avoid typing mismatch in this environment and perform an update by organization_id
     const { error: updateErr } = await (supabaseAdmin as any).from('voice_configs').update(updatePayload).eq('organization_id', orgId)
     if (updateErr) {
+      logger.error('Failed to update voice_config', updateErr, { orgId, updatePayload })
       const err = new AppError({ code: 'DB_UPDATE_FAILED', message: 'Failed to update voice config', user_message: 'Could not update configuration', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }
@@ -175,6 +182,7 @@ async function handlePUT(req: Request) {
 
     return NextResponse.json({ success: true, config: after })
   } catch (err: any) {
+    logger.error('PUT /api/voice/config failed', err, { orgId, actorId, modulations })
     const e = err instanceof AppError ? err : new AppError({ code: 'VOICE_CONFIG_PUT_FAILED', message: err?.message ?? 'Unexpected', user_message: 'Failed to save voice configuration', severity: 'HIGH' })
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }

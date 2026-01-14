@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -15,9 +16,12 @@ export const dynamic = 'force-dynamic'
  * Per MASTER_ARCHITECTURE.txt UI→API→Table contract
  */
 export async function GET(req: Request) {
+  let organizationId: string | null = null
+  let userId: string | null = null
+  
   try {
     const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id ?? null
+    userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
@@ -25,7 +29,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const organizationId = url.searchParams.get('orgId') || url.searchParams.get('organization_id')
+    organizationId = url.searchParams.get('orgId') || url.searchParams.get('organization_id')
 
     if (!organizationId) {
       const err = new AppError({ code: 'ORG_REQUIRED', message: 'Organization ID required', user_message: 'Organization ID required', severity: 'MEDIUM' })
@@ -47,6 +51,7 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false })
 
     if (campaignsErr) {
+      logger.error('Failed to fetch campaigns', campaignsErr, { organizationId, userId })
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch campaigns', user_message: 'Could not retrieve campaigns', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }
@@ -56,6 +61,7 @@ export async function GET(req: Request) {
       campaigns: campaigns || []
     })
   } catch (err: any) {
+    logger.error('GET /api/campaigns failed', err, { organizationId, userId })
     const e = err instanceof AppError ? err : new AppError({ code: 'CAMPAIGNS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to fetch campaigns', severity: 'HIGH' })
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }

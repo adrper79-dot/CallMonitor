@@ -51,6 +51,7 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false })
 
     if (targetsErr) {
+      logger.error('Failed to fetch voice_targets', targetsErr, { organizationId, userId })
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch voice targets', user_message: 'Could not retrieve voice targets', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
       targets: targets || []
     })
   } catch (err: any) {
+    logger.error('GET /api/voice/targets failed', err, { organizationId, userId })
     const e = err instanceof AppError ? err : new AppError({ code: 'VOICE_TARGETS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to fetch voice targets', severity: 'HIGH' })
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }
