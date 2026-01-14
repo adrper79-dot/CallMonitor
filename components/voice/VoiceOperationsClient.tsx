@@ -11,6 +11,8 @@ import ActivityFeedEmbed from './ActivityFeedEmbed'
 import CallModulations from './CallModulations'
 import { BookingsList } from './BookingsList'
 import { BookingModal } from './BookingModal'
+import ShopperScriptManager from './ShopperScriptManager'
+import CallerIdManager from './CallerIdManager'
 
 export interface VoiceOperationsClientProps {
   initialCalls: Call[]
@@ -160,6 +162,16 @@ export default function VoiceOperationsClient({
                     <li><strong>After-call Survey:</strong> AI bot asks survey questions after the call</li>
                     <li><strong>Secret Shopper:</strong> Uses AI to simulate customer calls for quality testing</li>
                   </ul>
+                </div>
+
+                {/* Secret Shopper Script Manager */}
+                <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
+                  <ShopperScriptManager organizationId={organizationId} />
+                </div>
+
+                {/* Caller ID Manager */}
+                <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
+                  <CallerIdManager organizationId={organizationId} />
                 </div>
               </div>
             )}

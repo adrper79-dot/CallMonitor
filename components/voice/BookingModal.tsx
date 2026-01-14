@@ -20,6 +20,7 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
   const [attendeeName, setAttendeeName] = useState('')
   const [attendeeEmail, setAttendeeEmail] = useState('')
   const [attendeePhone, setAttendeePhone] = useState(defaultPhone || '')
+  const [fromNumber, setFromNumber] = useState('')  // Your number (caller)
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [duration, setDuration] = useState(30)
@@ -31,6 +32,7 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
     setAttendeeName('')
     setAttendeeEmail('')
     setAttendeePhone(defaultPhone || '')
+    setFromNumber('')
     setStartDate('')
     setStartTime('')
     setDuration(30)
@@ -65,6 +67,7 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
           attendee_name: attendeeName,
           attendee_email: attendeeEmail,
           attendee_phone: attendeePhone,
+          from_number: fromNumber || undefined,  // Your number
           notes
         })
       })
@@ -87,8 +90,10 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
 
   if (!isOpen) return null
 
-  // Get minimum date (today) and time
-  const today = new Date().toISOString().split('T')[0]
+  // Get current date in local timezone for min date
+  // Use local date string to avoid timezone issues
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -149,10 +154,25 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
               />
             </div>
 
-            {/* Attendee Phone (Required) */}
+            {/* Your Number (From) */}
             <div>
               <label className="block text-sm text-slate-300 mb-1">
-                Phone Number <span className="text-red-400">*</span>
+                Your Phone Number (optional)
+              </label>
+              <Input
+                type="tel"
+                placeholder="+1234567890"
+                value={fromNumber}
+                onChange={(e) => setFromNumber(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-white"
+              />
+              <p className="text-xs text-slate-500 mt-1">For bridge calls - connects you first, then the contact</p>
+            </div>
+
+            {/* Contact Phone Number (Required) */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">
+                Contact Phone Number <span className="text-red-400">*</span>
               </label>
               <Input
                 type="tel"

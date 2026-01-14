@@ -108,12 +108,21 @@ export async function GET(req: NextRequest) {
         }
 
         // Originate call via startCallHandler
+        // Use from_number for bridge calls if provided
+        const callInput: any = {
+          organization_id: booking.organization_id,
+          phone_number: booking.attendee_phone,
+          modulations
+        }
+        
+        // If from_number is provided, use bridge flow
+        if (booking.from_number) {
+          callInput.from_number = booking.from_number
+          callInput.flow_type = 'bridge'
+        }
+        
         const callResult = await startCallHandler(
-          {
-            organization_id: booking.organization_id,
-            phone_number: booking.attendee_phone,
-            modulations
-          },
+          callInput,
           {
             supabaseAdmin
           }

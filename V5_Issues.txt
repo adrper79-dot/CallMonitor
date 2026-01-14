@@ -1,10 +1,41 @@
 # V5_Issues.txt - CallMonitor Production Deployment Review
 # Generated: January 14, 2026
 # Principal Engineer Review - Cross-Site and Cross-Function Analysis
-# Version: 5.2 - ADDITIONAL FIXES (Session 2)
+# Version: 5.3 - SECRET SHOPPER + ADDITIONAL FIXES (Session 3)
 
 ================================================================================
-NEW FIXES APPLIED (January 14, 2026 - Session 2)
+NEW FIXES APPLIED (January 14, 2026 - Session 3)
+================================================================================
+
+✅ FIX #11: SECRET SHOPPER INFRASTRUCTURE
+   - Created: migrations/2026-01-14-add-shopper-scripts.sql
+   - Created: app/api/shopper/scripts/manage/route.ts
+   - Created: components/voice/ShopperScriptManager.tsx
+   - Database tables: shopper_scripts, shopper_results
+   - Features:
+     * Create/edit/delete shopper scripts
+     * Configurable TTS (SignalWire, ElevenLabs)
+     * Personas: professional, casual, frustrated, elderly, non-native
+     * Expected outcomes: keywords, sentiment, duration, response time
+     * Weighted scoring (0-100 scale)
+   - Added to Voice Operations Settings tab
+
+✅ FIX #12: TEST EMAIL NOW WORKING
+   - Changed default from address to 'onboarding@resend.dev'
+   - Test email confirmed sent to adrper79@gmail.com
+   - MessageId: bebc9903-2ee5-492c-8624-fb8a69d862fd
+
+📋 ABOUT TRANSCRIPTIONS NOT APPEARING:
+   - Transcriptions require RECORDINGS first
+   - Recording webhook must be received from SignalWire
+   - Logs show "Call completed but NO RECORDING FIELDS" 
+   - This means recording callback hasn't fired yet
+   - Check SignalWire dashboard for recording status
+   - Ensure voice_configs.record = true for your org
+   - Apply pending migrations to enable booking features
+
+================================================================================
+FIXES APPLIED (January 14, 2026 - Session 2)
 ================================================================================
 
 ✅ FIX #8: EMAIL 403 ERROR - RESEND DOMAIN FIX

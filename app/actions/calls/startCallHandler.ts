@@ -119,7 +119,32 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
     const params = new URLSearchParams()
-    params.append('From', swNumber)
+    
+    // Check for caller ID mask (custom display number)
+    let fromNumber = swNumber
+    try {
+      const { data: vcRows } = await supabaseAdmin
+        .from('voice_configs')
+        .select('caller_id_mask, caller_id_verified')
+        .eq('organization_id', organization_id)
+        .limit(1)
+      
+      const callerIdMask = vcRows?.[0]?.caller_id_mask
+      const isVerified = vcRows?.[0]?.caller_id_verified
+      
+      // Only use mask if it's set and verified (or if it's a SignalWire number)
+      if (callerIdMask && (isVerified || callerIdMask.startsWith('+1'))) {
+        fromNumber = callerIdMask
+        logger.info('placeSignalWireCall: using caller ID mask', { 
+          masked: true, 
+          verified: isVerified 
+        })
+      }
+    } catch (e) {
+      // Best effort - continue with default number
+    }
+    
+    params.append('From', fromNumber)
     params.append('To', toNumber)
     
     // Route to SWML endpoint for live translation, LaML for regular calls

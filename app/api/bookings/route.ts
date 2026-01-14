@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
       attendee_name,
       attendee_email,
       attendee_phone,
+      from_number,  // Your number (for bridge calls)
       modulations = {},
       notes
     } = body
@@ -157,11 +158,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate start_time is in future
+    // Validate start_time is not in the past (allow calls starting now)
     const startDate = new Date(start_time)
-    if (startDate <= new Date()) {
+    const now = new Date()
+    // Allow calls up to 5 minutes in the past (for immediate scheduling)
+    if (startDate < new Date(now.getTime() - 5 * 60 * 1000)) {
       return NextResponse.json(
-        { success: false, error: 'start_time must be in the future' },
+        { success: false, error: 'start_time cannot be in the past' },
         { status: 400 }
       )
     }
@@ -201,26 +204,33 @@ export async function POST(req: NextRequest) {
 
     // Create booking
     const bookingId = uuidv4()
+    const insertData: any = {
+      id: bookingId,
+      organization_id: orgId,
+      user_id: userId,
+      title,
+      description,
+      start_time,
+      end_time: endTime,
+      duration_minutes,
+      timezone,
+      attendee_name,
+      attendee_email,
+      attendee_phone,
+      modulations,
+      notes,
+      status: 'pending',
+      created_by: userId
+    }
+    
+    // Add from_number if provided (for bridge calls)
+    if (from_number) {
+      insertData.from_number = from_number
+    }
+    
     const { data: booking, error } = await supabaseAdmin
       .from('booking_events')
-      .insert({
-        id: bookingId,
-        organization_id: orgId,
-        user_id: userId,
-        title,
-        description,
-        start_time,
-        end_time: endTime,
-        duration_minutes,
-        timezone,
-        attendee_name,
-        attendee_email,
-        attendee_phone,
-        modulations,
-        notes,
-        status: 'pending',
-        created_by: userId
-      })
+      .insert(insertData)
       .select()
       .single()
 
