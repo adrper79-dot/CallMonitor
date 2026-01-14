@@ -7,21 +7,31 @@ type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   error?: string
 }
 
-export function Select({ children, className = '', label, error, ...rest }: SelectProps) {
+export function Select({ children, className = '', label, error, id, ...rest }: SelectProps) {
+  const selectId = id || `select-${Math.random().toString(36).substring(2, 11)}`
+  const errorId = error ? `${selectId}-error` : undefined
+  
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-slate-100 mb-1" htmlFor={rest.id}>
+        <label className="block text-sm font-medium text-[#333333] mb-1" htmlFor={selectId}>
           {label}
         </label>
       )}
       <select
-        className={`w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${className}`}
+        id={selectId}
+        className={`w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#C4001A] focus:border-[#C4001A] transition-all duration-200 ${error ? 'border-[#E15759]' : ''} ${className}`}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={errorId}
         {...rest}
       >
         {children}
       </select>
-      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+      {error && (
+        <p id={errorId} className="mt-1 text-sm text-[#E15759]" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

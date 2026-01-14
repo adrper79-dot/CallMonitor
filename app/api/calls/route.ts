@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!(session?.user as any)?.id) {
@@ -63,3 +64,13 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
+// Apply rate limiting: 100 requests per minute per IP (generous for dashboard polling)
+export const GET = withRateLimit(handleGET as any, {
+  identifier: (req) => getClientIP(req),
+  config: {
+    maxAttempts: 100,
+    windowMs: 60 * 1000, // 1 minute
+    blockMs: 5 * 60 * 1000 // 5 minute block on abuse
+  }
+})

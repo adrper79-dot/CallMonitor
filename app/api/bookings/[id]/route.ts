@@ -1,316 +1,164 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
+import { requireAuth, Errors, success } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/bookings/[id]
- * 
- * Get a single booking by ID
+ * GET /api/bookings/[id] - Get a single booking by ID
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) return ctx
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const { id } = params
-
-    // Get booking with related call
     const { data: booking, error } = await supabaseAdmin
       .from('booking_events')
       .select('*, calls(id, status, started_at, ended_at, call_sid)')
-      .eq('id', id)
+      .eq('id', params.id)
       .single()
 
     if (error || !booking) {
-      return NextResponse.json(
-        { success: false, error: 'Booking not found' },
-        { status: 404 }
-      )
+      return Errors.notFound('Booking')
     }
 
-    // Verify user has access to this booking's organization
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id')
-      .eq('organization_id', booking.organization_id)
-      .eq('user_id', userId)
-      .limit(1)
-
-    if (!memberRows || memberRows.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Not authorized' },
-        { status: 403 }
-      )
+    if (booking.organization_id !== ctx.orgId) {
+      return Errors.unauthorized()
     }
 
-    return NextResponse.json({
-      success: true,
-      booking
-    })
+    return success({ booking })
   } catch (error: any) {
-    console.error('GET /api/bookings/[id] error:', error)
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('GET /api/bookings/[id] error', error)
+    return Errors.internal(error)
   }
 }
 
 /**
- * PATCH /api/bookings/[id]
- * 
- * Update a booking (reschedule, update details, cancel)
+ * PATCH /api/bookings/[id] - Update a booking
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) return ctx
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const { id } = params
     const body = await req.json()
 
-    // Get existing booking
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from('booking_events')
       .select('*')
-      .eq('id', id)
+      .eq('id', params.id)
       .single()
 
     if (fetchError || !existing) {
-      return NextResponse.json(
-        { success: false, error: 'Booking not found' },
-        { status: 404 }
-      )
+      return Errors.notFound('Booking')
     }
 
-    // Verify user has access
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id, role')
-      .eq('organization_id', existing.organization_id)
-      .eq('user_id', userId)
-      .limit(1)
-
-    if (!memberRows || memberRows.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Not authorized' },
-        { status: 403 }
-      )
+    if (existing.organization_id !== ctx.orgId) {
+      return Errors.unauthorized()
     }
 
-    // Check if booking can be modified
     if (['completed', 'calling'].includes(existing.status)) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot modify a completed or in-progress booking' },
-        { status: 400 }
-      )
+      return Errors.badRequest('Cannot modify a completed or in-progress booking')
     }
 
-    // Build update payload
     const allowedFields = [
       'title', 'description', 'start_time', 'end_time', 
       'duration_minutes', 'timezone', 'attendee_name', 
-      'attendee_email', 'attendee_phone', 'modulations', 
-      'notes', 'status'
+      'attendee_email', 'attendee_phone', 'modulations', 'notes', 'status'
     ]
     
     const updatePayload: any = {}
     for (const key of allowedFields) {
-      if (body[key] !== undefined) {
-        updatePayload[key] = body[key]
-      }
+      if (body[key] !== undefined) updatePayload[key] = body[key]
     }
 
-    // Validate new start_time if provided
-    if (updatePayload.start_time) {
-      const startDate = new Date(updatePayload.start_time)
-      if (startDate <= new Date()) {
-        return NextResponse.json(
-          { success: false, error: 'start_time must be in the future' },
-          { status: 400 }
-        )
-      }
+    if (updatePayload.start_time && new Date(updatePayload.start_time) <= new Date()) {
+      return Errors.badRequest('start_time must be in the future')
     }
 
-    // Update booking
     const { data: booking, error: updateError } = await supabaseAdmin
       .from('booking_events')
       .update(updatePayload)
-      .eq('id', id)
+      .eq('id', params.id)
       .select()
       .single()
 
     if (updateError) {
-      console.error('PATCH /api/bookings/[id] error:', updateError)
-      return NextResponse.json(
-        { success: false, error: 'Failed to update booking' },
-        { status: 500 }
-      )
+      logger.error('PATCH /api/bookings/[id] error', updateError)
+      return Errors.internal(updateError)
     }
 
-    // Audit log
     try {
       await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: existing.organization_id,
-        user_id: userId,
-        resource_type: 'booking_events',
-        resource_id: id,
-        action: 'update',
+        id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
+        resource_type: 'booking_events', resource_id: params.id, action: 'update',
         before: { status: existing.status, start_time: existing.start_time },
-        after: updatePayload,
-        created_at: new Date().toISOString()
+        after: updatePayload, created_at: new Date().toISOString()
       })
-    } catch {
-      // Best effort
-    }
+    } catch { /* Best effort */ }
 
-    return NextResponse.json({
-      success: true,
-      booking
-    })
+    return success({ booking })
   } catch (error: any) {
-    console.error('PATCH /api/bookings/[id] error:', error)
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('PATCH /api/bookings/[id] error', error)
+    return Errors.internal(error)
   }
 }
 
 /**
- * DELETE /api/bookings/[id]
- * 
- * Delete (cancel) a booking
+ * DELETE /api/bookings/[id] - Cancel a booking
  */
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) return ctx
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const { id } = params
-
-    // Get existing booking
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from('booking_events')
       .select('*')
-      .eq('id', id)
+      .eq('id', params.id)
       .single()
 
     if (fetchError || !existing) {
-      return NextResponse.json(
-        { success: false, error: 'Booking not found' },
-        { status: 404 }
-      )
+      return Errors.notFound('Booking')
     }
 
-    // Verify user has access (must be owner, admin, or creator)
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id, role')
-      .eq('organization_id', existing.organization_id)
-      .eq('user_id', userId)
-      .limit(1)
-
-    if (!memberRows || memberRows.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Not authorized' },
-        { status: 403 }
-      )
+    if (existing.organization_id !== ctx.orgId) {
+      return Errors.unauthorized()
     }
 
-    const role = memberRows[0].role
-    const isCreator = existing.created_by === userId
-    if (!['owner', 'admin'].includes(role) && !isCreator) {
-      return NextResponse.json(
-        { success: false, error: 'Only owners, admins, or the creator can delete bookings' },
-        { status: 403 }
-      )
+    const isCreator = existing.created_by === ctx.userId
+    if (!['owner', 'admin'].includes(ctx.role) && !isCreator) {
+      return Errors.unauthorized('Only owners, admins, or the creator can delete bookings')
     }
 
-    // Check if booking can be deleted
     if (existing.status === 'calling') {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete a booking while call is in progress' },
-        { status: 400 }
-      )
+      return Errors.badRequest('Cannot delete a booking while call is in progress')
     }
 
-    // Soft delete by setting status to cancelled (or hard delete)
     const { error: deleteError } = await supabaseAdmin
       .from('booking_events')
       .update({ status: 'cancelled' })
-      .eq('id', id)
+      .eq('id', params.id)
 
     if (deleteError) {
-      console.error('DELETE /api/bookings/[id] error:', deleteError)
-      return NextResponse.json(
-        { success: false, error: 'Failed to delete booking' },
-        { status: 500 }
-      )
+      logger.error('DELETE /api/bookings/[id] error', deleteError)
+      return Errors.internal(deleteError)
     }
 
-    // Audit log
     try {
       await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: existing.organization_id,
-        user_id: userId,
-        resource_type: 'booking_events',
-        resource_id: id,
-        action: 'delete',
-        before: { status: existing.status },
-        after: { status: 'cancelled' },
+        id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
+        resource_type: 'booking_events', resource_id: params.id, action: 'delete',
+        before: { status: existing.status }, after: { status: 'cancelled' },
         created_at: new Date().toISOString()
       })
-    } catch {
-      // Best effort
-    }
+    } catch { /* Best effort */ }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Booking cancelled'
-    })
+    return success({ message: 'Booking cancelled' })
   } catch (error: any) {
-    console.error('DELETE /api/bookings/[id] error:', error)
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('DELETE /api/bookings/[id] error', error)
+    return Errors.internal(error)
   }
 }

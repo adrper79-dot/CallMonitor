@@ -96,15 +96,27 @@ describe('Translation Service', () => {
   })
 
   it('should skip translation for non-global plans', async () => {
+    // Mock organization lookup to return 'base' plan which doesn't support translation
+    // (The allowed plans are: global, enterprise, business, pro, standard, active)
     mockSupabase.from.mockReturnValueOnce({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           limit: vi.fn(() => ({
             data: [{
-              plan: 'pro' // Not global
+              plan: 'base' // Not in translation-allowed plans
             }],
             error: null
           }))
+        }))
+      }))
+    })
+
+    // Mock the ai_runs update that happens when plan doesn't support translation
+    mockSupabase.from.mockReturnValueOnce({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          data: null,
+          error: null
         }))
       }))
     })
@@ -118,7 +130,7 @@ describe('Translation Service', () => {
       organizationId: 'org-123'
     })
 
-    // Should not call OpenAI
+    // Should not call OpenAI since base plan doesn't support translation
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })

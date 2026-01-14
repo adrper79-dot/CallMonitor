@@ -176,9 +176,9 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-[#FAFAFA]">
       {/* Filters and Search */}
-      <div className="p-4 border-b border-slate-800 space-y-3">
+      <div className="p-4 bg-white border-b border-[#E5E5E5] space-y-3">
         <Input
           label="Search"
           type="search"
@@ -212,70 +212,78 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
         </div>
 
         {!connected && (
-          <div className="text-xs text-amber-400 flex items-center gap-1">
+          <div className="text-xs text-[#F57C00] flex items-center gap-1">
             <span>⚠</span>
             <span>Real-time disconnected. Using polling.</span>
           </div>
         )}
       </div>
 
-      {/* Call List */}
-      <div
-        ref={listRef}
-        role="list"
-        aria-label="Calls list"
-        onKeyDown={onKeyDown}
-        tabIndex={0}
-        className="flex-1 overflow-y-auto p-4 space-y-2"
-      >
+      {/* Call Table */}
+      <div className="flex-1 overflow-auto">
         {loading ? (
-          <div className="text-center text-slate-400 py-8">Loading calls...</div>
+          <div className="text-center text-[#666666] py-8">Loading calls...</div>
         ) : paginatedCalls.length === 0 ? (
-          <div className="text-center text-slate-400 py-8">No calls found</div>
+          <div className="text-center text-[#666666] py-8">No calls found</div>
         ) : (
-          paginatedCalls.map((c, idx) => {
-            const selected = selectedCallId === c.id
-            return (
-              <div
-                key={c.id}
-                role="listitem"
-                tabIndex={-1}
-                aria-selected={selected}
-                onClick={() => onSelect?.(c.id)}
-                onFocus={() => setFocusedIndex(idx)}
-                className={`w-full p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 transition-colors cursor-pointer bg-slate-800 hover:bg-slate-700 ${
-                  selected ? 'ring-2 ring-indigo-500' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-medium text-slate-100 truncate">{c.id}</h4>
+          <table className="w-full border-collapse bg-white">
+            <thead className="sticky top-0 bg-[#FAFAFA] border-b-2 border-[#D0D0D0] z-10">
+              <tr>
+                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Call ID</th>
+                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Date</th>
+                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Created By</th>
+                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-right">Call SID</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F0F0F0]">
+              {paginatedCalls.map((c, idx) => {
+                const selected = selectedCallId === c.id
+                return (
+                  <tr
+                    key={c.id}
+                    tabIndex={-1}
+                    aria-selected={selected}
+                    onClick={() => onSelect?.(c.id)}
+                    onFocus={() => setFocusedIndex(idx)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onSelect?.(c.id)
+                      }
+                    }}
+                    className={`cursor-pointer transition-colors ${
+                      selected ? 'bg-[#E3F2FD]' : 'hover:bg-[#F8F8F8]'
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-sm font-medium text-[#333333]">
+                      <span className="font-mono text-xs">{c.id}</span>
+                    </td>
+                    <td className="px-4 py-3">
                       <Badge variant={statusVariant(c.status)}>{c.status ?? 'unknown'}</Badge>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400 truncate">
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[#333333]">
                       {c.started_at ? new Date(c.started_at).toLocaleString() : '—'}
-                    </div>
-                    {c.created_by && (
-                      <div className="mt-0.5 text-xs text-slate-500 truncate">By: {c.created_by}</div>
-                    )}
-                  </div>
-
-                  {c.call_sid && (
-                    <div className="ml-3 text-right">
-                      <div className="text-xs text-slate-500 font-mono truncate max-w-[100px]">
-                        {c.call_sid}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[#666666]">
+                      {c.created_by || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {c.call_sid ? (
+                        <span className="text-xs text-[#666666] font-mono">{c.call_sid}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
 
         {hasMore && (
-          <div className="pt-4 text-center">
+          <div className="p-4 bg-white border-t border-[#E5E5E5] text-center">
             <Button variant="outline" size="sm" onClick={loadMore}>
               Load More ({filteredCalls.length - paginatedCalls.length} remaining)
             </Button>
@@ -284,7 +292,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
       </div>
 
       {/* Summary */}
-      <div className="p-4 border-t border-slate-800 text-xs text-slate-400">
+      <div className="p-4 bg-white border-t border-[#E5E5E5] text-xs text-[#666666]">
         Showing {paginatedCalls.length} of {filteredCalls.length} calls
       </div>
     </div>

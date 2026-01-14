@@ -2,63 +2,32 @@ import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { buildSWML } from '@/lib/signalwire/swmlBuilder'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
+import { parseRequestBody, swmlResponse } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering - SWML must be generated dynamically
 export const dynamic = 'force-dynamic'
 
-/**
- * Parse form-encoded data
- */
-function parseFormEncoded(text: string): Record<string, any> {
-  try {
-    const params = new URLSearchParams(text)
-    const obj: Record<string, any> = {}
-    Array.from(params.entries()).forEach(([k, v]) => { obj[k] = v })
-    return obj
-  } catch {
-    return {}
-  }
+const FALLBACK_SWML = {
+  version: '1.0.0',
+  sections: { main: [{ answer: {} }, { hangup: {} }] }
 }
 
 /**
- * SWML Outbound Handler
- * 
- * Generates SWML JSON for live translation calls with SignalWire AI Agent.
- * Per SIGNALWIRE_AI_AGENTS_RESEARCH.md Option 1 (Hybrid Approach)
- * 
- * This endpoint is used ONLY for live translation calls (real_time_translation_preview).
- * Regular calls continue to use LaML endpoint.
+ * SWML Outbound Handler - Live translation calls with SignalWire AI Agent
  */
 export async function POST(req: Request) {
   try {
-    const ct = String(req.headers.get('content-type') || '')
-    let payload: any = {}
-    
-    try {
-      if (ct.includes('application/json')) {
-        payload = await req.json()
-      } else {
-        const txt = await req.text()
-        payload = parseFormEncoded(txt)
-      }
-    } catch (e) {
-      // best-effort
-      try { payload = await req.json() } catch { payload = {} }
-    }
+    const payload = await parseRequestBody(req)
 
     const from = payload.From ?? payload.from
     const to = payload.To ?? payload.to
-    const callSid = payload.CallSid ?? payload.CallSid ?? payload.call_sid
+    const callSid = payload.CallSid ?? payload.call_sid
     
-    // Extract callId from query params (passed from startCallHandler)
     const url = new URL(req.url)
     const callId = url.searchParams.get('callId')
 
-    // Log minimal info for debugging (do not leak secrets)
-    // eslint-disable-next-line no-console
-    console.log('swml/outbound webhook', { from, to, callSid: callSid ? '[REDACTED]' : null, callId })
+    logger.info('SWML outbound webhook', { from: from ? '[REDACTED]' : null, to: to ? '[REDACTED]' : null, callId })
 
-    // Find call by call_sid or callId to get organization_id and voice_configs
     let organizationId: string | null = null
     let voiceConfig: any = null
 
@@ -69,7 +38,7 @@ export async function POST(req: Request) {
         .eq('call_sid', callSid)
         .limit(1)
 
-      if (callRows && callRows[0]) {
+      if (callRows?.[0]) {
         organizationId = callRows[0].organization_id
       }
     } else if (callId) {
@@ -79,28 +48,16 @@ export async function POST(req: Request) {
         .eq('id', callId)
         .limit(1)
 
-      if (callRows && callRows[0]) {
+      if (callRows?.[0]) {
         organizationId = callRows[0].organization_id
       }
     }
 
     if (!organizationId) {
-      // eslint-disable-next-line no-console
-      console.warn('swml/outbound: could not find organization_id', { callSid: callSid ? '[REDACTED]' : null, callId })
-      // Return minimal working SWML - answer verb (call already initiated via REST API)
-      const fallbackSWML = {
-        version: '1.0.0',
-        sections: {
-          main: [
-            { answer: {} },
-            { hangup: {} }
-          ]
-        }
-      }
-      return NextResponse.json(fallbackSWML, { status: 200, headers: { 'Content-Type': 'application/json' } })
+      logger.warn('SWML outbound: could not find organization_id', { callId })
+      return swmlResponse(FALLBACK_SWML)
     }
 
-    // Get voice_configs for this organization
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
       .select('record, translate, translate_from, translate_to')
@@ -109,45 +66,16 @@ export async function POST(req: Request) {
 
     voiceConfig = vcRows?.[0] || null
 
-    // Verify live translation is enabled
     if (!voiceConfig?.translate || !voiceConfig?.translate_from || !voiceConfig?.translate_to) {
-      // eslint-disable-next-line no-console
-      console.warn('swml/outbound: translation not enabled in voice_configs', { organizationId })
-      // Return minimal working SWML - answer verb (no AI agent)
-      // This shouldn't happen (routing logic should prevent it), but defensive coding
-      const fallbackSWML = {
-        version: '1.0.0',
-        sections: {
-          main: [
-            { answer: {} },
-            { hangup: {} }
-          ]
-        }
-      }
-      return NextResponse.json(fallbackSWML, { status: 200, headers: { 'Content-Type': 'application/json' } })
+      logger.warn('SWML outbound: translation not enabled', { organizationId })
+      return swmlResponse(FALLBACK_SWML)
     }
 
-    // Check feature flag
     if (!isLiveTranslationPreviewEnabled()) {
-      // eslint-disable-next-line no-console
-      console.warn('swml/outbound: feature flag disabled', { organizationId })
-      // Return minimal working SWML - answer verb (no AI agent)
-      // This shouldn't happen (routing logic should prevent it), but defensive coding
-      const fallbackSWML = {
-        version: '1.0.0',
-        sections: {
-          main: [
-            { answer: {} },
-            { hangup: {} }
-          ]
-        }
-      }
-      return NextResponse.json(fallbackSWML, { status: 200, headers: { 'Content-Type': 'application/json' } })
+      logger.warn('SWML outbound: feature flag disabled', { organizationId })
+      return swmlResponse(FALLBACK_SWML)
     }
 
-    // Build SWML with AI Agent configuration
-    // Per ARCH_DOCS: SignalWire calls this endpoint after call is answered
-    // We return SWML with `answer` verb (not `connect` verb)
     const finalCallId = callId || callSid || `swml-${Date.now()}`
     const swmlConfig = buildSWML(
       {
@@ -159,37 +87,19 @@ export async function POST(req: Request) {
       voiceConfig.record === true
     )
 
-    // eslint-disable-next-line no-console
-    console.log('swml/outbound: generated SWML', { organizationId, callId: finalCallId, hasAI: true })
+    logger.info('SWML outbound: generated SWML', { organizationId, callId: finalCallId })
 
-    return NextResponse.json(swmlConfig, { 
-      status: 200, 
-      headers: { 'Content-Type': 'application/json' } 
-    })
+    return swmlResponse(swmlConfig)
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('swml/outbound error', { error: err?.message ?? String(err) })
-    
-    // Return minimal working SWML - answer verb (call already initiated via REST API)
-    const errorSWML = {
-      version: '1.0.0',
-      sections: {
-        main: [
-          { answer: {} },
-          { hangup: {} }
-        ]
-      }
-    }
-    return NextResponse.json(errorSWML, { status: 200, headers: { 'Content-Type': 'application/json' } })
+    logger.error('SWML outbound error', err)
+    return swmlResponse(FALLBACK_SWML)
   }
 }
 
-export async function GET(req: Request) {
-  // For GET requests, return route info (useful for testing)
+export async function GET() {
   return NextResponse.json({ 
-    ok: true, 
-    route: '/api/voice/swml/outbound', 
+    ok: true, route: '/api/voice/swml/outbound', 
     method: 'Use POST for SWML generation',
-    description: 'SWML endpoint for live translation calls with SignalWire AI Agent'
+    description: 'SWML endpoint for live translation calls'
   })
 }

@@ -1,17 +1,15 @@
 /**
- * Email Service
- * 
- * Sends emails with artifact attachments using Resend.
- * Supports sending recordings, transcripts, and translations as attachments.
+ * Email Service - Sends emails with artifact attachments using Resend.
  */
 
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 
 export interface EmailAttachment {
   filename: string
-  content: Buffer | string // Buffer for binary, string for text
+  content: Buffer | string
   content_type?: string
 }
 
@@ -33,29 +31,20 @@ export interface ArtifactEmailOptions {
   includeTranslation?: boolean
 }
 
-/**
- * Send an email using Resend API
- */
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY
   
   if (!apiKey) {
-    console.error('emailService: RESEND_API_KEY not configured')
+    logger.error('emailService: RESEND_API_KEY not configured')
     return { success: false, error: 'Email service not configured' }
   }
 
-  // IMPORTANT: Use verified domain or Resend's test domain
-  // For production, set RESEND_FROM_EMAIL to your verified domain (e.g., noreply@voxsouth.online)
-  // For testing, Resend allows sending from onboarding@resend.dev
   const fromAddress = options.from || process.env.RESEND_FROM_EMAIL || 'CallMonitor <onboarding@resend.dev>'
 
   try {
-    // Prepare attachments for Resend API format
     const attachments = options.attachments?.map(att => ({
       filename: att.filename,
-      content: typeof att.content === 'string' 
-        ? att.content 
-        : att.content.toString('base64'),
+      content: typeof att.content === 'string' ? att.content : att.content.toString('base64'),
       content_type: att.content_type || 'application/octet-stream'
     }))
 
@@ -65,50 +54,36 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       subject: options.subject,
     }
 
-    if (options.html) {
-      payload.html = options.html
-    }
-    if (options.text) {
-      payload.text = options.text
-    }
-    if (attachments && attachments.length > 0) {
-      payload.attachments = attachments
-    }
+    if (options.html) payload.html = options.html
+    if (options.text) payload.text = options.text
+    if (attachments && attachments.length > 0) payload.attachments = attachments
 
     const response = await fetch(RESEND_API_URL, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('emailService: Resend API error', { status: response.status, error: errorText })
+      logger.error('emailService: Resend API error', undefined, { status: response.status, error: errorText })
       return { success: false, error: `Email send failed: ${response.status}` }
     }
 
     const result = await response.json()
-    console.log('emailService: Email sent successfully', { messageId: result.id, to: options.to })
+    logger.info('emailService: Email sent successfully', { messageId: result.id, to: options.to })
     
     return { success: true, messageId: result.id }
   } catch (error: any) {
-    console.error('emailService: Send failed', { error: error?.message })
+    logger.error('emailService: Send failed', error)
     return { success: false, error: error?.message || 'Failed to send email' }
   }
 }
 
-/**
- * Send call artifacts (recording, transcript, translation) via email
- * Attaches files directly instead of sending links
- */
 export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<{ success: boolean; error?: string }> {
   const { callId, organizationId, recipientEmail, includeRecording = true, includeTranscript = true, includeTranslation = true } = options
 
   try {
-    // Fetch call details
     const { data: callRows } = await supabaseAdmin
       .from('calls')
       .select('id, started_at, ended_at, status')
@@ -123,7 +98,6 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     const attachments: EmailAttachment[] = []
     const artifactSummary: string[] = []
 
-    // Get recording if requested
     if (includeRecording) {
       const { data: recRows } = await supabaseAdmin
         .from('recordings')
@@ -134,7 +108,6 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
       const recording = recRows?.[0]
       if (recording?.recording_url) {
         try {
-          // Download the audio file
           const audioResponse = await fetch(recording.recording_url)
           if (audioResponse.ok) {
             const audioBuffer = Buffer.from(await audioResponse.arrayBuffer())
@@ -148,13 +121,12 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
             artifactSummary.push('⚠️ Recording (could not download)')
           }
         } catch (err) {
-          console.warn('emailService: Could not download recording', { callId, error: (err as any)?.message })
+          logger.warn('emailService: Could not download recording', { callId })
           artifactSummary.push('⚠️ Recording (download failed)')
         }
       }
     }
 
-    // Get transcript if requested
     if (includeTranscript) {
       const { data: recRows } = await supabaseAdmin
         .from('recordings')
@@ -164,15 +136,11 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
 
       const transcriptJson = recRows?.[0]?.transcript_json
       if (transcriptJson) {
-        // Format transcript as readable text
-        let transcriptText = `Call Transcript\n`
-        transcriptText += `Call ID: ${callId}\n`
+        let transcriptText = `Call Transcript\nCall ID: ${callId}\n`
         transcriptText += `Date: ${new Date(call.started_at || Date.now()).toLocaleString()}\n`
         transcriptText += `Duration: ${transcriptJson.audio_duration ? Math.round(transcriptJson.audio_duration / 60) + ' minutes' : 'N/A'}\n`
-        transcriptText += `Language: ${transcriptJson.language_code || 'Unknown'}\n`
-        transcriptText += `\n${'='.repeat(50)}\n\n`
+        transcriptText += `Language: ${transcriptJson.language_code || 'Unknown'}\n\n${'='.repeat(50)}\n\n`
 
-        // Add utterances if available
         if (transcriptJson.utterances && Array.isArray(transcriptJson.utterances)) {
           for (const utterance of transcriptJson.utterances) {
             const speaker = utterance.speaker || 'Unknown'
@@ -192,7 +160,6 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
       }
     }
 
-    // Get translation if requested
     if (includeTranslation) {
       const { data: aiRows } = await supabaseAdmin
         .from('ai_runs')
@@ -206,19 +173,13 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
       if (translation?.output) {
         const output = translation.output as any
 
-        // Add translated text
         if (output.translated_text) {
-          let translationText = `Translation\n`
-          translationText += `Call ID: ${callId}\n`
-          translationText += `From: ${output.from_language || 'Unknown'}\n`
-          translationText += `To: ${output.to_language || 'Unknown'}\n`
+          let translationText = `Translation\nCall ID: ${callId}\n`
+          translationText += `From: ${output.from_language || 'Unknown'}\nTo: ${output.to_language || 'Unknown'}\n`
           translationText += `Provider: ${output.provider || 'Unknown'}\n`
-          if (output.voice_cloning_used) {
-            translationText += `Voice Cloning: Yes\n`
-          }
+          if (output.voice_cloning_used) translationText += `Voice Cloning: Yes\n`
           translationText += `\n${'='.repeat(50)}\n\n`
-          translationText += `Original:\n${output.source_text || 'N/A'}\n\n`
-          translationText += `Translated:\n${output.translated_text}\n`
+          translationText += `Original:\n${output.source_text || 'N/A'}\n\nTranslated:\n${output.translated_text}\n`
 
           attachments.push({
             filename: `call-${callId.substring(0, 8)}-translation.txt`,
@@ -228,7 +189,6 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
           artifactSummary.push(`✅ Translation (${output.from_language} → ${output.to_language})`)
         }
 
-        // Add translated audio if available
         if (output.translated_audio_url) {
           try {
             const audioResponse = await fetch(output.translated_audio_url)
@@ -241,8 +201,8 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
               })
               artifactSummary.push(`✅ Translation Audio${output.voice_cloning_used ? ' (cloned voice)' : ''}`)
             }
-          } catch (err) {
-            console.warn('emailService: Could not download translation audio', { callId })
+          } catch {
+            logger.warn('emailService: Could not download translation audio', { callId })
           }
         }
       }
@@ -252,7 +212,6 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
       return { success: false, error: 'No artifacts available for this call' }
     }
 
-    // Compose email
     const callDate = call.started_at ? new Date(call.started_at).toLocaleDateString() : 'Unknown'
     const subject = `CallMonitor: Call Artifacts - ${callDate}`
 
@@ -260,68 +219,46 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #1e40af;">📞 Call Artifacts</h2>
         <p>Here are the artifacts from your call:</p>
-        
         <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
           <p><strong>Call ID:</strong> ${callId}</p>
           <p><strong>Date:</strong> ${call.started_at ? new Date(call.started_at).toLocaleString() : 'N/A'}</p>
           <p><strong>Status:</strong> ${call.status || 'Unknown'}</p>
         </div>
-        
         <h3>Included Artifacts:</h3>
         <ul style="list-style: none; padding: 0;">
           ${artifactSummary.map(s => `<li style="padding: 4px 0;">${s}</li>`).join('')}
         </ul>
-        
         <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">
-          The artifacts are attached to this email. Please note that audio files may be large.
+          The artifacts are attached to this email.
         </p>
-        
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">
-          Sent by CallMonitor
-        </p>
+        <p style="color: #9ca3af; font-size: 12px;">Sent by CallMonitor</p>
       </div>
     `
 
-    const result = await sendEmail({
-      to: recipientEmail,
-      subject,
-      html,
-      attachments
-    })
+    const result = await sendEmail({ to: recipientEmail, subject, html, attachments })
 
     if (result.success) {
-      // Audit log
       try {
         await supabaseAdmin.from('audit_logs').insert({
           id: crypto.randomUUID(),
           organization_id: organizationId,
-          user_id: null,
-          system_id: null,
-          resource_type: 'calls',
-          resource_id: callId,
-          action: 'email_artifacts',
+          user_id: null, system_id: null,
+          resource_type: 'calls', resource_id: callId, action: 'email_artifacts',
           before: null,
-          after: { 
-            recipient: recipientEmail, 
-            attachments: attachments.map(a => a.filename),
-            messageId: result.messageId
-          },
+          after: { recipient: recipientEmail, attachments: attachments.map(a => a.filename), messageId: result.messageId },
           created_at: new Date().toISOString()
         })
-      } catch (_) {}
+      } catch { /* Best effort */ }
     }
 
     return result
   } catch (error: any) {
-    console.error('emailService: sendArtifactEmail failed', { error: error?.message, callId })
+    logger.error('emailService: sendArtifactEmail failed', error, { callId })
     return { success: false, error: error?.message || 'Failed to send artifact email' }
   }
 }
 
-/**
- * Format milliseconds to MM:SS
- */
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)

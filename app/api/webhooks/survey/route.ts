@@ -1,26 +1,17 @@
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { parseRequestBody } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering - webhooks must be processed dynamically
 export const dynamic = 'force-dynamic'
 
 /**
- * Survey Response Webhook Handler
- * 
- * Processes DTMF or voice survey responses from SignalWire.
- * Per MASTER_ARCHITECTURE.txt: Survey is a call modulation.
+ * Survey Response Webhook Handler - processes DTMF or voice survey responses
  */
-
-function parseFormUrlEncoded(body: string) {
-  return Object.fromEntries(new URLSearchParams(body))
-}
-
 export async function POST(req: Request) {
-  // Return 200 OK immediately
   void processSurveyResponseAsync(req).catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('survey webhook async processing error', { error: err?.message ?? String(err) })
+    logger.error('survey webhook async processing error', err)
   })
 
   return NextResponse.json({ ok: true, received: true })
@@ -28,34 +19,21 @@ export async function POST(req: Request) {
 
 async function processSurveyResponseAsync(req: Request) {
   try {
-    const contentType = req.headers.get('content-type') || ''
-    let payload: any = null
-    
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const text = await req.text()
-      payload = parseFormUrlEncoded(text)
-    } else {
-      payload = await req.json()
-    }
+    const payload = await parseRequestBody(req)
 
-    const callSid = payload.CallSid || payload.CallSid || payload.call_sid
+    const callSid = payload.CallSid || payload.call_sid
     const digits = payload.Digits || payload.digits || payload.DTMF || payload.dtmf
     const from = payload.From || payload.from
 
-    // eslint-disable-next-line no-console
-    console.log('survey webhook processing', { 
-      callSid: callSid ? '[REDACTED]' : null, 
-      hasDigits: !!digits,
-      from: from ? '[REDACTED]' : null
+    logger.info('survey webhook processing', { 
+      hasCallSid: !!callSid, hasDigits: !!digits
     })
 
     if (!callSid) {
-      // eslint-disable-next-line no-console
-      console.warn('survey webhook: missing CallSid, skipping')
+      logger.warn('survey webhook: missing CallSid, skipping')
       return
     }
 
-    // Find call by call_sid
     const { data: callRows } = await supabaseAdmin
       .from('calls')
       .select('id, organization_id')
@@ -64,24 +42,10 @@ async function processSurveyResponseAsync(req: Request) {
 
     const call = callRows?.[0]
     if (!call) {
-      // eslint-disable-next-line no-console
-      console.warn('survey webhook: call not found', { callSid: '[REDACTED]' })
+      logger.warn('survey webhook: call not found')
       return
     }
 
-    const callId = call.id
-    const organizationId = call.organization_id
-
-    // Get recording for this call
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('id')
-      .eq('call_sid', callSid)
-      .limit(1)
-
-    const recordingId = recRows?.[0]?.id
-
-    // Store survey response in ai_runs for processing
     const { data: systemsRows } = await supabaseAdmin
       .from('systems')
       .select('id')
@@ -89,35 +53,19 @@ async function processSurveyResponseAsync(req: Request) {
       .limit(1)
 
     const systemAiId = systemsRows?.[0]?.id
-    if (!systemAiId) {
-      return
-    }
+    if (!systemAiId) return
 
-    // Create survey ai_run entry
     const surveyRunId = uuidv4()
-    await supabaseAdmin
-      .from('ai_runs')
-      .insert({
-        id: surveyRunId,
-        call_id: callId,
-        system_id: systemAiId,
-        model: 'assemblyai-survey',
-        status: 'queued',
-        started_at: new Date().toISOString(),
-        output: {
-          type: 'survey',
-          dtmf_response: digits,
-          call_sid: callSid,
-          from_number: from
-        }
-      })
+    await supabaseAdmin.from('ai_runs').insert({
+      id: surveyRunId, call_id: call.id, system_id: systemAiId,
+      model: 'assemblyai-survey', status: 'queued',
+      started_at: new Date().toISOString(),
+      output: { type: 'survey', dtmf_response: digits, call_sid: callSid, from_number: from }
+    })
 
-    // Process survey response (will be completed when transcript is available)
-    // eslint-disable-next-line no-console
-    console.log('survey webhook: survey response recorded', { surveyRunId, callId, recordingId })
+    logger.info('survey webhook: response recorded', { surveyRunId, callId: call.id })
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('survey webhook processing error', { error: err?.message ?? String(err) })
+    logger.error('survey webhook processing error', err)
   }
 }

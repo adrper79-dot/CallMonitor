@@ -7,10 +7,11 @@ describe('Webhook Security', () => {
     it('should verify valid SignalWire signature', () => {
       const payload = 'test payload'
       const authToken = 'test-token'
+      // SignalWire uses HMAC-SHA1 with Base64 encoding (like Twilio)
       const signature = crypto
-        .createHmac('sha256', authToken)
+        .createHmac('sha1', authToken)
         .update(payload)
-        .digest('hex')
+        .digest('base64')
 
       expect(verifySignalWireSignature(payload, signature, authToken)).toBe(true)
     })
@@ -27,10 +28,11 @@ describe('Webhook Security', () => {
       const payload = 'test payload'
       const authToken = 'test-token'
       const wrongToken = 'wrong-token'
+      // SignalWire uses HMAC-SHA1 with Base64 encoding
       const signature = crypto
-        .createHmac('sha256', wrongToken)
+        .createHmac('sha1', wrongToken)
         .update(payload)
-        .digest('hex')
+        .digest('base64')
 
       expect(verifySignalWireSignature(payload, signature, authToken)).toBe(false)
     })

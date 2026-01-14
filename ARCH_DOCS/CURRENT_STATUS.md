@@ -1,7 +1,7 @@
 # CallMonitor - Current Status & Quick Reference
 
 **Last Updated:** January 14, 2026  
-**Version:** 1.3.0  
+**Version:** 1.4.0  
 **Status:** ✅ Production Ready
 
 ---
@@ -265,9 +265,9 @@ gemini-project/
 
 ---
 
-## 🌐 **API Endpoints (38 Total)**
+## 🌐 **API Endpoints (42 Total)**
 
-### **Voice Operations (8 routes):**
+### **Voice Operations (10 routes):**
 - `POST /api/voice/call` - Initiate call
 - `POST /api/voice/bulk-upload` - Bulk call upload
 - `GET /api/voice/config` - Get voice config
@@ -275,7 +275,9 @@ gemini-project/
 - `GET /api/voice/script` - Get LaML script
 - `POST /api/voice/laml/outbound` - LaML callback
 - `POST /api/voice/swml/outbound` - SWML callback
-- `GET /api/voice/targets` - Get voice targets
+- `GET /api/voice/targets` - List voice targets
+- `POST /api/voice/targets` - Create voice target
+- `DELETE /api/voice/targets` - Delete voice target
 
 ### **Webhooks (3 routes):**
 - `POST /api/webhooks/signalwire` - SignalWire status updates
@@ -300,10 +302,14 @@ gemini-project/
 - `POST /api/_admin/signup` - Admin signup
 - `GET /api/_admin/auth-providers` - Admin auth providers
 
-### **Other (12 routes):**
+### **Surveys (3 routes):**
+- `GET /api/surveys` - List surveys
+- `POST /api/surveys` - Create/update survey
+- `DELETE /api/surveys` - Delete survey
+
+### **Other (11 routes):**
 - `GET /api/audit-logs` - Audit log access
 - `GET /api/campaigns` - Campaign list
-- `GET /api/surveys` - Survey list
 - `GET /api/shopper/scripts` - Shopper scripts
 - `GET /api/recordings/[id]` - Recording access
 - `GET /api/rbac/context` - RBAC context
@@ -435,11 +441,11 @@ GOOGLE_CLIENT_SECRET=xxx
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| **Total Features** | 22 | 🟢 |
-| **API Endpoints** | 38 | 🟢 |
+| **Total Features** | 26 | 🟢 |
+| **API Endpoints** | 42 | 🟢 |
 | **Test Pass Rate** | 98.5% | 🟢 |
 | **Build Status** | Clean | 🟢 |
-| **Documentation Pages** | 40+ | 🟢 |
+| **Documentation Pages** | 45+ | 🟢 |
 | **Supported Plans** | 6 | 🟢 |
 | **Supported Languages** | 100+ | 🟢 |
 

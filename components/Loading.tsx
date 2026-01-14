@@ -67,100 +67,30 @@ export function Loading({
             loop
             muted
             playsInline
-            className="w-48 h-48 object-contain rounded-full"
+            className="w-48 h-48 object-contain rounded-lg"
             onError={() => setVideoError(true)}
           >
-            <source src="/loading.webm" type="video/webm" />
             <source src="/loading.mp4" type="video/mp4" />
           </video>
         ) : showLogo ? (
-          <div className="animate-float">
+          <div className="w-48 h-48 flex items-center justify-center">
             <Logo size="hero" animated />
           </div>
         ) : (
           <LoadingOrbit />
         )}
-        
-        {/* Orbital ring around logo/video */}
-        <div className="absolute inset-0 animate-spin-slow pointer-events-none" 
-          style={{ animationDuration: '8s' }}
-        >
-          <svg viewBox="0 0 200 200" className="w-full h-full">
-            <circle
-              cx="100"
-              cy="100"
-              r="90"
-              fill="none"
-              stroke="url(#orbitGradient)"
-              strokeWidth="1"
-              strokeDasharray="10 5"
-              opacity="0.5"
-            />
-            <defs>
-              <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#00CED1" />
-                <stop offset="50%" stopColor="#C5A045" />
-                <stop offset="100%" stopColor="#00CED1" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-      </div>
-      
-      {/* Brand text */}
-      <div className="text-center">
-        <h2 className="font-display text-xl tracking-wider mb-2"
-          style={{
-            background: 'linear-gradient(135deg, #C5A045 0%, #00CED1 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
-        >
-          VOXSOUTH
-        </h2>
-        <p className="text-sm text-[#C0C0C0] tracking-widest uppercase">
-          Voice Intelligence Platform
-        </p>
       </div>
 
       {/* Loading message */}
-      <p className="text-[#FFF8E7]/60 text-sm italic max-w-xs text-center animate-pulse">
+      <p className="text-[#666666] text-sm max-w-xs text-center">
         {displayMessage}
       </p>
-      
-      {/* Progress bar */}
-      <div className="w-64 h-1 bg-[#1E1E3F] rounded-full overflow-hidden">
-        <div 
-          className="h-full rounded-full shimmer"
-          style={{
-            background: 'linear-gradient(90deg, transparent, #00CED1, #C5A045, transparent)',
-            backgroundSize: '200% 100%',
-            animation: 'shimmer 2s linear infinite',
-          }}
-        />
-      </div>
     </div>
   )
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{
-          background: 'linear-gradient(135deg, #0A0A1A 0%, #1E1E3F 50%, #0F172A 100%)',
-        }}
-      >
-        {/* Starfield effect */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none"
-          style={{
-            backgroundImage: `
-              radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.4), transparent),
-              radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.3), transparent),
-              radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.5), transparent),
-              radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.3), transparent)
-            `,
-            backgroundSize: '200px 200px',
-          }}
-        />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#FAFAFA]">
         {content}
       </div>
     )
@@ -171,37 +101,16 @@ export function Loading({
 
 /**
  * Orbital Loading Spinner
- * Jetsons-inspired double-ring animation
+ * Fallback spinner with hybrid design (clean + futuristic accents)
  */
 function LoadingOrbit() {
   return (
     <div className="relative w-32 h-32">
-      {/* Outer ring */}
       <div 
-        className="absolute inset-0 rounded-full border-4 border-transparent animate-spin"
+        className="absolute inset-0 rounded-full border-2 border-[#E5E5E5] border-t-[#C4001A] animate-spin"
         style={{
-          borderTopColor: '#00CED1',
-          borderRightColor: 'rgba(0, 206, 209, 0.3)',
-          animationDuration: '1.2s',
-        }}
-      />
-      
-      {/* Inner ring - counter-rotating */}
-      <div 
-        className="absolute inset-4 rounded-full border-4 border-transparent animate-spin"
-        style={{
-          borderTopColor: '#C5A045',
-          borderLeftColor: 'rgba(197, 160, 69, 0.3)',
           animationDuration: '0.8s',
-          animationDirection: 'reverse',
-        }}
-      />
-      
-      {/* Center glow */}
-      <div 
-        className="absolute inset-8 rounded-full animate-pulse"
-        style={{
-          background: 'radial-gradient(circle, rgba(0, 206, 209, 0.3) 0%, transparent 70%)',
+          boxShadow: '0 0 8px rgba(196, 0, 26, 0.2)',
         }}
       />
     </div>

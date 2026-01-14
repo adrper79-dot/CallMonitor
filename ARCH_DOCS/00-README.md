@@ -1,8 +1,8 @@
 # CallMonitor Architecture Documentation
 
 **Last Updated:** January 14, 2026  
-**Version:** 1.3  
-**Status:** ✅ Production Ready
+**Version:** 1.4  
+**Status:** ✅ Production Ready (TOGAF Compliant)
 
 ---
 
@@ -37,9 +37,10 @@ ARCH_DOCS/
 |--------|-------|--------|
 | **Build** | Clean | ✅ |
 | **Tests** | 98.5% (64/65) | ✅ |
-| **API Routes** | 38 (all dynamic) | ✅ |
+| **API Routes** | 42 (all dynamic) | ✅ |
 | **Services** | 6 configured | ✅ |
 | **Critical Issues** | 0 | ✅ |
+| **TOGAF Compliance** | 92% | ✅ |
 
 **Services Verified:**
 - ✅ Supabase (DB + Storage)
@@ -252,6 +253,26 @@ Historical reviews, fixes, and completed implementations:
 ---
 
 ## 🎉 **Changelog**
+
+### **v1.4 - January 14, 2026:**
+- ✅ TOGAF Architecture Development Method (ADM) compliance review
+- ✅ Added `voice_targets` and `surveys` tables to Schema.txt
+- ✅ Updated API endpoint count (38 → 42)
+- ✅ Added ARCHITECTURE_COMPLIANCE_REVIEW.md
+- ✅ SOC 2 control mapping verified
+- ✅ Feature count updated (22 → 26)
+
+### **v1.3 - January 14, 2026:**
+- ✅ Added Survey Builder and Voice Target Manager components
+- ✅ Added Cal.com-Style Booking feature
+- ✅ Added Chrome Extension documentation
+- ✅ UI overhaul with Jetsons design system
+
+### **v1.2 - January 14, 2026:**
+- ✅ Added AI Survey Bot feature
+- ✅ Added Voice Cloning integration
+- ✅ Added Email Artifacts delivery
+- ✅ Added SignalWire Numbers API
 
 ### **v1.1 - January 13, 2026:**
 - ✅ Updated all documentation for current codebase state

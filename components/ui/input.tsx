@@ -9,22 +9,28 @@ type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className = '', label, error, id, ...rest }, ref) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
+    const inputId = id || `input-${Math.random().toString(36).substring(2, 11)}`
     
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-slate-100 mb-1" htmlFor={inputId}>
+          <label className="block text-sm font-medium text-[#333333] mb-1" htmlFor={inputId}>
             {label}
           </label>
         )}
         <input
           ref={ref}
           id={inputId}
-          className={`w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${error ? 'border-red-500' : ''} ${className}`}
+          className={`w-full px-3 py-2 bg-white border border-[#E5E5E5] rounded-lg text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#C4001A] focus:border-[#C4001A] transition-all duration-200 ${error ? 'border-[#E15759]' : ''} ${className}`}
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error ? `${inputId}-error` : undefined}
           {...rest}
         />
-        {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+        {error && (
+          <p id={`${inputId}-error`} className="mt-1 text-sm text-[#E15759]" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     )
   }

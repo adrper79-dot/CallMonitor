@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRBAC } from '@/hooks/useRBAC'
+import { MetricCard } from '@/components/tableau/MetricCard'
+import { ProgressBar } from '@/components/tableau/ProgressBar'
 
 interface DashboardStats {
   totalCalls: number
@@ -25,13 +27,8 @@ interface RecentCall {
 }
 
 /**
- * DashboardHome - Command Center Overview
- * 
- * Feng Shui Layout:
- * - Top: Key metrics (commanding position)
- * - Left: Quick actions (energy flow)
- * - Center: Activity feed (focal point)
- * - Right: Upcoming/scheduled (future orientation)
+ * DashboardHome - Clean Tableau-style dashboard
+ * Data-first design with clear hierarchy and minimal styling
  */
 export default function DashboardHome({ organizationId }: { organizationId: string | null }) {
   const { plan, role } = useRBAC(organizationId)
@@ -79,10 +76,10 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-6">
-        <div className="grid grid-cols-4 gap-4">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1,2,3,4].map(i => (
-            <div key={i} className="h-24 bg-slate-800 rounded-xl" />
+            <div key={i} className="h-24 bg-gray-100 rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -90,112 +87,78 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
   }
 
   return (
-    <div className="space-y-8">
-      {/* Hero Metrics - Commanding Position */}
+    <div className="space-y-6">
+      {/* Key Metrics */}
       <section aria-label="Key Metrics" className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
-          icon="📞"
           label="Total Calls"
           value={stats?.totalCalls || 0}
-          trend={stats?.callsToday ? `+${stats.callsToday} today` : undefined}
-          color="teal"
+          change={stats?.callsToday ? `+${stats.callsToday} today` : undefined}
+          trend={stats?.callsToday ? 'up' : 'neutral'}
         />
         <MetricCard
-          icon="😊"
           label="Avg Sentiment"
           value={`${stats?.avgSentiment || 50}%`}
-          trend={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'Positive' : 'Neutral'}
-          color={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'green' : 'amber'}
+          change={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'Positive' : 'Neutral'}
+          trend={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'up' : 'neutral'}
         />
         <MetricCard
-          icon="🎙️"
           label="Recordings"
           value={stats?.recordingsCount || 0}
-          color="coral"
         />
         <MetricCard
-          icon="📅"
           label="Scheduled"
           value={stats?.scheduledCalls || 0}
-          trend="upcoming"
-          color="gold"
         />
       </section>
 
-      {/* Main Grid - Energy Flow */}
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions - Left (Initiative) */}
+        {/* Quick Actions */}
         <section aria-label="Quick Actions" className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <span className="text-2xl">🚀</span> Quick Actions
-          </h2>
+          <h2 className="text-lg font-semibold text-[#333333]">Quick Actions</h2>
           
-          <div className="space-y-3">
-            <ActionCard
-              href="/voice"
-              icon="📞"
-              title="Make a Call"
-              description="Start a new outbound call"
-              color="teal"
-            />
-            <ActionCard
-              href="/voice?tab=settings"
-              icon="📅"
-              title="Schedule Call"
-              description="Book a future call"
-              color="gold"
-            />
-            <ActionCard
-              href="/voice?tab=settings"
-              icon="⚙️"
-              title="Configure"
-              description="Recording, transcription, translation"
-              color="slate"
-            />
+          <div className="bg-white border border-[#E5E5E5] rounded p-4 space-y-2">
+            <ActionLink href="/voice" title="Make a Call" description="Start a new outbound call" />
+            <ActionLink href="/voice?tab=settings" title="Schedule Call" description="Book a future call" />
+            <ActionLink href="/voice?tab=settings" title="Configure" description="Recording, transcription, translation" />
             {(plan === 'business' || plan === 'enterprise') && (
-              <ActionCard
-                href="/voice?tab=settings&section=shopper"
-                icon="🕵️"
-                title="Secret Shopper"
-                description="Create evaluation scripts"
-                color="coral"
-              />
+              <ActionLink href="/voice?tab=settings&section=shopper" title="Secret Shopper" description="Create evaluation scripts" />
             )}
           </div>
         </section>
 
-        {/* Activity Feed - Center (Focal Point) */}
+        {/* Recent Calls */}
         <section aria-label="Recent Activity" className="lg:col-span-1 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <span className="text-2xl">📊</span> Recent Calls
-          </h2>
+          <h2 className="text-lg font-semibold text-[#333333]">Recent Calls</h2>
           
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="bg-white border border-[#E5E5E5] rounded overflow-hidden">
             {recentCalls.length === 0 ? (
-              <div className="p-8 text-center text-slate-400">
-                <p className="text-4xl mb-2">📭</p>
-                <p>No calls yet</p>
-                <Link href="/voice" className="text-blue-400 hover:underline text-sm mt-2 inline-block">
+              <div className="p-8 text-center text-[#999999]">
+                <p className="text-sm mb-2">No calls yet</p>
+                <Link href="/voice" className="text-[#4E79A7] hover:text-[#3D6A98] text-sm underline">
                   Make your first call →
                 </Link>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-700">
+              <ul className="divide-y divide-[#F0F0F0]">
                 {recentCalls.map(call => (
                   <li key={call.id}>
                     <Link 
                       href={`/voice?callId=${call.id}`}
-                      className="flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors"
+                      className="flex items-center justify-between p-4 hover:bg-[#F8F8F8] transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <StatusIcon status={call.status} />
-                        <div>
-                          <p className="text-sm text-slate-200">
-                            {new Date(call.created_at).toLocaleString()}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            {call.duration_seconds ? `${Math.round(call.duration_seconds / 60)}min` : 'Pending'}
-                          </p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#333333] truncate">
+                          {new Date(call.created_at).toLocaleString()}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <StatusBadge status={call.status} />
+                          {call.duration_seconds && (
+                            <span className="text-xs text-[#666666]">
+                              {Math.round(call.duration_seconds / 60)} min
+                            </span>
+                          )}
                         </div>
                       </div>
                       {call.sentiment_summary && (
@@ -210,31 +173,33 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
           
           <Link 
             href="/voice" 
-            className="block text-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            className="block text-center text-sm text-[#4E79A7] hover:text-[#3D6A98] transition-colors"
           >
             View all calls →
           </Link>
         </section>
 
-        {/* Intelligence Panel - Right (Insight) */}
+        {/* Intelligence Panel */}
         <section aria-label="Intelligence" className="space-y-4">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <span className="text-2xl">🧠</span> Intelligence
-          </h2>
+          <h2 className="text-lg font-semibold text-[#333333]">Intelligence</h2>
           
           <div className="space-y-4">
             {/* Sentiment Overview */}
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Sentiment Trend</h3>
-              <SentimentGauge value={stats?.avgSentiment || 50} />
-              <p className="text-xs text-slate-400 mt-2 text-center">
+            <div className="bg-white border border-[#E5E5E5] rounded p-4">
+              <h3 className="text-sm font-semibold text-[#333333] mb-3">Sentiment Trend</h3>
+              <ProgressBar 
+                value={stats?.avgSentiment || 50} 
+                color={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'green' : stats?.avgSentiment && stats.avgSentiment >= 40 ? 'orange' : 'red'}
+                showValue={true}
+              />
+              <p className="text-xs text-[#666666] mt-2 text-center">
                 Based on recent call analysis
               </p>
             </div>
             
             {/* Feature Status */}
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Active Features</h3>
+            <div className="bg-white border border-[#E5E5E5] rounded p-4">
+              <h3 className="text-sm font-semibold text-[#333333] mb-3">Active Features</h3>
               <div className="space-y-2">
                 <FeatureStatus label="Recording" enabled={true} />
                 <FeatureStatus label="Transcription" enabled={true} />
@@ -245,15 +210,15 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
             </div>
             
             {/* Plan Info */}
-            <div className="bg-gradient-to-r from-amber-900/30 to-amber-800/20 rounded-xl border border-amber-700/50 p-4">
+            <div className="bg-white border border-[#E5E5E5] rounded p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-amber-400 uppercase tracking-wide">Current Plan</p>
-                  <p className="text-lg font-semibold text-amber-200 capitalize">{plan || 'Free'}</p>
+                  <p className="text-xs text-[#666666] uppercase tracking-wide">Current Plan</p>
+                  <p className="text-lg font-semibold text-[#333333] capitalize mt-1">{plan || 'Free'}</p>
                 </div>
                 <Link 
                   href="/settings?tab=billing"
-                  className="text-xs text-amber-400 hover:text-amber-300"
+                  className="text-sm text-[#4E79A7] hover:text-[#3D6A98]"
                 >
                   Upgrade →
                 </Link>
@@ -268,124 +233,64 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
 
 // Sub-components
 
-function MetricCard({ icon, label, value, trend, color }: {
-  icon: string
-  label: string
-  value: number | string
-  trend?: string
-  color: 'teal' | 'gold' | 'coral' | 'green' | 'amber' | 'slate'
-}) {
-  const colorMap = {
-    teal: 'from-teal-900/50 to-teal-800/30 border-teal-700/50',
-    gold: 'from-amber-900/50 to-amber-800/30 border-amber-700/50',
-    coral: 'from-rose-900/50 to-rose-800/30 border-rose-700/50',
-    green: 'from-green-900/50 to-green-800/30 border-green-700/50',
-    amber: 'from-amber-900/50 to-amber-800/30 border-amber-700/50',
-    slate: 'from-slate-800/50 to-slate-700/30 border-slate-600/50'
-  }
-  
-  return (
-    <div className={`bg-gradient-to-br ${colorMap[color]} rounded-xl border p-4 hover:scale-[1.02] transition-transform`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-2xl">{icon}</span>
-        <span className="text-xs text-slate-400 uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
-      {trend && <p className="text-xs text-slate-400 mt-1">{trend}</p>}
-    </div>
-  )
-}
-
-function ActionCard({ href, icon, title, description, color }: {
+function ActionLink({ href, title, description }: {
   href: string
-  icon: string
   title: string
   description: string
-  color: 'teal' | 'gold' | 'coral' | 'slate'
 }) {
-  const colorMap = {
-    teal: 'hover:border-teal-500 hover:bg-teal-900/20',
-    gold: 'hover:border-amber-500 hover:bg-amber-900/20',
-    coral: 'hover:border-rose-500 hover:bg-rose-900/20',
-    slate: 'hover:border-slate-500 hover:bg-slate-700/20'
-  }
-  
   return (
     <Link 
       href={href}
-      className={`flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700 ${colorMap[color]} transition-all group`}
+      className="block p-3 rounded border border-transparent hover:border-[#E5E5E5] hover:bg-[#FAFAFA] transition-colors group"
     >
-      <span className="text-3xl group-hover:scale-110 transition-transform">{icon}</span>
-      <div>
-        <p className="font-medium text-slate-100">{title}</p>
-        <p className="text-xs text-slate-400">{description}</p>
-      </div>
+      <p className="font-medium text-[#333333] text-sm group-hover:text-[#4E79A7]">{title}</p>
+      <p className="text-xs text-[#666666] mt-0.5">{description}</p>
     </Link>
   )
 }
 
-function StatusIcon({ status }: { status: string }) {
-  const icons: Record<string, string> = {
-    completed: '✅',
-    in_progress: '🔵',
-    failed: '❌',
-    pending: '⏳',
-    queued: '📋'
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    completed: { bg: 'bg-[#E8F5E9]', text: 'text-[#59A14F]', label: 'Completed' },
+    in_progress: { bg: 'bg-[#E3F2FD]', text: 'text-[#4E79A7]', label: 'In Progress' },
+    failed: { bg: 'bg-[#FFEBEE]', text: 'text-[#E15759]', label: 'Failed' },
+    pending: { bg: 'bg-[#FFF8E1]', text: 'text-[#F57C00]', label: 'Pending' },
+    queued: { bg: 'bg-[#F3E5F5]', text: 'text-[#AF7AA1]', label: 'Queued' }
   }
-  return <span className="text-xl">{icons[status] || '📞'}</span>
-}
-
-function SentimentBadge({ sentiment }: { sentiment: string }) {
-  const config: Record<string, { bg: string; text: string; icon: string }> = {
-    POSITIVE: { bg: 'bg-green-900/50', text: 'text-green-400', icon: '😊' },
-    NEGATIVE: { bg: 'bg-red-900/50', text: 'text-red-400', icon: '😟' },
-    NEUTRAL: { bg: 'bg-slate-700/50', text: 'text-slate-400', icon: '😐' }
-  }
-  const c = config[sentiment] || config.NEUTRAL
+  const c = config[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
   
   return (
-    <span className={`${c.bg} ${c.text} px-2 py-1 rounded-full text-xs flex items-center gap-1`}>
-      <span>{c.icon}</span>
-      <span className="capitalize">{sentiment.toLowerCase()}</span>
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${c.bg} ${c.text}`}>
+      {c.label}
     </span>
   )
 }
 
-function SentimentGauge({ value }: { value: number }) {
-  const getColor = (v: number) => {
-    if (v >= 70) return 'bg-green-500'
-    if (v >= 50) return 'bg-amber-500'
-    return 'bg-red-500'
+function SentimentBadge({ sentiment }: { sentiment: string }) {
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    POSITIVE: { bg: 'bg-[#E8F5E9]', text: 'text-[#59A14F]', label: 'Positive' },
+    NEGATIVE: { bg: 'bg-[#FFEBEE]', text: 'text-[#E15759]', label: 'Negative' },
+    NEUTRAL: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Neutral' }
   }
+  const c = config[sentiment] || config.NEUTRAL
   
   return (
-    <div className="relative">
-      <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>😟</span>
-        <span>😐</span>
-        <span>😊</span>
-      </div>
-      <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${getColor(value)} transition-all duration-500`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <p className="text-center text-2xl font-bold text-white mt-2">{value}%</p>
-    </div>
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${c.bg} ${c.text}`}>
+      {c.label}
+    </span>
   )
 }
 
 function FeatureStatus({ label, enabled }: { label: string; enabled: boolean }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-300">{label}</span>
-      <span className={`text-xs px-2 py-0.5 rounded-full ${
+    <div className="flex items-center justify-between py-1">
+      <span className="text-sm text-[#333333]">{label}</span>
+      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
         enabled 
-          ? 'bg-green-900/50 text-green-400' 
-          : 'bg-slate-700/50 text-slate-500'
+          ? 'bg-[#E8F5E9] text-[#59A14F]' 
+          : 'bg-gray-100 text-[#999999]'
       }`}>
-        {enabled ? '✓ Active' : 'Upgrade'}
+        {enabled ? 'Active' : 'Upgrade'}
       </span>
     </div>
   )

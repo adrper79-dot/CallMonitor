@@ -1,115 +1,42 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { parseRequestBody, xmlResponse } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering - uses request.url for query params
 export const dynamic = 'force-dynamic'
 
-function parseFormEncoded(text: string) {
-  try {
-    const params = new URLSearchParams(text)
-    const obj: Record<string, string> = {}
-    Array.from(params.entries()).forEach(([k, v]) => { obj[k] = v })
-    return obj
-  } catch {
-    return {}
-  }
-}
-
 /**
- * LaML Outbound Handler
- * 
- * Generates dynamic LaML XML based on voice_configs modulations:
- * - Recording if record=true
- * - Translation prompts if translate=true
- * - Survey prompts if survey=true
- * - Secret shopper script if synthetic_caller=true
- * 
- * Per MEDIA_PLANE_ARCHITECTURE.txt: SignalWire handles all media via LaML
+ * LaML Outbound Handler - Generates dynamic LaML XML based on voice_configs
  */
 export async function POST(req: Request) {
-  // Check URL query parameters first (for bridge calls with conference)
   const url = new URL(req.url)
   const callId = url.searchParams.get('callId')
   const conference = url.searchParams.get('conference')
-  const leg = url.searchParams.get('leg') // '1' or '2' for bridge calls
+  const leg = url.searchParams.get('leg')
 
-  // If this is a bridge call with a conference, generate conference LaML
   if (conference && callId) {
     const xml = await generateBridgeLaML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
-    return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+    return xmlResponse(xml)
   }
 
-  const ct = String(req.headers.get('content-type') || '')
-  let payload: any = {}
-  try {
-    if (ct.includes('application/json')) payload = await req.json()
-    else {
-      const txt = await req.text()
-      payload = parseFormEncoded(txt)
-    }
-  } catch (e) {
-    // best-effort
-    try { payload = await req.json() } catch { payload = {} }
-  }
-
+  const payload = await parseRequestBody(req)
   const from = payload.From ?? payload.from
   const to = payload.To ?? payload.to
-  const callSid = payload.CallSid ?? payload.CallSid ?? payload.call_sid
+  const callSid = payload.CallSid ?? payload.call_sid
 
-  // Log minimal info for debugging (do not leak secrets)
-  // eslint-disable-next-line no-console
-  console.log('laml/outbound webhook', { from, to, callSid: callSid ? '[REDACTED]' : null })
+  logger.info('LaML outbound webhook', { from: from ? '[REDACTED]' : null, to: to ? '[REDACTED]' : null, callId })
 
-  // DISABLED: Dynamic script endpoint always returns 404 because call_sid is not saved to DB
-  // This is intentional per TOOL_TABLE_ALIGNMENT - call_sid only stored in tools table
-  // const dynamic = await tryFetchDynamicScript(callSid)
-  // if (dynamic) {
-  //   return new NextResponse(dynamic, { status: 200, headers: { 'Content-Type': 'application/xml' } })
-  // }
-
-  // Generate LaML based on voice_configs
-  // Pass callId from URL (preferred) for reliable lookup without race condition
   const xml = await generateLaML(callSid, to, callId)
   
-  // eslint-disable-next-line no-console
-  console.log('laml/outbound: generated XML', { length: xml.length, callId, callSid: callSid ? '[REDACTED]' : null })
+  logger.debug('LaML outbound: generated XML', { length: xml.length, callId })
 
-  return new NextResponse(xml, { status: 200, headers: { 'Content-Type': 'application/xml' } })
+  return xmlResponse(xml)
 }
 
-/**
- * Try to fetch dynamic script from /api/voice/script endpoint
- */
-const tryFetchDynamicScript = async (callSid?: string) => {
-  try {
-    const base = String(process.env.NEXT_PUBLIC_APP_URL || '')
-    if (!base || !callSid) return null
-    const url = `${base.replace(/\/$/, '')}/api/voice/script?callSid=${encodeURIComponent(callSid)}`
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3000)
-    const res = await fetch(url, { signal: controller.signal })
-    clearTimeout(timeout)
-    if (!res.ok) return null
-    const txt = await res.text()
-    if (!txt) return null
-    return txt
-  } catch (e) {
-    return null
-  }
-}
-
-/**
- * Generate LaML XML based on voice_configs modulations
- * 
- * @param callSid - SignalWire's call SID (from webhook payload)
- * @param toNumber - Destination phone number
- * @param callId - Our internal call ID (from URL parameter, preferred for lookup)
- */
 async function generateLaML(callSid: string | undefined, toNumber: string | undefined, callId?: string | null): Promise<string> {
   let voiceConfig: any = null
   let organizationId: string | null = null
 
-  // Strategy 1: Find call by our internal call_id (most reliable - no race condition)
   if (callId) {
     const { data: callRows } = await supabaseAdmin
       .from('calls')
@@ -118,10 +45,9 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       .limit(1)
 
     organizationId = callRows?.[0]?.organization_id || null
-    console.log('laml/outbound: lookup by callId', { callId, found: !!organizationId })
+    logger.debug('LaML outbound: lookup by callId', { callId, found: !!organizationId })
   }
 
-  // Strategy 2: Fallback to call_sid lookup (may fail due to race condition)
   if (!organizationId && callSid) {
     const { data: callRows } = await supabaseAdmin
       .from('calls')
@@ -130,11 +56,10 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       .limit(1)
 
     organizationId = callRows?.[0]?.organization_id || null
-    console.log('laml/outbound: fallback lookup by call_sid', { found: !!organizationId })
+    logger.debug('LaML outbound: fallback lookup by call_sid', { found: !!organizationId })
   }
 
   if (organizationId) {
-    // Get voice_configs for this organization
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
       .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller')
@@ -142,43 +67,21 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       .limit(1)
 
     voiceConfig = vcRows?.[0] || null
-    console.log('laml/outbound: voice_configs loaded', { 
+    logger.debug('LaML outbound: voice_configs loaded', { 
       record: voiceConfig?.record, 
       transcribe: voiceConfig?.transcribe,
       translate: voiceConfig?.translate
     })
   } else {
-    console.warn('laml/outbound: could not find organization for call', { callSid: callSid ? '[REDACTED]' : null, callId })
+    logger.warn('LaML outbound: could not find organization for call', { callId })
   }
 
-  // Build LaML response
   const elements: string[] = []
 
-  // Secret Shopper script (synthetic_caller) - inject scripted prompts
+  // Secret Shopper script
   if (voiceConfig?.synthetic_caller) {
-    // Get secret shopper script from voice_configs or shopper_scripts
-    // For now, we'll use a default script or fetch from a scripts table
-    let script: string | null = null
-    
-    // Try to get script from voice_configs JSONB (if script stored there)
-    // Or fetch from shopper_scripts table if it exists
-    try {
-      const { data: scriptRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('*')
-        .eq('organization_id', organizationId || '')
-        .limit(1)
-      
-      // Check if script is stored in a JSONB field or separate table
-      // For now, use default script
-      script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
-    } catch {
-      script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
-    }
-
-    // Parse script into LaML Say elements
-    // Script format: lines separated by newlines or |, each line becomes a Say element
-    const scriptLines = (script || '').split(/\n|\|/).filter(line => line.trim())
+    const script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
+    const scriptLines = script.split(/\n|\|/).filter(line => line.trim())
     
     for (let i = 0; i < scriptLines.length; i++) {
       const line = scriptLines[i].trim()
@@ -189,40 +92,10 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
         }
       }
     }
-  }
-
-  // Translation prompts (if translation enabled)
-  if (voiceConfig?.translate && voiceConfig?.translate_from && voiceConfig?.translate_to) {
-    // SignalWire doesn't have built-in translation, but we can inject prompts
-    // Actual translation happens post-call via AssemblyAI
-    // For now, we just note that translation is enabled
-    // In Phase 2 with FreeSWITCH, we could inject real-time translation
-  }
-
-  // Recording (always enabled if record=true)
-  const recordingEnabled = voiceConfig?.record === true
-  const recordingAction = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
-  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
-
-  // Main call flow for standard outbound calls
-  // 
-  // IMPORTANT: When SignalWire REST API is called with From/To/Url/Record=true:
-  // 1. SignalWire dials the To number
-  // 2. When call is answered, SignalWire calls our Url webhook
-  // 3. SignalWire automatically records the call (Record=true in REST API)
-  // 4. LaML just needs to keep the call alive and optionally add features
-  //
-  // Key: Recording happens at REST API level, NOT via LaML <Record> verb
-  // LaML <Record> is for voicemail recording (waits for input), NOT call recording
-  
-  // For secret shopper, inject script FIRST (before call connects to agent)
-  if (voiceConfig?.synthetic_caller) {
-    // Secret shopper scripts already added above (lines 129-163)
-    // Add closing message
     elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
   }
   
-  // Survey prompts AFTER call (if survey enabled)
+  // Survey prompts
   if (voiceConfig?.survey) {
     elements.push('<Say voice="alice">Thank you for your time. Before we end, I have a quick survey.</Say>')
     elements.push('<Pause length="1"/>')
@@ -230,35 +103,16 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
   }
   
-  // Keep call alive for conversation
-  // Call will naturally end when either party hangs up
-  // This prevents premature timeout while keeping call connected
-  // Using very long Pause (1 hour) - call ends when parties hang up
   elements.push('<Pause length="3600"/>')
-  
-  // Fallback hangup (only reached if call somehow lasts over 1 hour)
   elements.push('<Hangup/>')
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
 ${elements.map(el => `  ${el}`).join('\n')}
 </Response>`
-
-  return xml
 }
 
-/**
- * Generate LaML for bridge call with conference
- * 
- * Bridge calls connect two parties via a conference room:
- * - Leg 1: Your agent/number → Conference
- * - Leg 2: Destination number → Conference
- * 
- * CRITICAL: Recording must be on <Conference>, NOT on <Dial>
- * Recording on <Dial> creates duplicate recordings (one per leg)
- */
 async function generateBridgeLaML(conferenceName: string, callId: string, leg?: number): Promise<string> {
-  // Get voice_configs for this call to check recording settings
   const { data: callRows } = await supabaseAdmin
     .from('calls')
     .select('organization_id')
@@ -278,15 +132,9 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
     recordEnabled = vcRows?.[0]?.record === true
   }
 
-  const elements: string[] = []
   const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+  const elements: string[] = ['<Dial>']
   
-  // Dial into conference (no recording attribute on Dial)
-  elements.push('<Dial>')
-  
-  // Conference with recording (if enabled)
-  // IMPORTANT: Use record="record-from-answer" on Conference, not Dial
-  // This creates ONE recording for the entire conference, not per leg
   if (recordEnabled) {
     elements.push(`  <Conference record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
   } else {
@@ -295,17 +143,12 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
   
   elements.push('</Dial>')
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
 ${elements.map(el => `  ${el}`).join('\n')}
 </Response>`
-
-  return xml
 }
 
-/**
- * Escape XML special characters
- */
 function escapeXml(text: string): string {
   return String(text || '')
     .replace(/&/g, '&amp;')
@@ -315,8 +158,6 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;')
 }
 
-export async function GET(req: Request) {
-  // For GET requests, return route info (useful for testing)
-  // For actual LaML generation, use POST
+export async function GET() {
   return NextResponse.json({ ok: true, route: '/api/voice/laml/outbound', method: 'Use POST for LaML generation' })
 }

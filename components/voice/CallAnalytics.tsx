@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { ProgressBar } from '@/components/tableau/ProgressBar'
 
 interface SentimentResult {
   text: string
@@ -61,13 +62,7 @@ interface CallAnalyticsProps {
 
 /**
  * CallAnalytics - Display AI-powered call intelligence
- * 
- * Shows:
- * - Sentiment analysis with visual breakdown
- * - Entity extraction (people, companies, etc.)
- * - Topic chapters with summaries
- * - Speaker diarization
- * - Content safety flags
+ * Clean Tableau-style widgets with data-first design
  */
 export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
   const { 
@@ -84,10 +79,9 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
   if (!hasAnalytics) {
     return (
-      <div className="p-6 bg-slate-800/50 rounded-xl border border-slate-700 text-center">
-        <p className="text-4xl mb-2">📊</p>
-        <p className="text-slate-400">Analytics not available for this call</p>
-        <p className="text-xs text-slate-500 mt-1">
+      <div className="p-6 bg-white border border-[#E5E5E5] rounded text-center">
+        <p className="text-sm text-[#666666] mb-2">Analytics not available for this call</p>
+        <p className="text-xs text-[#999999]">
           Enable transcription to unlock AI-powered insights
         </p>
       </div>
@@ -95,53 +89,56 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Sentiment Overview */}
       {sentiment_summary && (
-        <section aria-label="Sentiment Analysis" className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
-          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
-            <span>😊</span> Sentiment Analysis
+        <section aria-label="Sentiment Analysis" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Sentiment Analysis
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Overall Sentiment */}
             <div className="text-center">
-              <div className={`inline-flex items-center justify-center w-24 h-24 rounded-full mb-3 ${
-                sentiment_summary.overall === 'POSITIVE' ? 'bg-green-900/50' :
-                sentiment_summary.overall === 'NEGATIVE' ? 'bg-red-900/50' : 'bg-slate-700/50'
+              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-3 ${
+                sentiment_summary.overall === 'POSITIVE' ? 'bg-[#E8F5E9]' :
+                sentiment_summary.overall === 'NEGATIVE' ? 'bg-[#FFEBEE]' : 'bg-gray-100'
               }`}>
-                <span className="text-5xl">
+                <span className={`text-3xl ${
+                  sentiment_summary.overall === 'POSITIVE' ? 'text-[#59A14F]' :
+                  sentiment_summary.overall === 'NEGATIVE' ? 'text-[#E15759]' : 'text-gray-500'
+                }`}>
                   {sentiment_summary.overall === 'POSITIVE' ? '😊' :
                    sentiment_summary.overall === 'NEGATIVE' ? '😟' : '😐'}
                 </span>
               </div>
-              <p className="text-xl font-bold text-white capitalize">
+              <p className="text-xl font-semibold text-[#333333] capitalize mb-1">
                 {sentiment_summary.overall.toLowerCase()}
               </p>
-              <p className="text-xs text-slate-400">Overall Sentiment</p>
+              <p className="text-xs text-[#666666]">Overall Sentiment</p>
             </div>
             
             {/* Breakdown */}
             <div className="space-y-3">
-              <SentimentBar 
+              <ProgressBar 
                 label="Positive" 
                 value={sentiment_summary.positive_percent} 
                 color="green"
-                icon="😊"
+                showValue={true}
               />
-              <SentimentBar 
+              <ProgressBar 
                 label="Neutral" 
                 value={sentiment_summary.neutral_percent} 
-                color="slate"
-                icon="😐"
+                color="blue"
+                showValue={true}
               />
-              <SentimentBar 
+              <ProgressBar 
                 label="Negative" 
                 value={sentiment_summary.negative_percent} 
                 color="red"
-                icon="😟"
+                showValue={true}
               />
-              <p className="text-xs text-slate-500 text-right">
+              <p className="text-xs text-[#999999] text-right">
                 Based on {sentiment_summary.segment_count} analyzed segments
               </p>
             </div>
@@ -151,23 +148,23 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
       {/* Topic Chapters */}
       {chapters && chapters.length > 0 && (
-        <section aria-label="Call Topics" className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
-          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
-            <span>📚</span> Call Topics
+        <section aria-label="Call Topics" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Call Topics
           </h3>
           
           <div className="space-y-3">
             {chapters.map((chapter, idx) => (
               <div 
                 key={idx}
-                className="p-4 bg-slate-700/30 rounded-lg border-l-4 border-teal-500"
+                className="p-4 bg-[#FAFAFA] border-l-4 border-[#4E79A7] rounded"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-medium text-slate-100">{chapter.headline}</h4>
-                    <p className="text-sm text-slate-400 mt-1">{chapter.summary}</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-[#333333] text-sm">{chapter.headline}</h4>
+                    <p className="text-sm text-[#666666] mt-1">{chapter.summary}</p>
                   </div>
-                  <span className="text-xs text-slate-500 whitespace-nowrap ml-4">
+                  <span className="text-xs text-[#999999] whitespace-nowrap">
                     {formatTime(chapter.start)} - {formatTime(chapter.end)}
                   </span>
                 </div>
@@ -179,22 +176,22 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
       {/* Entities */}
       {entities && entities.length > 0 && (
-        <section aria-label="Detected Entities" className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
-          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
-            <span>🏷️</span> Detected Entities
+        <section aria-label="Detected Entities" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Detected Entities
           </h3>
           
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-4">
             {groupEntities(entities).map(([type, items]) => (
-              <div key={type} className="space-y-2">
-                <p className="text-xs text-slate-400 uppercase tracking-wide">
+              <div key={type}>
+                <p className="text-xs text-[#666666] uppercase tracking-wide mb-2">
                   {formatEntityType(type)}
                 </p>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-2">
                   {items.map((entity, idx) => (
                     <span 
                       key={idx}
-                      className={`px-2 py-1 rounded-full text-xs ${getEntityColor(type)}`}
+                      className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${getEntityColor(type)}`}
                     >
                       {entity.text}
                     </span>
@@ -208,34 +205,36 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
       {/* Speaker Timeline */}
       {utterances && utterances.length > 0 && (
-        <section aria-label="Speaker Timeline" className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
-          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
-            <span>🎙️</span> Speaker Timeline
+        <section aria-label="Speaker Timeline" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Speaker Timeline
           </h3>
           
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {utterances.slice(0, 20).map((utterance, idx) => (
               <div 
                 key={idx}
-                className={`flex gap-3 p-3 rounded-lg ${
-                  utterance.speaker === 'A' ? 'bg-blue-900/20' : 'bg-purple-900/20'
+                className={`flex gap-3 p-3 rounded border-l-4 ${
+                  utterance.speaker === 'A' 
+                    ? 'bg-[#E3F2FD] border-l-[#4E79A7]' 
+                    : 'bg-[#F3E5F5] border-l-[#AF7AA1]'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                  utterance.speaker === 'A' ? 'bg-blue-600' : 'bg-purple-600'
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ${
+                  utterance.speaker === 'A' ? 'bg-[#4E79A7]' : 'bg-[#AF7AA1]'
                 }`}>
                   {utterance.speaker}
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-slate-200">{utterance.text}</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#333333]">{utterance.text}</p>
+                  <p className="text-xs text-[#666666] mt-1">
                     {formatTime(utterance.start)}
                   </p>
                 </div>
               </div>
             ))}
             {utterances.length > 20 && (
-              <p className="text-xs text-slate-500 text-center">
+              <p className="text-xs text-[#999999] text-center pt-2">
                 +{utterances.length - 20} more segments
               </p>
             )}
@@ -245,16 +244,16 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
       {/* Content Safety */}
       {content_safety && content_safety.results && content_safety.results.length > 0 && (
-        <section aria-label="Content Safety" className="bg-amber-900/20 rounded-xl border border-amber-700/50 p-5">
-          <h3 className="text-lg font-semibold text-amber-200 mb-4 flex items-center gap-2">
-            <span>⚠️</span> Content Flags
+        <section aria-label="Content Safety" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Content Flags
           </h3>
           
           <div className="flex flex-wrap gap-2">
             {content_safety.results.map((result, idx) => (
               <span 
                 key={idx}
-                className="px-3 py-1 bg-amber-900/50 text-amber-300 rounded-full text-sm"
+                className="inline-flex items-center px-3 py-1 bg-[#FFF8E1] text-[#F57C00] border border-[#FFE082] rounded text-sm font-medium"
               >
                 {result.label} ({Math.round(result.confidence * 100)}%)
               </span>
@@ -265,16 +264,16 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 
       {/* Topic Categories */}
       {iab_categories && iab_categories.results && iab_categories.results.length > 0 && (
-        <section aria-label="Topic Categories" className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
-          <h3 className="text-lg font-semibold text-slate-100 mb-4 flex items-center gap-2">
-            <span>🏷️</span> Topic Categories
+        <section aria-label="Topic Categories" className="bg-white border border-[#E5E5E5] rounded p-5">
+          <h3 className="text-base font-semibold text-[#333333] mb-4">
+            Topic Categories
           </h3>
           
           <div className="flex flex-wrap gap-2">
             {iab_categories.results.slice(0, 10).map((cat, idx) => (
               <span 
                 key={idx}
-                className="px-3 py-1 bg-slate-700/50 text-slate-300 rounded-full text-sm"
+                className="inline-flex items-center px-3 py-1 bg-gray-100 text-[#666666] border border-gray-200 rounded text-sm"
                 title={`Relevance: ${Math.round(cat.relevance * 100)}%`}
               >
                 {cat.label.split('>').pop()?.trim() || cat.label}
@@ -288,37 +287,6 @@ export default function CallAnalytics({ transcriptJson }: CallAnalyticsProps) {
 }
 
 // Helper functions
-
-function SentimentBar({ label, value, color, icon }: {
-  label: string
-  value: number
-  color: 'green' | 'red' | 'slate'
-  icon: string
-}) {
-  const colorMap = {
-    green: 'bg-green-500',
-    red: 'bg-red-500',
-    slate: 'bg-slate-500'
-  }
-  
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-lg">{icon}</span>
-      <div className="flex-1">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-slate-400">{label}</span>
-          <span className="text-slate-300">{value}%</span>
-        </div>
-        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-          <div 
-            className={`h-full ${colorMap[color]} transition-all duration-500`}
-            style={{ width: `${value}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function formatTime(ms: number): string {
   const seconds = Math.floor(ms / 1000)
@@ -362,13 +330,13 @@ function formatEntityType(type: string): string {
 
 function getEntityColor(type: string): string {
   const colorMap: Record<string, string> = {
-    person_name: 'bg-blue-900/50 text-blue-300',
-    organization: 'bg-purple-900/50 text-purple-300',
-    location: 'bg-green-900/50 text-green-300',
-    phone_number: 'bg-amber-900/50 text-amber-300',
-    email_address: 'bg-cyan-900/50 text-cyan-300',
-    date: 'bg-rose-900/50 text-rose-300',
-    money_amount: 'bg-emerald-900/50 text-emerald-300'
+    person_name: 'bg-[#E3F2FD] text-[#4E79A7] border border-[#BBDEFB]',
+    organization: 'bg-[#F3E5F5] text-[#AF7AA1] border border-[#E1BEE7]',
+    location: 'bg-[#E8F5E9] text-[#59A14F] border border-[#C8E6C9]',
+    phone_number: 'bg-[#FFF8E1] text-[#F57C00] border border-[#FFE082]',
+    email_address: 'bg-[#E0F2F1] text-[#76B7B2] border border-[#B2DFDB]',
+    date: 'bg-[#FCE4EC] text-[#C2185B] border border-[#F8BBD0]',
+    money_amount: 'bg-[#E8F5E9] text-[#388E3C] border border-[#C8E6C9]'
   }
-  return colorMap[type] || 'bg-slate-700/50 text-slate-300'
+  return colorMap[type] || 'bg-gray-100 text-[#666666] border border-gray-200'
 }

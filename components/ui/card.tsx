@@ -9,9 +9,9 @@ type CardProps = React.HTMLAttributes<HTMLDivElement> & {
 
 export function Card({ children, className = '', header, footer, ...rest }: CardProps) {
   return (
-    <div className={`bg-slate-900 border border-slate-800 rounded-md ${className}`} {...rest}>
+    <div className={`bg-white border border-[#E5E5E5] rounded-lg shadow-sm hover:shadow-md hover:border-[#D0D0D0] transition-all duration-200 ${className}`} {...rest}>
       {header && (
-        <div className="px-4 py-3 border-b border-slate-800">
+        <div className="px-4 py-3 border-b border-[#E5E5E5]">
           {header}
         </div>
       )}
@@ -19,7 +19,7 @@ export function Card({ children, className = '', header, footer, ...rest }: Card
         {children}
       </div>
       {footer && (
-        <div className="px-4 py-3 border-t border-slate-800">
+        <div className="px-4 py-3 border-t border-[#E5E5E5]">
           {footer}
         </div>
       )}

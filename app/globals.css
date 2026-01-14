@@ -1,49 +1,46 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VOXSOUTH DESIGN SYSTEM
-   Inspired by: The Jetsons (Retro-Futurism) + Feng Shui (Flow) + 
-                1960s Playboy Ads (Sophisticated Copy)
-   
-   "For the discerning executive who demands tomorrow's technology today."
+   TABLEAU-INSPIRED DESIGN SYSTEM
+   Clean, data-first aesthetic with professional clarity
 ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────
    CSS CUSTOM PROPERTIES (Design Tokens)
 ───────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Jetsons Palette */
-  --jetsons-teal: #00CED1;
-  --jetsons-teal-dark: #008B8B;
-  --jetsons-teal-glow: #40E0D0;
+  /* Tableau Blue Palette (Primary) */
+  --tableau-blue: #4E79A7;
+  --tableau-blue-light: #A0CBE8;
+  --tableau-blue-dark: #3D6A98;
+  --tableau-blue-accent: #2C5F8D;
   
-  /* Atomic Gold (Brand) */
-  --atomic-gold: #C5A045;
-  --atomic-amber: #FFB347;
-  --atomic-sunrise: #FF8C42;
-  --atomic-cream: #FFF8E7;
+  /* Neutral Grays (Foundation) */
+  --tableau-bg: #FAFAFA;
+  --tableau-card: #FFFFFF;
+  --tableau-border: #E5E5E5;
+  --tableau-border-light: #F0F0F0;
+  --tableau-border-dark: #D0D0D0;
   
-  /* Cosmic Coral */
-  --cosmic-coral: #FF6B6B;
-  --cosmic-rose: #FFB5B5;
+  /* Text Colors */
+  --tableau-text: #333333;
+  --tableau-text-muted: #666666;
+  --tableau-text-light: #999999;
+  --tableau-text-lighter: #CCCCCC;
   
-  /* Space Void */
-  --space-void: #0A0A1A;
-  --space-night: #0F172A;
-  --space-nebula: #1E1E3F;
-  --space-stardust: #2D2D5A;
+  /* Semantic Colors (Use Sparingly) */
+  --tableau-success: #59A14F;
+  --tableau-warning: #EDC948;
+  --tableau-error: #E15759;
+  --tableau-info: #76B7B2;
   
-  /* Chrome */
-  --chrome-silver: #C0C0C0;
-  --chrome-platinum: #E5E4E2;
-  
-  /* Feng Shui Spacing (Golden Ratio: 1.618) */
-  --feng-xs: 0.382rem;
-  --feng-sm: 0.618rem;
-  --feng-md: 1rem;
-  --feng-lg: 1.618rem;
-  --feng-xl: 2.618rem;
-  --feng-2xl: 4.236rem;
+  /* Tableau Palette Extensions */
+  --tableau-orange: #F28E2B;
+  --tableau-green: #59A14F;
+  --tableau-red: #E15759;
+  --tableau-purple: #AF7AA1;
+  --tableau-cyan: #76B7B2;
+  --tableau-yellow: #EDC948;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -54,327 +51,138 @@ html {
 }
 
 body {
-  background: linear-gradient(135deg, var(--space-void) 0%, var(--space-nebula) 50%, var(--space-night) 100%);
-  background-attachment: fixed;
-  color: var(--atomic-cream);
-  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--tableau-bg);
+  color: var(--tableau-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-}
-
-/* Starfield background effect */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  line-height: 1.5;
+  /* Subtle futuristic background gradient (very subtle) */
   background-image: 
-    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.3), transparent),
-    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.2), transparent),
-    radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.4), transparent),
-    radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.2), transparent),
-    radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.3), transparent);
-  background-size: 200px 200px;
-  pointer-events: none;
-  z-index: -1;
-  opacity: 0.5;
+    radial-gradient(ellipse at top, rgba(196, 0, 26, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(78, 121, 167, 0.02) 0%, transparent 50%);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   JETSONS TYPOGRAPHY
-   "Headlines that soar, body copy that glides."
+   TYPOGRAPHY
 ───────────────────────────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  color: var(--tableau-text);
+  line-height: 1.3;
+  margin: 0;
 }
 
 h1 {
-  font-size: 3rem;
-  background: linear-gradient(135deg, var(--atomic-gold) 0%, var(--jetsons-teal-glow) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--tableau-text);
+  letter-spacing: -0.01em;
 }
 
 h2 {
-  font-size: 2rem;
-  color: var(--jetsons-teal);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--tableau-text);
 }
 
 h3 {
-  font-size: 1.5rem;
-  color: var(--atomic-cream);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   JETSONS BUTTONS
-   "Push the button, George."
-───────────────────────────────────────────────────────────────────────── */
-.btn-jetsons {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1.5rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-radius: 100px; /* Capsule shape - very Jetsons */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
+  color: var(--tableau-text);
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, var(--jetsons-teal-dark) 0%, var(--jetsons-teal) 100%);
-  color: var(--space-void);
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 206, 209, 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 206, 209, 0.5);
-}
-
-.btn-primary::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.4s, height 0.4s;
-}
-
-.btn-primary:active::after {
-  width: 200px;
-  height: 200px;
-}
-
-.btn-gold {
-  background: linear-gradient(135deg, var(--atomic-gold) 0%, var(--atomic-amber) 100%);
-  color: var(--space-void);
-  border: none;
-  box-shadow: 0 4px 20px rgba(197, 160, 69, 0.3);
-}
-
-.btn-gold:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(197, 160, 69, 0.5);
-}
-
-.btn-ghost {
-  background: transparent;
-  color: var(--jetsons-teal);
-  border: 2px solid var(--jetsons-teal);
-}
-
-.btn-ghost:hover {
-  background: var(--jetsons-teal);
-  color: var(--space-void);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   JETSONS CARDS
-   "Floating platforms in the sky city."
-───────────────────────────────────────────────────────────────────────── */
-.card-jetsons {
-  background: linear-gradient(135deg, 
-    rgba(30, 30, 63, 0.8) 0%, 
-    rgba(15, 23, 42, 0.9) 100%
-  );
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 206, 209, 0.2);
-  border-radius: 1.5rem;
-  padding: var(--feng-lg);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.card-jetsons::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--jetsons-teal) 50%, 
-    transparent 100%
-  );
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.card-jetsons:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 206, 209, 0.1);
-  border-color: rgba(0, 206, 209, 0.4);
-}
-
-.card-jetsons:hover::before {
-  opacity: 1;
-}
-
-/* Glass morphism variant */
-.card-glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.5rem;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   FENG SHUI LAYOUT SYSTEM
-   Based on the 5 Elements: Wood, Fire, Earth, Metal, Water
-───────────────────────────────────────────────────────────────────────── */
-
-/* WOOD ELEMENT: Growth, Navigation (Left Rail - East) */
-.feng-wood {
-  background: linear-gradient(180deg, 
-    rgba(0, 100, 80, 0.1) 0%, 
-    rgba(30, 30, 63, 0.8) 100%
-  );
-  border-right: 1px solid rgba(0, 206, 209, 0.15);
-}
-
-/* FIRE ELEMENT: Energy, Action (Top Bar - South) */
-.feng-fire {
-  background: linear-gradient(90deg, 
-    rgba(197, 160, 69, 0.1) 0%, 
-    rgba(255, 140, 66, 0.05) 100%
-  );
-  border-bottom: 2px solid rgba(197, 160, 69, 0.3);
-}
-
-/* EARTH ELEMENT: Stability, Main Content (Center) */
-.feng-earth {
-  background: transparent;
-  padding: var(--feng-xl);
-}
-
-/* METAL ELEMENT: Precision, Details (Right Rail - West) */
-.feng-metal {
-  background: linear-gradient(180deg, 
-    rgba(192, 192, 192, 0.05) 0%, 
-    rgba(30, 30, 63, 0.8) 100%
-  );
-  border-left: 1px solid rgba(192, 192, 192, 0.15);
-}
-
-/* WATER ELEMENT: Flow, Communication (Bottom/Footer - North) */
-.feng-water {
-  background: linear-gradient(180deg, 
-    transparent 0%, 
-    rgba(0, 206, 209, 0.05) 100%
-  );
-  border-top: 1px solid rgba(0, 206, 209, 0.2);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   JETSONS INPUT FIELDS
-   "Sleek consoles for the space-age executive."
-───────────────────────────────────────────────────────────────────────── */
-.input-jetsons {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  background: rgba(10, 10, 26, 0.8);
-  border: 2px solid rgba(0, 206, 209, 0.2);
-  border-radius: 0.75rem;
-  color: var(--atomic-cream);
+h4 {
   font-size: 1rem;
-  transition: all 0.3s;
+  font-weight: 600;
+  color: var(--tableau-text);
 }
 
-.input-jetsons::placeholder {
-  color: rgba(255, 248, 231, 0.4);
-}
-
-.input-jetsons:focus {
-  outline: none;
-  border-color: var(--jetsons-teal);
-  box-shadow: 0 0 0 4px rgba(0, 206, 209, 0.1), 0 0 20px rgba(0, 206, 209, 0.2);
+p {
+  color: var(--tableau-text-muted);
+  margin: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   JETSONS BADGES
-   "Small but distinguished insignias."
+   CARDS (Clean, Flat Design)
 ───────────────────────────────────────────────────────────────────────── */
-.badge-jetsons {
+.card-tableau {
+  background: var(--tableau-card);
+  border: 1px solid var(--tableau-border);
+  border-radius: 4px;
+  padding: 1.5rem;
+  transition: border-color 0.2s ease;
+}
+
+.card-tableau:hover {
+  border-color: var(--tableau-border-dark);
+}
+
+.card-tableau-header {
+  border-bottom: 1px solid var(--tableau-border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.card-tableau-footer {
+  border-top: 1px solid var(--tableau-border);
+  padding-top: 0.75rem;
+  margin-top: 1rem;
+}
+
+
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BADGES (Minimal, Clean)
+───────────────────────────────────────────────────────────────────────── */
+.badge-tableau {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-radius: 100px;
+  font-weight: 500;
+  border-radius: 3px;
+  border: 1px solid transparent;
 }
 
 .badge-success {
-  background: rgba(0, 206, 209, 0.2);
-  color: var(--jetsons-teal-glow);
-  border: 1px solid rgba(0, 206, 209, 0.4);
+  background-color: #E8F5E9;
+  color: var(--tableau-success);
+  border-color: #C8E6C9;
 }
 
 .badge-warning {
-  background: rgba(197, 160, 69, 0.2);
-  color: var(--atomic-amber);
-  border: 1px solid rgba(197, 160, 69, 0.4);
+  background-color: #FFF8E1;
+  color: #F57C00;
+  border-color: #FFE082;
 }
 
 .badge-error {
-  background: rgba(255, 107, 107, 0.2);
-  color: var(--cosmic-coral);
-  border: 1px solid rgba(255, 107, 107, 0.4);
+  background-color: #FFEBEE;
+  color: var(--tableau-error);
+  border-color: #FFCDD2;
 }
 
 .badge-info {
-  background: rgba(192, 192, 192, 0.2);
-  color: var(--chrome-platinum);
-  border: 1px solid rgba(192, 192, 192, 0.4);
+  background-color: #E0F2F1;
+  color: var(--tableau-info);
+  border-color: #B2DFDB;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   LOADING STATES
-   "Patience, dear executive. The future is loading."
+   LOADING STATES (Minimal with Subtle Glow)
 ───────────────────────────────────────────────────────────────────────── */
-.loading-orbit {
-  width: 60px;
-  height: 60px;
-  position: relative;
-}
-
-.loading-orbit::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 3px solid transparent;
-  border-top-color: var(--jetsons-teal);
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--tableau-border);
+  border-top-color: var(--signal-red);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-orbit::after {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border: 3px solid transparent;
-  border-top-color: var(--atomic-gold);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite reverse;
+  animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 8px var(--signal-red-glow);
 }
 
 @keyframes spin {
@@ -382,7 +190,7 @@ h3 {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   SCROLLBAR (Chrome-inspired)
+   SCROLLBAR (Subtle)
 ───────────────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
@@ -390,52 +198,90 @@ h3 {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--space-void);
+  background: var(--tableau-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--jetsons-teal-dark) 0%, var(--space-stardust) 100%);
-  border-radius: 100px;
+  background: var(--tableau-border-dark);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--jetsons-teal);
+  background: var(--tableau-text-light);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   UTILITY ANIMATIONS
+   DATA TABLES (Tableau Style)
 ───────────────────────────────────────────────────────────────────────── */
-.animate-float {
-  animation: float 6s ease-in-out infinite;
+.table-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+.table-tableau thead {
+  background-color: var(--tableau-bg);
+  border-bottom: 2px solid var(--tableau-border-dark);
 }
 
-.animate-glow {
-  animation: glow 2s ease-in-out infinite;
+.table-tableau th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--tableau-text);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 5px var(--jetsons-teal); }
-  50% { box-shadow: 0 0 30px var(--jetsons-teal), 0 0 60px rgba(0, 206, 209, 0.3); }
+.table-tableau tbody tr {
+  border-bottom: 1px solid var(--tableau-border-light);
+  transition: background-color 0.15s ease;
 }
 
-/* Shimmer effect for loading states */
-.shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+.table-tableau tbody tr:hover {
+  background-color: #F8F8F8;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.table-tableau td {
+  padding: 0.75rem 1rem;
+  color: var(--tableau-text);
+}
+
+.table-tableau td:first-child {
+  font-weight: 500;
+  color: var(--tableau-text);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FUTURISTIC EFFECTS (Subtle Accents)
+───────────────────────────────────────────────────────────────────────── */
+.glow-soft {
+  box-shadow: 0 0 12px rgba(196, 0, 26, 0.1);
+}
+
+.glow-soft-blue {
+  box-shadow: 0 0 12px var(--tableau-blue-glow);
+}
+
+.glow-hover:hover {
+  box-shadow: 0 4px 16px rgba(196, 0, 26, 0.15), 0 0 0 1px rgba(196, 0, 26, 0.1);
+}
+
+/* Soft capsules - smooth rounded corners */
+.capsule-soft {
+  border-radius: 12px;
+}
+
+/* Subtle gradient backgrounds for accents */
+.gradient-futuristic {
+  background: linear-gradient(135deg, rgba(196, 0, 26, 0.05) 0%, rgba(78, 121, 167, 0.05) 100%);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UTILITY CLASSES
+───────────────────────────────────────────────────────────────────────── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
 }

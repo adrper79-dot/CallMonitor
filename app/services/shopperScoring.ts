@@ -1,10 +1,9 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 /**
  * Secret Shopper Scoring Service
- * 
  * Auto-scores secret shopper calls based on expected outcomes.
- * Per MASTER_ARCHITECTURE.txt: Secret shopper is a call modulation.
  */
 
 export interface ExpectedOutcome {
@@ -23,16 +22,51 @@ export interface ScoringResult {
   }>
 }
 
-/**
- * Score a secret shopper call based on expected outcomes
- */
+const DEFAULT_OUTCOMES: ExpectedOutcome[] = [
+  { type: 'duration_min', value: 30, weight: 20 },
+  { type: 'keyword', value: ['appointment', 'available', 'schedule', 'help'], weight: 30 },
+  { type: 'sentiment', value: 'positive', weight: 50 }
+]
+
+async function getExpectedOutcomes(organizationId: string, scriptId?: string): Promise<ExpectedOutcome[]> {
+  try {
+    if (scriptId) {
+      const { data: scriptRows } = await supabaseAdmin
+        .from('shopper_scripts')
+        .select('expected_outcomes')
+        .eq('id', scriptId)
+        .limit(1)
+      
+      if (scriptRows?.[0]?.expected_outcomes) {
+        return scriptRows[0].expected_outcomes as ExpectedOutcome[]
+      }
+    }
+
+    const { data: configRows } = await supabaseAdmin
+      .from('voice_configs')
+      .select('shopper_expected_outcomes')
+      .eq('organization_id', organizationId)
+      .not('shopper_expected_outcomes', 'is', null)
+      .limit(1)
+
+    if (configRows?.[0]?.shopper_expected_outcomes) {
+      return configRows[0].shopper_expected_outcomes as ExpectedOutcome[]
+    }
+
+    return DEFAULT_OUTCOMES
+  } catch (err) {
+    logger.error('getExpectedOutcomes error', err)
+    return DEFAULT_OUTCOMES
+  }
+}
+
 export async function scoreShopperCall(
   callId: string,
   recordingId: string,
-  organizationId: string
+  organizationId: string,
+  scriptId?: string
 ): Promise<ScoringResult | null> {
   try {
-    // Get call details
     const { data: callRows } = await supabaseAdmin
       .from('calls')
       .select('started_at, ended_at, status')
@@ -40,11 +74,8 @@ export async function scoreShopperCall(
       .limit(1)
 
     const call = callRows?.[0]
-    if (!call) {
-      return null
-    }
+    if (!call) return null
 
-    // Get recording details
     const { data: recRows } = await supabaseAdmin
       .from('recordings')
       .select('duration_seconds, transcript_json')
@@ -52,23 +83,14 @@ export async function scoreShopperCall(
       .limit(1)
 
     const recording = recRows?.[0]
-    if (!recording) {
-      return null
-    }
+    if (!recording) return null
 
-    // Get expected outcomes from voice_configs or shopper_campaigns
-    // For now, we'll use default outcomes or fetch from voice_configs JSONB
-    const expectedOutcomes: ExpectedOutcome[] = [
-      { type: 'duration_min', value: 30, weight: 20 }, // Minimum 30 seconds
-      { type: 'keyword', value: ['appointment', 'available', 'schedule'], weight: 30 }, // Key phrases
-      { type: 'sentiment', value: 'positive', weight: 50 } // Positive sentiment
-    ]
+    const expectedOutcomes = await getExpectedOutcomes(organizationId, scriptId)
 
     const details: ScoringResult['details'] = []
     let totalScore = 0
     let totalWeight = 0
 
-    // Check each expected outcome
     for (const outcome of expectedOutcomes) {
       const weight = outcome.weight || 1
       totalWeight += weight
@@ -107,34 +129,22 @@ export async function scoreShopperCall(
           break
 
         case 'response_time':
-          // Response time would need to be tracked separately
-          passed = true // Placeholder
+          passed = true
           reason = 'Response time check not implemented'
           break
       }
 
-      details.push({
-        outcome,
-        passed,
-        weight,
-        reason
-      })
+      details.push({ outcome, passed, weight, reason })
 
       if (passed) {
         totalScore += weight
       }
     }
 
-    // Calculate final score (0-100)
     const finalScore = totalWeight > 0 ? Math.round((totalScore / totalWeight) * 100) : 0
 
-    const result: ScoringResult = {
-      score: finalScore,
-      details
-    }
+    const result: ScoringResult = { score: finalScore, details }
 
-    // Store score in shopper_results if table exists, or in evidence manifest
-    // For now, we'll store it in ai_runs with type='shopper-scoring'
     const { data: systemsRows } = await supabaseAdmin
       .from('systems')
       .select('id')
@@ -143,27 +153,20 @@ export async function scoreShopperCall(
 
     const systemAiId = systemsRows?.[0]?.id
     if (systemAiId) {
-      await supabaseAdmin
-        .from('ai_runs')
-        .insert({
-          id: require('uuid').v4(),
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'shopper-scoring',
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          output: {
-            score: finalScore,
-            details,
-            expected_outcomes: expectedOutcomes
-          }
-        })
+      await supabaseAdmin.from('ai_runs').insert({
+        id: require('uuid').v4(),
+        call_id: callId,
+        system_id: systemAiId,
+        model: 'shopper-scoring',
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        output: { score: finalScore, details, expected_outcomes: expectedOutcomes }
+      })
     }
 
     return result
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('shopperScoring: error', { error: err?.message, callId, recordingId })
+    logger.error('shopperScoring error', err, { callId, recordingId })
     return null
   }
 }

@@ -7,9 +7,11 @@ import CallModulations from '@/components/voice/CallModulations'
 import TeamManagement from '@/components/team/TeamManagement'
 import CallerIdManager from '@/components/voice/CallerIdManager'
 import ShopperScriptManager from '@/components/voice/ShopperScriptManager'
+import VoiceTargetManager from '@/components/voice/VoiceTargetManager'
+import SurveyBuilder from '@/components/voice/SurveyBuilder'
 import { useRBAC } from '@/hooks/useRBAC'
 
-type TabId = 'voice' | 'team' | 'caller-id' | 'shopper' | 'billing'
+type TabId = 'voice' | 'targets' | 'team' | 'caller-id' | 'shopper' | 'surveys' | 'billing'
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -95,6 +97,8 @@ export default function SettingsPage() {
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: 'voice', label: 'Voice', icon: '🎙️' },
+    { id: 'targets', label: 'Targets', icon: '🎯' },
+    { id: 'surveys', label: 'Surveys', icon: '📊' },
     { id: 'team', label: 'Team', icon: '👥' },
     { id: 'caller-id', label: 'Caller ID', icon: '📞' },
     { id: 'shopper', label: 'Secret Shopper', icon: '🕵️' },
@@ -188,6 +192,32 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
+            </section>
+          )}
+
+          {/* Voice Targets - Numbers to Call */}
+          {activeTab === 'targets' && (
+            <section className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Call Targets</h2>
+                <p className="text-slate-400 text-sm">
+                  Add and manage phone numbers you want to test or monitor.
+                </p>
+              </div>
+              <VoiceTargetManager organizationId={organizationId} />
+            </section>
+          )}
+
+          {/* Survey Builder */}
+          {activeTab === 'surveys' && (
+            <section className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Survey Builder</h2>
+                <p className="text-slate-400 text-sm">
+                  Create after-call surveys to gather customer feedback.
+                </p>
+              </div>
+              <SurveyBuilder organizationId={organizationId} />
             </section>
           )}
 

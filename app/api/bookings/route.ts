@@ -1,84 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
-import { AppError } from '@/types/app-error'
 import { planSupportsFeature } from '@/lib/rbac'
+import { requireAuth, Errors, success } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
-// Helper for structured error responses per ERROR_HANDLING_PLAN
-function errorResponse(code: string, message: string, userMessage: string, severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', status: number) {
-  const err = new AppError({ code, message, user_message: userMessage, severity })
-  return NextResponse.json({ 
-    success: false, 
-    error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } 
-  }, { status })
-}
-
-// Verify org membership
-async function verifyMembership(userId: string, orgId: string): Promise<{ valid: boolean; role?: string }> {
-  const { data: memberRows } = await supabaseAdmin
-    .from('org_members')
-    .select('id, role')
-    .eq('organization_id', orgId)
-    .eq('user_id', userId)
-    .limit(1)
-  
-  if (!memberRows?.[0]) {
-    return { valid: false }
-  }
-  return { valid: true, role: memberRows[0].role }
-}
-
 /**
- * GET /api/bookings
- * 
- * List booking events for the user's organization
- * Supports filtering by status, date range
+ * GET /api/bookings - List booking events for the user's organization
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) return ctx
 
-    if (!userId) {
-      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in to continue', 'HIGH', 401)
-    }
-
-    // Get user's organization
-    const { data: userRows } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .limit(1)
-
-    const orgId = userRows?.[0]?.organization_id
-    if (!orgId) {
-      return NextResponse.json(
-        { success: false, error: 'Organization not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check booking capability
     const { data: orgRows } = await supabaseAdmin
       .from('organizations')
       .select('plan, booking_enabled')
-      .eq('id', orgId)
+      .eq('id', ctx.orgId)
       .limit(1)
 
     const org = orgRows?.[0]
     if (!planSupportsFeature(org?.plan || 'free', 'booking')) {
-      return NextResponse.json(
-        { success: false, error: 'Booking feature not available on your plan' },
-        { status: 403 }
-      )
+      return Errors.unauthorized('Booking feature not available on your plan')
     }
 
-    // Parse query params
     const url = new URL(req.url)
     const status = url.searchParams.get('status')
     const from = url.searchParams.get('from')
@@ -86,168 +33,81 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(url.searchParams.get('limit') || '50', 10)
     const offset = parseInt(url.searchParams.get('offset') || '0', 10)
 
-    // Build query
     let query = supabaseAdmin
       .from('booking_events')
       .select('*, calls(id, status, started_at, ended_at)')
-      .eq('organization_id', orgId)
+      .eq('organization_id', ctx.orgId)
       .order('start_time', { ascending: true })
       .range(offset, offset + limit - 1)
 
-    if (status) {
-      query = query.eq('status', status)
-    }
-    if (from) {
-      query = query.gte('start_time', from)
-    }
-    if (to) {
-      query = query.lte('start_time', to)
-    }
+    if (status) query = query.eq('status', status)
+    if (from) query = query.gte('start_time', from)
+    if (to) query = query.lte('start_time', to)
 
     const { data: bookings, error, count } = await query
 
     if (error) {
-      console.error('GET /api/bookings error:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch bookings' },
-        { status: 500 }
-      )
+      logger.error('GET /api/bookings error', error)
+      return Errors.internal(error)
     }
 
-    return NextResponse.json({
-      success: true,
-      bookings: bookings || [],
-      total: count,
-      limit,
-      offset
-    })
+    return success({ bookings: bookings || [], total: count, limit, offset })
   } catch (error: any) {
-    console.error('GET /api/bookings error:', error)
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('GET /api/bookings error', error)
+    return Errors.internal(error)
   }
 }
 
 /**
- * POST /api/bookings
- * 
- * Create a new booking event
+ * POST /api/bookings - Create a new booking event
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) return ctx
 
     const body = await req.json()
     const {
-      title,
-      description,
-      start_time,
-      end_time,
-      duration_minutes = 30,
-      timezone = 'UTC',
-      attendee_name,
-      attendee_email,
-      attendee_phone,
-      from_number,  // Your number (for bridge calls)
-      modulations = {},
-      notes
+      title, description, start_time, end_time, duration_minutes = 30,
+      timezone = 'UTC', attendee_name, attendee_email, attendee_phone,
+      from_number, modulations = {}, notes
     } = body
 
-    // Validate required fields
     if (!title || !start_time || !attendee_phone) {
-      return NextResponse.json(
-        { success: false, error: 'title, start_time, and attendee_phone are required' },
-        { status: 400 }
-      )
+      return Errors.badRequest('title, start_time, and attendee_phone are required')
     }
 
-    // Validate phone format (basic E.164 check)
     if (!attendee_phone.match(/^\+?[1-9]\d{1,14}$/)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid phone number format (use E.164)' },
-        { status: 400 }
-      )
+      return Errors.badRequest('Invalid phone number format (use E.164)')
     }
 
-    // Validate start_time is not in the past (allow calls starting now)
     const startDate = new Date(start_time)
     const now = new Date()
-    // Allow calls up to 5 minutes in the past (for immediate scheduling)
     if (startDate < new Date(now.getTime() - 5 * 60 * 1000)) {
-      return NextResponse.json(
-        { success: false, error: 'start_time cannot be in the past' },
-        { status: 400 }
-      )
+      return Errors.badRequest('start_time cannot be in the past')
     }
 
-    // Get user's organization
-    const { data: userRows } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .limit(1)
-
-    const orgId = userRows?.[0]?.organization_id
-    if (!orgId) {
-      return NextResponse.json(
-        { success: false, error: 'Organization not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check booking capability
     const { data: orgRows } = await supabaseAdmin
       .from('organizations')
       .select('plan, booking_enabled')
-      .eq('id', orgId)
+      .eq('id', ctx.orgId)
       .limit(1)
 
-    const org = orgRows?.[0]
-    if (!planSupportsFeature(org?.plan || 'free', 'booking')) {
-      return NextResponse.json(
-        { success: false, error: 'Booking feature not available on your plan' },
-        { status: 403 }
-      )
+    if (!planSupportsFeature(orgRows?.[0]?.plan || 'free', 'booking')) {
+      return Errors.unauthorized('Booking feature not available on your plan')
     }
 
-    // Calculate end_time if not provided
     const endTime = end_time || new Date(startDate.getTime() + duration_minutes * 60000).toISOString()
 
-    // Create booking
     const bookingId = uuidv4()
     const insertData: any = {
-      id: bookingId,
-      organization_id: orgId,
-      user_id: userId,
-      title,
-      description,
-      start_time,
-      end_time: endTime,
-      duration_minutes,
-      timezone,
-      attendee_name,
-      attendee_email,
-      attendee_phone,
-      modulations,
-      notes,
-      status: 'pending',
-      created_by: userId
+      id: bookingId, organization_id: ctx.orgId, user_id: ctx.userId,
+      title, description, start_time, end_time: endTime, duration_minutes,
+      timezone, attendee_name, attendee_email, attendee_phone,
+      modulations, notes, status: 'pending', created_by: ctx.userId
     }
     
-    // Add from_number if provided (for bridge calls)
-    if (from_number) {
-      insertData.from_number = from_number
-    }
+    if (from_number) insertData.from_number = from_number
     
     const { data: booking, error } = await supabaseAdmin
       .from('booking_events')
@@ -256,41 +116,24 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) {
-      console.error('POST /api/bookings error:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to create booking' },
-        { status: 500 }
-      )
+      logger.error('POST /api/bookings error', error)
+      return Errors.internal(error)
     }
 
-    // Audit log
     try {
       await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: orgId,
-        user_id: userId,
-        resource_type: 'booking_events',
-        resource_id: bookingId,
-        action: 'create',
-        before: null,
-        after: { title, start_time, attendee_phone: '[REDACTED]' },
+        id: uuidv4(), organization_id: ctx.orgId, user_id: ctx.userId,
+        resource_type: 'booking_events', resource_id: bookingId, action: 'create',
+        before: null, after: { title, start_time, attendee_phone: '[REDACTED]' },
         created_at: new Date().toISOString()
       })
-    } catch {
-      // Best effort
-    }
+    } catch { /* Best effort */ }
 
-    console.log('Booking created:', { bookingId, orgId, startTime: start_time })
+    logger.info('Booking created', { bookingId, orgId: ctx.orgId })
 
-    return NextResponse.json({
-      success: true,
-      booking
-    }, { status: 201 })
+    return NextResponse.json({ success: true, booking }, { status: 201 })
   } catch (error: any) {
-    console.error('POST /api/bookings error:', error)
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('POST /api/bookings error', error)
+    return Errors.internal(error)
   }
 }

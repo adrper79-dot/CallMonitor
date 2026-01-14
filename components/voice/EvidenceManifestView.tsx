@@ -28,14 +28,14 @@ export default function EvidenceManifestView({ manifest }: EvidenceManifestViewP
   return (
     <section aria-labelledby="manifest-view" className="w-full space-y-4">
       <div className="flex items-center justify-between">
-        <h4 id="manifest-view" className="text-lg font-medium text-slate-100">
+        <h4 id="manifest-view" className="text-base font-semibold text-[#333333]">
           Evidence Manifest
         </h4>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportAsJSON}>
+          <Button variant="outline" size="sm" onClick={exportAsJSON} aria-label="Export manifest as JSON">
             Export JSON
           </Button>
-          <Button variant="outline" size="sm" onClick={downloadManifest}>
+          <Button variant="outline" size="sm" onClick={downloadManifest} aria-label="Download manifest">
             Download
           </Button>
         </div>
@@ -44,44 +44,50 @@ export default function EvidenceManifestView({ manifest }: EvidenceManifestViewP
       <EvidenceManifestSummary manifest={manifest} />
 
       {expanded && (
-        <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
-          <div className="text-sm font-medium text-slate-100 mb-2">Provenance Metadata</div>
-          <div className="space-y-2 text-xs text-slate-300">
+        <div className="p-4 bg-white border border-[#E5E5E5] rounded">
+          <div className="text-sm font-semibold text-[#333333] mb-3">Provenance Metadata</div>
+          <div className="space-y-2 text-xs">
             {manifest.producer && (
-              <div>
-                <span className="text-slate-400">Producer:</span> {manifest.producer}
+              <div className="flex items-start gap-2">
+                <span className="text-[#666666] font-medium min-w-[80px]">Producer:</span>
+                <span className="text-[#333333]">{manifest.producer}</span>
               </div>
             )}
             {manifest.created_at && (
-              <div>
-                <span className="text-slate-400">Created:</span> {new Date(manifest.created_at).toLocaleString()}
+              <div className="flex items-start gap-2">
+                <span className="text-[#666666] font-medium min-w-[80px]">Created:</span>
+                <span className="text-[#333333]">{new Date(manifest.created_at).toLocaleString()}</span>
               </div>
             )}
             {manifest.manifest_hash && (
-              <div>
-                <span className="text-slate-400">Hash:</span> <code className="text-slate-200">{manifest.manifest_hash}</code>
+              <div className="flex items-start gap-2">
+                <span className="text-[#666666] font-medium min-w-[80px]">Hash:</span>
+                <code className="text-[#333333] font-mono bg-[#FAFAFA] px-2 py-1 rounded">{manifest.manifest_hash}</code>
               </div>
             )}
           </div>
         </div>
       )}
 
-      <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm font-medium text-slate-100">Full Manifest JSON</div>
+      <div className="bg-white border border-[#E5E5E5] rounded">
+        <div className="flex items-center justify-between p-4 border-b border-[#E5E5E5]">
+          <div className="text-sm font-semibold text-[#333333]">Full Manifest JSON</div>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setExpanded(!expanded)}
             aria-expanded={expanded}
+            aria-label={expanded ? 'Collapse manifest JSON' : 'Expand manifest JSON'}
           >
             {expanded ? 'Collapse' : 'Expand'}
           </Button>
         </div>
         {expanded && (
-          <pre className="text-xs text-slate-200 whitespace-pre-wrap font-mono max-h-[60vh] overflow-y-auto">
-            {JSON.stringify(manifest, null, 2)}
-          </pre>
+          <div className="p-4">
+            <pre className="text-xs text-[#333333] whitespace-pre-wrap font-mono max-h-[60vh] overflow-y-auto bg-[#FAFAFA] p-4 rounded">
+              {JSON.stringify(manifest, null, 2)}
+            </pre>
+          </div>
         )}
       </div>
     </section>

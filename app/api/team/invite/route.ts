@@ -1,260 +1,172 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole, Errors, success } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
+import { sendEmail } from '@/app/services/emailService'
 import { v4 as uuidv4 } from 'uuid'
-import { AppError } from '@/types/app-error'
 
 export const dynamic = 'force-dynamic'
 
-function errorResponse(code: string, message: string, userMessage: string, status: number) {
-  const err = new AppError({ code, message, user_message: userMessage, severity: 'HIGH' })
-  return NextResponse.json({ 
-    success: false, 
-    error: { id: err.id, code: err.code, message: err.user_message } 
-  }, { status })
-}
-
 /**
- * POST /api/team/invite
- * 
- * Send an invitation email to join the team
+ * POST /api/team/invite - Send team invitation email
  */
 export async function POST(req: NextRequest) {
+  const ctx = await requireRole(['owner', 'admin'])
+  if (ctx instanceof NextResponse) return ctx
+
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in', 401)
-    }
-
     const body = await req.json()
-    const { email, role = 'operator' } = body
+    const { email, role } = body
 
-    if (!email) {
-      return errorResponse('INVALID_INPUT', 'Email required', 'Email address is required', 400)
+    if (!email || !role) {
+      return Errors.badRequest('Email and role required')
     }
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return errorResponse('INVALID_EMAIL', 'Invalid email', 'Please enter a valid email address', 400)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return Errors.badRequest('Invalid email format')
     }
 
-    // Validate role
     const validRoles = ['admin', 'operator', 'analyst', 'viewer']
     if (!validRoles.includes(role)) {
-      return errorResponse('INVALID_ROLE', 'Invalid role', `Role must be one of: ${validRoles.join(', ')}`, 400)
+      return Errors.badRequest(`Role must be one of: ${validRoles.join(', ')}`)
     }
 
-    // Get user's org and check permissions
-    const { data: userRows } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .limit(1)
-
-    const orgId = userRows?.[0]?.organization_id
-    if (!orgId) {
-      return errorResponse('ORG_NOT_FOUND', 'No org', 'Organization not found', 404)
-    }
-
-    // Check if user is owner or admin
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .limit(1)
-
-    const userRole = memberRows?.[0]?.role
-    if (userRole !== 'owner' && userRole !== 'admin') {
-      return errorResponse('UNAUTHORIZED', 'Not authorized', 'Only owners and admins can invite members', 403)
-    }
-
-    // Check if user already exists in org
-    const { data: existingUser } = await supabaseAdmin
+    // Check if user already exists
+    const { data: existingUsers } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('email', email.toLowerCase())
-      .eq('organization_id', orgId)
+      .eq('email', email)
       .limit(1)
 
-    if (existingUser?.[0]) {
-      return errorResponse('ALREADY_MEMBER', 'Already a member', 'This user is already a team member', 400)
+    if (existingUsers?.[0]) {
+      const { data: existingMember } = await supabaseAdmin
+        .from('org_members')
+        .select('id')
+        .eq('organization_id', ctx.orgId)
+        .eq('user_id', existingUsers[0].id)
+        .limit(1)
+
+      if (existingMember?.[0]) {
+        return Errors.badRequest('User is already a member of this organization')
+      }
     }
 
     // Check for pending invite
-    const { data: existingInvite } = await supabaseAdmin
+    const { data: pendingInvites } = await supabaseAdmin
       .from('team_invites')
       .select('id')
-      .eq('organization_id', orgId)
-      .eq('email', email.toLowerCase())
+      .eq('organization_id', ctx.orgId)
+      .eq('email', email)
       .eq('status', 'pending')
       .limit(1)
 
-    if (existingInvite?.[0]) {
-      return errorResponse('INVITE_EXISTS', 'Invite pending', 'An invitation has already been sent to this email', 400)
+    if (pendingInvites?.[0]) {
+      return Errors.badRequest('An invitation is already pending for this email')
     }
 
-    // Get org name for email
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('name')
-      .eq('id', orgId)
-      .limit(1)
-
-    const orgName = orgRows?.[0]?.name || 'Your Team'
-
-    // Create invite token
-    const inviteToken = uuidv4()
+    // Create invite
+    const inviteId = uuidv4()
+    const token = uuidv4()
     const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
+    expiresAt.setDate(expiresAt.getDate() + 7)
 
-    // Create invite record
     const { error: insertErr } = await supabaseAdmin
       .from('team_invites')
       .insert({
-        id: uuidv4(),
-        organization_id: orgId,
-        email: email.toLowerCase(),
+        id: inviteId,
+        organization_id: ctx.orgId,
+        email,
         role,
-        token: inviteToken,
+        token,
         status: 'pending',
-        invited_by: userId,
+        invited_by: ctx.userId,
+        created_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString()
       })
 
     if (insertErr) {
-      console.error('Failed to create invite:', insertErr)
-      return errorResponse('DB_ERROR', insertErr.message, 'Failed to create invitation', 500)
+      logger.error('Failed to create invite', insertErr)
+      return Errors.internal(insertErr)
     }
 
-    // Send invite email via Resend
-    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${inviteToken}`
-    
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-          },
-          body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'VoxSouth <onboarding@resend.dev>',
-            to: [email],
-            subject: `You're invited to join ${orgName} on VoxSouth`,
-            html: `
-              <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-                <h1 style="color: #00CED1; margin-bottom: 24px;">You're Invited! 🎉</h1>
-                <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                  You've been invited to join <strong>${orgName}</strong> on VoxSouth, 
-                  the voice intelligence platform for modern teams.
-                </p>
-                <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                  Your role: <strong style="color: #C5A045;">${role.charAt(0).toUpperCase() + role.slice(1)}</strong>
-                </p>
-                <div style="margin: 32px 0;">
-                  <a href="${inviteUrl}" 
-                     style="display: inline-block; background: linear-gradient(135deg, #00CED1, #40E0D0); 
-                            color: #0A0A1A; padding: 14px 32px; border-radius: 50px; 
-                            text-decoration: none; font-weight: bold; font-size: 16px;">
-                    Accept Invitation
-                  </a>
-                </div>
-                <p style="font-size: 14px; color: #666;">
-                  This invitation expires in 7 days.
-                </p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
-                <p style="font-size: 12px; color: #999;">
-                  If you didn't expect this invitation, you can safely ignore this email.
-                </p>
-              </div>
-            `
-          })
-        })
+    // Get org name
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('name')
+      .eq('id', ctx.orgId)
+      .limit(1)
 
-        if (!res.ok) {
-          console.error('Failed to send invite email:', await res.text())
-        }
-      } catch (emailErr) {
-        console.error('Email send error:', emailErr)
-        // Don't fail the request - invite is created
-      }
-    }
+    const orgName = orgRows?.[0]?.name || 'Your organization'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.callmonitor.com'
+    const inviteUrl = `${appUrl}/invite/${token}`
 
-    return NextResponse.json({
-      success: true,
-      message: `Invitation sent to ${email}`,
-      invite_url: inviteUrl // For testing without email
+    // Send invitation email
+    const emailResult = await sendEmail({
+      to: email,
+      subject: `You're invited to join ${orgName} on CallMonitor`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e40af;">You're Invited! 🎉</h2>
+          <p>You've been invited to join <strong>${orgName}</strong> as a <strong>${role}</strong>.</p>
+          <p>Click the button below to accept your invitation:</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${inviteUrl}" 
+               style="background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Accept Invitation
+            </a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">This invitation expires in 7 days.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+          <p style="color: #9ca3af; font-size: 12px;">
+            If you didn't expect this invitation, you can ignore this email.
+          </p>
+        </div>
+      `
     })
+
+    if (!emailResult.success) {
+      logger.warn('Failed to send invite email', { email, error: emailResult.error })
+    }
+
+    logger.info('Team invite created', { inviteId, email, role, orgId: ctx.orgId })
+
+    return success({ 
+      message: 'Invitation sent',
+      invite_id: inviteId,
+      email_sent: emailResult.success
+    })
+
   } catch (err: any) {
-    console.error('Invite error:', err)
-    return errorResponse('INTERNAL_ERROR', err?.message, 'Failed to send invitation', 500)
+    logger.error('Team invite error', err)
+    return Errors.internal(err)
   }
 }
 
 /**
- * DELETE /api/team/invite
- * 
- * Cancel a pending invitation
+ * DELETE /api/team/invite - Cancel pending invitation
  */
 export async function DELETE(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+  const ctx = await requireRole(['owner', 'admin'])
+  if (ctx instanceof NextResponse) return ctx
 
-    if (!userId) {
-      return errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in', 401)
-    }
+  const { searchParams } = new URL(req.url)
+  const inviteId = searchParams.get('invite_id')
 
-    const { searchParams } = new URL(req.url)
-    const inviteId = searchParams.get('invite_id')
-
-    if (!inviteId) {
-      return errorResponse('INVALID_INPUT', 'Missing invite_id', 'Invite ID required', 400)
-    }
-
-    // Get user's org
-    const { data: userRows } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .limit(1)
-
-    const orgId = userRows?.[0]?.organization_id
-    if (!orgId) {
-      return errorResponse('ORG_NOT_FOUND', 'No org', 'Organization not found', 404)
-    }
-
-    // Check if user is owner or admin
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .limit(1)
-
-    const userRole = memberRows?.[0]?.role
-    if (userRole !== 'owner' && userRole !== 'admin') {
-      return errorResponse('UNAUTHORIZED', 'Not authorized', 'Only owners and admins can cancel invitations', 403)
-    }
-
-    // Update invite status
-    const { error: updateErr } = await supabaseAdmin
-      .from('team_invites')
-      .update({ status: 'cancelled' })
-      .eq('id', inviteId)
-      .eq('organization_id', orgId)
-
-    if (updateErr) {
-      return errorResponse('DB_ERROR', updateErr.message, 'Failed to cancel invitation', 500)
-    }
-
-    return NextResponse.json({ success: true, message: 'Invitation cancelled' })
-  } catch (err: any) {
-    console.error('Cancel invite error:', err)
-    return errorResponse('INTERNAL_ERROR', err?.message, 'Failed to cancel invitation', 500)
+  if (!inviteId) {
+    return Errors.badRequest('Invite ID required')
   }
+
+  const { error: deleteErr } = await supabaseAdmin
+    .from('team_invites')
+    .update({ status: 'cancelled' })
+    .eq('id', inviteId)
+    .eq('organization_id', ctx.orgId)
+    .eq('status', 'pending')
+
+  if (deleteErr) {
+    return Errors.internal(deleteErr)
+  }
+
+  return success({ message: 'Invitation cancelled' })
 }
