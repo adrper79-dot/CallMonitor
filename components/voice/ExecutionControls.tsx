@@ -116,7 +116,11 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Failed to place call' }))
-        throw new Error(errorData.error || 'Failed to place call')
+        // Handle error object {code, message} or string
+        const errorMsg = typeof errorData.error === 'object' 
+          ? (errorData.error?.message || errorData.error?.code || JSON.stringify(errorData.error))
+          : (errorData.error || 'Failed to place call')
+        throw new Error(errorMsg)
       }
 
       const data = await res.json()
