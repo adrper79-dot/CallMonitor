@@ -112,9 +112,16 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         logger.error('CRITICAL: SignalWire config missing', undefined, { missing: missing.join(', ') })
         throw e
       }
-      // mock SID in non-production
-      logger.warn('SignalWire config incomplete (using mock)', { missing: missing.join(', ') })
-      return `mock-${uuidv4()}`
+      // Never return mock data in production - always throw if config is incomplete
+      logger.error('CRITICAL: SignalWire config incomplete - cannot proceed', undefined, { missing: missing.join(', ') })
+      const e = new AppError({
+        code: 'SIGNALWIRE_CONFIG_MISSING',
+        message: `SignalWire configuration incomplete: ${missing.join(', ')}`,
+        user_message: 'System configuration error. Please contact support.',
+        severity: 'CRITICAL'
+      })
+      await writeAuditError('systems', null, e.toJSON())
+      throw e
     }
 
     const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
