@@ -146,7 +146,8 @@ export async function GET(req: Request) {
       const timeout = setTimeout(() => controller.abort(), 5000)
       
       try {
-        const aaiRes = await fetch('https://api.assemblyai.com/v2/health', {
+        // Use /v2/transcript endpoint with minimal check (no body = 400, but proves API is reachable)
+        const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
           method: 'GET',
           headers: {
             'Authorization': aaiKey
@@ -157,11 +158,20 @@ export async function GET(req: Request) {
         
         const aaiTime = Date.now() - aaiStart
         
-        if (aaiRes.ok) {
+        // 200 or 400 both indicate the API is reachable and key is valid
+        // 401 = bad key, 5xx = service issue
+        if (aaiRes.ok || aaiRes.status === 400) {
           checks.push({
             service: 'assemblyai',
             status: 'healthy',
             message: 'AssemblyAI API accessible',
+            responseTime: aaiTime
+          })
+        } else if (aaiRes.status === 401) {
+          checks.push({
+            service: 'assemblyai',
+            status: 'degraded',
+            message: 'AssemblyAI API key invalid',
             responseTime: aaiTime
           })
         } else {
