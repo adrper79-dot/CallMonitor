@@ -72,15 +72,37 @@ function useCallCapabilities(organizationId: string | null) {
 
 export default function CallModulations({ callId, organizationId, initialModulations, onChange }: CallModulationsProps) {
   const { role, plan, loading: rbacLoading } = useRBAC(organizationId)
-  const { config, updateConfig } = useVoiceConfig(organizationId)
+  const { config, updateConfig, loading: configLoading } = useVoiceConfig(organizationId)
   const { capabilities, loading: capabilitiesLoading } = useCallCapabilities(organizationId)
-  const [mods, setMods] = useState<Record<ModKey, boolean>>(() => ({ ...initialModulations }))
+  
+  // Use config from database if available, otherwise fall back to initialModulations
+  // Use config from database if available, otherwise fall back to initialModulations
+  const effectiveMods = config && !configLoading ? {
+    record: config.record ?? false,
+    transcribe: config.transcribe ?? false,
+    translate: config.translate ?? false,
+    survey: config.survey ?? false,
+    synthetic_caller: config.synthetic_caller ?? false,
+  } : initialModulations
+  
+  const [mods, setMods] = useState<Record<ModKey, boolean>>(() => ({ ...effectiveMods }))
   const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }))
   const [error, setError] = useState<string | null>(null)
 
+  // Update mods when config loads or changes
   useEffect(() => {
-    setMods({ ...initialModulations })
-  }, [initialModulations])
+    if (config && !configLoading) {
+      setMods({
+        record: config.record ?? false,
+        transcribe: config.transcribe ?? false,
+        translate: config.translate ?? false,
+        survey: config.survey ?? false,
+        synthetic_caller: config.synthetic_caller ?? false,
+      })
+    } else if (!configLoading) {
+      setMods({ ...initialModulations })
+    }
+  }, [config, configLoading, initialModulations])
 
   const canEdit = role === 'owner' || role === 'admin'
 
@@ -99,10 +121,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
     setPending(p => ({ ...p, [key]: true }))
     
     try {
-      // Update via voice config API using database column names directly
-      // The useVoiceConfig hook maps frontend names to DB names if needed,
-      // but we use DB names directly here for clarity
+      // Update via voice config API - maps to database column names
+      // Key names match database columns: record, transcribe, translate, survey, synthetic_caller
       await updateConfig({ [key]: next[key] })
+      // Notify parent component of change
       await onChange(next)
     } catch (e: any) {
       // Rollback
@@ -134,15 +156,15 @@ export default function CallModulations({ callId, organizationId, initialModulat
   }
 
   return (
-    <section aria-labelledby={`call-modulations-${callId}`} className="w-full p-4 bg-slate-950 rounded-md border border-slate-800">
+    <section aria-labelledby={`call-modulations-${callId}`} className="w-full">
       <div className="flex items-center justify-between mb-4">
-        <h3 id={`call-modulations-${callId}`} className="text-lg font-medium text-slate-100">Call Modulations</h3>
+        <h3 id={`call-modulations-${callId}`} className="text-base font-semibold text-[#333333]">Call Features</h3>
         {!canEdit && (
-          <p className="text-sm text-slate-400">Read-only (Owner/Admin can modify)</p>
+          <p className="text-xs text-[#666666]">Read-only (Owner/Admin can modify)</p>
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3">
+      <div className="mt-4 space-y-3">
         {TOGGLES.map(t => {
           const { disabled, reason } = getToggleDisabled(t.key, t.feature)
           const checked = mods[t.key]
@@ -153,10 +175,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
             : t.desc
           
           return (
-            <div key={t.key} className="flex items-center justify-between p-3 rounded-md bg-slate-800 hover:bg-slate-700">
+            <div key={t.key} className="flex items-center justify-between p-3 rounded-lg bg-white border border-[#E5E5E5] hover:border-[#D0D0D0] transition-all duration-200">
               <div className="flex flex-col flex-1">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor={`mod-${t.key}`} className="text-sm text-slate-100">
+                  <Label htmlFor={`mod-${t.key}`} className="text-sm font-medium text-[#333333]">
                     {displayLabel}
                   </Label>
                   {hasLiveTranslationPreview && (
@@ -233,10 +255,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
                       </Select>
                     </div>
                     {/* Voice cloning toggle */}
-                    <div className="flex items-center justify-between p-2 rounded bg-slate-700/50">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-[#FAFAFA] border border-[#E5E5E5]">
                       <div className="flex flex-col">
-                        <span className="text-xs text-slate-200">Voice Cloning</span>
-                        <span className="text-xs text-slate-400">Clone caller&apos;s voice for translated audio</span>
+                        <span className="text-xs text-[#333333] font-medium">Voice Cloning</span>
+                        <span className="text-xs text-[#666666]">Clone caller&apos;s voice for translated audio</span>
                       </div>
                       <Switch
                         id="voice-cloning-toggle"
@@ -253,7 +275,7 @@ export default function CallModulations({ callId, organizationId, initialModulat
                   <div className="mt-2 space-y-3">
                     {/* AI Survey Bot Prompts */}
                     <div>
-                      <label className="block text-xs text-slate-300 mb-1">Survey Questions (one per line)</label>
+                      <label className="block text-xs font-medium text-[#333333] mb-1">Survey Questions (one per line)</label>
                       <textarea
                         placeholder="On a scale of 1-5, how satisfied were you?&#10;What could we improve?&#10;Would you recommend us to others?"
                         value={config?.survey_prompts?.join('\n') || ''}
@@ -262,24 +284,24 @@ export default function CallModulations({ callId, organizationId, initialModulat
                           updateConfig({ survey_prompts: prompts.length > 0 ? prompts : [] })
                         }}
                         disabled={!canEdit}
-                        className="w-full text-sm p-2 rounded bg-slate-700 text-slate-100 border border-slate-600 focus:border-blue-500 focus:outline-none"
+                        className="w-full text-sm p-2 rounded-lg bg-white text-[#333333] border border-[#E5E5E5] focus:border-[#C4001A] focus:outline-none focus:ring-2 focus:ring-[#C4001A] transition-all duration-200"
                         rows={4}
                       />
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-[#666666] mt-1">
                         AI Survey Bot will ask each question and collect responses
                       </p>
                     </div>
                     
                     {/* Email for Results */}
                     <div>
-                      <label className="block text-xs text-slate-300 mb-1">Email for Results (optional)</label>
+                      <label className="block text-xs font-medium text-[#333333] mb-1">Email for Results (optional)</label>
                       <input
                         type="email"
                         placeholder="results@yourcompany.com"
                         value={config?.survey_webhook_email || ''}
                         onChange={(e) => updateConfig({ survey_webhook_email: e.target.value || undefined })}
                         disabled={!canEdit}
-                        className="w-full text-sm p-2 rounded bg-slate-700 text-slate-100 border border-slate-600 focus:border-blue-500 focus:outline-none"
+                        className="w-full text-sm p-2 rounded-lg bg-white text-[#333333] border border-[#E5E5E5] focus:border-[#C4001A] focus:outline-none focus:ring-2 focus:ring-[#C4001A] transition-all duration-200"
                       />
                     </div>
                     
@@ -304,8 +326,8 @@ export default function CallModulations({ callId, organizationId, initialModulat
                     
                     {/* Inbound Number Info */}
                     {config?.survey_inbound_number && (
-                      <div className="p-2 rounded bg-green-900/30 border border-green-700">
-                        <span className="text-xs text-green-400">
+                      <div className="p-2 rounded-lg bg-[#E8F5E9] border border-[#C8E6C9]">
+                        <span className="text-xs text-[#59A14F] font-medium">
                           ✓ Inbound number configured for AI Survey Bot
                         </span>
                       </div>
@@ -338,11 +360,13 @@ export default function CallModulations({ callId, organizationId, initialModulat
                   aria-label={t.label}
                   aria-describedby={disabled && reason ? `mod-${t.key}-hint` : undefined}
                 />
-                <div className="text-xs text-slate-400 w-12 text-right">
+                <div className="text-xs text-[#666666] w-12 text-right tabular-nums">
                   {pending[t.key] ? (
-                    <span aria-live="polite">Updating…</span>
+                    <span aria-live="polite" className="text-[#4E79A7]">Updating…</span>
                   ) : (
-                    checked ? 'On' : 'Off'
+                    <span className={checked ? 'text-[#59A14F] font-medium' : 'text-[#999999]'}>
+                      {checked ? 'On' : 'Off'}
+                    </span>
                   )}
                 </div>
               </div>
@@ -352,7 +376,7 @@ export default function CallModulations({ callId, organizationId, initialModulat
       </div>
 
       {error && (
-        <div role="status" aria-live="assertive" className="mt-3 text-sm text-red-400">
+        <div role="status" aria-live="assertive" className="mt-3 text-sm text-[#E15759] bg-[#FFEBEE] border border-[#FFCDD2] rounded-lg p-2">
           {error}
         </div>
       )}

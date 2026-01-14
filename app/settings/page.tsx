@@ -11,7 +11,7 @@ import VoiceTargetManager from '@/components/voice/VoiceTargetManager'
 import SurveyBuilder from '@/components/voice/SurveyBuilder'
 import { useRBAC } from '@/hooks/useRBAC'
 
-type TabId = 'voice' | 'targets' | 'team' | 'caller-id' | 'shopper' | 'surveys' | 'billing'
+type TabId = 'targets' | 'team' | 'caller-id' | 'shopper' | 'surveys' | 'billing'
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -54,9 +54,6 @@ export default function SettingsPage() {
 
   const { role, plan } = useRBAC(organizationId)
 
-  async function handleModulationChange(mods: Record<string, boolean>) {
-    console.log('Voice config updated:', mods)
-  }
 
   if (loading) {
     return (
@@ -96,7 +93,6 @@ export default function SettingsPage() {
   }
 
   const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: 'voice', label: 'Voice', icon: '🎙️' },
     { id: 'targets', label: 'Targets', icon: '🎯' },
     { id: 'surveys', label: 'Surveys', icon: '📊' },
     { id: 'team', label: 'Team', icon: '👥' },
@@ -152,48 +148,14 @@ export default function SettingsPage() {
 
         {/* Tab Content */}
         <div className="space-y-8">
-          {/* Voice Settings */}
-          {activeTab === 'voice' && (
-            <section className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold mb-2">Voice Configuration</h2>
-                <p className="text-slate-400 text-sm">
-                  Default settings for recording, transcription, and translation.
-                </p>
-              </div>
-              
-              <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-6">
-                <CallModulations
-                  callId="default-config"
-                  organizationId={organizationId}
-                  initialModulations={{
-                    record: false,
-                    transcribe: false,
-                    translate: false,
-                    survey: false,
-                    synthetic_caller: false,
-                  }}
-                  onChange={handleModulationChange}
-                />
-              </div>
-
-              {/* Info Cards */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 p-4">
-                  <h3 className="font-medium text-white mb-2">📊 Analytics Included</h3>
-                  <p className="text-sm text-slate-400">
-                    All transcriptions now include sentiment analysis, entity detection, and topic chapters automatically.
-                  </p>
-                </div>
-                <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 p-4">
-                  <h3 className="font-medium text-white mb-2">🌐 Live Translation</h3>
-                  <p className="text-sm text-slate-400">
-                    Real-time voice translation during calls. Available on Business and Enterprise plans.
-                  </p>
-                </div>
-              </div>
-            </section>
-          )}
+          {/* Info Banner */}
+          <div className="bg-blue-900/20 border border-blue-800/50 rounded-xl p-4">
+            <p className="text-sm text-blue-300">
+              💡 <strong>Voice features</strong> (recording, transcription, translation) are configured on the{' '}
+              <a href="/voice" className="underline hover:text-blue-200">Voice Operations</a> page.
+              Settings is for organization management only.
+            </p>
+          </div>
 
           {/* Voice Targets - Numbers to Call */}
           {activeTab === 'targets' && (

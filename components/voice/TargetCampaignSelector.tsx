@@ -122,12 +122,12 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   }
 
   return (
-    <section aria-labelledby="target-campaign-selector" className="w-full p-4 bg-slate-950 rounded-md border border-slate-800">
-      <h3 id="target-campaign-selector" className="text-lg font-medium text-slate-100 mb-2">
-        📋 Saved Numbers & Campaigns
+    <section aria-labelledby="target-campaign-selector" className="w-full p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
+      <h3 id="target-campaign-selector" className="text-base font-semibold text-[#333333] mb-2">
+        Target & Campaign
       </h3>
-      <p className="text-xs text-slate-400 mb-4">
-        Save frequently called numbers and organize calls into campaigns for tracking.
+      <p className="text-xs text-[#666666] mb-4">
+        Select target number and optional campaign for calls.
       </p>
 
       <div className="space-y-4">

@@ -71,30 +71,30 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
   return (
     <div className="space-y-6">
       {/* Call Header */}
-      <section aria-labelledby="call-header" className="p-4 bg-slate-950 rounded-md border border-slate-800">
+      <section aria-labelledby="call-header" className="p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 id="call-header" className="text-xl font-semibold text-slate-100 mb-2">
+            <h2 id="call-header" className="text-lg font-semibold text-[#333333] mb-2">
               Call {call.id}
             </h2>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-slate-400">Status:</span>
+              <span className="text-xs text-[#666666] uppercase tracking-wide">Status:</span>
               <Badge variant={statusVariant}>{call.status || 'unknown'}</Badge>
             </div>
             {call.call_sid && (
-              <div className="text-xs text-slate-500 font-mono">
+              <div className="text-xs text-[#999999] font-mono">
                 SID: {call.call_sid}
               </div>
             )}
           </div>
           <div className="text-right">
-            <div className="text-sm text-slate-400 mb-1">Duration</div>
-            <div className="text-lg font-mono text-slate-100">
+            <div className="text-xs text-[#666666] mb-1 uppercase tracking-wide">Duration</div>
+            <div className="text-lg font-mono text-[#333333] tabular-nums">
               {formatDuration(call.started_at, call.ended_at)}
             </div>
             {score && (
               <div className="mt-2">
-                <div className="text-sm text-slate-400 mb-1">Score</div>
+                <div className="text-xs text-[#666666] mb-1 uppercase tracking-wide">Score</div>
                 <Badge variant={score.score >= 80 ? 'success' : score.score >= 60 ? 'warning' : 'error'}>
                   {score.score}%
                 </Badge>
@@ -103,17 +103,17 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 text-sm border-t border-[#E5E5E5] pt-4">
           <div>
-            <div className="text-slate-400">Started</div>
-            <div className="text-slate-100">
+            <div className="text-xs text-[#666666] uppercase tracking-wide mb-1">Started</div>
+            <div className="text-[#333333]">
               {call.started_at ? new Date(call.started_at).toLocaleString() : '—'}
             </div>
           </div>
           {call.ended_at && (
             <div>
-              <div className="text-slate-400">Ended</div>
-              <div className="text-slate-100">
+              <div className="text-xs text-[#666666] uppercase tracking-wide mb-1">Ended</div>
+              <div className="text-[#333333]">
                 {new Date(call.ended_at).toLocaleString()}
               </div>
             </div>
@@ -176,20 +176,48 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
         </section>
       )}
 
-      {/* Modulations Panel */}
+      {/* Modulations Used (Read-only Metadata) */}
       {organizationId && (
-        <CallModulations
-          callId={call.id}
-          organizationId={organizationId}
-          initialModulations={{
-            record: config?.record ?? false,
-            transcribe: config?.transcribe ?? false,
-            translate: config?.translate ?? false,
-            survey: config?.survey ?? false,
-            synthetic_caller: config?.synthetic_caller ?? false,
-          }}
-          onChange={onModulationChange || (async () => {})}
-        />
+        <section aria-labelledby="modulations-used" className="p-4 bg-white rounded-lg border border-[#E5E5E5]">
+          <h3 id="modulations-used" className="text-sm font-semibold text-[#333333] mb-3">
+            Features Used for This Call
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${config?.record ? 'text-[#59A14F]' : 'text-[#999999]'}`}>
+                {config?.record ? '✓' : '○'}
+              </span>
+              <span className="text-xs text-[#666666]">Recording</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${config?.transcribe ? 'text-[#59A14F]' : 'text-[#999999]'}`}>
+                {config?.transcribe ? '✓' : '○'}
+              </span>
+              <span className="text-xs text-[#666666]">Transcribe</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${config?.translate ? 'text-[#59A14F]' : 'text-[#999999]'}`}>
+                {config?.translate ? '✓' : '○'}
+              </span>
+              <span className="text-xs text-[#666666]">Translate</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${config?.survey ? 'text-[#59A14F]' : 'text-[#999999]'}`}>
+                {config?.survey ? '✓' : '○'}
+              </span>
+              <span className="text-xs text-[#666666]">Survey</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${config?.synthetic_caller ? 'text-[#59A14F]' : 'text-[#999999]'}`}>
+                {config?.synthetic_caller ? '✓' : '○'}
+              </span>
+              <span className="text-xs text-[#666666]">Shopper</span>
+            </div>
+          </div>
+          <p className="text-xs text-[#999999] mt-3 italic">
+            These are the features that were active when this call was placed. To change settings for future calls, use the configuration above.
+          </p>
+        </section>
       )}
 
       {/* Artifact Viewer */}
