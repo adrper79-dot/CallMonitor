@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { isApiError } from '@/types/api'
-import { cookies, headers } from 'next/headers'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -23,28 +20,17 @@ export const dynamic = 'force-dynamic'
  */
 async function handlePOST(req: Request) {
   try {
-    // Force cookie read to ensure context is available
-    const cookieStore = await cookies()
-    const headersList = await headers()
+    // Import utilities
+    const { requireAuth, Errors, success } = await import('@/lib/api/utils')
     
-    // Debug: Log session token presence (not value)
-    const hasSessionToken = cookieStore.has('next-auth.session-token') || 
-                            cookieStore.has('__Secure-next-auth.session-token')
-    console.log('[voice/call] Session token present:', hasSessionToken)
-    
-    // Get authenticated session
-    const session = await getServerSession(authOptions)
-    console.log('[voice/call] Session result:', session ? 'found' : 'null', session?.user?.email || 'no email')
-    
-    const userId = (session?.user as any)?.id ?? null
-    
-    if (!userId) {
-      console.log('[voice/call] AUTH_REQUIRED - no userId in session')
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required. Please sign in again.' } },
-        { status: 401 }
-      )
+    // Use requireAuth helper for consistent authentication
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) {
+      // Authentication failed - return the error response
+      return ctx
     }
+    
+    const userId = ctx.userId
     
     const body = await req.json()
     const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
@@ -61,26 +47,20 @@ async function handlePOST(req: Request) {
         .single()
       
       if (targetError || !target) {
-        return NextResponse.json(
-          { success: false, error: { code: 'TARGET_NOT_FOUND', message: 'Target not found' } },
-          { status: 404 }
-        )
+        return Errors.notFound('Target not found')
       }
       
       phoneNumber = target.phone_number
     }
     
     if (!phoneNumber) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NO_PHONE_NUMBER', message: 'No phone number provided. Enter a number or select a target.' } },
-        { status: 400 }
-      )
+      return Errors.badRequest('No phone number provided. Enter a number or select a target.')
     }
     
     // Call the existing startCallHandler with actor_id
     const result = await startCallHandler(
       {
-        organization_id: body.organization_id || body.orgId,
+        organization_id: body.organization_id || body.orgId || ctx.orgId,
         phone_number: phoneNumber,
         from_number: body.from_number || undefined,  // Agent's phone for bridge calls
         flow_type: body.flow_type || (body.from_number ? 'bridge' : 'outbound'),
@@ -93,25 +73,15 @@ async function handlePOST(req: Request) {
     )
 
     if (result.success) {
-      return NextResponse.json(result)
+      return success(result)
     } else {
-      const error = isApiError(result) ? result.error : { code: 'CALL_START_FAILED', message: 'Failed to start call', severity: 'HIGH' as const }
-      return NextResponse.json(
-        { success: false, error },
-        { status: (error as any).httpStatus || 500 }
-      )
+      // Handler returned error
+      return Errors.internal(new Error((result as any).error?.message || 'Call failed'))
     }
   } catch (err: any) {
-    const e = err instanceof AppError ? err : new AppError({ 
-      code: 'CALL_START_FAILED', 
-      message: err?.message ?? 'Unexpected error', 
-      user_message: 'Failed to start call', 
-      severity: 'HIGH' 
-    })
-    return NextResponse.json(
-      { success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } },
-      { status: e.httpStatus || 500 }
-    )
+    const { logger } = await import('@/lib/logger')
+    logger.error('POST /api/voice/call failed', err)
+    return Errors.internal(err)
   }
 }
 
