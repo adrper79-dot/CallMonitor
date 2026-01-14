@@ -1,5 +1,6 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 /**
  * Scoring System
@@ -176,8 +177,7 @@ export async function scoreRecording(
       total_score: totalScore
     }
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('scoring: error', { error: err?.message, recordingId, scorecardId })
+    logger.error('scoring: error', err, { recordingId, scorecardId })
     return null
   }
 }
@@ -215,7 +215,6 @@ export async function autoScoreRecordingIfNeeded(
       await scoreRecording(recordingId, scorecardRows[0].id, organizationId)
     }
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('autoScoreRecordingIfNeeded: error', { error: err?.message, recordingId })
+    logger.error('autoScoreRecordingIfNeeded: error', err, { recordingId })
   }
 }

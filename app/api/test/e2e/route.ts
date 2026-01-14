@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -360,7 +361,7 @@ export async function POST(req: Request) {
     })
 
   } catch (err: any) {
-    console.error('E2E Test error:', err)
+    logger.error('E2E Test error', err)
     return NextResponse.json({
       success: false,
       error: err?.message || 'Unexpected error'

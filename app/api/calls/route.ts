@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,7 @@ async function handleGET(req: NextRequest) {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/calls error:', err)
+    logger.error('GET /api/calls error', err)
     return NextResponse.json(
       { error: err?.message || 'Failed to fetch calls' },
       { status: 500 }

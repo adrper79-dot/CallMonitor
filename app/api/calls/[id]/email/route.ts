@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { sendArtifactEmail } from '@/app/services/emailService'
 import { AppError } from '@/types/app-error'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -116,7 +117,7 @@ export async function POST(
     })
 
   } catch (error: any) {
-    console.error('POST /api/calls/[id]/email error:', error)
+    logger.error('POST /api/calls/[id]/email error', error)
     return NextResponse.json(
       { success: false, error: error?.message || 'Internal server error' },
       { status: 500 }

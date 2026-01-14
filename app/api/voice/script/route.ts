@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses request.url
 export const dynamic = 'force-dynamic'
@@ -124,9 +125,7 @@ ${elements.map(el => `  ${el}`).join('\n')}
     })
 
   } catch (err: any) {
-    // eslint-disable-next-line no-console
-    console.error('voice/script endpoint error', { error: err?.message ?? String(err) })
-    // Return empty response - LaML handler will use fallback
+    logger.error('voice/script endpoint error', err)
     return new NextResponse('', { status: 500 })
   }
 }

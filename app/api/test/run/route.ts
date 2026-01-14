@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - test execution must be dynamic
 export const dynamic = 'force-dynamic'
@@ -66,10 +67,10 @@ export async function POST(request: NextRequest) {
         })
     }
   } catch (error) {
-    console.error('Test runner error:', error)
-    return NextResponse.json({ 
-      passed: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    logger.error('Test runner error', error)
+    return NextResponse.json({
+      passed: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 }

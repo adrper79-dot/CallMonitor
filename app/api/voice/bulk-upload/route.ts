@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Bulk upload error:', error)
+    logger.error('Bulk upload error', error)
     return NextResponse.json(
       { error: error.message || 'Failed to process bulk upload' },
       { status: 500 }

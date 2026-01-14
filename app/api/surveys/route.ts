@@ -5,6 +5,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -135,7 +136,7 @@ export async function POST(req: Request) {
         .single()
 
       if (updateErr) {
-        console.error('Failed to update survey:', updateErr)
+        logger.error('Failed to update survey', updateErr)
         const err = new AppError({ code: 'DB_UPDATE_FAILED', message: 'Failed to update survey', user_message: 'Could not update survey', severity: 'HIGH' })
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
       }
@@ -154,7 +155,7 @@ export async function POST(req: Request) {
         .single()
 
       if (insertErr) {
-        console.error('Failed to create survey:', insertErr)
+        logger.error('Failed to create survey', insertErr)
         const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to create survey', user_message: 'Could not create survey', severity: 'HIGH' })
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
       }
@@ -213,7 +214,7 @@ export async function DELETE(req: Request) {
       .eq('organization_id', organizationId)
 
     if (deleteErr) {
-      console.error('Failed to delete survey:', deleteErr)
+      logger.error('Failed to delete survey', deleteErr)
       const err = new AppError({ code: 'DB_DELETE_FAILED', message: 'Failed to delete survey', user_message: 'Could not delete survey', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -75,7 +76,7 @@ export async function GET(
       survey: survey?.output || null,
     })
   } catch (err: any) {
-    console.error('GET /api/calls/[id] error:', err)
+    logger.error('GET /api/calls/[id] error', err)
     return NextResponse.json(
       { error: err?.message || 'Failed to fetch call details' },
       { status: 500 }

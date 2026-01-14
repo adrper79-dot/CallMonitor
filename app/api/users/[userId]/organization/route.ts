@@ -2,35 +2,25 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { logger } from '@/lib/logger'
 
-// Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
 
-export async function GET(
-  req: Request,
-  { params }: { params: { userId: string } }
-) {
+export async function GET(req: Request, { params }: { params: { userId: string } }) {
   try {
-    // Verify the user is requesting their own organization
     const session = await getServerSession(authOptions as any)
     
     if (!session?.user?.id || session.user.id !== params.userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Create Supabase client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Try org_members first, fallback to users.organization_id
     let organizationId: string | null = null
     
-    // Check org_members
     const { data: membership } = await supabase
       .from('org_members')
       .select('organization_id')
@@ -41,7 +31,6 @@ export async function GET(
     if (membership?.organization_id) {
       organizationId = membership.organization_id
     } else {
-      // Fallback to users table
       const { data: user } = await supabase
         .from('users')
         .select('organization_id')
@@ -52,34 +41,22 @@ export async function GET(
       if (user?.organization_id) {
         organizationId = user.organization_id
         
-        // Auto-create missing org_members record
         const { error: orgMemberError } = await supabase.from('org_members').insert({
-          organization_id: user.organization_id,
-          user_id: params.userId,
-          role: 'member'
+          organization_id: user.organization_id, user_id: params.userId, role: 'member'
         })
-        // Ignore error if already exists (unique constraint violation)
         if (orgMemberError && !orgMemberError.message.includes('duplicate')) {
-          console.error('Failed to create org_members record:', orgMemberError)
+          logger.error('Failed to create org_members record', orgMemberError)
         }
       }
     }
 
     if (!organizationId) {
-      return NextResponse.json(
-        { error: 'No organization found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'No organization found' }, { status: 404 })
     }
 
-    return NextResponse.json({
-      organization_id: organizationId
-    })
+    return NextResponse.json({ organization_id: organizationId })
   } catch (err: any) {
-    console.error('Failed to fetch user organization:', err)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    logger.error('Failed to fetch user organization', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
