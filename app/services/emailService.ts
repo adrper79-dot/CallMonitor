@@ -44,7 +44,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     return { success: false, error: 'Email service not configured' }
   }
 
-  const fromAddress = options.from || process.env.RESEND_FROM_EMAIL || 'CallMonitor <noreply@callmonitor.app>'
+  // IMPORTANT: Use verified domain or Resend's test domain
+  // For production, set RESEND_FROM_EMAIL to your verified domain (e.g., noreply@voxsouth.online)
+  // For testing, Resend allows sending from onboarding@resend.dev
+  const fromAddress = options.from || process.env.RESEND_FROM_EMAIL || 'CallMonitor <onboarding@resend.dev>'
 
   try {
     // Prepare attachments for Resend API format

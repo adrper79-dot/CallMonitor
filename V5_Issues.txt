@@ -1,10 +1,45 @@
 # V5_Issues.txt - CallMonitor Production Deployment Review
 # Generated: January 14, 2026
 # Principal Engineer Review - Cross-Site and Cross-Function Analysis
-# Version: 5.1 - UPDATED with fixes
+# Version: 5.2 - ADDITIONAL FIXES (Session 2)
 
 ================================================================================
-FIXES APPLIED IN THIS SESSION (January 14, 2026)
+NEW FIXES APPLIED (January 14, 2026 - Session 2)
+================================================================================
+
+✅ FIX #8: EMAIL 403 ERROR - RESEND DOMAIN FIX
+   - Modified: app/services/emailService.ts
+   - Changed: Default from address to 'onboarding@resend.dev' (Resend test domain)
+   - Previously: 'noreply@callmonitor.app' which isn't verified in Resend
+   - ACTION REQUIRED: Set RESEND_FROM_EMAIL=noreply@voxsouth.online in Vercel
+     (once voxsouth.online is verified in Resend dashboard)
+
+✅ FIX #9: BOOKING/CALENDAR ADDED TO UI
+   - Modified: components/voice/VoiceOperationsClient.tsx
+   - Added: BookingsList component to left rail (shows scheduled calls)
+   - Added: BookingModal for creating new scheduled calls
+   - Added: "+ New" button to schedule calls
+   - Calendar/scheduling is now visible on Voice Operations page
+
+✅ FIX #10: SURVEY CONFIGURATION NOW VISIBLE
+   - Modified: components/voice/VoiceOperationsClient.tsx
+   - Added: "Call Settings" tab to main area
+   - Survey, Recording, Translation, Transcription toggles now visible
+   - No need to select a call first - org-wide settings accessible
+   - Survey prompts, voice, and email configuration all visible
+
+📋 EXPLANATION: "NO RECORDING FIELDS" IN WEBHOOK (NOT A BUG)
+   - The log "Call completed but NO RECORDING FIELDS in payload" is EXPECTED
+   - SignalWire sends TWO SEPARATE webhooks:
+     1. CallStatus webhook (when call completes) - NO recording info
+     2. RecordingStatusCallback (when recording is ready) - HAS recording URL
+   - Recording is correctly enabled: startCallHandler.ts line 153 sets Record=true
+   - RecordingStatusCallback is configured on line 154
+   - The recording webhook arrives AFTER the call status webhook
+   - If recording webhook never arrives, check SignalWire dashboard for errors
+
+================================================================================
+PREVIOUS FIXES (Session 1 - January 14, 2026)
 ================================================================================
 
 ✅ FIX #1: AUTO-EMAIL ARTIFACTS ON COMPLETION
