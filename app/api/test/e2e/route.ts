@@ -202,13 +202,31 @@ export async function POST(req: Request) {
         }
 
         try {
-          // Use startCallHandler directly
+          // Get an owner user for this organization to use as actor
+          const { data: ownerData, error: ownerErr } = await supabaseAdmin
+            .from('org_members')
+            .select('user_id')
+            .eq('organization_id', organization_id)
+            .eq('role', 'owner')
+            .limit(1)
+          
+          if (ownerErr || !ownerData || ownerData.length === 0) {
+            return NextResponse.json({
+              success: false,
+              error: 'No owner user found for organization'
+            }, { status: 400 })
+          }
+          
+          const actorId = ownerData[0].user_id
+          
+          // Use startCallHandler directly with actor_id
           const callResult = await startCallHandler({
             organization_id,
             phone_number: phone_to,
             from_number,
-            modulations: modulations || { record: true, transcribe: true }
-          }, { supabaseAdmin })
+            modulations: modulations || { record: true, transcribe: true },
+            actor_id: actorId
+          } as any, { supabaseAdmin })
 
           if (callResult.success) {
             const successResult = callResult as any
@@ -255,6 +273,22 @@ export async function POST(req: Request) {
             error: 'phone_to and from_number required for full_pipeline'
           }, { status: 400 })
         }
+
+        // Step 0: Get owner user as actor
+        const { data: ownerData, error: ownerErr } = await supabaseAdmin
+          .from('org_members')
+          .select('user_id')
+          .eq('organization_id', organization_id)
+          .eq('role', 'owner')
+          .limit(1)
+        
+        if (ownerErr || !ownerData || ownerData.length === 0) {
+          results.success = false
+          results.error = 'No owner user found for organization'
+          return NextResponse.json(results, { status: 400 })
+        }
+        
+        const actorId = ownerData[0].user_id
 
         // Step 1: Create target
         const targetId = uuidv4()
@@ -320,8 +354,9 @@ export async function POST(req: Request) {
               record: true, 
               transcribe: true,
               translate: enableTranslation
-            }
-          }, { supabaseAdmin })
+            },
+            actor_id: actorId
+          } as any, { supabaseAdmin })
         } catch (callErr: any) {
           console.error('Exception in startCallHandler:', callErr)
           callResult = {
