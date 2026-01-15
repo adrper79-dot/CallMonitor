@@ -80,7 +80,11 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
       if (data.success) {
         setScripts(data.scripts || [])
       } else {
-        setError(data.error || 'Failed to load scripts')
+        // Handle error that may be an object with {id, code, message} or a string
+        const errorMsg = typeof data.error === 'object' && data.error !== null
+          ? (data.error.message || data.error.code || JSON.stringify(data.error))
+          : (data.error || 'Failed to load scripts')
+        setError(errorMsg)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load scripts')
@@ -155,7 +159,11 @@ Thank you for the information. I'll get back to you soon.`,
         setEditingScript(null)
         fetchScripts()
       } else {
-        setError(data.error || 'Failed to save script')
+        // Handle error that may be an object with {id, code, message} or a string
+        const errorMsg = typeof data.error === 'object' && data.error !== null
+          ? (data.error.message || data.error.code || JSON.stringify(data.error))
+          : (data.error || 'Failed to save script')
+        setError(errorMsg)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to save script')

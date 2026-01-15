@@ -40,7 +40,11 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
       if (data.success) {
         setBookings(data.bookings || [])
       } else {
-        setError(data.error || 'Failed to load bookings')
+        // Handle error that may be an object with {id, code, message} or a string
+        const errorMsg = typeof data.error === 'object' && data.error !== null
+          ? (data.error.message || data.error.code || JSON.stringify(data.error))
+          : (data.error || 'Failed to load bookings')
+        setError(errorMsg)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load bookings')
