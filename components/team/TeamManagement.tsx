@@ -145,7 +145,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
     try {
       const res = await fetch(`/api/team/members?member_id=${memberId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
       
       const data = await res.json()
@@ -163,7 +164,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
   async function handleCancelInvite(inviteId: string) {
     try {
       const res = await fetch(`/api/team/invite?invite_id=${inviteId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
       
       const data = await res.json()

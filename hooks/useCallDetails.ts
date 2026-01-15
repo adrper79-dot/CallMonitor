@@ -47,11 +47,11 @@ export function useCallDetails(callId: string | null) {
         setLoading(true)
         setError(null)
         
-        // Fetch call details - may need to create this endpoint
-        const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`)
+        // Fetch call details - credentials: include ensures cookies are sent
+        const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`, { credentials: 'include' })
         if (!res.ok) {
           // Fallback to existing endpoint if new one doesn't exist
-          const fallbackRes = await fetch(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`)
+          const fallbackRes = await fetch(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`, { credentials: 'include' })
           if (!fallbackRes.ok) {
             throw new Error('Failed to fetch call details')
           }

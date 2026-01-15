@@ -74,7 +74,7 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
     
     try {
       setLoading(true)
-      const response = await fetch(`/api/shopper/scripts/manage?orgId=${organizationId}`)
+      const response = await fetch(`/api/shopper/scripts/manage?orgId=${organizationId}`, { credentials: 'include' })
       const data = await response.json()
       
       if (data.success) {
@@ -169,7 +169,8 @@ Thank you for the information. I'll get back to you soon.`,
     
     try {
       const response = await fetch(`/api/shopper/scripts/manage?id=${scriptId}&orgId=${organizationId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
       
       if (response.ok) {

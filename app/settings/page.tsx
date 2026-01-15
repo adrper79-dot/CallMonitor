@@ -34,7 +34,7 @@ export default function SettingsPage() {
 
     async function fetchOrganization() {
       try {
-        const res = await fetch(`/api/users/${userId}/organization`)
+        const res = await fetch(`/api/users/${userId}/organization`, { credentials: 'include' })
         if (!res.ok) throw new Error('Failed to fetch organization')
         
         const data = await res.json()

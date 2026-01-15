@@ -99,6 +99,7 @@ export default function BookingsPage() {
       const response = await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ status: 'cancelled' })
       })
       

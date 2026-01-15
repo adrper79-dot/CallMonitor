@@ -34,7 +34,7 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/bookings?limit=${limit}&status=pending`)
+      const response = await fetch(`/api/bookings?limit=${limit}&status=pending`, { credentials: 'include' })
       const data = await response.json()
       
       if (data.success) {

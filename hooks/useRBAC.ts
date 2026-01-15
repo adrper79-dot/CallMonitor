@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { apiGet } from '@/lib/apiClient'
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
 export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'business' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
@@ -32,13 +33,8 @@ export function useRBAC(organizationId: string | null): RBACState {
     async function fetchRBAC() {
       if (!organizationId) return // Guard for TypeScript
       try {
-        // Fetch user's role and org plan
-        // This would typically come from a session or API endpoint
-        const res = await fetch(`/api/rbac/context?orgId=${encodeURIComponent(organizationId)}`)
-        if (!res.ok) {
-          throw new Error('Failed to fetch RBAC context')
-        }
-        const data = await res.json()
+        // Fetch user's role and org plan using apiGet (includes credentials)
+        const data = await apiGet(`/api/rbac/context?orgId=${encodeURIComponent(organizationId)}`)
         setState({
           role: data.role || null,
           plan: data.plan || null,

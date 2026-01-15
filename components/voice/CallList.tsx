@@ -40,7 +40,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
     async () => {
       if (!organizationId) return []
       try {
-        const res = await fetch(`/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`)
+        const res = await fetch(`/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`, { credentials: 'include' })
         if (res.ok) {
           const data = await res.json()
           return data.calls || []

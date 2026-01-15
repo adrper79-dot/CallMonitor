@@ -34,7 +34,7 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
     async () => {
       if (!organizationId) return []
       try {
-        const res = await fetch(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`)
+        const res = await fetch(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`, { credentials: 'include' })
         if (res.ok) {
           const data = await res.json()
           return data.events || []

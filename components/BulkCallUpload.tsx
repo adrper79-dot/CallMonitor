@@ -33,7 +33,7 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
 
   const handleDownloadTemplate = async () => {
     try {
-      const response = await fetch('/api/voice/bulk-upload')
+      const response = await fetch('/api/voice/bulk-upload', { credentials: 'include' })
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')

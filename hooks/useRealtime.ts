@@ -57,11 +57,12 @@ export function useRealtime(organizationId: string | null) {
 
     async function setupRealtime() {
       try {
-        // Get real-time config from API
+        // Get real-time config from API (credentials: include ensures cookies are sent)
         const res = await fetch('/api/realtime/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ organization_id: organizationId })
+          body: JSON.stringify({ organization_id: organizationId }),
+          credentials: 'include'
         })
 
         if (!res.ok || !mounted) {

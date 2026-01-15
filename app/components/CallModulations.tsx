@@ -11,7 +11,7 @@ function useCapabilities(callId: string) {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch(`/api/call-capabilities?callId=${encodeURIComponent(callId)}`, { method: 'GET' })
+    fetch(`/api/call-capabilities?callId=${encodeURIComponent(callId)}`, { method: 'GET', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (!mounted) return;
@@ -80,7 +80,7 @@ export default function CallModulations({ callId, initialModulations, onChange }
   const handleUnlock = async () => {
     setUnlocking(true)
     try {
-      const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }) })
+      const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }), credentials: 'include' })
       const j = await res.json()
       if (res.ok && j?.success) {
         try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
