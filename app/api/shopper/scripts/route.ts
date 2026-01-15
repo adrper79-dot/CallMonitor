@@ -56,7 +56,11 @@ export async function GET(req: Request) {
       .eq('organization_id', organizationId)
       .not('shopper_script', 'is', null)
 
+    // If table doesn't exist (42P01 error), return empty array instead of failing
     if (configsErr) {
+      if (configsErr.code === '42P01' || configsErr.message?.includes('does not exist')) {
+        return NextResponse.json({ success: true, scripts: [] })
+      }
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch shopper scripts', user_message: 'Could not retrieve shopper scripts', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }

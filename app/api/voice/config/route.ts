@@ -61,7 +61,13 @@ async function handleGET(req: Request) {
     }
 
     const { data: rows, error } = await supabaseAdmin.from('voice_configs').select('*').eq('organization_id', orgId).limit(1)
+    
+    // If table doesn't exist (42P01 error), return null config instead of failing
     if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        logger.info('voice_configs table does not exist yet, returning null config', { orgId })
+        return NextResponse.json({ success: true, config: null })
+      }
       const err = new AppError({ code: 'DB_ERROR', message: 'Failed to fetch voice configs', user_message: 'Failed to fetch voice configuration', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
     }

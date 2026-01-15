@@ -25,7 +25,14 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query
 
-    if (error) throw error
+    // If table doesn't exist (42P01 error), return empty array instead of failing
+    if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        logger.info('audit_logs table does not exist yet, returning empty array')
+        return success({ events: [] })
+      }
+      throw error
+    }
 
     const events = (data || []).map((log: any) => ({
       id: log.id, call_id: log.resource_type === 'call' ? log.resource_id : undefined,

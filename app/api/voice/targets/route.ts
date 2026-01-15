@@ -47,13 +47,23 @@ export async function GET(req: Request) {
     }
 
     // Fetch voice targets
+    // Note: voice_targets table may not exist yet - return empty array if missing
     const { data: targets, error: targetsErr } = await supabaseAdmin
       .from('voice_targets')
       .select('id, phone_number, name, description, is_active, created_at')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
 
+    // If table doesn't exist (42P01 error), return empty array instead of failing
     if (targetsErr) {
+      if (targetsErr.code === '42P01' || targetsErr.message?.includes('does not exist')) {
+        logger.info('voice_targets table does not exist yet, returning empty array', { organizationId })
+        return NextResponse.json({
+          success: true,
+          targets: []
+        })
+      }
+      
       logger.error('Failed to fetch voice_targets', targetsErr, { organizationId, userId })
       const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch voice targets', user_message: 'Could not retrieve voice targets', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })

@@ -43,7 +43,16 @@ async function handleGET(req: NextRequest) {
 
     const { data, error, count } = await query
 
+    // If table doesn't exist (42P01 error), return empty array instead of failing
     if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        logger.info('calls table does not exist yet, returning empty array', { orgId })
+        return NextResponse.json({
+          success: true,
+          calls: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+        })
+      }
       throw error
     }
 

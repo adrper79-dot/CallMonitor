@@ -46,7 +46,12 @@ export async function GET(req: NextRequest) {
 
     const { data: bookings, error, count } = await query
 
+    // If table doesn't exist (42P01 error), return empty array instead of failing
     if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        logger.info('booking_events table does not exist yet, returning empty array')
+        return success({ bookings: [], total: 0, limit, offset })
+      }
       logger.error('GET /api/bookings error', error)
       return Errors.internal(error)
     }
