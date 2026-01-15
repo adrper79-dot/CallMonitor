@@ -683,3 +683,64 @@ CREATE TABLE public.webhook_configs (
   CONSTRAINT webhook_configs_pkey PRIMARY KEY (id),
   CONSTRAINT webhook_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+
+-- =============================================================================
+-- SYSTEM OF RECORD COMPLIANCE TABLES (January 2026)
+-- =============================================================================
+
+-- Immutable transcript history for chain of custody
+CREATE TABLE public.transcript_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  recording_id uuid NOT NULL REFERENCES public.recordings(id),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  version integer NOT NULL DEFAULT 1,
+  transcript_json jsonb NOT NULL,
+  transcript_hash text NOT NULL,              -- SHA256 of transcript content
+  produced_by text NOT NULL CHECK (produced_by IN ('system', 'human', 'model')),
+  produced_by_model text,                     -- e.g., 'assemblyai-v1'
+  produced_by_user_id uuid REFERENCES public.users(id),
+  input_refs jsonb,                           -- References to input artifacts
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(recording_id, version)
+);
+
+-- Chain of custody for all artifacts
+CREATE TABLE public.artifact_provenance (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  artifact_type text NOT NULL CHECK (artifact_type IN ('recording', 'transcript', 'translation', 'survey', 'score', 'evidence_manifest')),
+  artifact_id uuid NOT NULL,
+  parent_artifact_id uuid,                    -- Reference to input artifact
+  parent_artifact_type text,
+  produced_by text NOT NULL CHECK (produced_by IN ('system', 'human', 'model')),
+  produced_by_model text,
+  produced_by_user_id uuid REFERENCES public.users(id),
+  produced_by_system_id uuid REFERENCES public.systems(id),
+  produced_at timestamptz NOT NULL DEFAULT now(),
+  input_refs jsonb,                           -- Array of {type, id, hash} references
+  version integer NOT NULL DEFAULT 1,
+  metadata jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Export bundle tracking for portability
+CREATE TABLE public.call_export_bundles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  call_id uuid NOT NULL REFERENCES public.calls(id),
+  bundle_hash text NOT NULL,                  -- SHA256 of entire bundle
+  artifacts_included jsonb NOT NULL,          -- List of {type, id, hash}
+  storage_path text,                          -- Path in storage bucket
+  exported_by uuid REFERENCES public.users(id),
+  exported_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz,                     -- Optional expiration
+  download_count integer DEFAULT 0,
+  metadata jsonb
+);
+
+-- Additional columns for System of Record compliance:
+-- recordings: source, external_call_id, media_hash, is_altered, original_url, is_deleted, deleted_at, deleted_by
+-- calls: is_deleted, deleted_at, deleted_by
+-- ai_runs: is_deleted, deleted_at, deleted_by
+-- scored_recordings: is_deleted, deleted_at, deleted_by
+-- evidence_manifests: version, parent_manifest_id, superseded_at, superseded_by

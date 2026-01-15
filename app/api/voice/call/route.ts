@@ -35,6 +35,12 @@ async function handlePOST(req: Request) {
     const body = await req.json()
     const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
     
+    // SYSTEM OF RECORD COMPLIANCE (Requirement 1):
+    // Reject any client-supplied call_id - IDs must be server-generated only
+    if (body.call_id || body.callId || body.id) {
+      return Errors.badRequest('Client-supplied call IDs are not permitted. Call IDs are generated server-side only.')
+    }
+    
     // Determine phone number to call
     let phoneNumber = body.phone_to || body.phone_number || body.to || body.to_number
     

@@ -23,6 +23,12 @@ export async function POST(req: Request) {
 
     const { organization_id, from_number, phone_number, flow_type, modulations } = body || {}
     
+    // SYSTEM OF RECORD COMPLIANCE (Requirement 1):
+    // Reject any client-supplied call_id - IDs must be server-generated only
+    if (body?.call_id || body?.callId || body?.id) {
+      return Errors.badRequest('Client-supplied call IDs are not permitted. Call IDs are generated server-side only.')
+    }
+    
     if (!organization_id) {
       return Errors.badRequest('organization_id required')
     }

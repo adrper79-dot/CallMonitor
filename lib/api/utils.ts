@@ -93,6 +93,7 @@ export const Errors = {
   authRequired: () => errorResponse('AUTH_REQUIRED', 'Auth required', 'Please sign in', 401),
   orgNotFound: () => errorResponse('ORG_NOT_FOUND', 'No org', 'Organization not found', 404),
   unauthorized: (msg = 'Not authorized') => errorResponse('UNAUTHORIZED', msg, msg, 403),
+  forbidden: (msg = 'Access denied') => errorResponse('FORBIDDEN', msg, msg, 403),
   badRequest: (msg: string) => errorResponse('BAD_REQUEST', msg, msg, 400),
   notFound: (resource: string) => errorResponse('NOT_FOUND', `${resource} not found`, `${resource} not found`, 404),
   internal: (err?: Error) => errorResponse('INTERNAL_ERROR', err?.message || 'Internal error', 'Something went wrong', 500),

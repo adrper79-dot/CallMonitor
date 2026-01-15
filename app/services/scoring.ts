@@ -51,10 +51,10 @@ export async function scoreRecording(
 
     const structure: ScorecardStructure = scorecard.structure as any
 
-    // Get recording and transcript
+    // Get recording and transcript (include call_sid for manifest generation)
     const { data: recRows } = await supabaseAdmin
       .from('recordings')
-      .select('id, transcript_json, duration_seconds')
+      .select('id, transcript_json, duration_seconds, call_sid')
       .eq('id', recordingId)
       .limit(1)
 
@@ -149,26 +149,58 @@ export async function scoreRecording(
         .insert(scoredRecording)
     }
 
-    // Link to evidence manifest if it exists
-    const { data: manifestRows } = await supabaseAdmin
-      .from('evidence_manifests')
-      .select('id, manifest')
-      .eq('recording_id', recordingId)
-      .limit(1)
-
-    if (manifestRows?.[0]) {
-      // Update manifest to include score
-      const manifest = manifestRows[0].manifest as any
-      manifest.scoring = {
-        scorecard_id: scorecardId,
-        total_score: totalScore,
-        scores: scores,
-        scored_at: new Date().toISOString()
+    // Generate new evidence manifest version with scoring included
+    // SYSTEM OF RECORD COMPLIANCE: Never update existing manifests, create new version
+    try {
+      const { generateEvidenceManifest, recordArtifactProvenance } = await import('./evidenceManifest')
+      
+      // Get call_id from recording
+      const { data: callRows } = await supabaseAdmin
+        .from('calls')
+        .select('id')
+        .eq('call_sid', recording.call_sid || '')
+        .limit(1)
+      
+      // Also try to get from recordings table directly if call_sid lookup fails
+      let callId = callRows?.[0]?.id
+      if (!callId) {
+        const { data: recCallRows } = await supabaseAdmin
+          .from('recordings')
+          .select('call_sid')
+          .eq('id', recordingId)
+          .limit(1)
+        
+        if (recCallRows?.[0]?.call_sid) {
+          const { data: callBySid } = await supabaseAdmin
+            .from('calls')
+            .select('id')
+            .eq('call_sid', recCallRows[0].call_sid)
+            .limit(1)
+          callId = callBySid?.[0]?.id
+        }
       }
 
-      await supabaseAdmin
-        .from('evidence_manifests')
-        .update({ manifest }).eq('id', manifestRows[0].id)
+      if (callId) {
+        // This creates a new manifest version (v2+) with scoring included
+        await generateEvidenceManifest(callId, recordingId, organizationId, scorecardId)
+      }
+
+      // Record score provenance
+      await recordArtifactProvenance(organizationId, 'score', scoredRecordingId, {
+        produced_by: 'model',
+        produced_by_model: 'qise-v1',
+        parent_artifact_id: recordingId,
+        parent_artifact_type: 'recording',
+        input_refs: [
+          { type: 'recording', id: recordingId },
+          { type: 'scorecard', id: scorecardId }
+        ],
+        version: 1,
+        metadata: { total_score: totalScore }
+      })
+    } catch (manifestErr) {
+      // Non-fatal - scoring still succeeded
+      logger.warn('scoring: could not generate evidence manifest', manifestErr, { recordingId })
     }
 
     return {
