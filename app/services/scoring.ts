@@ -198,9 +198,9 @@ export async function scoreRecording(
         version: 1,
         metadata: { total_score: totalScore }
       })
-    } catch (manifestErr) {
+    } catch (manifestErr: any) {
       // Non-fatal - scoring still succeeded
-      logger.warn('scoring: could not generate evidence manifest', manifestErr, { recordingId })
+      logger.warn('scoring: could not generate evidence manifest', { error: manifestErr?.message || String(manifestErr), recordingId })
     }
 
     return {

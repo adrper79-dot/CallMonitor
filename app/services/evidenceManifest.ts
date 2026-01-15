@@ -293,15 +293,14 @@ export async function generateEvidenceManifest(
     if (parentManifestId) {
       // Note: This update is allowed because we're only marking supersession, not changing content
       // The trigger allows this specific operation via WHEN clause
-      await supabaseAdmin.from('evidence_manifests')
-        .update({ superseded_at: now, superseded_by: manifestId })
-        .eq('id', parentManifestId)
-        .then(() => {
-          // If trigger blocks this, it's okay - the new manifest is still valid
-        })
-        .catch(() => {
-          logger.warn('evidenceManifest: could not mark parent as superseded (trigger may prevent)', { parentManifestId })
-        })
+      try {
+        await supabaseAdmin.from('evidence_manifests')
+          .update({ superseded_at: now, superseded_by: manifestId })
+          .eq('id', parentManifestId)
+      } catch {
+        // If trigger blocks this, it's okay - the new manifest is still valid
+        logger.warn('evidenceManifest: could not mark parent as superseded (trigger may prevent)', { parentManifestId })
+      }
     }
 
     // Record provenance
@@ -411,7 +410,7 @@ export async function recordArtifactProvenance(
 
     return provenanceId
   } catch (err: any) {
-    logger.warn('evidenceManifest: provenance recording error', err, { artifactId })
+    logger.warn('evidenceManifest: provenance recording error', { error: err?.message || String(err), artifactId })
     return null
   }
 }

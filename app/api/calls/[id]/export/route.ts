@@ -382,7 +382,7 @@ export async function GET(
       })
     } catch (storeErr) {
       // Non-fatal - export still succeeds
-      logger.warn('callExport: could not store export record', storeErr)
+      logger.warn('callExport: could not store export record', { error: String(storeErr) })
     }
 
     // Audit log
