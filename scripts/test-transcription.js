@@ -11,6 +11,9 @@
 
 require('dotenv').config({ path: '.env.local' })
 
+// Import Supabase client
+const { createClient } = require('@supabase/supabase-js')
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY
@@ -25,23 +28,28 @@ if (!ASSEMBLYAI_API_KEY) {
   process.exit(1)
 }
 
+// Initialize Supabase admin client
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
+
 async function fetchRecordings() {
   console.log('🔍 Fetching recordings from database...\n')
   
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/recordings?select=id,call_id,recording_url,status,duration&limit=10`, {
-    headers: {
-      'apikey': SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json'
-    }
-  })
+  const { data: recordings, error } = await supabase
+    .from('recordings')
+    .select('id, call_id, recording_url, status, duration')
+    .order('created_at', { ascending: false })
+    .limit(10)
   
-  if (!response.ok) {
-    throw new Error(`Failed to fetch recordings: ${response.status} ${response.statusText}`)
+  if (error) {
+    throw new Error(`Failed to fetch recordings: ${error.message}`)
   }
   
-  const recordings = await response.json()
-  return recordings
+  return recordings || []
 }
 
 async function submitToAssemblyAI(audioUrl) {
@@ -119,25 +127,19 @@ async function pollTranscriptStatus(transcriptId) {
 async function updateRecordingInDatabase(recordingId, transcriptData) {
   console.log('💾 Updating database with transcript...\n')
   
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/recordings?id=eq.${recordingId}`, {
-    method: 'PATCH',
-    headers: {
-      'apikey': SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    },
-    body: JSON.stringify({
+  const { data, error } = await supabase
+    .from('recordings')
+    .update({
       transcript_text: transcriptData.text,
       transcript_json: transcriptData,
       status: 'transcribed',
       updated_at: new Date().toISOString()
     })
-  })
+    .eq('id', recordingId)
+    .select()
   
-  if (!response.ok) {
-    const error = await response.text()
-    console.error(`Failed to update database: ${error}`)
+  if (error) {
+    console.error(`Failed to update database: ${error.message}`)
     return false
   }
   
