@@ -12,13 +12,9 @@ ADD COLUMN IF NOT EXISTS live_translation_provider TEXT;
 COMMENT ON COLUMN recordings.has_live_translation IS 'Whether this call used live translation (SignalWire AI Agent)';
 COMMENT ON COLUMN recordings.live_translation_provider IS 'Provider used for live translation (e.g., signalwire)';
 
--- Add translation language fields to voice_configs table
-ALTER TABLE voice_configs
-ADD COLUMN IF NOT EXISTS translation_from TEXT,
-ADD COLUMN IF NOT EXISTS translation_to TEXT;
-
-COMMENT ON COLUMN voice_configs.translation_from IS 'Source language for translation (e.g., en, es, fr)';
-COMMENT ON COLUMN voice_configs.translation_to IS 'Target language for translation (e.g., en, es, fr)';
+-- Note: translate_from and translate_to already exist in voice_configs per Schema.txt
+-- No need to add them. Just verify they exist.
+-- The live_translate_from and live_translate_to are for SignalWire AI Agent live translation.
 
 -- Create index for querying live translation recordings
 CREATE INDEX IF NOT EXISTS idx_recordings_live_translation 
@@ -37,6 +33,7 @@ WHERE table_name = 'recordings'
 AND column_name IN ('has_live_translation', 'live_translation_provider')
 ORDER BY ordinal_position;
 
+-- Verify translate_from and translate_to exist in voice_configs (per Schema.txt)
 SELECT 
     'voice_configs' as table_name,
     column_name,
@@ -44,7 +41,7 @@ SELECT
     is_nullable
 FROM information_schema.columns
 WHERE table_name = 'voice_configs'
-AND column_name IN ('translation_from', 'translation_to')
+AND column_name IN ('translate_from', 'translate_to', 'live_translate_from', 'live_translate_to')
 ORDER BY ordinal_position;
 
 -- ============================================================================

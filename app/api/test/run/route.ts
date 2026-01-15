@@ -3,6 +3,8 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import { logger } from '@/lib/logger'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 // Force dynamic rendering - test execution must be dynamic
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,23 @@ export const dynamic = 'force-dynamic'
 const execAsync = promisify(exec)
 
 export async function POST(request: NextRequest) {
+  // SECURITY: Disable in production - test execution is development only
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Test execution disabled in production' }
+    }, { status: 403 })
+  }
+
+  // SECURITY: Require admin authentication
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({
+      success: false,
+      error: { code: 'AUTH_REQUIRED', message: 'Authentication required' }
+    }, { status: 401 })
+  }
+
   try {
     const { categoryId, testId } = await request.json()
 

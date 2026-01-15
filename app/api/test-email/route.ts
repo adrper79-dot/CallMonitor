@@ -1,13 +1,33 @@
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/app/services/emailService'
 import { logger } from '@/lib/logger'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/test-email - Send a test email to verify Resend is working
+ * SECURITY: Requires authentication and disabled in production
  */
 export async function GET(req: Request) {
+  // SECURITY: Disable in production - testing endpoints should not be exposed
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Test email endpoint disabled in production' 
+    }, { status: 403 })
+  }
+
+  // SECURITY: Require authentication
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Authentication required' 
+    }, { status: 401 })
+  }
+
   const url = new URL(req.url)
   const to = url.searchParams.get('to')
   
@@ -61,6 +81,17 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // SECURITY: Disable in production
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, error: 'Disabled in production' }, { status: 403 })
+  }
+
+  // SECURITY: Require authentication
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const body = await req.json()
     const { to, subject, message } = body

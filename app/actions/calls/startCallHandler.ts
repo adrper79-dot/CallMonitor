@@ -160,17 +160,18 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // Route to SWML endpoint for live translation, LaML for regular calls
     if (useLiveTranslation && callId) {
       // Get translation language settings from voice_configs
+      // Column names are translate_from and translate_to (per ARCH_DOCS Schema.txt)
       let translateFrom = 'en'
       let translateTo = 'es'
       try {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
-          .select('translation_from, translation_to')
+          .select('translate_from, translate_to')
           .eq('organization_id', organization_id)
           .limit(1)
         if (vcRows?.[0]) {
-          translateFrom = vcRows[0].translation_from || 'en'
-          translateTo = vcRows[0].translation_to || 'es'
+          translateFrom = vcRows[0].translate_from || 'en'
+          translateTo = vcRows[0].translate_to || 'es'
         }
       } catch (e) {
         logger.warn('Failed to fetch translation languages, using defaults', e as Error)
