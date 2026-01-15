@@ -12,17 +12,18 @@ import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { AppShell } from '@/components/layout/AppShell'
 
-type TabId = 'ai-control' | 'targets' | 'team' | 'caller-id' | 'shopper' | 'surveys' | 'billing'
+type TabId = 'call-config' | 'ai-control' | 'quality' | 'team' | 'billing'
 
 function SettingsPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const userId = (session?.user as any)?.id
   
-  // Get tab from URL or default to 'ai-control'
+  // Get tab from URL or default to 'call-config'
   const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState<TabId>((tabParam as TabId) || 'ai-control')
+  const [activeTab, setActiveTab] = useState<TabId>((tabParam as TabId) || 'call-config')
 
   const [organizationId, setOrganizationId] = React.useState<string | null>(null)
   const [organizationName, setOrganizationName] = React.useState<string | null>(null)
@@ -95,48 +96,42 @@ function SettingsPageContent() {
     )
   }
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'ai-control', label: 'AI Control' },
-    { id: 'targets', label: 'Targets' },
-    { id: 'surveys', label: 'Surveys' },
-    { id: 'team', label: 'Team' },
-    { id: 'caller-id', label: 'Caller ID' },
-    { id: 'shopper', label: 'Secret Shopper' },
-    { id: 'billing', label: 'Billing' },
+  // Organized tabs by job-to-be-done
+  const tabs: { id: TabId; label: string; description: string }[] = [
+    { id: 'call-config', label: 'Call Configuration', description: 'Targets, Caller ID, defaults' },
+    { id: 'ai-control', label: 'AI & Intelligence', description: 'Transcription, translation, surveys' },
+    { id: 'quality', label: 'Quality Assurance', description: 'Secret shopper scripts' },
+    { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
+    { id: 'billing', label: 'Billing', description: 'Plan and payment' },
   ]
 
+  const userEmail = session?.user?.email || undefined
+
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
-              <p className="text-sm text-gray-500">
-                {organizationName || 'Your Organization'}
-                {plan && (
-                  <Badge variant="default" className="ml-2">
-                    {plan.charAt(0).toUpperCase() + plan.slice(1)}
-                  </Badge>
-                )}
-              </p>
-            </div>
-            <a href="/dashboard" className="text-sm text-gray-500 hover:text-gray-900">
-              Back to Dashboard
-            </a>
-          </div>
+    <AppShell organizationName={organizationName || undefined} userEmail={userEmail}>
+      {/* Page Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {organizationName || 'Your Organization'}
+            {plan && (
+              <Badge variant="default" className="ml-2">
+                {plan.charAt(0).toUpperCase() + plan.slice(1)}
+              </Badge>
+            )}
+          </p>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Tab Navigation */}
-        <nav className="flex gap-1 mb-8 overflow-x-auto pb-2">
+        {/* Tab Navigation - Improved hierarchy */}
+        <nav className="flex flex-wrap gap-2 mb-8">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -149,57 +144,54 @@ function SettingsPageContent() {
 
         {/* Tab Content */}
         <div className="space-y-8">
-          {/* AI Control & Independence */}
+          {/* Call Configuration - Targets + Caller ID */}
+          {activeTab === 'call-config' && (
+            <div className="space-y-8">
+              <section className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">Call Targets</h2>
+                  <p className="text-sm text-gray-500">
+                    Add and manage phone numbers you want to test or monitor.
+                  </p>
+                </div>
+                <VoiceTargetManager organizationId={organizationId} />
+              </section>
+              
+              <div className="border-t border-gray-200 pt-8">
+                <section className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Caller ID Management</h2>
+                    <p className="text-sm text-gray-500">
+                      Verify and manage phone numbers that appear as your caller ID.
+                    </p>
+                  </div>
+                  <CallerIdManager organizationId={organizationId} />
+                </section>
+              </div>
+            </div>
+          )}
+
+          {/* AI Control & Intelligence - AI settings + Surveys */}
           {activeTab === 'ai-control' && (
-            <AIControlSection organizationId={organizationId} canEdit={role === 'owner' || role === 'admin'} />
-          )}
-
-          {/* Voice Targets - Numbers to Call */}
-          {activeTab === 'targets' && (
-            <section className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Call Targets</h2>
-                <p className="text-sm text-gray-500">
-                  Add and manage phone numbers you want to test or monitor.
-                </p>
+            <div className="space-y-8">
+              <AIControlSection organizationId={organizationId} canEdit={role === 'owner' || role === 'admin'} />
+              
+              <div className="border-t border-gray-200 pt-8">
+                <section className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Survey Builder</h2>
+                    <p className="text-sm text-gray-500">
+                      Create after-call surveys to gather customer feedback.
+                    </p>
+                  </div>
+                  <SurveyBuilder organizationId={organizationId} />
+                </section>
               </div>
-              <VoiceTargetManager organizationId={organizationId} />
-            </section>
+            </div>
           )}
 
-          {/* Survey Builder */}
-          {activeTab === 'surveys' && (
-            <section className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Survey Builder</h2>
-                <p className="text-sm text-gray-500">
-                  Create after-call surveys to gather customer feedback.
-                </p>
-              </div>
-              <SurveyBuilder organizationId={organizationId} />
-            </section>
-          )}
-
-          {/* Team Management */}
-          {activeTab === 'team' && (
-            <TeamManagement organizationId={organizationId} />
-          )}
-
-          {/* Caller ID Management */}
-          {activeTab === 'caller-id' && (
-            <section className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Caller ID Management</h2>
-                <p className="text-sm text-gray-500">
-                  Verify and manage phone numbers that appear as your caller ID.
-                </p>
-              </div>
-              <CallerIdManager organizationId={organizationId} />
-            </section>
-          )}
-
-          {/* Secret Shopper */}
-          {activeTab === 'shopper' && (
+          {/* Quality Assurance */}
+          {activeTab === 'quality' && (
             <section className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Secret Shopper Scripts</h2>
@@ -209,6 +201,11 @@ function SettingsPageContent() {
               </div>
               <ShopperScriptManager organizationId={organizationId} />
             </section>
+          )}
+
+          {/* Team Management */}
+          {activeTab === 'team' && (
+            <TeamManagement organizationId={organizationId} />
           )}
 
           {/* Billing */}
@@ -286,7 +283,7 @@ function SettingsPageContent() {
           )}
         </div>
       </div>
-    </main>
+    </AppShell>
   )
 }
 

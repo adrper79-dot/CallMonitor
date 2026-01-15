@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import type { Call } from '@/app/voice/page'
-import { VoiceConfigProvider } from '@/hooks/useVoiceConfig'
+import { VoiceConfigProvider, useVoiceConfig } from '@/hooks/useVoiceConfig'
 import VoiceHeader from './VoiceHeader'
 import CallList from './CallList'
 import CallDetailView from './CallDetailView'
@@ -12,8 +12,10 @@ import ActivityFeedEmbed from './ActivityFeedEmbed'
 import CallModulations from './CallModulations'
 import { BookingsList } from './BookingsList'
 import { BookingModal } from './BookingModal'
-import ShopperScriptManager from './ShopperScriptManager'
-import CallerIdManager from './CallerIdManager'
+import { OnboardingWizard, OnboardingConfig } from './OnboardingWizard'
+import { RecentTargets } from './RecentTargets'
+import { ActiveCallPanel } from './ActiveCallPanel'
+import { useRealtime } from '@/hooks/useRealtime'
 
 // Mobile tab type
 type MobileTab = 'dial' | 'calls' | 'activity'
@@ -27,8 +29,11 @@ export interface VoiceOperationsClientProps {
 /**
  * VoiceOperationsClient - Professional Design System v3.0
  * 
- * Single-page voice operations interface.
- * Clean, minimal, data-focused design.
+ * Single-page voice operations interface with:
+ * - First-time user onboarding
+ * - Recent targets quick access
+ * - Progressive disclosure for options
+ * - Active call status panel
  */
 export default function VoiceOperationsClient({
   initialCalls,
@@ -37,9 +42,54 @@ export default function VoiceOperationsClient({
 }: VoiceOperationsClientProps) {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [optionsExpanded, setOptionsExpanded] = useState(false)
+  
+  // Active call tracking
+  const [activeCallId, setActiveCallId] = useState<string | null>(null)
+  const [activeCallStatus, setActiveCallStatus] = useState<string | null>(null)
+  const [activeCallDuration, setActiveCallDuration] = useState(0)
   
   // Mobile navigation state
   const [mobileTab, setMobileTab] = useState<MobileTab>('dial')
+
+  // Real-time updates for active call
+  const { updates } = useRealtime(organizationId)
+
+  // Check if first-time user (no calls, no targets configured)
+  useEffect(() => {
+    if (initialCalls.length === 0) {
+      // Could check for targets too, but for now just show if no calls
+      setShowOnboarding(true)
+    }
+  }, [initialCalls.length])
+
+  // Monitor real-time updates for active call
+  useEffect(() => {
+    if (!activeCallId || !updates.length) return
+
+    updates.forEach((update) => {
+      if (update.table === 'calls' && update.new?.id === activeCallId) {
+        const status = update.new.status
+        setActiveCallStatus(status)
+        
+        if (status === 'completed' || status === 'failed' || status === 'no-answer' || status === 'busy') {
+          // Call ended - keep panel visible but stop timer
+        }
+      }
+    })
+  }, [updates, activeCallId])
+
+  // Timer for active calls
+  useEffect(() => {
+    if (!activeCallId || activeCallStatus !== 'in_progress') return
+
+    const interval = setInterval(() => {
+      setActiveCallDuration((prev) => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [activeCallId, activeCallStatus])
 
   // Listen for call selection events from activity feed
   useEffect(() => {
@@ -58,8 +108,50 @@ export default function VoiceOperationsClient({
     }
   }, [])
 
+  const handleCallPlaced = (callId: string) => {
+    setActiveCallId(callId)
+    setActiveCallStatus('initiating')
+    setActiveCallDuration(0)
+    setSelectedCallId(callId)
+  }
+
+  const handleOnboardingComplete = async (config: OnboardingConfig) => {
+    setShowOnboarding(false)
+    // The onboarding wizard will trigger the call placement
+    // For now, just close the wizard - user can place call normally
+  }
+
+  const handleTargetSelect = (number: string, name?: string) => {
+    // This will be handled by TargetCampaignSelector through the config context
+    // We can close the recent targets panel or highlight the selection
+  }
+
+  const handleNewCall = () => {
+    setActiveCallId(null)
+    setActiveCallStatus(null)
+    setActiveCallDuration(0)
+  }
+
   async function handleModulationChange(mods: Record<string, boolean>) {
     // Modulation changes are handled by CallModulations component directly
+  }
+
+  // Show onboarding for first-time users
+  if (showOnboarding && initialCalls.length === 0) {
+    return (
+      <VoiceConfigProvider organizationId={organizationId}>
+        <div className="min-h-screen bg-gray-50">
+          <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
+          <div className="py-12 px-4">
+            <OnboardingWizard
+              organizationId={organizationId}
+              onComplete={handleOnboardingComplete}
+              onSkip={() => setShowOnboarding(false)}
+            />
+          </div>
+        </div>
+      </VoiceConfigProvider>
+    )
   }
 
   return (
@@ -93,30 +185,80 @@ export default function VoiceOperationsClient({
           {/* Main Area - Call Controls & Detail */}
           <main className="flex-1 overflow-y-auto p-6">
             <div className="max-w-2xl mx-auto space-y-6">
-              {/* Target & Campaign Selector */}
-              <TargetCampaignSelector organizationId={organizationId} />
-
-              {/* Call Options */}
-              <section className="bg-white rounded-md border border-gray-200 p-4">
-                <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                  Call Options
-                </h2>
-                <CallModulations
-                  callId="org-default"
-                  organizationId={organizationId}
-                  initialModulations={{
-                    record: false,
-                    transcribe: false,
-                    translate: false,
-                    survey: false,
-                    synthetic_caller: false,
-                  }}
-                  onChange={handleModulationChange}
+              {/* Active Call Panel - Shows when call is active */}
+              {activeCallId && activeCallStatus && (
+                <ActiveCallPanel
+                  callId={activeCallId}
+                  status={activeCallStatus}
+                  duration={activeCallDuration}
+                  onViewDetails={() => setSelectedCallId(activeCallId)}
+                  onNewCall={handleNewCall}
                 />
+              )}
+
+              {/* Target & Campaign Selector with Recent Targets */}
+              <div className="space-y-4">
+                <TargetCampaignSelector organizationId={organizationId} />
+                
+                {/* Recent Targets - Quick Access */}
+                <div className="bg-white rounded-md border border-gray-200 p-4">
+                  <RecentTargets
+                    organizationId={organizationId}
+                    onSelect={handleTargetSelect}
+                    limit={3}
+                  />
+                </div>
+              </div>
+
+              {/* Call Options - Progressive Disclosure */}
+              <section className="bg-white rounded-md border border-gray-200">
+                <button
+                  onClick={() => setOptionsExpanded(!optionsExpanded)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900">
+                      Call Options
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      Recording, transcription, and more
+                    </p>
+                  </div>
+                  <svg 
+                    className={`w-5 h-5 text-gray-400 transition-transform ${optionsExpanded ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {optionsExpanded && (
+                  <div className="px-4 pb-4 border-t border-gray-100">
+                    <CallModulations
+                      callId="org-default"
+                      organizationId={organizationId}
+                      initialModulations={{
+                        record: false,
+                        transcribe: false,
+                        translate: false,
+                        survey: false,
+                        synthetic_caller: false,
+                      }}
+                      onChange={handleModulationChange}
+                    />
+                  </div>
+                )}
               </section>
 
               {/* Execution Controls - Primary Action */}
-              <ExecutionControls organizationId={organizationId} />
+              {!activeCallId && (
+                <ExecutionControls 
+                  organizationId={organizationId} 
+                  onCallPlaced={handleCallPlaced}
+                />
+              )}
 
               {/* Call Detail View */}
               <div id="call-detail-container">
@@ -142,7 +284,27 @@ export default function VoiceOperationsClient({
             {/* Dial Tab */}
             {mobileTab === 'dial' && (
               <div className="p-4 space-y-4">
+                {/* Active Call Panel */}
+                {activeCallId && activeCallStatus && (
+                  <ActiveCallPanel
+                    callId={activeCallId}
+                    status={activeCallStatus}
+                    duration={activeCallDuration}
+                    onViewDetails={() => setSelectedCallId(activeCallId)}
+                    onNewCall={handleNewCall}
+                  />
+                )}
+
                 <TargetCampaignSelector organizationId={organizationId} />
+
+                {/* Recent Targets */}
+                <div className="bg-white rounded-md border border-gray-200 p-4">
+                  <RecentTargets
+                    organizationId={organizationId}
+                    onSelect={handleTargetSelect}
+                    limit={3}
+                  />
+                </div>
 
                 {/* Call Options - Collapsible */}
                 <details className="bg-white rounded-md border border-gray-200">
@@ -166,7 +328,12 @@ export default function VoiceOperationsClient({
                   </div>
                 </details>
 
-                <ExecutionControls organizationId={organizationId} />
+                {!activeCallId && (
+                  <ExecutionControls 
+                    organizationId={organizationId}
+                    onCallPlaced={handleCallPlaced}
+                  />
+                )}
 
                 {/* Scheduled Calls - Collapsible */}
                 <details className="bg-white rounded-md border border-gray-200">

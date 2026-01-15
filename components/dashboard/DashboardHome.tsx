@@ -6,6 +6,7 @@ import { useRBAC } from '@/hooks/useRBAC'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { ProgressBar } from '@/components/tableau/ProgressBar'
 import { ClientDate } from '@/components/ui/ClientDate'
+import { Badge } from '@/components/ui/badge'
 
 interface DashboardStats {
   totalCalls: number
@@ -21,6 +22,7 @@ interface RecentCall {
   status: string
   created_at: string
   duration_seconds?: number
+  to_number?: string
   sentiment_summary?: {
     overall: string
     positive_percent: number
@@ -28,8 +30,10 @@ interface RecentCall {
 }
 
 /**
- * DashboardHome - Clean Tableau-style dashboard
- * Data-first design with clear hierarchy and minimal styling
+ * DashboardHome - Professional Design System v3.0
+ * 
+ * Data-first dashboard with clear hierarchy.
+ * Light theme, navy primary, no emojis.
  */
 export default function DashboardHome({ organizationId }: { organizationId: string | null }) {
   const { plan, role } = useRBAC(organizationId)
@@ -80,7 +84,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1,2,3,4].map(i => (
-            <div key={i} className="h-24 bg-gray-100 rounded animate-pulse" />
+            <div key={i} className="h-24 bg-gray-100 rounded-md animate-pulse" />
           ))}
         </div>
       </div>
@@ -88,7 +92,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Key Metrics */}
       <section aria-label="Key Metrics" className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
@@ -117,46 +121,49 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Quick Actions */}
         <section aria-label="Quick Actions" className="space-y-4">
-          <h2 className="text-lg font-semibold text-[#333333]">Quick Actions</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
           
-          <div className="bg-white border border-[#E5E5E5] rounded p-4 space-y-2">
+          <div className="bg-white border border-gray-200 rounded-md p-4 space-y-1">
             <ActionLink href="/voice" title="Make a Call" description="Start a new outbound call" />
-            <ActionLink href="/voice?tab=settings" title="Schedule Call" description="Book a future call" />
-            <ActionLink href="/voice?tab=settings" title="Configure" description="Recording, transcription, translation" />
+            <ActionLink href="/bookings" title="Schedule Call" description="Book a future call" />
+            <ActionLink href="/settings?tab=targets" title="Manage Targets" description="Add or edit call targets" />
             {(plan === 'business' || plan === 'enterprise') && (
-              <ActionLink href="/voice?tab=settings&section=shopper" title="Secret Shopper" description="Create evaluation scripts" />
+              <ActionLink href="/settings?tab=shopper" title="Secret Shopper" description="Create evaluation scripts" />
             )}
           </div>
         </section>
 
         {/* Recent Calls */}
-        <section aria-label="Recent Activity" className="lg:col-span-1 space-y-4">
-          <h2 className="text-lg font-semibold text-[#333333]">Recent Calls</h2>
+        <section aria-label="Recent Activity" className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Calls</h2>
           
-          <div className="bg-white border border-[#E5E5E5] rounded overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
             {recentCalls.length === 0 ? (
-              <div className="p-8 text-center text-[#999999]">
-                <p className="text-sm mb-2">No calls yet</p>
-                <Link href="/voice" className="text-[#4E79A7] hover:text-[#3D6A98] text-sm underline">
-                  Make your first call →
+              <div className="p-8 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                <p className="text-sm text-gray-500 mb-2">No calls yet</p>
+                <Link href="/voice" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                  Make your first call
                 </Link>
               </div>
             ) : (
-              <ul className="divide-y divide-[#F0F0F0]">
+              <ul className="divide-y divide-gray-100">
                 {recentCalls.map(call => (
                   <li key={call.id}>
                     <Link 
                       href={`/voice?callId=${call.id}`}
-                      className="flex items-center justify-between p-4 hover:bg-[#F8F8F8] transition-colors"
+                      className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#333333] truncate">
-                          <ClientDate date={call.created_at} format="short" />
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {call.to_number || <ClientDate date={call.created_at} format="short" />}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <StatusBadge status={call.status} />
                           {call.duration_seconds && (
-                            <span className="text-xs text-[#666666]">
+                            <span className="text-xs text-gray-500">
                               {Math.round(call.duration_seconds / 60)} min
                             </span>
                           )}
@@ -172,35 +179,37 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
             )}
           </div>
           
-          <Link 
-            href="/voice" 
-            className="block text-center text-sm text-[#4E79A7] hover:text-[#3D6A98] transition-colors"
-          >
-            View all calls →
-          </Link>
+          {recentCalls.length > 0 && (
+            <Link 
+              href="/voice" 
+              className="block text-center text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              View all calls
+            </Link>
+          )}
         </section>
 
         {/* Intelligence Panel */}
         <section aria-label="Intelligence" className="space-y-4">
-          <h2 className="text-lg font-semibold text-[#333333]">Intelligence</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Intelligence</h2>
           
           <div className="space-y-4">
             {/* Sentiment Overview */}
-            <div className="bg-white border border-[#E5E5E5] rounded p-4">
-              <h3 className="text-sm font-semibold text-[#333333] mb-3">Sentiment Trend</h3>
+            <div className="bg-white border border-gray-200 rounded-md p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Sentiment Trend</h3>
               <ProgressBar 
                 value={stats?.avgSentiment || 50} 
                 color={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'green' : stats?.avgSentiment && stats.avgSentiment >= 40 ? 'orange' : 'red'}
                 showValue={true}
               />
-              <p className="text-xs text-[#666666] mt-2 text-center">
+              <p className="text-xs text-gray-500 mt-2 text-center">
                 Based on recent call analysis
               </p>
             </div>
             
             {/* Feature Status */}
-            <div className="bg-white border border-[#E5E5E5] rounded p-4">
-              <h3 className="text-sm font-semibold text-[#333333] mb-3">Active Features</h3>
+            <div className="bg-white border border-gray-200 rounded-md p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Active Features</h3>
               <div className="space-y-2">
                 <FeatureStatus label="Recording" enabled={true} />
                 <FeatureStatus label="Transcription" enabled={true} />
@@ -211,17 +220,17 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
             </div>
             
             {/* Plan Info */}
-            <div className="bg-white border border-[#E5E5E5] rounded p-4">
+            <div className="bg-white border border-gray-200 rounded-md p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-[#666666] uppercase tracking-wide">Current Plan</p>
-                  <p className="text-lg font-semibold text-[#333333] capitalize mt-1">{plan || 'Free'}</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Current Plan</p>
+                  <p className="text-lg font-semibold text-gray-900 capitalize mt-1">{plan || 'Free'}</p>
                 </div>
                 <Link 
                   href="/settings?tab=billing"
-                  className="text-sm text-[#4E79A7] hover:text-[#3D6A98]"
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
-                  Upgrade →
+                  Upgrade
                 </Link>
               </div>
             </div>
@@ -242,57 +251,58 @@ function ActionLink({ href, title, description }: {
   return (
     <Link 
       href={href}
-      className="block p-3 rounded border border-transparent hover:border-[#E5E5E5] hover:bg-[#FAFAFA] transition-colors group"
+      className="block p-3 rounded-md hover:bg-gray-50 transition-colors group"
     >
-      <p className="font-medium text-[#333333] text-sm group-hover:text-[#4E79A7]">{title}</p>
-      <p className="text-xs text-[#666666] mt-0.5">{description}</p>
+      <p className="font-medium text-gray-900 text-sm group-hover:text-primary-600">{title}</p>
+      <p className="text-xs text-gray-500 mt-0.5">{description}</p>
     </Link>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    completed: { bg: 'bg-[#E8F5E9]', text: 'text-[#59A14F]', label: 'Completed' },
-    in_progress: { bg: 'bg-[#E3F2FD]', text: 'text-[#4E79A7]', label: 'In Progress' },
-    failed: { bg: 'bg-[#FFEBEE]', text: 'text-[#E15759]', label: 'Failed' },
-    pending: { bg: 'bg-[#FFF8E1]', text: 'text-[#F57C00]', label: 'Pending' },
-    queued: { bg: 'bg-[#F3E5F5]', text: 'text-[#AF7AA1]', label: 'Queued' }
+  const variants: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
+    completed: 'success',
+    in_progress: 'default',
+    failed: 'error',
+    pending: 'warning',
+    queued: 'default',
   }
-  const c = config[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
+  const labels: Record<string, string> = {
+    completed: 'Completed',
+    in_progress: 'In Progress',
+    failed: 'Failed',
+    pending: 'Pending',
+    queued: 'Queued',
+  }
   
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
+    <Badge variant={variants[status] || 'default'}>
+      {labels[status] || status}
+    </Badge>
   )
 }
 
 function SentimentBadge({ sentiment }: { sentiment: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    POSITIVE: { bg: 'bg-[#E8F5E9]', text: 'text-[#59A14F]', label: 'Positive' },
-    NEGATIVE: { bg: 'bg-[#FFEBEE]', text: 'text-[#E15759]', label: 'Negative' },
-    NEUTRAL: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Neutral' }
+  const variants: Record<string, 'success' | 'error' | 'default'> = {
+    POSITIVE: 'success',
+    NEGATIVE: 'error',
+    NEUTRAL: 'default',
   }
-  const c = config[sentiment] || config.NEUTRAL
   
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
+    <Badge variant={variants[sentiment] || 'default'}>
+      {sentiment.charAt(0) + sentiment.slice(1).toLowerCase()}
+    </Badge>
   )
 }
 
 function FeatureStatus({ label, enabled }: { label: string; enabled: boolean }) {
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-sm text-[#333333]">{label}</span>
-      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-        enabled 
-          ? 'bg-[#E8F5E9] text-[#59A14F]' 
-          : 'bg-gray-100 text-[#999999]'
-      }`}>
+      <span className="text-sm text-gray-700">{label}</span>
+      <Badge variant={enabled ? 'success' : 'default'}>
         {enabled ? 'Active' : 'Upgrade'}
-      </span>
+      </Badge>
     </div>
   )
 }

@@ -386,6 +386,14 @@ Every interactive element must have:
 
 ---
 
+## Related Documents
+
+- **[UX Workflow Patterns](./UX_WORKFLOW_PATTERNS.md)** — Navigation, onboarding, progressive disclosure patterns
+- **[UX Design Principles](./UX_DESIGN_PRINCIPLES.md)** — Core UX philosophy and principles
+- **[Artifact Authority Contract](../01-CORE/ARTIFACT_AUTHORITY_CONTRACT.md)** — Data authority and evidence display rules
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
@@ -393,6 +401,7 @@ Every interactive element must have:
 | 1.0 | Jan 2026 | Initial Jetsons theme |
 | 2.0 | Jan 2026 | Call-rooted UX |
 | 3.0 | Jan 2026 | **Professional SMB redesign** |
+| 3.1 | Jan 2026 | Added AppShell, onboarding, progressive disclosure |
 
 ---
 

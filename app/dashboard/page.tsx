@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import DashboardHome from '@/components/dashboard/DashboardHome'
+import { AppShell } from '@/components/layout/AppShell'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Command Center | VoxSouth',
+  title: 'Dashboard | CallMonitor',
   description: 'Your voice intelligence dashboard'
 }
 
@@ -19,6 +20,7 @@ export default async function DashboardPage() {
   }
 
   const userId = (session.user as any).id
+  const userEmail = session.user.email || undefined
 
   // Get user's organization
   const { data: userRows } = await supabaseAdmin
@@ -42,47 +44,21 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <span className="text-3xl">🎛️</span>
-                Command Center
-              </h1>
-              <p className="text-sm text-slate-400">{organizationName}</p>
-            </div>
-            
-            <nav className="flex items-center gap-4">
-              <a 
-                href="/voice" 
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                📞 Calls
-              </a>
-              <a 
-                href="/bookings" 
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                📅 Schedule
-              </a>
-              <a 
-                href="/settings" 
-                className="px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                ⚙️ Settings
-              </a>
-            </nav>
-          </div>
+    <AppShell organizationName={organizationName} userEmail={userEmail}>
+      {/* Page Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Overview</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Welcome back. Here's what's happening with your calls.
+          </p>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         <DashboardHome organizationId={organizationId} />
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
