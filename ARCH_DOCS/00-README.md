@@ -61,6 +61,7 @@ Essential documents defining system design:
 - **Schema.txt** - Database schema with all tables and relationships
 - **ERROR_HANDLING_PLAN.txt** - Error handling strategy and patterns
 - **TOOL_TABLE_ALIGNMENT** - Tool-to-table mapping and boundaries
+- **CLIENT_API_GUIDE.md** - Client-side API development guide (credentials, patterns)
 
 **When to read:** Understanding system design, onboarding new developers
 
@@ -125,7 +126,8 @@ Historical reviews, fixes, and completed implementations:
 - Test validation results
 
 #### **archive/fixes/** - Issue Fixes (Resolved)
-- Authentication 401 fixes
+- **CLIENT_FETCH_CREDENTIALS_FIX.md** - 401 errors from missing `credentials: 'include'` (Jan 2026)
+- Authentication 401 fixes (Supabase apikey header)
 - Type duplication root cause analysis
 - Translation toggle visibility fix
 - SignalWire number missing fix

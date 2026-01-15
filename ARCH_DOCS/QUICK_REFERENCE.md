@@ -179,9 +179,11 @@ npm run build
 - Check `/settings` page (not `/voice`)
 
 ### **401 Auth errors:**
-- Verify Supabase keys configured correctly
+- **Client-side:** Verify ALL `fetch()` calls include `credentials: 'include'`
+- Use `lib/apiClient.ts` helpers (apiGet, apiPost, etc.) which include credentials automatically
+- **Server-side:** Verify Supabase keys configured correctly
 - Check both `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`
-- Ensure `apikey` header included
+- Ensure `apikey` header included for Supabase Admin API calls
 
 ### **Build fails with static generation error:**
 - All API routes should have `export const dynamic = 'force-dynamic'`
