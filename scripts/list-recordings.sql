@@ -5,17 +5,15 @@
 
 SELECT 
   r.id as recording_id,
-  r.call_id,
+  r.call_sid,
+  r.recording_sid,
   r.recording_url,
   r.status,
-  r.duration,
+  r.duration_seconds,
   r.created_at,
-  c.phone_number as called_number,
-  c.status as call_status,
   o.name as organization_name
 FROM recordings r
-LEFT JOIN calls c ON r.call_id = c.id
-LEFT JOIN organizations o ON c.organization_id = o.id
+LEFT JOIN organizations o ON r.organization_id = o.id
 WHERE r.recording_url IS NOT NULL
 ORDER BY r.created_at DESC
 LIMIT 20;

@@ -41,7 +41,7 @@ async function fetchRecordings() {
   
   const { data: recordings, error } = await supabase
     .from('recordings')
-    .select('id, call_id, recording_url, status, duration')
+    .select('id, call_sid, recording_url, status, duration_seconds, created_at')
     .order('created_at', { ascending: false })
     .limit(10)
   
@@ -165,9 +165,9 @@ async function main() {
     console.log(`Found ${recordings.length} recordings:\n`)
     recordings.forEach((rec, idx) => {
       console.log(`${idx + 1}. Recording ID: ${rec.id}`)
-      console.log(`   Call ID: ${rec.call_id}`)
+      console.log(`   Call SID: ${rec.call_sid}`)
       console.log(`   Status: ${rec.status || 'unknown'}`)
-      console.log(`   Duration: ${rec.duration || 'unknown'}s`)
+      console.log(`   Duration: ${rec.duration_seconds || 'unknown'}s`)
       console.log(`   URL: ${rec.recording_url ? '✅ Available' : '❌ Missing'}`)
       console.log('')
     })
