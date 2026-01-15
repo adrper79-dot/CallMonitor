@@ -9,6 +9,8 @@ export type Modulations = {
   record: boolean
   transcribe: boolean
   translate?: boolean
+  translate_from?: string
+  translate_to?: string
   survey?: boolean
   synthetic_caller?: boolean
 }
@@ -157,8 +159,30 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     
     // Route to SWML endpoint for live translation, LaML for regular calls
     if (useLiveTranslation && callId) {
-      params.append('Url', `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}`)
-      logger.info('startCallHandler: routing to SWML endpoint for live translation', { callId })
+      // Get translation language settings from voice_configs
+      let translateFrom = 'en'
+      let translateTo = 'es'
+      try {
+        const { data: vcRows } = await supabaseAdmin
+          .from('voice_configs')
+          .select('translation_from, translation_to')
+          .eq('organization_id', organization_id)
+          .limit(1)
+        if (vcRows?.[0]) {
+          translateFrom = vcRows[0].translation_from || 'en'
+          translateTo = vcRows[0].translation_to || 'es'
+        }
+      } catch (e) {
+        logger.warn('Failed to fetch translation languages, using defaults', e as Error)
+      }
+      
+      const swmlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organization_id)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
+      params.append('Url', swmlUrl)
+      logger.info('startCallHandler: routing to SWML endpoint for live translation', { 
+        callId, 
+        translateFrom, 
+        translateTo 
+      })
     } else {
       // Build LaML URL with parameters (use empty string if callId not yet set)
       const callIdParam = callId || ''

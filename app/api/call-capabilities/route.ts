@@ -1,112 +1,144 @@
-import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import { AppError } from '@/types/app-error'
-import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
+/**
+ * GET /api/call-capabilities
+ * 
+ * Check what features are available for an organization or call.
+ * Used by UI to show/hide features based on plan and configuration.
+ * 
+ * Query params:
+ * - orgId: Organization ID (required if callId not provided)
+ * - callId: Call ID (optional, will look up org from call)
+ */
 
-// Force dynamic rendering - uses headers via getServerSession and request.url
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
 export const dynamic = 'force-dynamic'
 
-type Capabilities = Record<'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller' | 'real_time_translation_preview', boolean>
-
-const defaultCaps = (): Capabilities => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false, real_time_translation_preview: false })
-
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url)
-    const callId = url.searchParams.get('callId') ?? undefined
-    const orgId = url.searchParams.get('orgId') ?? undefined
+    const { searchParams } = new URL(req.url)
+    const orgId = searchParams.get('orgId')
+    const callId = searchParams.get('callId')
 
     if (!orgId && !callId) {
-      const err = new AppError({ code: 'INVALID_INPUT', message: 'orgId or callId required', user_message: 'orgId or callId required', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return NextResponse.json({
+        error: 'Either orgId or callId is required'
+      }, { status: 400 })
     }
 
-    // resolve organization_id via call if callId provided
-    let organization_id = orgId
-    if (!organization_id && callId) {
-      const { data: callRows, error: callErr } = await supabaseAdmin.from('calls').select('organization_id').eq('id', callId).limit(1)
-      if (callErr) {
-        const err = new AppError({ code: 'DB_ERROR', message: 'Failed to fetch call', user_message: 'Failed to fetch call', severity: 'HIGH' })
-        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
+    const supabase = createClient()
+    let organizationId = orgId
+
+    // If callId provided, get org from call
+    if (callId && !orgId) {
+      const { data: call, error: callError } = await supabase
+        .from('calls')
+        .select('organization_id')
+        .eq('id', callId)
+        .single()
+
+      if (callError || !call) {
+        return NextResponse.json({
+          error: 'Call not found'
+        }, { status: 404 })
       }
-      const call = callRows?.[0]
-      if (!call) {
-        const err = new AppError({ code: 'CALL_NOT_FOUND', message: 'Call not found', user_message: 'Call not found', severity: 'MEDIUM' })
-        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 404 })
-      }
-      organization_id = call.organization_id
+
+      organizationId = call.organization_id
     }
 
-    if (!organization_id) {
-      const err = new AppError({ code: 'INVALID_INPUT', message: 'organization id not resolved', user_message: 'organization id not resolved', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+    // Get organization plan
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('plan')
+      .eq('id', organizationId)
+      .single()
+
+    if (orgError || !org) {
+      return NextResponse.json({
+        error: 'Organization not found'
+      }, { status: 404 })
     }
 
-    // require authenticated actor
-    const session = await getServerSession(authOptions).catch(() => null)
-    const actorId = session?.user?.id ?? null
-    if (!actorId) {
-      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
-    }
+    const plan = org.plan || 'free'
 
-    // membership check
-    const { data: membershipRows, error: membershipErr } = await supabaseAdmin.from('org_members').select('id,role').eq('organization_id', organization_id).eq('user_id', actorId).limit(1)
-    if (membershipErr) {
-      const err = new AppError({ code: 'DB_ERROR', message: 'Failed to verify membership', user_message: 'Failed to verify membership', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
-    if (!membershipRows || membershipRows.length === 0) {
-      const err = new AppError({ code: 'AUTH_ORG_MISMATCH', message: 'Actor not authorized for organization', user_message: 'Not authorized for this organization', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
-    }
+    // Define capabilities by plan tier
+    const capabilities = getCapabilitiesForPlan(plan)
 
-    // organization lookup (plan)
-    const { data: orgRows, error: orgErr } = await supabaseAdmin.from('organizations').select('plan').eq('id', organization_id).limit(1)
-    if (orgErr) {
-      const err = new AppError({ code: 'DB_ERROR', message: 'Failed to fetch organization', user_message: 'Failed to fetch organization', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
-    const org = orgRows?.[0]
-    if (!org) {
-      const err = new AppError({ code: 'ORG_NOT_FOUND', message: 'Organization not found', user_message: 'Organization not found', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 404 })
-    }
+    return NextResponse.json({
+      success: true,
+      organization_id: organizationId,
+      plan,
+      capabilities
+    })
 
-    // base capabilities by plan
-    const plan = String(org.plan ?? '').toLowerCase()
-    let capabilities = defaultCaps()
-    if (plan === 'enterprise') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true, real_time_translation_preview: false }
-    else if (plan === 'business') capabilities = { record: true, transcribe: true, translate: true, survey: true, synthetic_caller: true, real_time_translation_preview: false }
-    else if (['pro', 'standard', 'active', 'trial'].includes(plan)) capabilities = { record: true, transcribe: true, translate: false, survey: true, synthetic_caller: false, real_time_translation_preview: false }
-    else capabilities = defaultCaps()
-
-    // Live translation preview requires Business plan (or enterprise) + feature flag
-    const isBusinessPlan = ['business', 'enterprise'].includes(plan)
-    const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
-    capabilities.real_time_translation_preview = isBusinessPlan && isFeatureFlagEnabled
-
-    // consult voice_configs (optional; table added to ARCH_DOCS Schema)
-    try {
-      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,translate,survey,synthetic_caller,translate_from,translate_to').eq('organization_id', organization_id).limit(1)
-      if (vcErr) {
-        // do not fail the request for missing/erroneous voice_configs; log by returning a low-severity AppError in the body
-      } else if (vcRows && vcRows[0]) {
-        const cfg = vcRows[0]
-        ;(['record', 'transcribe', 'translate', 'survey', 'synthetic_caller'] as Array<keyof Capabilities>).forEach((k) => {
-          const v = (cfg as any)[k]
-          if (typeof v === 'boolean') capabilities[k] = v
-        })
-      }
-    } catch (e) {
-      // swallow — voice_configs augmentation is best-effort
-    }
-
-    return NextResponse.json({ success: true, capabilities })
   } catch (err: any) {
-    const e = err instanceof AppError ? err : new AppError({ code: 'CALL_CAPS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to determine call capabilities', severity: 'HIGH', retriable: true })
-    return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
+    console.error('GET /api/call-capabilities error:', err)
+    return NextResponse.json({
+      error: 'Failed to check capabilities',
+      details: err.message
+    }, { status: 500 })
   }
+}
+
+/**
+ * Define capabilities based on plan tier
+ */
+function getCapabilitiesForPlan(plan: string): Record<string, boolean> {
+  const planLower = (plan || 'free').toLowerCase()
+
+  // Base capabilities (all plans)
+  const base = {
+    recording: true,
+    transcription: true,
+    basic_reporting: true,
+  }
+
+  // Pro plan additions
+  if (['pro', 'growth', 'business', 'enterprise', 'global'].includes(planLower)) {
+    return {
+      ...base,
+      auto_scoring: true,
+      evidence_manifest: true,
+      after_call_survey: true,
+      voice_targets: true,
+    }
+  }
+
+  // Business plan additions (includes live translation)
+  if (['business', 'enterprise', 'global'].includes(planLower)) {
+    return {
+      ...base,
+      auto_scoring: true,
+      evidence_manifest: true,
+      after_call_survey: true,
+      voice_targets: true,
+      real_time_translation: true,            // ← SignalWire AI Agent live translation
+      real_time_translation_preview: true,     // ← Feature flag for preview
+      secret_shopper: true,
+      synthetic_caller: true,
+      api_access: true,
+    }
+  }
+
+  // Enterprise plan additions
+  if (['enterprise', 'global'].includes(planLower)) {
+    return {
+      ...base,
+      auto_scoring: true,
+      evidence_manifest: true,
+      after_call_survey: true,
+      voice_targets: true,
+      real_time_translation: true,
+      real_time_translation_preview: true,
+      secret_shopper: true,
+      synthetic_caller: true,
+      api_access: true,
+      sso: true,
+      dedicated_support: true,
+      custom_integrations: true,
+    }
+  }
+
+  // Free plan (base only)
+  return base
 }
