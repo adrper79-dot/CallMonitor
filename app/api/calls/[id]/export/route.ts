@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import crypto from 'crypto'
+import JSZip from 'jszip'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireAuth, Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
@@ -413,7 +414,60 @@ export async function GET(
       artifactCount: transcripts.length + translations.length + scores.length
     })
 
-    // Return bundle as JSON with appropriate headers
+    // Check if ZIP format requested
+    const { searchParams } = new URL(req.url)
+    const format = searchParams.get('format')
+    
+    if (format === 'zip') {
+      // Generate ZIP bundle with human-readable files
+      const zip = new JSZip()
+      
+      // 1. transcript.txt - Human-readable transcript
+      if (transcripts.length > 0) {
+        const latestTranscript = transcripts[transcripts.length - 1]
+        const transcriptText = formatTranscriptForHumans(latestTranscript)
+        zip.file('transcript.txt', transcriptText)
+      }
+      
+      // 2. timeline.json - Full event timeline with provenance
+      const timeline = buildTimeline(bundle)
+      zip.file('timeline.json', JSON.stringify(timeline, null, 2))
+      
+      // 3. manifest.json - Evidence manifest
+      if (evidenceManifests.length > 0) {
+        zip.file('manifest.json', JSON.stringify(evidenceManifests[evidenceManifests.length - 1], null, 2))
+      } else {
+        // Create synthetic manifest from bundle
+        zip.file('manifest.json', JSON.stringify({
+          bundle_id: bundle.bundle_id,
+          bundle_hash: bundle.bundle_hash,
+          call_id: callId,
+          exported_at: bundle.exported_at
+        }, null, 2))
+      }
+      
+      // 4. README.txt - Human-readable summary
+      const readme = generateReadme(bundle, ctx.userId)
+      zip.file('README.txt', readme)
+      
+      // 5. full_bundle.json - Complete bundle for programmatic use
+      zip.file('full_bundle.json', JSON.stringify(bundle, null, 2))
+      
+      // Generate ZIP as blob for response
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      
+      return new NextResponse(zipBlob, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="call-${callId}-evidence.zip"`,
+          'X-Bundle-Hash': bundle.bundle_hash,
+          'X-Bundle-Version': bundle.bundle_version
+        }
+      })
+    }
+
+    // Return bundle as JSON with appropriate headers (default)
     return new NextResponse(JSON.stringify(bundle, null, 2), {
       status: 200,
       headers: {
@@ -427,4 +481,233 @@ export async function GET(
     logger.error('callExport: error', err)
     return Errors.internal(err)
   }
+}
+
+// ========== Helper Functions for ZIP Export ==========
+
+function formatTranscriptForHumans(transcript: {
+  text: string | null
+  confidence: number | null
+  produced_by: string
+  produced_by_model: string | null
+  produced_at: string
+  version: number
+}): string {
+  const lines: string[] = []
+  
+  lines.push('=' .repeat(60))
+  lines.push('CANONICAL TRANSCRIPT')
+  lines.push('=' .repeat(60))
+  lines.push('')
+  lines.push(`Version: ${transcript.version}`)
+  lines.push(`Produced by: ${transcript.produced_by_model || transcript.produced_by}`)
+  lines.push(`Produced at: ${new Date(transcript.produced_at).toLocaleString()}`)
+  if (transcript.confidence) {
+    lines.push(`Confidence: ${(transcript.confidence * 100).toFixed(1)}%`)
+  }
+  lines.push('')
+  lines.push('-'.repeat(60))
+  lines.push('')
+  lines.push(transcript.text || '(No transcript text available)')
+  lines.push('')
+  lines.push('-'.repeat(60))
+  lines.push('')
+  lines.push('This transcript is the canonical source of truth.')
+  lines.push('It is immutable and cannot be modified after creation.')
+  
+  return lines.join('\n')
+}
+
+function buildTimeline(bundle: CallExportBundle): Array<{
+  timestamp: string
+  event_type: string
+  description: string
+  artifact_id?: string
+  producer?: string
+  is_authoritative: boolean
+}> {
+  const events: Array<{
+    timestamp: string
+    event_type: string
+    description: string
+    artifact_id?: string
+    producer?: string
+    is_authoritative: boolean
+  }> = []
+  
+  // Call created
+  events.push({
+    timestamp: bundle.call.created_at,
+    event_type: 'call_created',
+    description: 'Call initiated',
+    artifact_id: bundle.call.id,
+    producer: 'system',
+    is_authoritative: true
+  })
+  
+  // Call started
+  if (bundle.call.started_at) {
+    events.push({
+      timestamp: bundle.call.started_at,
+      event_type: 'call_started',
+      description: 'Call answered',
+      artifact_id: bundle.call.id,
+      producer: 'system',
+      is_authoritative: true
+    })
+  }
+  
+  // Recording
+  if (bundle.recording) {
+    events.push({
+      timestamp: bundle.recording.created_at,
+      event_type: 'recording_created',
+      description: `Source recording captured (${bundle.recording.duration_seconds || 0}s)`,
+      artifact_id: bundle.recording.id,
+      producer: bundle.recording.source,
+      is_authoritative: true
+    })
+  }
+  
+  // Transcripts
+  for (const t of bundle.transcripts) {
+    events.push({
+      timestamp: t.produced_at,
+      event_type: 'transcript_created',
+      description: `Canonical transcript v${t.version} produced`,
+      artifact_id: t.id,
+      producer: t.produced_by_model || t.produced_by,
+      is_authoritative: true
+    })
+  }
+  
+  // Translations
+  for (const t of bundle.translations) {
+    events.push({
+      timestamp: t.produced_at,
+      event_type: 'translation_created',
+      description: `Translation ${t.from_language || '?'} → ${t.to_language || '?'}`,
+      artifact_id: t.id,
+      producer: t.produced_by,
+      is_authoritative: true
+    })
+  }
+  
+  // Scores
+  for (const s of bundle.scores) {
+    events.push({
+      timestamp: s.created_at,
+      event_type: 'score_created',
+      description: `Call scored: ${s.total_score} points`,
+      artifact_id: s.id,
+      producer: 'system',
+      is_authoritative: true
+    })
+  }
+  
+  // Evidence manifests
+  for (const m of bundle.evidence_manifests) {
+    events.push({
+      timestamp: m.created_at,
+      event_type: 'manifest_created',
+      description: `Evidence manifest v${m.version} created`,
+      artifact_id: m.id,
+      producer: 'system_cas',
+      is_authoritative: true
+    })
+  }
+  
+  // Call ended
+  if (bundle.call.ended_at) {
+    events.push({
+      timestamp: bundle.call.ended_at,
+      event_type: 'call_ended',
+      description: `Call ended (status: ${bundle.call.status})`,
+      artifact_id: bundle.call.id,
+      producer: 'system',
+      is_authoritative: true
+    })
+  }
+  
+  // Export
+  events.push({
+    timestamp: bundle.exported_at,
+    event_type: 'bundle_exported',
+    description: 'Evidence bundle exported',
+    artifact_id: bundle.bundle_id,
+    producer: 'system',
+    is_authoritative: true
+  })
+  
+  // Sort chronologically
+  return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+}
+
+function generateReadme(bundle: CallExportBundle, exportedBy: string | null): string {
+  const lines: string[] = []
+  
+  lines.push('CALL EVIDENCE BUNDLE')
+  lines.push('=' .repeat(60))
+  lines.push('')
+  lines.push(`Call ID: ${bundle.call.id}`)
+  lines.push(`Status: ${bundle.call.status}`)
+  if (bundle.call.started_at) {
+    lines.push(`Date: ${new Date(bundle.call.started_at).toLocaleString()}`)
+  }
+  if (bundle.recording?.duration_seconds) {
+    const mins = Math.floor(bundle.recording.duration_seconds / 60)
+    const secs = bundle.recording.duration_seconds % 60
+    lines.push(`Duration: ${mins}:${secs.toString().padStart(2, '0')}`)
+  }
+  lines.push('')
+  
+  lines.push('CONTENTS')
+  lines.push('-'.repeat(60))
+  lines.push('- transcript.txt    : Canonical transcript (human-readable)')
+  lines.push('- timeline.json     : Full event timeline with provenance')
+  lines.push('- manifest.json     : Evidence manifest')
+  lines.push('- full_bundle.json  : Complete bundle (programmatic)')
+  lines.push('- README.txt        : This file')
+  lines.push('')
+  
+  lines.push('ARTIFACT SUMMARY')
+  lines.push('-'.repeat(60))
+  lines.push(`- Recording: ${bundle.recording ? 'Yes' : 'No'}`)
+  lines.push(`- Transcripts: ${bundle.transcripts.length}`)
+  lines.push(`- Translations: ${bundle.translations.length}`)
+  lines.push(`- Scores: ${bundle.scores.length}`)
+  lines.push(`- Evidence Manifests: ${bundle.evidence_manifests.length}`)
+  lines.push('')
+  
+  lines.push('AUTHORITY')
+  lines.push('-'.repeat(60))
+  lines.push('All artifacts in this bundle are authoritative and legally defensible.')
+  if (bundle.transcripts.length > 0) {
+    const t = bundle.transcripts[bundle.transcripts.length - 1]
+    lines.push(`Transcript produced by: ${t.produced_by_model || t.produced_by}`)
+  }
+  if (bundle.recording) {
+    lines.push(`Recording source: ${bundle.recording.source}`)
+    lines.push('Recording is immutable and cannot be modified.')
+  }
+  lines.push('')
+  
+  lines.push('PROVENANCE')
+  lines.push('-'.repeat(60))
+  lines.push('See timeline.json for full creation details of each artifact.')
+  lines.push(`Bundle hash: ${bundle.bundle_hash}`)
+  lines.push('')
+  
+  lines.push('EXPORT INFORMATION')
+  lines.push('-'.repeat(60))
+  lines.push(`Exported by: ${exportedBy || 'system'}`)
+  lines.push(`Export time: ${bundle.exported_at}`)
+  lines.push(`Bundle version: ${bundle.bundle_version}`)
+  lines.push('')
+  
+  lines.push('=' .repeat(60))
+  lines.push('This bundle was generated by CallMonitor System of Record')
+  lines.push('https://voxsouth.online')
+  
+  return lines.join('\n')
 }

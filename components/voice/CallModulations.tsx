@@ -18,12 +18,58 @@ export interface CallModulationsProps {
   onChange: (mods: Record<ModKey, boolean>) => Promise<void>
 }
 
-const TOGGLES: { key: ModKey; label: string; desc: string; feature: string; plan: string }[] = [
-  { key: 'record', label: 'Recording', desc: 'Capture call audio', feature: 'recording', plan: 'Pro+' },
-  { key: 'transcribe', label: 'Transcription', desc: 'Generate text transcript', feature: 'transcription', plan: 'Pro+' },
-  { key: 'translate', label: 'Translation', desc: 'Translate transcript', feature: 'translation', plan: 'Global+' },
-  { key: 'survey', label: 'Post-call Survey', desc: 'AI-powered survey after call', feature: 'survey', plan: 'Insights+' },
-  { key: 'synthetic_caller', label: 'Secret Shopper', desc: 'Use scripted caller', feature: 'secret_shopper', plan: 'Insights+' }
+/**
+ * Feature toggles with authority classification
+ * Reference: ARCH_DOCS/01-CORE/ARTIFACT_AUTHORITY_CONTRACT.md
+ */
+const TOGGLES: { 
+  key: ModKey
+  label: string
+  desc: string
+  feature: string
+  plan: string
+  badge: 'Authoritative' | 'Preview'
+}[] = [
+  { 
+    key: 'record', 
+    label: 'Source Recording', 
+    desc: 'Immutable call audio (never modified)', 
+    feature: 'recording', 
+    plan: 'Pro+',
+    badge: 'Authoritative'
+  },
+  { 
+    key: 'transcribe', 
+    label: 'Canonical Transcript', 
+    desc: 'AssemblyAI authoritative transcript (evidence-grade)', 
+    feature: 'transcription', 
+    plan: 'Pro+',
+    badge: 'Authoritative'
+  },
+  { 
+    key: 'translate', 
+    label: 'Post-Call Translation', 
+    desc: 'Authoritative translation from canonical transcript', 
+    feature: 'translation', 
+    plan: 'Global+',
+    badge: 'Authoritative'
+  },
+  { 
+    key: 'survey', 
+    label: 'After-Call Survey', 
+    desc: 'Automated survey with AI Survey Bot', 
+    feature: 'survey', 
+    plan: 'Insights+',
+    badge: 'Authoritative'
+  },
+  { 
+    key: 'synthetic_caller', 
+    label: 'Secret Shopper', 
+    desc: 'AI caller with scoring', 
+    feature: 'secret_shopper', 
+    plan: 'Insights+',
+    badge: 'Authoritative'
+  }
 ]
 
 function useCallCapabilities(organizationId: string | null) {
@@ -148,8 +194,9 @@ export default function CallModulations({ callId, organizationId, initialModulat
         const hasLiveTranslation = t.key === 'translate' && capabilities.real_time_translation_preview === true
         const displayLabel = hasLiveTranslation ? 'Live Translation' : t.label
         const displayDesc = hasLiveTranslation 
-          ? 'Real-time voice translation'
+          ? 'Real-time assist (preview only, not recorded)'
           : t.desc
+        const displayBadge = hasLiveTranslation ? 'Preview' : t.badge
         
         return (
           <div key={t.key} className="p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -162,9 +209,9 @@ export default function CallModulations({ callId, organizationId, initialModulat
                   >
                     {displayLabel}
                   </Label>
-                  {hasLiveTranslation && (
-                    <Badge variant="info">Preview</Badge>
-                  )}
+                  <Badge variant={displayBadge === 'Authoritative' ? 'success' : 'warning'}>
+                    {displayBadge}
+                  </Badge>
                   {disabled && reason && (
                     <span className="text-xs text-gray-400">{reason}</span>
                   )}

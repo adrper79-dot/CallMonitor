@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 
 interface ExpectedOutcome {
@@ -31,12 +30,12 @@ interface ShopperScriptManagerProps {
 }
 
 const PERSONAS = [
-  { value: 'professional', label: '👔 Professional - Formal, business-like' },
-  { value: 'casual', label: '😊 Casual - Friendly, relaxed' },
-  { value: 'frustrated', label: '😤 Frustrated - Impatient, testing patience' },
-  { value: 'elderly', label: '👴 Elderly - Slower, may need repetition' },
-  { value: 'non-native', label: '🌍 Non-native - Accent, simpler vocabulary' },
-  { value: 'detailed', label: '🔍 Detail-oriented - Many questions' }
+  { value: 'professional', label: 'Professional - Formal, business-like' },
+  { value: 'casual', label: 'Casual - Friendly, relaxed' },
+  { value: 'frustrated', label: 'Frustrated - Impatient, testing patience' },
+  { value: 'elderly', label: 'Elderly - Slower, may need repetition' },
+  { value: 'non-native', label: 'Non-native - Accent, simpler vocabulary' },
+  { value: 'detailed', label: 'Detail-oriented - Many questions' }
 ]
 
 const TTS_VOICES = {
@@ -54,6 +53,10 @@ const TTS_VOICES = {
   ]
 }
 
+/**
+ * ShopperScriptManager - Professional Design System v3.0
+ * Light theme, no emojis, Navy primary color
+ */
 export default function ShopperScriptManager({ organizationId }: ShopperScriptManagerProps) {
   const [scripts, setScripts] = useState<ShopperScript[]>([])
   const [loading, setLoading] = useState(true)
@@ -80,7 +83,6 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
       if (data.success) {
         setScripts(data.scripts || [])
       } else {
-        // Handle error that may be an object with {id, code, message} or a string
         const errorMsg = typeof data.error === 'object' && data.error !== null
           ? (data.error.message || data.error.code || JSON.stringify(data.error))
           : (data.error || 'Failed to load scripts')
@@ -159,7 +161,6 @@ Thank you for the information. I'll get back to you soon.`,
         setEditingScript(null)
         fetchScripts()
       } else {
-        // Handle error that may be an object with {id, code, message} or a string
         const errorMsg = typeof data.error === 'object' && data.error !== null
           ? (data.error.message || data.error.code || JSON.stringify(data.error))
           : (data.error || 'Failed to save script')
@@ -218,7 +219,7 @@ Thank you for the information. I'll get back to you soon.`,
   }
 
   if (!organizationId) {
-    return <div className="text-slate-400 p-4">Organization required</div>
+    return <div className="text-gray-500 p-4">Organization required</div>
   }
 
   return (
@@ -226,60 +227,64 @@ Thank you for the information. I'll get back to you soon.`,
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium text-slate-100">🕵️ Secret Shopper Scripts</h3>
-          <p className="text-sm text-slate-400">
+          <h3 className="text-lg font-semibold text-gray-900">Secret Shopper Scripts</h3>
+          <p className="text-sm text-gray-500">
             Create scripts for synthetic callers to evaluate call quality
           </p>
         </div>
-        <Button onClick={handleNewScript} className="bg-blue-600 hover:bg-blue-700">
-          + New Script
+        <Button onClick={handleNewScript} variant="primary">
+          New Script
         </Button>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="p-3 bg-red-900/20 border border-red-800 rounded-lg text-red-400 text-sm">
+        <div className="p-3 bg-error-light border border-red-200 rounded-md text-error text-sm">
           {error}
         </div>
       )}
 
       {/* Loading */}
       {loading && (
-        <div className="text-center py-8 text-slate-400">Loading scripts...</div>
+        <div className="text-center py-8 text-gray-500">Loading scripts...</div>
       )}
 
-      {/* Scripts List */}
+      {/* Empty State */}
       {!loading && scripts.length === 0 && !showEditor && (
-        <div className="text-center py-12 bg-slate-800/50 rounded-lg border border-slate-700">
-          <div className="text-4xl mb-4">🕵️</div>
-          <h4 className="text-lg font-medium text-slate-200 mb-2">No Scripts Yet</h4>
-          <p className="text-slate-400 mb-4">
+        <div className="text-center py-12 bg-gray-50 rounded-md border border-gray-200">
+          <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">No Scripts Yet</h4>
+          <p className="text-gray-500 mb-4">
             Create a secret shopper script to test your call handling quality
           </p>
           <Button onClick={handleNewScript}>Create Your First Script</Button>
         </div>
       )}
 
+      {/* Scripts List */}
       {!loading && scripts.length > 0 && !showEditor && (
         <div className="space-y-3">
           {scripts.map((script) => (
             <div
               key={script.id}
-              className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
+              className="p-4 bg-white rounded-md border border-gray-200 hover:border-gray-300 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-medium text-white">{script.name}</h4>
+                    <h4 className="font-medium text-gray-900">{script.name}</h4>
                     <Badge variant={script.is_active ? 'success' : 'default'}>
                       {script.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                     <Badge variant="default">{script.persona}</Badge>
                   </div>
                   {script.description && (
-                    <p className="text-sm text-slate-400 mb-2">{script.description}</p>
+                    <p className="text-sm text-gray-500 mb-2">{script.description}</p>
                   )}
-                  <div className="flex gap-4 text-xs text-slate-500">
+                  <div className="flex gap-4 text-xs text-gray-400">
                     <span>TTS: {script.tts_provider}</span>
                     <span>Voice: {script.tts_voice}</span>
                     <span>Outcomes: {script.expected_outcomes?.length || 0}</span>
@@ -295,10 +300,10 @@ Thank you for the information. I'll get back to you soon.`,
                     Edit
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteScript(script.id)}
-                    className="text-red-400 hover:text-red-300"
+                    className="text-error hover:text-error"
                   >
                     Delete
                   </Button>
@@ -311,9 +316,9 @@ Thank you for the information. I'll get back to you soon.`,
 
       {/* Script Editor */}
       {showEditor && editingScript && (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-6">
+        <div className="bg-white rounded-md border border-gray-200 p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h4 className="text-lg font-medium text-white">
+            <h4 className="text-lg font-semibold text-gray-900">
               {editingScript.id ? 'Edit Script' : 'New Script'}
             </h4>
             <Button variant="outline" size="sm" onClick={() => setShowEditor(false)}>
@@ -323,21 +328,18 @@ Thank you for the information. I'll get back to you soon.`,
 
           {/* Basic Info */}
           <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Script Name"
+              value={editingScript.name || ''}
+              onChange={(e) => setEditingScript({ ...editingScript, name: e.target.value })}
+              placeholder="Appointment Inquiry Test"
+            />
             <div>
-              <label className="block text-sm text-slate-300 mb-1">Script Name *</label>
-              <Input
-                value={editingScript.name || ''}
-                onChange={(e) => setEditingScript({ ...editingScript, name: e.target.value })}
-                placeholder="Appointment Inquiry Test"
-                className="bg-slate-700 border-slate-600"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-300 mb-1">Persona</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Persona</label>
               <select
                 value={editingScript.persona || 'professional'}
                 onChange={(e) => setEditingScript({ ...editingScript, persona: e.target.value })}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 {PERSONAS.map((p) => (
                   <option key={p.value} value={p.value}>{p.label}</option>
@@ -346,26 +348,23 @@ Thank you for the information. I'll get back to you soon.`,
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-slate-300 mb-1">Description</label>
-            <Input
-              value={editingScript.description || ''}
-              onChange={(e) => setEditingScript({ ...editingScript, description: e.target.value })}
-              placeholder="Tests how staff handles appointment requests"
-              className="bg-slate-700 border-slate-600"
-            />
-          </div>
+          <Input
+            label="Description"
+            value={editingScript.description || ''}
+            onChange={(e) => setEditingScript({ ...editingScript, description: e.target.value })}
+            placeholder="Tests how staff handles appointment requests"
+          />
 
           {/* Script Text */}
           <div>
-            <label className="block text-sm text-slate-300 mb-1">
-              Script Text * <span className="text-slate-500">(Use [Wait for response] for pauses)</span>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Script Text <span className="text-gray-400">(Use [Wait for response] for pauses)</span>
             </label>
             <textarea
               value={editingScript.script_text || ''}
               onChange={(e) => setEditingScript({ ...editingScript, script_text: e.target.value })}
               rows={10}
-              className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white font-mono text-sm"
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 font-mono text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               placeholder="Hello, I'm calling to inquire about..."
             />
           </div>
@@ -373,7 +372,7 @@ Thank you for the information. I'll get back to you soon.`,
           {/* Voice Settings */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-300 mb-1">TTS Provider</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">TTS Provider</label>
               <select
                 value={editingScript.tts_provider || 'signalwire'}
                 onChange={(e) => setEditingScript({ 
@@ -381,18 +380,18 @@ Thank you for the information. I'll get back to you soon.`,
                   tts_provider: e.target.value,
                   tts_voice: e.target.value === 'signalwire' ? 'rime.spore' : 'rachel'
                 })}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 <option value="signalwire">SignalWire (Default)</option>
                 <option value="elevenlabs">ElevenLabs (Premium)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-300 mb-1">Voice</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Voice</label>
               <select
                 value={editingScript.tts_voice || ''}
                 onChange={(e) => setEditingScript({ ...editingScript, tts_voice: e.target.value })}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 {TTS_VOICES[editingScript.tts_provider as keyof typeof TTS_VOICES]?.map((v) => (
                   <option key={v.value} value={v.value}>{v.label}</option>
@@ -403,26 +402,28 @@ Thank you for the information. I'll get back to you soon.`,
 
           {/* Expected Outcomes */}
           <div>
-            <label className="block text-sm text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Expected Outcomes (for scoring)
             </label>
             
             {/* Existing outcomes */}
             <div className="space-y-2 mb-4">
               {editingScript.expected_outcomes?.map((outcome, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 bg-slate-700/50 rounded">
+                <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
                   <Badge variant="default">{outcome.type}</Badge>
-                  <span className="text-sm text-slate-300 flex-1">
+                  <span className="text-sm text-gray-700 flex-1">
                     {Array.isArray(outcome.value) ? outcome.value.join(', ') : String(outcome.value)}
                   </span>
-                  <span className="text-xs text-slate-500">Weight: {outcome.weight}%</span>
+                  <span className="text-xs text-gray-400">Weight: {outcome.weight}%</span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => removeOutcome(idx)}
-                    className="text-red-400"
+                    className="text-error"
                   >
-                    ✕
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </Button>
                 </div>
               ))}
@@ -434,7 +435,7 @@ Thank you for the information. I'll get back to you soon.`,
                 <select
                   value={newOutcome.type}
                   onChange={(e) => setNewOutcome({ ...newOutcome, type: e.target.value as any })}
-                  className="w-full p-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                 >
                   <option value="keyword">Keyword (comma-separated)</option>
                   <option value="sentiment">Sentiment (positive/negative/neutral)</option>
@@ -448,7 +449,6 @@ Thank you for the information. I'll get back to you soon.`,
                   value={newOutcome.value || ''}
                   onChange={(e) => setNewOutcome({ ...newOutcome, value: e.target.value })}
                   placeholder={newOutcome.type === 'keyword' ? 'appointment, schedule' : 'positive'}
-                  className="bg-slate-700 border-slate-600"
                 />
               </div>
               <div className="w-20">
@@ -457,7 +457,6 @@ Thank you for the information. I'll get back to you soon.`,
                   value={newOutcome.weight || 20}
                   onChange={(e) => setNewOutcome({ ...newOutcome, weight: parseInt(e.target.value) })}
                   placeholder="Weight"
-                  className="bg-slate-700 border-slate-600"
                 />
               </div>
               <Button variant="outline" size="sm" onClick={addOutcome}>
@@ -467,14 +466,14 @@ Thank you for the information. I'll get back to you soon.`,
           </div>
 
           {/* Save */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
             <Button variant="outline" onClick={() => setShowEditor(false)}>
               Cancel
             </Button>
             <Button
               onClick={handleSaveScript}
               disabled={saving || !editingScript.name || !editingScript.script_text}
-              className="bg-blue-600 hover:bg-blue-700"
+              variant="primary"
             >
               {saving ? 'Saving...' : 'Save Script'}
             </Button>
@@ -483,9 +482,9 @@ Thank you for the information. I'll get back to you soon.`,
       )}
 
       {/* Info Box */}
-      <div className="p-4 bg-blue-900/20 border border-blue-800 rounded-lg">
-        <h4 className="text-sm font-medium text-blue-400 mb-2">💡 How Secret Shopper Works</h4>
-        <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
+      <div className="p-4 bg-info-light border border-blue-200 rounded-md">
+        <h4 className="text-sm font-medium text-gray-900 mb-2">How Secret Shopper Works</h4>
+        <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
           <li><strong>Script:</strong> The synthetic caller follows this conversation script</li>
           <li><strong>TTS:</strong> Uses SignalWire or ElevenLabs to speak the script naturally</li>
           <li><strong>Expected Outcomes:</strong> What we check for when scoring the call</li>
