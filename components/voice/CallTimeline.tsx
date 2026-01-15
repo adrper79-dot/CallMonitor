@@ -122,19 +122,19 @@ export default function CallTimeline({ callId, organizationId }: CallTimelinePro
           <h3 className="text-sm font-semibold text-[#333333]">📅 Call Timeline</h3>
           <div className="flex items-center space-x-2">
             {timeline.summary.has_recording && (
-              <Badge variant="outline" className="text-xs">🎙️ Recorded</Badge>
+              <Badge variant="secondary" className="text-xs">🎙️ Recorded</Badge>
             )}
             {timeline.summary.has_transcript && (
-              <Badge variant="outline" className="text-xs">📝 Transcribed</Badge>
+              <Badge variant="secondary" className="text-xs">📝 Transcribed</Badge>
             )}
             {timeline.summary.has_translation && (
-              <Badge variant="outline" className="text-xs">🌐 Translated</Badge>
+              <Badge variant="secondary" className="text-xs">🌐 Translated</Badge>
             )}
             {timeline.summary.has_survey && (
-              <Badge variant="outline" className="text-xs">📊 Survey</Badge>
+              <Badge variant="secondary" className="text-xs">📊 Survey</Badge>
             )}
             {timeline.summary.has_scorecard && (
-              <Badge variant="outline" className="text-xs">⭐ Scored</Badge>
+              <Badge variant="secondary" className="text-xs">⭐ Scored</Badge>
             )}
           </div>
         </div>

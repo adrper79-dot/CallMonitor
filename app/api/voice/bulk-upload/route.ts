@@ -2,22 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { parse } from 'csv-parse/sync'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { logger } from '@/lib/logger'
+import { requireRole } from '@/lib/api/utils'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication and admin/owner role for bulk operations
+    const ctx = await requireRole(['owner', 'admin'])
+    if (ctx instanceof NextResponse) {
+      return ctx
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const organizationId = formData.get('organization_id') as string
+    // Use authenticated user's org instead of trusting client-provided value
+    const organizationId = ctx.orgId
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
-
-    if (!organizationId) {
-      return NextResponse.json({ error: 'Organization ID required' }, { status: 400 })
     }
 
     // Read CSV file
@@ -69,7 +73,8 @@ export async function POST(request: NextRequest) {
               record: true,
               transcribe: true,
               translate: false
-            }
+            },
+            actor_id: ctx.userId  // SECURITY: Pass authenticated user
           },
           {
             supabaseAdmin: (await import('@/lib/supabaseAdmin')).default

@@ -81,7 +81,10 @@ async function handlePOST(req: Request) {
   } catch (err: any) {
     const { logger } = await import('@/lib/logger')
     logger.error('POST /api/voice/call failed', err)
-    return Errors.internal(err)
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: err?.message || 'Internal server error' } },
+      { status: 500 }
+    )
   }
 }
 

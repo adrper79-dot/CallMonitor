@@ -1,8 +1,8 @@
 /**
  * Call Notes API
  * 
- * GET /api/calls/[callId]/notes - Get all notes for a call
- * POST /api/calls/[callId]/notes - Add a note to a call
+ * GET /api/calls/[id]/notes - Get all notes for a call
+ * POST /api/calls/[id]/notes - Add a note to a call
  * 
  * Per MASTER_ARCHITECTURE: Call is root object
  * Notes are structured (checkboxes + short text), not freeform
@@ -17,11 +17,11 @@ import { CallNoteTag, CALL_NOTE_TAGS } from '@/types/tier1-features'
 export const dynamic = 'force-dynamic'
 
 interface RouteParams {
-  params: Promise<{ callId: string }>
+  params: Promise<{ id: string }>
 }
 
 /**
- * GET /api/calls/[callId]/notes
+ * GET /api/calls/[id]/notes
  * Get all notes for a call
  */
 export async function GET(
@@ -29,7 +29,7 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const { callId } = await params
+    const { id: callId } = await params
     
     // Authenticate
     const session = await getServerSession(authOptions)
@@ -120,7 +120,7 @@ export async function GET(
 }
 
 /**
- * POST /api/calls/[callId]/notes
+ * POST /api/calls/[id]/notes
  * Add a note to a call
  */
 export async function POST(
@@ -128,7 +128,7 @@ export async function POST(
   { params }: RouteParams
 ) {
   try {
-    const { callId } = await params
+    const { id: callId } = await params
     
     // Authenticate
     const session = await getServerSession(authOptions)
@@ -242,16 +242,22 @@ export async function POST(
       )
     }
     
-    // Log to audit
-    await supabaseAdmin.from('audit_logs').insert({
-      id: crypto.randomUUID(),
-      organization_id: member.organization_id,
-      user_id: userId,
-      resource_type: 'call_note',
-      resource_id: newNote.id,
-      action: 'create',
-      after: { tags, note }
-    }).catch(err => console.error('[notes POST] Audit log error:', err))
+    // Log to audit (fire and forget)
+    ;(async () => {
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: crypto.randomUUID(),
+          organization_id: member.organization_id,
+          user_id: userId,
+          resource_type: 'call_note',
+          resource_id: newNote.id,
+          action: 'create',
+          after: { tags, note }
+        })
+      } catch (err) {
+        console.error('[notes POST] Audit log error:', err)
+      }
+    })()
     
     return NextResponse.json({
       success: true,

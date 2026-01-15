@@ -194,7 +194,7 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
           {/* Note Text */}
           <Textarea
             value={noteText}
-            onChange={(e) => setNoteText(e.target.value.slice(0, 500))}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNoteText(e.target.value.slice(0, 500))}
             placeholder="Add optional note text..."
             className="text-sm resize-none mb-2"
             rows={2}

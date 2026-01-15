@@ -1,8 +1,8 @@
 /**
  * Call Disposition API
  * 
- * PUT /api/calls/[callId]/disposition - Set call disposition
- * GET /api/calls/[callId]/disposition - Get call disposition
+ * PUT /api/calls/[id]/disposition - Set call disposition
+ * GET /api/calls/[id]/disposition - Get call disposition
  * 
  * Per MASTER_ARCHITECTURE: Call is root object
  * Disposition is a call modulation, not a separate entity
@@ -28,11 +28,11 @@ const VALID_DISPOSITIONS: CallDisposition[] = [
 ]
 
 interface RouteParams {
-  params: Promise<{ callId: string }>
+  params: Promise<{ id: string }>
 }
 
 /**
- * GET /api/calls/[callId]/disposition
+ * GET /api/calls/[id]/disposition
  * Get disposition for a specific call
  */
 export async function GET(
@@ -40,7 +40,7 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const { callId } = await params
+    const { id: callId } = await params
     
     // Authenticate
     const session = await getServerSession(authOptions)
@@ -110,7 +110,7 @@ export async function GET(
 }
 
 /**
- * PUT /api/calls/[callId]/disposition
+ * PUT /api/calls/[id]/disposition
  * Set or update call disposition
  */
 export async function PUT(
@@ -118,7 +118,7 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
-    const { callId } = await params
+    const { id: callId } = await params
     
     // Authenticate
     const session = await getServerSession(authOptions)
@@ -223,17 +223,23 @@ export async function PUT(
       )
     }
     
-    // Log to audit
-    await supabaseAdmin.from('audit_logs').insert({
-      id: crypto.randomUUID(),
-      organization_id: member.organization_id,
-      user_id: userId,
-      resource_type: 'call',
-      resource_id: callId,
-      action: 'disposition_set',
-      before: { disposition: existingCall.status },
-      after: { disposition, disposition_notes }
-    }).catch(err => console.error('[disposition PUT] Audit log error:', err))
+    // Log to audit (fire and forget)
+    ;(async () => {
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: crypto.randomUUID(),
+          organization_id: member.organization_id,
+          user_id: userId,
+          resource_type: 'call',
+          resource_id: callId,
+          action: 'disposition_set',
+          before: { disposition: existingCall.status },
+          after: { disposition, disposition_notes }
+        })
+      } catch (err) {
+        console.error('[disposition PUT] Audit log error:', err)
+      }
+    })()
     
     // TODO: Trigger webhook event call.disposition_set
     

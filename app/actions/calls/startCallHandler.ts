@@ -19,6 +19,7 @@ export type StartCallInput = {
   phone_number: string
   flow_type?: 'bridge' | 'outbound'
   modulations: Modulations
+  actor_id?: string  // Authenticated user ID for RBAC
 }
 
 export type StartCallDeps = {
@@ -250,7 +251,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     // actor/session lookup
     // Note: Session lookup removed - actorId must be provided in input or handled by caller
-    let actorId = (input as any).actor_id ?? null
+    let actorId = input.actor_id ?? null
     capturedActorId = actorId
     if (!actorId) {
       // allow a developer/testing fallback actor in non-production using the

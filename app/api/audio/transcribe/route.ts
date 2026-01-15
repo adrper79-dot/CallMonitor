@@ -2,15 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
+import { requireAuth } from '@/lib/api/utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { organization_id, audio_url, filename } = body
+    // SECURITY: Require authentication (transcription costs money!)
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) {
+      return ctx
+    }
 
-    if (!organization_id || !audio_url) {
+    const body = await request.json()
+    const { audio_url, filename } = body
+    // Use authenticated user's org instead of trusting client-provided value
+    const organization_id = ctx.orgId
+
+    if (!audio_url) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 

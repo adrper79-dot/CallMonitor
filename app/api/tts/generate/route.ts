@@ -3,15 +3,24 @@ import { generateSpeech } from '@/app/services/elevenlabs'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
+import { requireAuth } from '@/lib/api/utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { text, voice_id, language, organization_id } = body
+    // SECURITY: Require authentication (TTS costs money!)
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) {
+      return ctx
+    }
 
-    if (!text || !organization_id) {
+    const body = await request.json()
+    const { text, voice_id, language } = body
+    // Use authenticated user's org instead of trusting client-provided value
+    const organization_id = ctx.orgId
+
+    if (!text) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 

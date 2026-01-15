@@ -1,7 +1,7 @@
 /**
  * Call Timeline API
  * 
- * GET /api/calls/[callId]/timeline - Get full timeline for a call
+ * GET /api/calls/[id]/timeline - Get full timeline for a call
  * 
  * Per MASTER_ARCHITECTURE: Call is root object
  * Timeline aggregates all artifacts and events attached to a call
@@ -16,11 +16,11 @@ import { TimelineEvent, TimelineEventType, CallTimeline } from '@/types/tier1-fe
 export const dynamic = 'force-dynamic'
 
 interface RouteParams {
-  params: Promise<{ callId: string }>
+  params: Promise<{ id: string }>
 }
 
 /**
- * GET /api/calls/[callId]/timeline
+ * GET /api/calls/[id]/timeline
  * Get chronological timeline of all events for a call
  */
 export async function GET(
@@ -28,7 +28,7 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
-    const { callId } = await params
+    const { id: callId } = await params
     
     // Authenticate
     const session = await getServerSession(authOptions)

@@ -167,7 +167,7 @@ export default function CallDisposition({
         <div className="mt-3 space-y-2">
           <Textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value.slice(0, 500))}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value.slice(0, 500))}
             placeholder="Add notes (optional, max 500 chars)..."
             className="text-sm resize-none"
             rows={2}

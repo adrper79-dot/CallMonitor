@@ -2,21 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
+import { requireAuth } from '@/lib/api/utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication
+    const ctx = await requireAuth()
+    if (ctx instanceof NextResponse) {
+      return ctx
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const organizationId = formData.get('organization_id') as string
+    // Use authenticated user's org instead of trusting client-provided value
+    const organizationId = ctx.orgId
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
-
-    if (!organizationId) {
-      return NextResponse.json({ error: 'Organization ID required' }, { status: 400 })
     }
 
     const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/mp4', 'audio/ogg', 'audio/webm']

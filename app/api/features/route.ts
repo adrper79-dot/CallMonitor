@@ -218,16 +218,22 @@ export async function PUT(request: NextRequest) {
       )
     }
     
-    // Log to audit
-    await supabaseAdmin.from('audit_logs').insert({
-      id: crypto.randomUUID(),
-      organization_id: member.organization_id,
-      user_id: userId,
-      resource_type: 'feature_flag',
-      resource_id: updatedFlag.id,
-      action: enabled ? 'enable' : 'disable',
-      after: { feature, enabled, disabled_reason, daily_limit, monthly_limit }
-    }).catch(err => console.error('[features PUT] Audit log error:', err))
+    // Log to audit (fire and forget)
+    ;(async () => {
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: crypto.randomUUID(),
+          organization_id: member.organization_id,
+          user_id: userId,
+          resource_type: 'feature_flag',
+          resource_id: updatedFlag.id,
+          action: enabled ? 'enable' : 'disable',
+          after: { feature, enabled, disabled_reason, daily_limit, monthly_limit }
+        })
+      } catch (err) {
+        console.error('[features PUT] Audit log error:', err)
+      }
+    })()
     
     return NextResponse.json({
       success: true,
