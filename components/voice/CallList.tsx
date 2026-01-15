@@ -19,6 +19,12 @@ export interface CallListProps {
 type StatusFilter = 'all' | 'active' | 'completed' | 'failed'
 type SortBy = 'date' | 'score' | 'duration'
 
+/**
+ * CallList - Professional Design System v3.0
+ * 
+ * Clean data table with minimal decoration.
+ * Efficient, scannable, keyboard accessible.
+ */
 export default function CallList({ calls: initialCalls, selectedCallId, organizationId, onSelect }: CallListProps) {
   const [calls, setCalls] = useState<Call[]>(initialCalls)
   const [filteredCalls, setFilteredCalls] = useState<Call[]>(initialCalls)
@@ -32,10 +38,8 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
   const listRef = useRef<HTMLDivElement | null>(null)
   const pageSize = 20
 
-  // Real-time updates
   const { updates, connected } = useRealtime(organizationId || null)
 
-  // Polling fallback
   const { data: polledCalls } = usePolling<Call>(
     async () => {
       if (!organizationId) return []
@@ -50,11 +54,10 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
         return []
       }
     },
-    5000, // Poll every 5 seconds for active calls
+    5000,
     !connected && organizationId !== null
   )
 
-  // Process real-time updates
   useEffect(() => {
     if (!updates.length) return
 
@@ -77,18 +80,15 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
     })
   }, [updates])
 
-  // Use polled data if real-time is disconnected
   useEffect(() => {
     if (!connected && polledCalls.length > 0) {
       setCalls(polledCalls)
     }
   }, [polledCalls, connected])
 
-  // Filter and sort calls
   useEffect(() => {
     let filtered = [...calls]
 
-    // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter((c) => {
         if (statusFilter === 'active') {
@@ -104,7 +104,6 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
       })
     }
 
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(
@@ -115,22 +114,19 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
       )
     }
 
-    // Sort
     filtered.sort((a, b) => {
       if (sortBy === 'date') {
         const aTime = a.started_at ? new Date(a.started_at).getTime() : 0
         const bTime = b.started_at ? new Date(b.started_at).getTime() : 0
-        return bTime - aTime // Newest first
+        return bTime - aTime
       }
-      // Add other sort options as needed
       return 0
     })
 
     setFilteredCalls(filtered)
-    setPage(1) // Reset to first page on filter change
+    setPage(1)
   }, [calls, statusFilter, searchQuery, sortBy])
 
-  // Pagination
   const paginatedCalls = filteredCalls.slice(0, page * pageSize)
   const hasMore = filteredCalls.length > page * pageSize
 
@@ -177,73 +173,69 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#FAFAFA]">
-      {/* Filters and Search */}
-      <div className="p-4 bg-white border-b border-[#E5E5E5] space-y-3">
+    <div className="h-full flex flex-col bg-gray-50">
+      {/* Filters */}
+      <div className="p-4 bg-white border-b border-gray-200 space-y-3">
         <Input
-          label="Search"
           type="search"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search by ID, SID, or user..."
+          placeholder="Search calls..."
           className="w-full"
         />
 
         <div className="grid grid-cols-2 gap-2">
           <Select
-            label="Status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
-            <option value="all">All</option>
+            <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </Select>
 
           <Select
-            label="Sort By"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
           >
-            <option value="date">Date (Newest)</option>
-            <option value="score">Score</option>
-            <option value="duration">Duration</option>
+            <option value="date">Newest First</option>
+            <option value="score">By Score</option>
+            <option value="duration">By Duration</option>
           </Select>
         </div>
 
         {!connected && (
-          <div className="text-xs text-[#F57C00] flex items-center gap-1">
-            <span>⚠</span>
-            <span>Real-time disconnected. Using polling.</span>
+          <div className="text-xs text-warning">
+            Offline mode - using cached data
           </div>
         )}
       </div>
 
-      {/* Call Table */}
-      <div className="flex-1 overflow-auto">
+      {/* Call List */}
+      <div className="flex-1 overflow-auto" ref={listRef} onKeyDown={onKeyDown}>
         {loading ? (
-          <div className="text-center text-[#666666] py-8">Loading calls...</div>
+          <div className="text-center text-gray-500 py-8">Loading...</div>
         ) : paginatedCalls.length === 0 ? (
-          <div className="text-center text-[#666666] py-8">No calls found</div>
+          <div className="text-center text-gray-500 py-8">No calls found</div>
         ) : (
           <table className="w-full border-collapse bg-white">
-            <thead className="sticky top-0 bg-[#FAFAFA] border-b-2 border-[#D0D0D0] z-10">
+            <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
               <tr>
-                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Call ID</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Status</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Date</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-left">Created By</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#333333] uppercase tracking-wide text-right">Call SID</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">ID</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">Status</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">Date</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">User</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F0F0F0]">
+            <tbody className="divide-y divide-gray-100">
               {paginatedCalls.map((c, idx) => {
                 const selected = selectedCallId === c.id
                 return (
                   <tr
                     key={c.id}
-                    tabIndex={-1}
+                    role="listitem"
+                    tabIndex={0}
                     aria-selected={selected}
                     onClick={() => onSelect?.(c.id)}
                     onFocus={() => setFocusedIndex(idx)}
@@ -254,27 +246,20 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
                       }
                     }}
                     className={`cursor-pointer transition-colors ${
-                      selected ? 'bg-[#E3F2FD]' : 'hover:bg-[#F8F8F8]'
+                      selected ? 'bg-primary-50' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <td className="px-4 py-3 text-sm font-medium text-[#333333]">
-                      <span className="font-mono text-xs">{c.id}</span>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="font-mono text-xs text-gray-900">{c.id.slice(0, 8)}...</span>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={statusVariant(c.status)}>{c.status ?? 'unknown'}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#333333]">
+                    <td className="px-4 py-3 text-sm text-gray-600">
                       <ClientDate date={c.started_at} format="short" />
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#666666]">
+                    <td className="px-4 py-3 text-sm text-gray-500">
                       {c.created_by || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {c.call_sid ? (
-                        <span className="text-xs text-[#666666] font-mono">{c.call_sid}</span>
-                      ) : (
-                        '—'
-                      )}
                     </td>
                   </tr>
                 )
@@ -284,7 +269,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
         )}
 
         {hasMore && (
-          <div className="p-4 bg-white border-t border-[#E5E5E5] text-center">
+          <div className="p-4 bg-white border-t border-gray-200 text-center">
             <Button variant="outline" size="sm" onClick={loadMore}>
               Load More ({filteredCalls.length - paginatedCalls.length} remaining)
             </Button>
@@ -293,8 +278,8 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
       </div>
 
       {/* Summary */}
-      <div className="p-4 bg-white border-t border-[#E5E5E5] text-xs text-[#666666]">
-        Showing {paginatedCalls.length} of {filteredCalls.length} calls
+      <div className="p-3 bg-white border-t border-gray-200 text-xs text-gray-500">
+        {paginatedCalls.length} of {filteredCalls.length} calls
       </div>
     </div>
   )

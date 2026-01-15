@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 export type TriggerTranscriptionInput = {
   recording_id: string
@@ -37,8 +38,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     const { recording_id, organization_id } = input
 
     // session/actor
-    const session = await getServerSession()
-    const actorId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions)
+    const actorId = (session?.user as any)?.id ?? null
     capturedActorId = actorId
     if (!actorId) {
       // best-effort audit for unauthenticated access (user_id will be null)

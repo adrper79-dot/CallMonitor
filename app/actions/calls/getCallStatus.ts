@@ -3,6 +3,7 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 export type GetCallStatusInput = {
   call_id: string
@@ -74,8 +75,8 @@ export default async function getCallStatus(input: GetCallStatusInput): Promise<
     }
 
     // 0) session / actor lookup
-    const session = await getServerSession()
-    const actorId = session?.user?.id ?? null
+    const session = await getServerSession(authOptions)
+    const actorId = (session?.user as any)?.id ?? null
     if (!actorId) {
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH' })
       return { success: false, error: { id: err.id, code: err.code, message: err.user_message ?? err.message, severity: err.severity as ApiError['severity'] } }

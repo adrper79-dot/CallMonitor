@@ -81,14 +81,46 @@ async function handlePOST(req: Request) {
     if (result.success) {
       return success(result)
     } else {
-      // Handler returned error
-      return Errors.internal(new Error((result as any).error?.message || 'Call failed'))
+      // Handler returned structured error - preserve error classification for KPI fidelity
+      const handlerError = (result as any).error
+      if (handlerError?.code) {
+        // Use appropriate HTTP status based on error code (per ERROR_HANDLING_PLAN.txt)
+        const statusMap: Record<string, number> = {
+          'INVALID_INPUT': 400,
+          'TRANSLATION_LANGUAGES_REQUIRED': 400,
+          'AUTH_REQUIRED': 401,
+          'UNAUTHORIZED': 403,
+          'NOT_FOUND': 404,
+          'RATE_LIMITED': 429,
+        }
+        const status = statusMap[handlerError.code] || 500
+        return NextResponse.json(
+          { success: false, error: handlerError },
+          { status }
+        )
+      }
+      return Errors.internal(new Error(handlerError?.message || 'Call failed'))
     }
   } catch (err: any) {
     const { logger } = await import('@/lib/logger')
-    logger.error('POST /api/voice/call failed', err)
+    const { AppError } = await import('@/types/app-error')
+    
+    // Create structured error for logging and response (per ERROR_HANDLING_PLAN.txt)
+    const appError = err instanceof AppError ? err : new AppError({
+      code: 'CALL_EXECUTION_FAILED',
+      message: err?.message || 'Unexpected error during call execution',
+      user_message: 'Failed to place call. Please try again.',
+      severity: 'HIGH',
+      retriable: true
+    })
+    
+    logger.error('POST /api/voice/call failed', appError, { 
+      errorCode: appError.code,
+      errorId: appError.id 
+    })
+    
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: err?.message || 'Internal server error' } },
+      { success: false, error: { id: appError.id, code: appError.code, message: appError.user_message } },
       { status: 500 }
     )
   }
@@ -96,11 +128,10 @@ async function handlePOST(req: Request) {
 
 export const POST = withRateLimit(
   withIdempotency(handlePOST, {
-    getKey: (req) => {
-      // Use organization_id + phone_to as idempotency key if no header provided
-      return getClientIP(req) + '-' + Date.now().toString()
-    },
-    ttlSeconds: 3600 // 1 hour
+    // Idempotency key: Use X-Idempotency-Key header if provided,
+    // otherwise derive from IP + organization + phone (stable across retries)
+    // NOTE: Date.now() was removed as it defeats idempotency (each retry is unique)
+    ttlSeconds: 60 // 1 minute - short window to prevent duplicate calls
   }),
   {
     identifier: (req) => {

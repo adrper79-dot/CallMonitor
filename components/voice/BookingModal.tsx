@@ -12,13 +12,10 @@ interface BookingModalProps {
 }
 
 /**
- * BookingModal - Schedule Call Dialog
+ * BookingModal - Professional Design System v3.0
  * 
- * Accessibility compliant:
- * - ARIA role="dialog", aria-modal="true"
- * - Focus trap within modal
- * - Escape key to close
- * - Focus restoration on close
+ * Clean, accessible modal dialog.
+ * Focus trap, escape to close, ARIA compliant.
  */
 export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: BookingModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
@@ -39,30 +36,25 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
   const [duration, setDuration] = useState(30)
   const [notes, setNotes] = useState('')
 
-  // Store previous focus and set up keyboard handlers
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement
-      // Focus first input after modal opens
       setTimeout(() => firstFocusableRef.current?.focus(), 50)
     }
 
     return () => {
-      // Restore focus when modal closes
       if (previousFocusRef.current && !isOpen) {
         previousFocusRef.current.focus()
       }
     }
   }, [isOpen])
 
-  // Handle keyboard events (Escape to close, Tab trapping)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
     }
     
-    // Focus trap
     if (e.key === 'Tab' && modalRef.current) {
       const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -153,7 +145,7 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
     >
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -164,213 +156,122 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
         role="dialog"
         aria-modal="true"
         aria-labelledby="booking-modal-title"
-        aria-describedby="booking-modal-description"
-        className="relative bg-slate-800 rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto"
+        className="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto"
       >
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h2 
-              id="booking-modal-title" 
-              className="text-xl font-semibold text-white flex items-center gap-2"
-            >
-              📅 Schedule Call
+            <h2 id="booking-modal-title" className="text-lg font-semibold text-gray-900">
+              Schedule Call
             </h2>
             <button 
               type="button"
               onClick={onClose}
-              aria-label="Close dialog"
-              className="text-slate-400 hover:text-white transition-colors p-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Close"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-600"
             >
-              ✕
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
-          {/* Description for screen readers */}
-          <p id="booking-modal-description" className="sr-only">
-            Schedule a new call by filling out the form below
-          </p>
-
           {/* Error */}
           {error && (
-            <div 
-              role="alert" 
-              aria-live="assertive"
-              className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-sm"
-            >
+            <div role="alert" className="mb-4 p-3 bg-error-light text-error text-sm rounded-md">
               {error}
             </div>
           )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Title */}
-            <div>
-              <label htmlFor="booking-title" className="block text-sm text-slate-300 mb-1">
-                Call Title
-              </label>
-              <input
-                ref={firstFocusableRef}
-                id="booking-title"
-                placeholder="e.g., Follow-up Consultation"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
+            <Input
+              ref={firstFocusableRef}
+              label="Title"
+              placeholder="e.g., Follow-up Call"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
 
-            {/* Attendee Name */}
-            <div>
-              <label htmlFor="booking-attendee-name" className="block text-sm text-slate-300 mb-1">
-                Contact Name
-              </label>
-              <Input
-                id="booking-attendee-name"
-                placeholder="John Doe"
-                value={attendeeName}
-                onChange={(e) => setAttendeeName(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
+            <Input
+              label="Contact Name"
+              placeholder="John Doe"
+              value={attendeeName}
+              onChange={(e) => setAttendeeName(e.target.value)}
+            />
 
-            {/* Your Number (From) */}
-            <div>
-              <label htmlFor="booking-from-number" className="block text-sm text-slate-300 mb-1">
-                Your Phone Number (optional)
-              </label>
-              <Input
-                id="booking-from-number"
-                type="tel"
-                placeholder="+1234567890"
-                value={fromNumber}
-                onChange={(e) => setFromNumber(e.target.value)}
-                aria-describedby="from-number-hint"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              <p id="from-number-hint" className="text-xs text-slate-500 mt-1">
-                For bridge calls - connects you first, then the contact
-              </p>
-            </div>
+            <Input
+              label="Your Phone (optional)"
+              type="tel"
+              placeholder="+1234567890"
+              value={fromNumber}
+              onChange={(e) => setFromNumber(e.target.value)}
+              hint="For bridge calls - connects you first"
+            />
 
-            {/* Contact Phone Number (Required) */}
-            <div>
-              <label htmlFor="booking-attendee-phone" className="block text-sm text-slate-300 mb-1">
-                Contact Phone Number <span className="text-red-400" aria-hidden="true">*</span>
-                <span className="sr-only">(required)</span>
-              </label>
-              <Input
-                id="booking-attendee-phone"
-                type="tel"
-                placeholder="+1234567890"
-                value={attendeePhone}
-                onChange={(e) => setAttendeePhone(e.target.value)}
-                required
-                aria-required="true"
-                aria-describedby="phone-hint"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              <p id="phone-hint" className="text-xs text-slate-500 mt-1">
-                E.164 format (e.g., +1234567890)
-              </p>
-            </div>
+            <Input
+              label="Contact Phone"
+              type="tel"
+              placeholder="+1234567890"
+              value={attendeePhone}
+              onChange={(e) => setAttendeePhone(e.target.value)}
+              required
+            />
 
-            {/* Attendee Email */}
-            <div>
-              <label htmlFor="booking-attendee-email" className="block text-sm text-slate-300 mb-1">
-                Email (for confirmation)
-              </label>
-              <Input
-                id="booking-attendee-email"
-                type="email"
-                placeholder="john@example.com"
-                value={attendeeEmail}
-                onChange={(e) => setAttendeeEmail(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-            </div>
+            <Input
+              label="Email"
+              type="email"
+              placeholder="john@example.com"
+              value={attendeeEmail}
+              onChange={(e) => setAttendeeEmail(e.target.value)}
+            />
 
-            {/* Date & Time */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="booking-date" className="block text-sm text-slate-300 mb-1">
-                  Date <span className="text-red-400" aria-hidden="true">*</span>
-                  <span className="sr-only">(required)</span>
-                </label>
-                <Input
-                  id="booking-date"
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+                <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   min={today}
                   required
-                  aria-required="true"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600"
                 />
               </div>
               <div>
-                <label htmlFor="booking-time" className="block text-sm text-slate-300 mb-1">
-                  Time <span className="text-red-400" aria-hidden="true">*</span>
-                  <span className="sr-only">(required)</span>
-                </label>
-                <Input
-                  id="booking-time"
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Time</label>
+                <input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   required
-                  aria-required="true"
-                  className="bg-slate-700 border-slate-600 text-white"
+                  className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600"
                 />
               </div>
             </div>
 
-            {/* Duration */}
             <div>
-              <label htmlFor="booking-duration" className="block text-sm text-slate-300 mb-1">
-                Duration
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Duration</label>
               <select
-                id="booking-duration"
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-10 px-3 bg-white border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600"
               >
                 <option value={15}>15 minutes</option>
                 <option value={30}>30 minutes</option>
                 <option value={45}>45 minutes</option>
                 <option value={60}>1 hour</option>
-                <option value={90}>1.5 hours</option>
-                <option value={120}>2 hours</option>
               </select>
             </div>
 
-            {/* Description */}
             <div>
-              <label htmlFor="booking-description" className="block text-sm text-slate-300 mb-1">
-                Description
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
               <textarea
-                id="booking-description"
-                placeholder="Brief description of the call purpose..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label htmlFor="booking-notes" className="block text-sm text-slate-300 mb-1">
-                Internal Notes
-              </label>
-              <textarea
-                id="booking-notes"
-                placeholder="Private notes (not shared with attendee)..."
+                placeholder="Internal notes..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                className="w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 bg-white border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-600"
               />
             </div>
 
@@ -387,19 +288,15 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
               </Button>
               <Button
                 type="submit"
+                variant="primary"
                 disabled={loading || !attendeePhone || !startDate || !startTime}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-                aria-busy={loading}
+                className="flex-1"
+                loading={loading}
               >
-                {loading ? 'Scheduling...' : '📅 Schedule Call'}
+                Schedule
               </Button>
             </div>
           </form>
-
-          {/* Info */}
-          <p className="text-xs text-slate-500 text-center mt-4">
-            The call will be automatically placed at the scheduled time
-          </p>
         </div>
       </div>
     </div>

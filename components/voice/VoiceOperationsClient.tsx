@@ -24,6 +24,12 @@ export interface VoiceOperationsClientProps {
   organizationName?: string
 }
 
+/**
+ * VoiceOperationsClient - Professional Design System v3.0
+ * 
+ * Single-page voice operations interface.
+ * Clean, minimal, data-focused design.
+ */
 export default function VoiceOperationsClient({
   initialCalls,
   organizationId,
@@ -34,7 +40,6 @@ export default function VoiceOperationsClient({
   
   // Mobile navigation state
   const [mobileTab, setMobileTab] = useState<MobileTab>('dial')
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
 
   // Listen for call selection events from activity feed
   useEffect(() => {
@@ -42,8 +47,7 @@ export default function VoiceOperationsClient({
       const callId = e.detail?.callId
       if (callId) {
         setSelectedCallId(callId)
-        setMobileTab('dial') // Switch to dial tab to show call details
-        // Scroll to call detail
+        setMobileTab('dial')
         document.getElementById('call-detail-container')?.scrollIntoView({ behavior: 'smooth' })
       }
     }
@@ -55,26 +59,23 @@ export default function VoiceOperationsClient({
   }, [])
 
   async function handleModulationChange(mods: Record<string, boolean>) {
-    // This would update voice_configs via API
     // Modulation changes are handled by CallModulations component directly
   }
 
   return (
     <VoiceConfigProvider organizationId={organizationId}>
-      <div className="flex flex-col h-screen bg-[#FAFAFA] text-[#333333]">
+      <div className="flex flex-col h-screen bg-gray-50">
         {/* Header */}
         <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
 
         {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
         <div className="hidden lg:flex flex-1 overflow-hidden">
-          {/* Left Rail - Call List + Bookings (25%) */}
-          <aside className="w-1/4 min-w-[280px] max-w-[360px] border-r border-[#E5E5E5] flex flex-col overflow-hidden bg-white">
-            {/* Scheduled Calls (Bookings) */}
-            <div className="border-b border-[#E5E5E5] p-3 bg-[#FAFAFA]">
+          {/* Left Rail - Call List (280px) */}
+          <aside className="w-72 border-r border-gray-200 flex flex-col overflow-hidden bg-white">
+            {/* Scheduled Calls */}
+            <div className="border-b border-gray-200 p-4">
               <BookingsList
-                onBookingClick={(booking) => {
-                  // Booking details would be shown in a modal or detail view
-                }}
+                onBookingClick={(booking) => {}}
                 onNewBooking={() => setShowBookingModal(true)}
                 limit={3}
               />
@@ -89,23 +90,17 @@ export default function VoiceOperationsClient({
             />
           </aside>
 
-          {/* Main Area - Call Detail & Controls */}
+          {/* Main Area - Call Controls & Detail */}
           <main className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-2xl mx-auto space-y-6">
               {/* Target & Campaign Selector */}
               <TargetCampaignSelector organizationId={organizationId} />
 
-              {/* Call Features (Modulations) */}
-              <section aria-labelledby="call-features" className="p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
-                <div className="mb-4">
-                  <h2 id="call-features" className="text-lg font-semibold text-[#333333] mb-1">
-                    Call Features
-                  </h2>
-                  <p className="text-sm text-[#666666]">
-                    Configure recording, transcription, translation, and survey settings.
-                  </p>
-                </div>
-                
+              {/* Call Options */}
+              <section className="bg-white rounded-md border border-gray-200 p-4">
+                <h2 className="text-sm font-semibold text-gray-900 mb-4">
+                  Call Options
+                </h2>
                 <CallModulations
                   callId="org-default"
                   organizationId={organizationId}
@@ -120,11 +115,11 @@ export default function VoiceOperationsClient({
                 />
               </section>
 
-              {/* Execution Controls */}
+              {/* Execution Controls - Primary Action */}
               <ExecutionControls organizationId={organizationId} />
 
-              {/* Call Detail View - When Call Selected */}
-              <div id="call-detail-container" className="mt-8">
+              {/* Call Detail View */}
+              <div id="call-detail-container">
                 <CallDetailView
                   callId={selectedCallId}
                   organizationId={organizationId}
@@ -134,8 +129,8 @@ export default function VoiceOperationsClient({
             </div>
           </main>
 
-          {/* Right Rail - Activity Feed (25%) */}
-          <aside className="w-1/4 min-w-[280px] max-w-[360px] border-l border-[#E5E5E5] overflow-y-auto p-4 bg-white">
+          {/* Right Rail - Activity Feed (280px) */}
+          <aside className="w-72 border-l border-gray-200 overflow-y-auto p-4 bg-white">
             <ActivityFeedEmbed organizationId={organizationId} limit={20} />
           </aside>
         </div>
@@ -144,19 +139,18 @@ export default function VoiceOperationsClient({
         <div className="flex lg:hidden flex-col flex-1 overflow-hidden">
           {/* Mobile Tab Content */}
           <div className="flex-1 overflow-y-auto">
-            {/* Dial Tab - Main Controls */}
+            {/* Dial Tab */}
             {mobileTab === 'dial' && (
               <div className="p-4 space-y-4">
-                {/* Target & Campaign Selector */}
                 <TargetCampaignSelector organizationId={organizationId} />
 
-                {/* Call Features - Collapsed by default on mobile */}
-                <details className="bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
-                  <summary className="p-4 cursor-pointer font-semibold text-[#333333] flex items-center justify-between">
-                    <span>⚙️ Call Features</span>
-                    <span className="text-sm text-[#666666]">Tap to expand</span>
+                {/* Call Options - Collapsible */}
+                <details className="bg-white rounded-md border border-gray-200">
+                  <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
+                    <span>Call Options</span>
+                    <span className="text-sm text-gray-500">Tap to expand</span>
                   </summary>
-                  <div className="p-4 pt-0 border-t border-[#E5E5E5]">
+                  <div className="p-4 pt-0 border-t border-gray-200">
                     <CallModulations
                       callId="org-default"
                       organizationId={organizationId}
@@ -172,16 +166,15 @@ export default function VoiceOperationsClient({
                   </div>
                 </details>
 
-                {/* Execution Controls - Always visible */}
                 <ExecutionControls organizationId={organizationId} />
 
-                {/* Upcoming Bookings - Collapsed */}
-                <details className="bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
-                  <summary className="p-4 cursor-pointer font-semibold text-[#333333] flex items-center justify-between">
-                    <span>📅 Scheduled Calls</span>
-                    <span className="text-sm text-[#666666]">Tap to view</span>
+                {/* Scheduled Calls - Collapsible */}
+                <details className="bg-white rounded-md border border-gray-200">
+                  <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
+                    <span>Scheduled Calls</span>
+                    <span className="text-sm text-gray-500">Tap to view</span>
                   </summary>
-                  <div className="p-4 pt-0 border-t border-[#E5E5E5]">
+                  <div className="p-4 pt-0 border-t border-gray-200">
                     <BookingsList
                       onBookingClick={(booking) => {}}
                       onNewBooking={() => setShowBookingModal(true)}
@@ -190,7 +183,6 @@ export default function VoiceOperationsClient({
                   </div>
                 </details>
 
-                {/* Call Detail View - When Call Selected */}
                 {selectedCallId && (
                   <div id="call-detail-container">
                     <CallDetailView
@@ -203,7 +195,7 @@ export default function VoiceOperationsClient({
               </div>
             )}
 
-            {/* Calls Tab - Call History */}
+            {/* Calls Tab */}
             {mobileTab === 'calls' && (
               <CallList
                 calls={initialCalls}
@@ -211,12 +203,12 @@ export default function VoiceOperationsClient({
                 organizationId={organizationId}
                 onSelect={(id) => {
                   setSelectedCallId(id)
-                  setMobileTab('dial') // Switch to dial tab to show details
+                  setMobileTab('dial')
                 }}
               />
             )}
 
-            {/* Activity Tab - Activity Feed */}
+            {/* Activity Tab */}
             {mobileTab === 'activity' && (
               <div className="p-4">
                 <ActivityFeedEmbed organizationId={organizationId} limit={30} />
@@ -225,50 +217,58 @@ export default function VoiceOperationsClient({
           </div>
 
           {/* Mobile Bottom Navigation */}
-          <nav className="flex border-t border-[#E5E5E5] bg-white safe-area-bottom">
+          <nav className="flex border-t border-gray-200 bg-white safe-area-bottom">
             <button
               onClick={() => setMobileTab('dial')}
-              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[60px] transition-colors ${
+              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[56px] transition-colors ${
                 mobileTab === 'dial' 
-                  ? 'text-[#C4001A] bg-red-50' 
-                  : 'text-[#666666] hover:bg-gray-50 active:bg-gray-100'
+                  ? 'text-primary-600 bg-primary-50' 
+                  : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
-              <span className="text-2xl mb-1">📞</span>
+              <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
               <span className="text-xs font-medium">Dial</span>
             </button>
             <button
               onClick={() => setMobileTab('calls')}
-              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[60px] transition-colors ${
+              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[56px] transition-colors relative ${
                 mobileTab === 'calls' 
-                  ? 'text-[#C4001A] bg-red-50' 
-                  : 'text-[#666666] hover:bg-gray-50 active:bg-gray-100'
+                  ? 'text-primary-600 bg-primary-50' 
+                  : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
-              <span className="text-2xl mb-1">📋</span>
+              <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
               <span className="text-xs font-medium">Calls</span>
               {initialCalls.length > 0 && (
-                <span className="absolute top-1 right-1/4 bg-[#C4001A] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute top-2 right-1/4 bg-primary-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                   {initialCalls.length > 9 ? '9+' : initialCalls.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setMobileTab('activity')}
-              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[60px] transition-colors ${
+              className={`flex-1 flex flex-col items-center py-3 px-2 min-h-[56px] transition-colors ${
                 mobileTab === 'activity' 
-                  ? 'text-[#C4001A] bg-red-50' 
-                  : 'text-[#666666] hover:bg-gray-50 active:bg-gray-100'
+                  ? 'text-primary-600 bg-primary-50' 
+                  : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
-              <span className="text-2xl mb-1">🔔</span>
+              <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
               <span className="text-xs font-medium">Activity</span>
             </button>
             <button
               onClick={() => setShowBookingModal(true)}
-              className="flex-1 flex flex-col items-center py-3 px-2 min-h-[60px] text-[#666666] hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              className="flex-1 flex flex-col items-center py-3 px-2 min-h-[56px] text-gray-500 hover:bg-gray-50 transition-colors"
             >
-              <span className="text-2xl mb-1">➕</span>
+              <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
               <span className="text-xs font-medium">Schedule</span>
             </button>
           </nav>

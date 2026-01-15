@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { checkApiPermission, UserRole, Plan } from '@/lib/rbac'
 import { v4 as uuidv4 } from 'uuid'
@@ -78,8 +79,8 @@ export function withRBAC(
   return async (req: Request, { params }: { params?: Record<string, string> }): Promise<Response> => {
     try {
       // Get session
-      const session = await getServerSession()
-      const userId = session?.user?.id ?? null
+      const session = await getServerSession(authOptions)
+      const userId = (session?.user as any)?.id ?? null
 
       if (!userId) {
         return NextResponse.json(

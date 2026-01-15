@@ -54,8 +54,12 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       try {
         setLoading(true)
         const [targetsRes, campaignsRes] = await Promise.all([
-          fetch(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`),
-          fetch(`/api/campaigns?orgId=${encodeURIComponent(organizationId)}`),
+          fetch(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
+            credentials: 'include'
+          }),
+          fetch(`/api/campaigns?orgId=${encodeURIComponent(organizationId)}`, {
+            credentials: 'include'
+          }),
         ])
 
         if (targetsRes.ok) {

@@ -113,14 +113,19 @@ async function handlePUT(req: Request) {
     }
 
     // Map incoming modulation keys to columns allowed by Schema
+    // Per TOOL_TABLE_ALIGNMENT: voice_configs PUT allows all modulation columns
     const allowedKeys = [
       'record', 'transcribe', 'translate', 'translate_from', 'translate_to', 
       'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id',
       // AI Survey Bot fields
-      'survey_prompts', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number'
+      'survey_prompts', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number',
+      // Target/Campaign selection (UI→API→Table contract)
+      'target_id', 'campaign_id',
+      // Caller ID masking
+      'caller_id_mask', 'caller_id_verified'
     ]
-    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number']
-    const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning']
+    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number', 'target_id', 'campaign_id', 'caller_id_mask']
+    const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning', 'caller_id_verified']
     const jsonArrayKeys = ['survey_prompts'] // Array fields stored as JSONB
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.
     // Keep `organization_id` only for the INSERT row below.
@@ -140,9 +145,14 @@ async function handlePUT(req: Request) {
       }
     }
 
-    // Translation validation: if language codes are provided, validate them
-    // Note: We allow enabling translate=true first, then setting language codes
-    // The call initiation endpoint will enforce language codes at execution time
+    // Fetch existing config for validation and audit
+    const { data: existingRows } = await supabaseAdmin.from('voice_configs').select('*').eq('organization_id', orgId).limit(1)
+    const existing = existingRows && existingRows[0] ? existingRows[0] : null
+
+    // Translation validation (per MASTER_ARCHITECTURE.txt):
+    // - If language codes are provided, validate format
+    // - If translate=true is being set, require language codes to be provided
+    //   (either in this request or already existing in the config)
     if (updatePayload.translate_from !== undefined && updatePayload.translate_from !== null) {
       if (!isValidLangCode(updatePayload.translate_from)) {
         const err = new AppError({ code: 'INVALID_LANGUAGE', message: 'Invalid from language code', user_message: 'Invalid source language code', severity: 'MEDIUM' })
@@ -155,10 +165,27 @@ async function handlePUT(req: Request) {
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
       }
     }
-
-    // fetch existing for audit
-    const { data: existingRows } = await supabaseAdmin.from('voice_configs').select('*').eq('organization_id', orgId).limit(1)
-    const existing = existingRows && existingRows[0] ? existingRows[0] : null
+    
+    // MASTER_ARCHITECTURE compliance: When enabling translation, language codes are required
+    // Check if translate is being enabled (either explicitly or will remain true)
+    const willTranslateBeEnabled = updatePayload.translate === true || 
+      (updatePayload.translate === undefined && existing?.translate === true)
+    
+    if (willTranslateBeEnabled) {
+      // Determine effective language codes after this update
+      const effectiveFrom = updatePayload.translate_from ?? existing?.translate_from
+      const effectiveTo = updatePayload.translate_to ?? existing?.translate_to
+      
+      if (!effectiveFrom || !effectiveTo) {
+        const err = new AppError({ 
+          code: 'TRANSLATION_LANGUAGES_REQUIRED', 
+          message: 'Translation requires both source and target languages', 
+          user_message: 'Please select source and target languages before enabling translation', 
+          severity: 'MEDIUM' 
+        })
+        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      }
+    }
 
     // upsert: insert if none, otherwise update permitted columns per TOOL_TABLE_ALIGNMENT
     if (!existing) {

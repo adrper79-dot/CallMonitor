@@ -379,38 +379,82 @@ export function getAuthOptions() {
   }
 }
 
-// Export authOptions as a getter to ensure fresh evaluation at runtime
-// This avoids build-time evaluation issues with environment variables
-let _authOptions: ReturnType<typeof getAuthOptions> | null = null
+// Cached auth options - initialized lazily on first access
+let _cachedAuthOptions: ReturnType<typeof getAuthOptions> | null = null
 
-export const authOptions = new Proxy({} as ReturnType<typeof getAuthOptions>, {
-  get(target, prop) {
-    // Lazy initialization on first access
-    if (!_authOptions) {
-      try {
-        _authOptions = getAuthOptions()
-      } catch (e) {
-        console.error('[auth] Failed to initialize auth options:', e)
-        // Return minimal fallback to prevent crashes
-        _authOptions = {
-          providers: [],
-          secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
-          session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
-          callbacks: {
-            jwt: async ({ token, user }: any) => {
-              if (user) token.id = user.id
-              return token
-            },
-            session: async ({ session, token }: any) => {
-              if (session?.user && token?.id) {
-                (session.user as any).id = token.id
-              }
-              return session
-            }
-          }
-        } as any
-      }
-    }
-    return (_authOptions as any)[prop]
+/**
+ * Get the auth options object (cached).
+ * This function ensures lazy initialization and caches the result.
+ * Prefer using this function directly instead of the authOptions export
+ * when passing to getServerSession() for maximum compatibility.
+ */
+export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
+  if (_cachedAuthOptions) {
+    return _cachedAuthOptions
   }
-})
+  
+  try {
+    _cachedAuthOptions = getAuthOptions()
+    return _cachedAuthOptions
+  } catch (e) {
+    console.error('[auth] Failed to initialize auth options:', e)
+    // Return minimal fallback to prevent crashes
+    const fallback = {
+      providers: [] as any[],
+      secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
+      session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
+      cookies: {
+        sessionToken: { name: 'next-auth.session-token', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
+        callbackUrl: { name: 'next-auth.callback-url', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
+        csrfToken: { name: 'next-auth.csrf-token', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
+      },
+      useSecureCookies: process.env.NODE_ENV === 'production',
+      callbacks: {
+        jwt: async ({ token, user }: any) => {
+          if (user) token.id = user.id
+          return token
+        },
+        session: async ({ session, token }: any) => {
+          if (session?.user && token?.id) {
+            (session.user as any).id = token.id
+          }
+          return session
+        }
+      }
+    } as unknown as ReturnType<typeof getAuthOptions>
+    _cachedAuthOptions = fallback
+    return fallback
+  }
+}
+
+/**
+ * Auth options export for backwards compatibility.
+ * Uses a Proxy to lazily initialize and delegate all operations to the real options object.
+ * This handles property access, iteration, spread, and other operations correctly.
+ */
+export const authOptions: ReturnType<typeof getAuthOptions> = new Proxy(
+  {} as ReturnType<typeof getAuthOptions>,
+  {
+    get(target, prop, receiver) {
+      const opts = getAuthOptionsLazy()
+      return Reflect.get(opts, prop, receiver)
+    },
+    has(target, prop) {
+      const opts = getAuthOptionsLazy()
+      return Reflect.has(opts, prop)
+    },
+    ownKeys(target) {
+      const opts = getAuthOptionsLazy()
+      return Reflect.ownKeys(opts)
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      const opts = getAuthOptionsLazy()
+      return Reflect.getOwnPropertyDescriptor(opts, prop)
+    },
+    // Make properties appear enumerable for spread/iteration
+    getPrototypeOf(target) {
+      const opts = getAuthOptionsLazy()
+      return Reflect.getPrototypeOf(opts)
+    }
+  }
+)

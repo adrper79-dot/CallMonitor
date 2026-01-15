@@ -1,46 +1,69 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TABLEAU-INSPIRED DESIGN SYSTEM
-   Clean, data-first aesthetic with professional clarity
+   CALLMONITOR PROFESSIONAL DESIGN SYSTEM v3.0
+   Philosophy: Trust, competence, simplicity
+   Target: SMBs who need professional-grade tools
 ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────
    CSS CUSTOM PROPERTIES (Design Tokens)
 ───────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Tableau Blue Palette (Primary) */
-  --tableau-blue: #4E79A7;
-  --tableau-blue-light: #A0CBE8;
-  --tableau-blue-dark: #3D6A98;
-  --tableau-blue-accent: #2C5F8D;
+  /* Primary: Navy Blue (Trust, Authority) */
+  --color-primary: #1E3A5F;
+  --color-primary-hover: #15294A;
+  --color-primary-light: #EFF6FF;
   
-  /* Neutral Grays (Foundation) */
-  --tableau-bg: #FAFAFA;
-  --tableau-card: #FFFFFF;
-  --tableau-border: #E5E5E5;
-  --tableau-border-light: #F0F0F0;
-  --tableau-border-dark: #D0D0D0;
+  /* Backgrounds */
+  --color-bg: #FFFFFF;
+  --color-bg-subtle: #F9FAFB;
+  --color-bg-muted: #F3F4F6;
   
-  /* Text Colors */
-  --tableau-text: #333333;
-  --tableau-text-muted: #666666;
-  --tableau-text-light: #999999;
-  --tableau-text-lighter: #CCCCCC;
+  /* Borders */
+  --color-border: #E5E7EB;
+  --color-border-light: #F3F4F6;
+  --color-border-dark: #D1D5DB;
   
-  /* Semantic Colors (Use Sparingly) */
-  --tableau-success: #59A14F;
-  --tableau-warning: #EDC948;
-  --tableau-error: #E15759;
-  --tableau-info: #76B7B2;
+  /* Text */
+  --color-text: #1F2937;
+  --color-text-secondary: #4B5563;
+  --color-text-muted: #6B7280;
+  --color-text-placeholder: #9CA3AF;
   
-  /* Tableau Palette Extensions */
-  --tableau-orange: #F28E2B;
-  --tableau-green: #59A14F;
-  --tableau-red: #E15759;
-  --tableau-purple: #AF7AA1;
-  --tableau-cyan: #76B7B2;
-  --tableau-yellow: #EDC948;
+  /* Semantic Colors */
+  --color-success: #059669;
+  --color-success-light: #D1FAE5;
+  --color-warning: #D97706;
+  --color-warning-light: #FEF3C7;
+  --color-error: #DC2626;
+  --color-error-light: #FEE2E2;
+  --color-info: #2563EB;
+  --color-info-light: #DBEAFE;
+  
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition: 150ms ease;
+  --transition-slow: 300ms ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -51,142 +74,48 @@ html {
 }
 
 body {
-  background: var(--tableau-bg);
-  color: var(--tableau-text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   line-height: 1.5;
-  /* Subtle futuristic background gradient (very subtle) */
-  background-image: 
-    radial-gradient(ellipse at top, rgba(196, 0, 26, 0.02) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(78, 121, 167, 0.02) 0%, transparent 50%);
+  font-size: 14px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    TYPOGRAPHY
 ───────────────────────────────────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
-  color: var(--tableau-text);
-  line-height: 1.3;
+  color: var(--color-text);
+  line-height: 1.25;
   margin: 0;
 }
 
-h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--tableau-text);
-  letter-spacing: -0.01em;
-}
-
-h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--tableau-text);
-}
-
-h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--tableau-text);
-}
-
-h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--tableau-text);
-}
+h1 { font-size: 24px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
 
 p {
-  color: var(--tableau-text-muted);
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   CARDS (Clean, Flat Design)
+   FOCUS STATES (Accessibility)
 ───────────────────────────────────────────────────────────────────────── */
-.card-tableau {
-  background: var(--tableau-card);
-  border: 1px solid var(--tableau-border);
-  border-radius: 4px;
-  padding: 1.5rem;
-  transition: border-color 0.2s ease;
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-.card-tableau:hover {
-  border-color: var(--tableau-border-dark);
-}
-
-.card-tableau-header {
-  border-bottom: 1px solid var(--tableau-border);
-  padding-bottom: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.card-tableau-footer {
-  border-top: 1px solid var(--tableau-border);
-  padding-top: 0.75rem;
-  margin-top: 1rem;
-}
-
-
-
-
-/* ─────────────────────────────────────────────────────────────────────────
-   BADGES (Minimal, Clean)
-───────────────────────────────────────────────────────────────────────── */
-.badge-tableau {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 3px;
-  border: 1px solid transparent;
-}
-
-.badge-success {
-  background-color: #E8F5E9;
-  color: var(--tableau-success);
-  border-color: #C8E6C9;
-}
-
-.badge-warning {
-  background-color: #FFF8E1;
-  color: #F57C00;
-  border-color: #FFE082;
-}
-
-.badge-error {
-  background-color: #FFEBEE;
-  color: var(--tableau-error);
-  border-color: #FFCDD2;
-}
-
-.badge-info {
-  background-color: #E0F2F1;
-  color: var(--tableau-info);
-  border-color: #B2DFDB;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   LOADING STATES (Minimal with Subtle Glow)
-───────────────────────────────────────────────────────────────────────── */
-.loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--tableau-border);
-  border-top-color: var(--signal-red);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  box-shadow: 0 0 8px var(--signal-red-glow);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+/* Remove outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -198,92 +127,55 @@ p {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--tableau-bg);
+  background: var(--color-bg-subtle);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--tableau-border-dark);
+  background: var(--color-border-dark);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--tableau-text-light);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   DATA TABLES (Tableau Style)
-───────────────────────────────────────────────────────────────────────── */
-.table-tableau {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-.table-tableau thead {
-  background-color: var(--tableau-bg);
-  border-bottom: 2px solid var(--tableau-border-dark);
-}
-
-.table-tableau th {
-  text-align: left;
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-  color: var(--tableau-text);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.table-tableau tbody tr {
-  border-bottom: 1px solid var(--tableau-border-light);
-  transition: background-color 0.15s ease;
-}
-
-.table-tableau tbody tr:hover {
-  background-color: #F8F8F8;
-}
-
-.table-tableau td {
-  padding: 0.75rem 1rem;
-  color: var(--tableau-text);
-}
-
-.table-tableau td:first-child {
-  font-weight: 500;
-  color: var(--tableau-text);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   FUTURISTIC EFFECTS (Subtle Accents)
-───────────────────────────────────────────────────────────────────────── */
-.glow-soft {
-  box-shadow: 0 0 12px rgba(196, 0, 26, 0.1);
-}
-
-.glow-soft-blue {
-  box-shadow: 0 0 12px var(--tableau-blue-glow);
-}
-
-.glow-hover:hover {
-  box-shadow: 0 4px 16px rgba(196, 0, 26, 0.15), 0 0 0 1px rgba(196, 0, 26, 0.1);
-}
-
-/* Soft capsules - smooth rounded corners */
-.capsule-soft {
-  border-radius: 12px;
-}
-
-/* Subtle gradient backgrounds for accents */
-.gradient-futuristic {
-  background: linear-gradient(135deg, rgba(196, 0, 26, 0.05) 0%, rgba(78, 121, 167, 0.05) 100%);
+  background: var(--color-text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
    UTILITY CLASSES
 ───────────────────────────────────────────────────────────────────────── */
+
+/* Tabular numbers for data alignment */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   LOADING STATES
+───────────────────────────────────────────────────────────────────────── */
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -299,21 +191,13 @@ p {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-.safe-area-left {
-  padding-left: env(safe-area-inset-left, 0px);
-}
-
-.safe-area-right {
-  padding-right: env(safe-area-inset-right, 0px);
-}
-
 /* Touch-friendly tap targets (minimum 44px as per Apple HIG) */
 .touch-target {
   min-height: 44px;
   min-width: 44px;
 }
 
-/* Prevent text selection on UI elements (mobile UX) */
+/* Prevent text selection on UI elements */
 .no-select {
   -webkit-user-select: none;
   user-select: none;
@@ -332,39 +216,21 @@ p {
     font-size: 16px !important; /* Prevents iOS zoom on focus */
   }
   
-  /* Larger touch targets on mobile */
   button, [role="button"], a {
     min-height: 44px;
   }
 }
 
-/* Smooth transitions for mobile nav */
-.mobile-nav-transition {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Bottom sheet / drawer styles */
-.bottom-sheet {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--tableau-card);
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.bottom-sheet.open {
-  transform: translateY(0);
-}
-
-/* Pull indicator for bottom sheets */
-.pull-indicator {
-  width: 36px;
-  height: 4px;
-  background: var(--tableau-border-dark);
-  border-radius: 2px;
-  margin: 8px auto 0;
+/* ─────────────────────────────────────────────────────────────────────────
+   ANIMATION UTILITIES
+───────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

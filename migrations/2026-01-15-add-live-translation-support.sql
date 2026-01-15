@@ -9,8 +9,8 @@ ALTER TABLE recordings
 ADD COLUMN IF NOT EXISTS has_live_translation BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS live_translation_provider TEXT;
 
-COMMENT ON COLUMN recordings.has_live_translation IS 'Whether this call used live translation (SignalWire AI Agent)';
-COMMENT ON COLUMN recordings.live_translation_provider IS 'Provider used for live translation (e.g., signalwire)';
+-- has_live_translation: Whether this call used live translation (SignalWire AI Agent)
+-- live_translation_provider: Provider used for live translation (e.g., signalwire)
 
 -- Note: translate_from and translate_to already exist in voice_configs per Schema.txt
 -- No need to add them. Just verify they exist.

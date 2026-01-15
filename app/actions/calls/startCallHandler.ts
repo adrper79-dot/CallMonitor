@@ -161,8 +161,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     if (useLiveTranslation && callId) {
       // Get translation language settings from voice_configs
       // Column names are translate_from and translate_to (per ARCH_DOCS Schema.txt)
-      let translateFrom = 'en'
-      let translateTo = 'es'
+      // MASTER_ARCHITECTURE compliance: Translation requires explicit language codes, no inference
+      let translateFrom: string | null = null
+      let translateTo: string | null = null
       try {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
@@ -170,11 +171,23 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           .eq('organization_id', organization_id)
           .limit(1)
         if (vcRows?.[0]) {
-          translateFrom = vcRows[0].translate_from || 'en'
-          translateTo = vcRows[0].translate_to || 'es'
+          translateFrom = vcRows[0].translate_from || null
+          translateTo = vcRows[0].translate_to || null
         }
       } catch (e) {
-        logger.warn('Failed to fetch translation languages, using defaults', e as Error)
+        logger.warn('Failed to fetch translation languages', e as Error)
+      }
+      
+      // Fail if language codes are not configured (per MASTER_ARCHITECTURE - no inference)
+      if (!translateFrom || !translateTo) {
+        const e = new AppError({ 
+          code: 'TRANSLATION_LANGUAGES_REQUIRED', 
+          message: 'Translation requires source and target languages to be configured', 
+          user_message: 'Please configure translation languages before placing a translated call', 
+          severity: 'HIGH' 
+        })
+        await writeAuditError('calls', callId, e.toJSON())
+        return { success: false, error: e.toJSON() }
       }
       
       const swmlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organization_id)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`

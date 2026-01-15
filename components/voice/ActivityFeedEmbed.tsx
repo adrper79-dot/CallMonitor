@@ -22,19 +22,29 @@ export interface ActivityFeedEmbedProps {
   events?: ActivityEvent[]
 }
 
-export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, events: initialEvents }: ActivityFeedEmbedProps) {
+/**
+ * ActivityFeedEmbed - Professional Design System v3.0
+ * 
+ * Clean activity feed with minimal decoration.
+ * No emojis, subtle status indicators.
+ */
+export default function ActivityFeedEmbed({ 
+  callId, 
+  organizationId, 
+  limit = 10, 
+  events: initialEvents 
+}: ActivityFeedEmbedProps) {
   const [events, setEvents] = useState<ActivityEvent[]>(initialEvents || [])
   const [filter, setFilter] = useState<string>('all')
 
-  // Real-time updates
   const { updates, connected } = useRealtime(organizationId || null)
 
-  // Polling fallback for audit logs
   const { data: polledEvents } = usePolling<ActivityEvent>(
     async () => {
       if (!organizationId) return []
       try {
         const res = await fetch(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`, { credentials: 'include' })
+        if (res.status === 401) return []
         if (res.ok) {
           const data = await res.json()
           return data.events || []
@@ -44,11 +54,10 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
         return []
       }
     },
-    10000, // Poll every 10 seconds
-    !connected && organizationId !== null
+    30000,
+    !connected && !!organizationId
   )
 
-  // Process real-time updates
   useEffect(() => {
     if (!updates.length) return
 
@@ -62,19 +71,17 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
           title: mapTableToEventTitle(update.table, update.new),
           status: mapTableToEventStatus(update.table, update.new),
         }
-        setEvents((prev) => [event, ...prev].slice(0, limit * 2)) // Keep more than limit for filtering
+        setEvents((prev) => [event, ...prev].slice(0, limit * 2))
       }
     })
   }, [updates, limit])
 
-  // Use polled events if real-time is disconnected
   useEffect(() => {
     if (!connected && polledEvents.length > 0) {
       setEvents(polledEvents)
     }
   }, [polledEvents, connected])
 
-  // Filter events
   const filteredEvents = events
     .filter((e) => {
       if (callId) return e.call_id === callId
@@ -83,21 +90,8 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
     })
     .slice(0, limit)
 
-  function iconFor(type: string) {
-    if (type.includes('error') || type.includes('failed')) return '❌'
-    if (type.includes('record')) return '⏺️'
-    if (type.includes('transcript') || type.includes('transcription')) return '📝'
-    if (type.includes('translation')) return '🌐'
-    if (type.includes('survey')) return '📋'
-    if (type.includes('score')) return '⭐'
-    if (type.includes('call.started') || type.includes('call_started')) return '📞'
-    if (type.includes('call.ended') || type.includes('call_ended') || type.includes('call.completed')) return '🔚'
-    return 'ℹ️'
-  }
-
   function handleEventClick(event: ActivityEvent) {
     if (event.call_id) {
-      // Emit custom event to select call
       window.dispatchEvent(
         new CustomEvent('call:select', {
           detail: { callId: event.call_id },
@@ -107,77 +101,76 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
   }
 
   return (
-    <section aria-label="Activity feed" className="w-full bg-slate-950 rounded-md border border-slate-800">
-      <div className="p-4 border-b border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-slate-100">Activity</h4>
-          {!connected && (
-            <span className="text-xs text-amber-400" aria-label="Real-time disconnected">
-              ⚠
-            </span>
-          )}
-        </div>
-        {!callId && (
-          <div className="flex gap-2">
-            <Button
-              variant={filter === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter('all')}
-              className="text-xs"
-            >
-              All
-            </Button>
-            <Button
-              variant={filter === 'call' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter('call')}
-              className="text-xs"
-            >
-              Calls
-            </Button>
-            <Button
-              variant={filter === 'transcript' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter('transcript')}
-              className="text-xs"
-            >
-              Transcripts
-            </Button>
-          </div>
+    <section aria-label="Activity feed" className="w-full">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-900">Activity</h3>
+        {!connected && (
+          <span className="text-xs text-warning" aria-label="Real-time disconnected">
+            Offline
+          </span>
         )}
       </div>
+
+      {/* Filters */}
+      {!callId && (
+        <div className="flex gap-1 mb-3">
+          <Button
+            variant={filter === 'all' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('all')}
+            className="text-xs"
+          >
+            All
+          </Button>
+          <Button
+            variant={filter === 'call' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('call')}
+            className="text-xs"
+          >
+            Calls
+          </Button>
+          <Button
+            variant={filter === 'transcript' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setFilter('transcript')}
+            className="text-xs"
+          >
+            Transcripts
+          </Button>
+        </div>
+      )}
 
       <div role="status" aria-live="polite" className="sr-only">
         {filteredEvents.length} events shown
       </div>
 
+      {/* Event List */}
       <div className="max-h-[60vh] overflow-y-auto">
         {filteredEvents.length === 0 ? (
-          <div className="p-4 text-center text-slate-400 text-sm">No recent activity</div>
+          <div className="py-8 text-center text-sm text-gray-400">
+            No recent activity
+          </div>
         ) : (
-          <ul role="list" className="divide-y divide-slate-800">
+          <ul className="space-y-2">
             {filteredEvents.map((evt) => (
               <li
                 key={evt.id}
-                className={`p-3 hover:bg-slate-900 transition-colors ${
-                  evt.call_id ? 'cursor-pointer' : ''
+                className={`p-3 bg-gray-50 rounded-md border border-gray-200 transition-colors ${
+                  evt.call_id ? 'cursor-pointer hover:bg-gray-100' : ''
                 }`}
                 onClick={() => evt.call_id && handleEventClick(evt)}
-                aria-labelledby={`evt-${evt.id}-title`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="text-lg" aria-hidden>
-                    {iconFor(evt.type)}
-                  </div>
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div id={`evt-${evt.id}-title`} className="text-sm text-slate-100">
-                      {evt.title}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-1">
+                    <p className="text-sm text-gray-900">{evt.title}</p>
+                    <p className="text-xs text-gray-500 mt-1">
                       {new Date(evt.timestamp).toLocaleString()}
-                    </div>
+                    </p>
                     {evt.call_id && (
-                      <div className="text-xs text-indigo-400 mt-1">Call: {evt.call_id}</div>
+                      <p className="text-xs text-primary-600 mt-1">
+                        Call: {evt.call_id.slice(0, 8)}...
+                      </p>
                     )}
                   </div>
                   <Badge
@@ -187,7 +180,6 @@ export default function ActivityFeedEmbed({ callId, organizationId, limit = 10, 
                       evt.status === 'success' ? 'success' :
                       'default'
                     }
-                    className="text-xs"
                   >
                     {evt.status || 'info'}
                   </Badge>

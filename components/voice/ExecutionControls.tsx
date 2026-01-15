@@ -13,6 +13,12 @@ export interface ExecutionControlsProps {
   onCallPlaced?: (callId: string) => void
 }
 
+/**
+ * ExecutionControls - Professional Design System v3.0
+ * 
+ * The PRIMARY action on the page. Clean, focused, prominent.
+ * One big call button with status feedback.
+ */
 export default function ExecutionControls({ organizationId, onCallPlaced }: ExecutionControlsProps) {
   const { role } = useRBAC(organizationId)
   const canPlaceCall = usePermission(organizationId, 'call', 'execute')
@@ -54,7 +60,6 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
     return () => clearInterval(interval)
   }, [activeCallId, callStatus])
 
-  // Check if we have a valid dial target (either saved target or quick dial number)
   const hasDialTarget = config?.target_id || config?.quick_dial_number
   const dialTargetDisplay = config?.quick_dial_number || 
     (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
@@ -62,16 +67,12 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   const isBridgeCall = !!config?.from_number
 
   async function handlePlaceCall() {
-    // Prevent double submission (race condition protection)
-    if (isPlacingCallRef.current) {
-      console.warn('handlePlaceCall: already placing call, ignoring duplicate click')
-      return
-    }
+    if (isPlacingCallRef.current) return
     
     if (!organizationId || !canPlaceCall || !hasDialTarget) {
       toast({
-        title: 'Error',
-        description: 'Cannot place call: enter a phone number or select a target first',
+        title: 'Cannot place call',
+        description: 'Enter a phone number or select a target first',
         variant: 'destructive',
       })
       return
@@ -82,7 +83,6 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
       setPlacing(true)
       setCallStatus('initiating')
       
-      // Build request body - use quick_dial_number if set, otherwise target_id
       const requestBody: Record<string, any> = {
         organization_id: organizationId,
         campaign_id: config.campaign_id || null,
@@ -95,29 +95,26 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
         },
       }
       
-      // Set target phone number (who to call)
       if (config.quick_dial_number) {
         requestBody.to_number = config.quick_dial_number
       } else if (config.target_id) {
         requestBody.target_id = config.target_id
       }
       
-      // Set from number (agent's phone for bridge calls)
       if (config.from_number) {
         requestBody.from_number = config.from_number
-        requestBody.flow_type = 'bridge'  // This is a bridge call
+        requestBody.flow_type = 'bridge'
       }
       
       const res = await fetch('/api/voice/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // CRITICAL: Send session cookie for authentication
+        credentials: 'include',
         body: JSON.stringify(requestBody),
       })
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Failed to place call' }))
-        // Handle error object {code, message} or string
         const errorMsg = typeof errorData.error === 'object' 
           ? (errorData.error?.message || errorData.error?.code || JSON.stringify(errorData.error))
           : (errorData.error || 'Failed to place call')
@@ -134,7 +131,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
 
       toast({
         title: 'Call placed',
-        description: `Call ${callId} is being initiated...`,
+        description: `Call ${callId.slice(0, 8)}... is being initiated`,
       })
     } catch (err: any) {
       setCallStatus(null)
@@ -158,14 +155,14 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   const statusBadgeVariant = 
     callStatus === 'completed' ? 'success' :
     callStatus === 'failed' || callStatus === 'no-answer' || callStatus === 'busy' ? 'error' :
-    callStatus === 'in_progress' ? 'info' :
+    callStatus === 'in_progress' ? 'success' :
     callStatus === 'ringing' ? 'warning' :
     'default'
 
   if (!canPlaceCall) {
     return (
-      <div className="p-4 bg-slate-950 rounded-md border border-slate-800">
-        <p className="text-sm text-slate-400">
+      <div className="bg-white rounded-md border border-gray-200 p-4">
+        <p className="text-sm text-gray-500">
           Only Owners, Admins, and Operators can place calls.
         </p>
       </div>
@@ -173,68 +170,64 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   }
 
   return (
-    <section aria-labelledby="execution-controls" className="w-full p-4 bg-slate-950 rounded-md border border-slate-800">
-      <h3 id="execution-controls" className="text-lg font-medium text-slate-100 mb-4">
-        Execution Controls
-      </h3>
-
+    <section className="bg-white rounded-md border border-gray-200 p-6">
       <div className="space-y-4">
-        {/* Show current dial configuration */}
+        {/* Target Display */}
         {hasDialTarget && (
-          <div className="p-3 bg-slate-900 rounded-md border border-green-800 space-y-2">
-            <div className="text-sm text-green-400">
-              📞 Target: <span className="font-mono font-bold">{dialTargetDisplay}</span>
+          <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
+            <div className="text-sm text-gray-700">
+              <span className="font-medium">Calling:</span>{' '}
+              <span className="font-mono">{dialTargetDisplay}</span>
             </div>
             {fromNumberDisplay && (
-              <div className="text-sm text-blue-400">
-                📱 Agent: <span className="font-mono font-bold">{fromNumberDisplay}</span>
+              <div className="text-sm text-gray-500 mt-1">
+                Agent phone: <span className="font-mono">{fromNumberDisplay}</span>
                 <span className="text-xs ml-2">(bridge call)</span>
-              </div>
-            )}
-            {!fromNumberDisplay && (
-              <div className="text-xs text-slate-500">
-                Direct call mode (no agent bridge)
               </div>
             )}
           </div>
         )}
         
+        {/* Primary Call Button */}
         <Button
           onClick={handlePlaceCall}
           disabled={placing || !hasDialTarget || activeCallId !== null}
-          className="w-full"
+          variant="primary"
           size="lg"
+          className="w-full h-14 text-base"
           aria-label="Place call"
         >
-          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : isBridgeCall ? '📞 Place Bridge Call' : '📞 Place Call'}
+          {placing ? 'Placing Call...' : activeCallId ? 'Call in Progress' : 'Place Call'}
         </Button>
 
+        {/* Active Call Status */}
         {activeCallId && callStatus && (
-          <div className="p-3 bg-slate-900 rounded-md border border-slate-800">
+          <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-slate-400">Call Status:</span>
+              <span className="text-sm text-gray-600">Status</span>
               <Badge variant={statusBadgeVariant}>{callStatus}</Badge>
             </div>
             {callStatus === 'in_progress' && (
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">Duration:</span>
-                <span className="text-sm font-mono text-slate-100">{formatDuration(callDuration)}</span>
+                <span className="text-sm text-gray-600">Duration</span>
+                <span className="text-sm font-mono text-gray-900">{formatDuration(callDuration)}</span>
               </div>
             )}
-            <div className="mt-2 text-xs text-slate-500">
-              Call ID: {activeCallId}
+            <div className="mt-2 text-xs text-gray-400">
+              ID: {activeCallId.slice(0, 8)}...
             </div>
             {!connected && (
-              <div className="mt-2 text-xs text-amber-400">
-                Real-time updates disconnected. Using polling fallback.
+              <div className="mt-2 text-xs text-warning">
+                Real-time updates disconnected
               </div>
             )}
           </div>
         )}
 
+        {/* No target warning */}
         {!hasDialTarget && (
-          <p className="text-sm text-amber-400">
-            ⚠️ Enter a phone number above or select a saved target to place a call.
+          <p className="text-sm text-gray-500 text-center">
+            Enter a phone number above to place a call
           </p>
         )}
       </div>

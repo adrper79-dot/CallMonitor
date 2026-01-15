@@ -60,12 +60,14 @@ export function parseFormEncoded(text: string): Record<string, string> {
 
 /**
  * Create a structured error response
+ * @param skipLog - Set to true to skip logging (useful for expected errors like 401 on public polling)
  */
 export function errorResponse(
   code: string, 
   message: string, 
   userMessage: string, 
-  status: number
+  status: number,
+  skipLog = false
 ): NextResponse {
   const err = new AppError({ 
     code, 
@@ -74,7 +76,15 @@ export function errorResponse(
     severity: status >= 500 ? 'CRITICAL' : 'HIGH' 
   })
   
-  logger.warn(`API Error: ${code}`, { status, message })
+  // Only log server errors (5xx) and unexpected client errors
+  // Skip logging for expected auth failures (401) and rate limits to reduce noise
+  if (!skipLog && status >= 500) {
+    logger.error(`API Error: ${code}`, { status, message })
+  } else if (!skipLog && status !== 401) {
+    // Log 4xx errors except 401 (which is expected for unauthenticated polling)
+    logger.warn(`API Error: ${code}`, { status, message })
+  }
+  // 401s are not logged - they're expected for unauthenticated requests
   
   return NextResponse.json({ 
     success: false, 
