@@ -103,6 +103,7 @@ Word Is Bond is a voice operations platform for managing calls with modulations 
    - RFC3161 TSA integration (async, via proxy)
    - Provenance entries for bundles
    - Verification endpoint for bundle/manifest recomputation
+   - Offline verification CLI (`tools/verify_evidence_bundle.ts`)
 
 2. **Canonical Hashing Utilities**
    - Shared `lib/crypto/canonicalize.ts` for deterministic hashing

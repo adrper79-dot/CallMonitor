@@ -226,6 +226,7 @@ Explicitly marks the artifact set as immutable and governed by retention policy.
   - Request RFC 3161 token asynchronously (optional) and store it.
   - Run recovery if manifest exists without bundle.
   - Expose verification endpoint to recompute hashes.
+  - Provide read-only CLI verification for offline review.
 
 ### Storage (minimal)
 - Mark artifacts in storage with `immutable_storage` metadata.

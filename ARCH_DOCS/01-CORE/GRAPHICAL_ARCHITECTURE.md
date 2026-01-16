@@ -180,6 +180,21 @@ sequenceDiagram
 
 ---
 
+## 5b) Verification & Reconstitution (Third-Party)
+
+```mermaid
+sequenceDiagram
+  participant CLI as Verification CLI / API
+  participant DB as Supabase
+
+  CLI->>DB: fetch evidence_bundle + manifest
+  CLI->>CLI: recompute canonical hashes
+  CLI->>CLI: compare bundle_hash + manifest_hash
+  CLI-->>CLI: verification report
+```
+
+---
+
 ## 6) Security & Permission Gates (Request Path)
 
 ```mermaid
