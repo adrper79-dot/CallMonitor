@@ -40,8 +40,8 @@ export async function GET(req: NextRequest) {
       return success({ alerts: [] })
     }
 
-    const scorecardIds = [...new Set(scoredRows.map((row) => row.scorecard_id).filter(Boolean))]
-    const recordingIds = [...new Set(scoredRows.map((row) => row.recording_id))]
+    const scorecardIds = Array.from(new Set(scoredRows.map((row) => row.scorecard_id).filter(Boolean)))
+    const recordingIds = Array.from(new Set(scoredRows.map((row) => row.recording_id)))
 
     const { data: scorecards } = await supabaseAdmin
       .from('scorecards')
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       .select('id, call_sid')
       .in('id', recordingIds)
 
-    const callSids = [...new Set((recordings || []).map((rec) => rec.call_sid).filter(Boolean))]
+    const callSids = Array.from(new Set((recordings || []).map((rec) => rec.call_sid).filter(Boolean)))
     const { data: calls } = await supabaseAdmin
       .from('calls')
       .select('id, call_sid')

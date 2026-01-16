@@ -62,7 +62,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   if (organizationId) {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller')
+      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_webhook_email')
       .eq('organization_id', organizationId)
       .limit(1)
 
@@ -70,7 +70,9 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     logger.debug('LaML outbound: voice_configs loaded', { 
       record: voiceConfig?.record, 
       transcribe: voiceConfig?.transcribe,
-      translate: voiceConfig?.translate
+      translate: voiceConfig?.translate,
+      survey: voiceConfig?.survey,
+      surveyPromptsCount: voiceConfig?.survey_prompts?.length || 0
     })
   } else {
     logger.warn('LaML outbound: could not find organization for call', { callId })
@@ -104,12 +106,57 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
   }
   
-  // Survey prompts
+  // Survey prompts - use dynamic questions from voice_configs.survey_prompts
   if (voiceConfig?.survey) {
-    elements.push('<Say voice="alice">Thank you for your time. Before we end, I have a quick survey.</Say>')
+    const surveyPrompts: string[] = Array.isArray(voiceConfig.survey_prompts) && voiceConfig.survey_prompts.length > 0
+      ? voiceConfig.survey_prompts
+      : ['On a scale of 1 to 5, how satisfied were you with this call?']
+    
+    const totalQuestions = surveyPrompts.length
+    logger.info('LaML outbound: generating survey with prompts', { 
+      callId, 
+      organizationId, 
+      totalQuestions,
+      hasWebhookEmail: !!voiceConfig.survey_webhook_email 
+    })
+    
+    elements.push(`<Say voice="alice">Thank you for your time. I have ${totalQuestions > 1 ? totalQuestions + ' quick questions' : 'a quick question'} for you.</Say>`)
     elements.push('<Pause length="1"/>')
-    elements.push('<Say>On a scale of 1 to 5, how satisfied were you with this call?</Say>')
-    elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
+    
+    // Build survey webhook URL with callId and orgId for context
+    const surveyBaseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/survey`
+    const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
+    const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
+    
+    for (let i = 0; i < surveyPrompts.length; i++) {
+      const prompt = surveyPrompts[i]
+      const questionIdx = i + 1
+      
+      // Add question number for multi-question surveys
+      if (totalQuestions > 1) {
+        elements.push(`<Say voice="alice">Question ${questionIdx} of ${totalQuestions}:</Say>`)
+        elements.push('<Pause length="0.5"/>')
+      }
+      
+      elements.push(`<Say voice="alice">${escapeXml(prompt)}</Say>`)
+      
+      // Build action URL with question index and total for tracking
+      const actionParams = [callParam, orgParam, `q=${questionIdx}`, `total=${totalQuestions}`].filter(Boolean).join('&')
+      const actionUrl = surveyBaseUrl + (actionParams ? `?${actionParams}` : '')
+      
+      // Gather DTMF response (timeout 10s, allow 1-5 or longer responses)
+      elements.push(`<Gather numDigits="1" action="${escapeXml(actionUrl)}" method="POST" timeout="10" finishOnKey="#">`)
+      elements.push('  <Say voice="alice">Please press a number from 1 to 5.</Say>')
+      elements.push('</Gather>')
+      
+      // No input fallback - move to next question
+      if (i < surveyPrompts.length - 1) {
+        elements.push('<Say voice="alice">Let me move to the next question.</Say>')
+        elements.push('<Pause length="0.5"/>')
+      }
+    }
+    
+    elements.push('<Say voice="alice">Thank you for completing our survey. Your feedback is valuable to us.</Say>')
   }
   
   elements.push('<Pause length="3600"/>')

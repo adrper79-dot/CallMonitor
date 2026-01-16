@@ -24,7 +24,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebRPCMethod, WebRPCRequest, WebRPCResponse } from '@/types/tier1-features'
 import { emitCallStarted, emitCallCompleted } from '@/lib/webhookDelivery'
-import { startCallHandler } from '@/app/actions/calls/startCallHandler'
+import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
 
@@ -99,12 +99,13 @@ async function handleCallPlace(
   try {
     // CORRECT: Call existing orchestration handler (no direct DB writes)
     const result = await startCallHandler({
-      phone_to: to_number,
+      phone_number: to_number,
       from_number: from_number as string | undefined,
       organization_id: organizationId,
       actor_id: userId,  // Actor attribution for RBAC
-      source: 'webrpc',  // Source attribution for audit trail
-      modulations: modulations as any
+      modulations: modulations as any || { record: false, transcribe: false }
+    }, {
+      supabaseAdmin
     })
     
     if (!result.success) {
@@ -141,21 +142,19 @@ async function handleCallPlace(
         to_number,
         from_number,
         session_id: sessionId,
-        call_sid: result.call_sid
+        call_id: result.call_id
       },
       created_at: new Date().toISOString()
     })
     
     logger.info('WebRPC call placed successfully', {
       call_id: result.call_id,
-      call_sid: result.call_sid,
       source: 'webrpc',
       actor_id: userId
     })
     
     return {
       call_id: result.call_id,
-      call_sid: result.call_sid,
       status: 'initiating',
       to_number,
       from_number
@@ -404,7 +403,7 @@ export async function POST(request: NextRequest) {
         break
       
       case 'call.hangup':
-        result = await handleCallHangup(params, userId, webrtcSession!.id)
+        result = await handleCallHangup(params, userId, webrtcSession!.organization_id, webrtcSession!.id)
         break
       
       case 'call.mute':

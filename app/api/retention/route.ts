@@ -33,6 +33,7 @@ const updatePolicySchema = z.object({
 export async function GET() {
   try {
     const ctx = await requireRole(['owner', 'admin', 'operator', 'analyst'])
+    if (ctx instanceof NextResponse) return ctx
     
     const { data, error } = await supabaseAdmin
       .from('retention_policies')
@@ -76,6 +77,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const ctx = await requireRole(['owner', 'admin'])
+    if (ctx instanceof NextResponse) return ctx
     
     const body = await req.json()
     const parsed = updatePolicySchema.safeParse(body)

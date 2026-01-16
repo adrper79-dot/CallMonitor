@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
 
     if (orgErr || !orgRows?.[0]?.tool_id) {
-      return Errors.internal('Organization tool_id not found')
+      return Errors.internal(new Error('Organization tool_id not found'))
     }
 
     const { error } = await supabaseAdmin.from('scorecards').insert({

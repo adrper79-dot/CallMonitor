@@ -172,6 +172,29 @@ export function getClientIP(req: Request): string {
 /**
  * Rate limit middleware for API routes
  */
+/**
+ * Check rate limit for a specific identifier
+ * Simplified interface for rate limiting
+ * 
+ * @param identifier - Unique identifier (user ID, IP, etc)
+ * @param maxAttempts - Maximum attempts allowed (default: 100)
+ * @param windowMs - Time window in ms (default: 60000 = 1 minute)
+ */
+export async function checkRateLimit(
+  identifier: string,
+  maxAttempts: number = 100,
+  windowMs: number = 60000
+): Promise<{ allowed: boolean; remaining: number; resetIn: number }> {
+  const config: RateLimitConfig = {
+    maxAttempts,
+    windowMs,
+    blockMs: windowMs
+  }
+  const result = await rateLimit(identifier, config)
+  const resetIn = result.resetAt - Date.now()
+  return { allowed: result.allowed, remaining: result.remaining, resetIn: Math.max(0, resetIn) }
+}
+
 export function withRateLimit(
   handler: (req: Request) => Promise<Response>,
   options?: {

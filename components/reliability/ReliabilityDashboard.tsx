@@ -124,11 +124,11 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
       case 'succeeded':
         return <Badge variant="success">Recovered</Badge>
       case 'failed':
-        return <Badge variant="destructive">Failed</Badge>
+        return <Badge variant="error">Failed</Badge>
       case 'manual_review':
         return <Badge variant="secondary">Review</Badge>
       case 'discarded':
-        return <Badge variant="outline">Discarded</Badge>
+        return <Badge variant="secondary">Discarded</Badge>
       default:
         return <Badge>{status}</Badge>
     }
