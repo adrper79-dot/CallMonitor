@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This document certifies that CallMonitor meets all 12 requirements for a **Conversation System of Record** as defined in the engineering-grade requirements specification.
+This document certifies that Word Is Bond meets all 12 requirements for a **Conversation System of Record** as defined in the engineering-grade requirements specification.
 
 | Requirement | Status | Implementation |
 |-------------|--------|----------------|

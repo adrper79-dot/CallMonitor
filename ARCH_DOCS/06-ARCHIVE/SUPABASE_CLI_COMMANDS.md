@@ -1,6 +1,6 @@
 # Supabase CLI Connection Guide
 
-**Status:** ✅ Connected to project `CallMonitor` (fiijrhpjpebevfavzlhu)
+**Status:** ✅ Connected to project `Word Is Bond` (fiijrhpjpebevfavzlhu)
 
 ---
 

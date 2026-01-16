@@ -1,4 +1,4 @@
-# CallMonitor Design System v3.0
+# Word Is Bond Design System v3.0
 
 **Philosophy:** Professional, trustworthy, invisible.  
 **Target:** SMBs who need to look competent to their customers.  
@@ -215,7 +215,7 @@ Badge specifications:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  HEADER (56px)                                              │
-│  Logo    CallMonitor                    [User] [Settings]  │
+│  Logo    Word Is Bond                    [User] [Settings]  │
 ├─────────────────────────────────────────────────────────────┤
 │         │                                         │         │
 │  LEFT   │            MAIN CONTENT                │  RIGHT  │

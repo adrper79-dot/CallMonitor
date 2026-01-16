@@ -44,7 +44,7 @@ According to `ARCH_DOCS/04-DESIGN/UX_DESIGN_PRINCIPLES.txt`:
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ HEADER: CallMonitor – Voice Operations                        │
+│ HEADER: Word Is Bond – Voice Operations                        │
 │ Org: Acme Corp   Plan: Growth   [Upgrade]                     │
 └───────────────────────────────────────────────────────────────┘
 

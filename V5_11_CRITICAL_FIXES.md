@@ -180,7 +180,7 @@ psql $DB -f migrations/add-campaigns-table.sql
 vercel logs https://voxsouth.online
 
 # Or check Vercel dashboard:
-# https://vercel.com/dashboard → CallMonitor → Logs
+# https://vercel.com/dashboard → Word Is Bond → Logs
 ```
 
 ---

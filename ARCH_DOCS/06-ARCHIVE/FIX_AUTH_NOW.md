@@ -1,7 +1,7 @@
 # 🚀 QUICK START - Fix Authentication NOW
 
 ## Problem
-Cannot log in to CallMonitor - getting "Invalid login credentials"
+Cannot log in to Word Is Bond - getting "Invalid login credentials"
 
 ## Solution (5 minutes)
 
@@ -24,7 +24,7 @@ node scripts/reset-auth-users.js --clear --create
 
 ### 5. Login with:
 - **Email:** `admin@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 
 ## ⚠️ CRITICAL: Apply Security Fix
 
@@ -40,7 +40,7 @@ Without this, users can access each other's data!
 
 ## Alternative Credentials
 - **Email:** `user@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 
 ---
 

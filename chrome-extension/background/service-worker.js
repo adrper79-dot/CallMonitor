@@ -1,5 +1,5 @@
 /**
- * CallMonitor Chrome Extension - Background Service Worker
+ * Word Is Bond Chrome Extension - Background Service Worker
  * 
  * Handles context menus, notifications, and background tasks.
  */
@@ -12,17 +12,17 @@ chrome.runtime.onInstalled.addListener(() => {
   // Create context menu for phone numbers
   chrome.contextMenus.create({
     id: 'callmonitor-call',
-    title: '📞 Call with CallMonitor',
+    title: '📞 Call with Word Is Bond',
     contexts: ['selection']
   })
   
   chrome.contextMenus.create({
     id: 'callmonitor-schedule',
-    title: '📅 Schedule Call with CallMonitor',
+    title: '📅 Schedule Call with Word Is Bond',
     contexts: ['selection']
   })
   
-  console.log('CallMonitor extension installed')
+  console.log('Word Is Bond extension installed')
 })
 
 // Handle context menu clicks
@@ -99,7 +99,7 @@ async function handleQuickCall(phoneNumber) {
       type: 'basic',
       iconUrl: 'icons/icon128.png',
       title: 'Connection Error',
-      message: 'Unable to connect to CallMonitor. Please check your connection.'
+      message: 'Unable to connect to Word Is Bond. Please check your connection.'
     })
   }
 }
@@ -156,4 +156,4 @@ async function showBookingReminder(bookingId) {
   }
 }
 
-console.log('CallMonitor service worker started')
+console.log('Word Is Bond service worker started')

@@ -195,7 +195,7 @@ export default function TestPage() {
           <div>
             <h1 className="text-3xl font-bold">Test Dashboard</h1>
             <p className="text-slate-400 mt-2">
-              Comprehensive test suite for CallMonitor platform
+              Comprehensive test suite for Word Is Bond platform
             </p>
             {lastRunTime && (
               <p className="text-sm text-slate-500 mt-1">

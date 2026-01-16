@@ -249,26 +249,33 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
   
   return (
     <div className="review-mode">
-      {/* Header with Read-Only indicator */}
-      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md">
+      {/* Header with Locked View indicator */}
+      <div className="mb-6 p-4 bg-primary-50 border border-primary-200 rounded-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <svg 
-              className="w-5 h-5 text-amber-600" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
-              />
-            </svg>
+            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center">
+              <svg 
+                className="w-5 h-5 text-white" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
+                />
+              </svg>
+            </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Evidence Review</h2>
-              <p className="text-sm text-amber-700">Read-only mode - no modifications allowed</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-gray-900">Evidence Review</h2>
+                <span className="px-2 py-0.5 text-xs font-medium bg-primary-600 text-white rounded-full">
+                  LOCKED VIEW
+                </span>
+              </div>
+              <p className="text-sm text-primary-700">Immutable record - no modifications allowed</p>
             </div>
           </div>
           

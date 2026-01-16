@@ -8,7 +8,7 @@ import { AppShell } from '@/components/layout/AppShell'
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'Dashboard | CallMonitor',
+  title: 'Dashboard | Wordis Bond',
   description: 'Your voice intelligence dashboard'
 }
 

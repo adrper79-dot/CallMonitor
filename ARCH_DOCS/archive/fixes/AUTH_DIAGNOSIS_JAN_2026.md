@@ -87,12 +87,12 @@ node scripts/reset-auth-users.js --clear --create
 ### Test Credentials Created:
 - **Admin User:**
   - Email: `admin@callmonitor.local`
-  - Password: `CallMonitor2026!`
+  - Password: `Word Is Bond2026!`
   - Role: `admin`
 
 - **Regular User:**
   - Email: `user@callmonitor.local`
-  - Password: `CallMonitor2026!`
+  - Password: `Word Is Bond2026!`
   - Role: `member`
 
 ---
@@ -180,8 +180,8 @@ CREATE POLICY "Users can update own data"
 
 After running the reset script, verify:
 
-- [ ] Can log in with `admin@callmonitor.local` / `CallMonitor2026!`
-- [ ] Can log in with `user@callmonitor.local` / `CallMonitor2026!`
+- [ ] Can log in with `admin@callmonitor.local` / `Word Is Bond2026!`
+- [ ] Can log in with `user@callmonitor.local` / `Word Is Bond2026!`
 - [ ] User session persists across page reloads
 - [ ] User can access organization data
 - [ ] User cannot access other organizations' data (RLS test)

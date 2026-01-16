@@ -47,12 +47,12 @@ export async function GET(req: Request) {
   try {
     const result = await sendEmail({
       to,
-      subject: '✅ CallMonitor Test Email - Resend Working!',
+      subject: '✅ Word Is Bond Test Email - Resend Working!',
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 24px; border-radius: 12px;">
             <h1 style="margin: 0; font-size: 24px;">✅ Email Test Successful!</h1>
-            <p style="margin: 8px 0 0 0; opacity: 0.9;">CallMonitor email service is working correctly.</p>
+            <p style="margin: 8px 0 0 0; opacity: 0.9;">Word Is Bond email service is working correctly.</p>
           </div>
           <div style="padding: 24px; background: #f8fafc; border-radius: 0 0 12px 12px;">
             <h2 style="color: #1e293b; margin-top: 0;">What this means:</h2>
@@ -105,8 +105,8 @@ export async function POST(req: Request) {
     }
     
     const result = await sendEmail({
-      to, subject: subject || 'CallMonitor Test Email',
-      html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h2>CallMonitor Test</h2><p>${message || 'This is a test email from CallMonitor.'}</p><hr><p style="color: #666; font-size: 12px;">Sent: ${new Date().toLocaleString()}</p></div>`
+      to, subject: subject || 'Word Is Bond Test Email',
+      html: `<div style="font-family: Arial, sans-serif; padding: 20px;"><h2>Word Is Bond Test</h2><p>${message || 'This is a test email from Word Is Bond.'}</p><hr><p style="color: #666; font-size: 12px;">Sent: ${new Date().toLocaleString()}</p></div>`
     })
     
     return NextResponse.json({ success: result.success, messageId: result.messageId, error: result.error })

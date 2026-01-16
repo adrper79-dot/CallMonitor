@@ -26,7 +26,7 @@
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ HEADER: CallMonitor – Voice Operations                        │
+│ HEADER: Word Is Bond – Voice Operations                        │
 │ Org: [Org Name]   Plan: [Plan]   [Upgrade]                    │
 └───────────────────────────────────────────────────────────────┘
 

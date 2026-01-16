@@ -114,7 +114,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
         <div className="flex items-center gap-3 h-16 px-6 border-b border-gray-200">
           <Logo size="sm" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">CallMonitor</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">Wordis Bond</p>
             {organizationName && (
               <p className="text-xs text-gray-500 truncate">{organizationName}</p>
             )}
@@ -165,7 +165,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
         <div className="flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-3">
             <Logo size="sm" />
-            <span className="text-sm font-semibold text-gray-900">CallMonitor</span>
+            <span className="text-sm font-semibold text-gray-900">Wordis Bond</span>
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

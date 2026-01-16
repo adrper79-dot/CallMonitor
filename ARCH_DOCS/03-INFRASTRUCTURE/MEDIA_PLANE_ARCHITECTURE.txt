@@ -1,7 +1,7 @@
 <DOCUMENT filename="MEDIA_PLANE_ARCHITECTURE.txt">
 # **LATIMER WOODS TECHNOLOGIES – MEDIA PLANE ARCHITECTURE (v3)**
 
-**PRODUCT:** CallMonitor Platform
+**PRODUCT:** Word Is Bond Platform
 **COMPONENT:** Media Plane Architecture
 **VERSION:** 3.0
 **LAST UPDATED:** 2026-01-09
@@ -11,7 +11,7 @@
 
 ## **PURPOSE**
 
-This document defines the **Media Plane architecture** for the CallMonitor Platform, aligned with MASTER_ARCHITECTURE.txt v4.1 updates:
+This document defines the **Media Plane architecture** for the Word Is Bond Platform, aligned with MASTER_ARCHITECTURE.txt v4.1 updates:
 
 * **Voice-first, call-rooted design**: The *call* is the root object; all features (recording, transcription, translation, surveys, secret shopper) are call modulations.
 * **SignalWire-first v1**: SignalWire is the authoritative media execution plane in v1; no FreeSWITCH dependency.
@@ -223,7 +223,7 @@ This phased approach enables quick v1 shipping with full feature parity while pr
 ---
 LATIMER WOODS TECHNOLOGIES – MEDIA PLANE ARCHITECTURE (v2.1 REDLINE)
 
-PRODUCT: CallMonitor Platform
+PRODUCT: Word Is Bond Platform
 COMPONENT: Media Plane Architecture
 VERSION: 2.1 (Redlined)
 LAST UPDATED: 2026-01-09
@@ -251,7 +251,7 @@ Assumes the reader is intelligent, busy, and successful
 
 PURPOSE (UPDATED)
 
-This document defines the Media Plane architecture for the CallMonitor Platform using a two-phase transition model:
+This document defines the Media Plane architecture for the Word Is Bond Platform using a two-phase transition model:
 
 Phase 1 (Current / Shipping): SignalWire-mediated media plane
 

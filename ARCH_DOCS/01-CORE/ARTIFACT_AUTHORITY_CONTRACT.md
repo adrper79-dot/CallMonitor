@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-CallMonitor operates as a **System of Record** for business conversations. This contract formally declares which artifacts are **authoritative** (canonical, immutable, legally defensible) and which are **preview** (real-time assist only, not evidential).
+Word Is Bond operates as a **System of Record** for business conversations. This contract formally declares which artifacts are **authoritative** (canonical, immutable, legally defensible) and which are **preview** (real-time assist only, not evidential).
 
 All authoritative artifacts follow the principle: **evidence, not opinions**. Source recordings are never modified. Transcripts are produced by a single canonical provider (AssemblyAI). Every mutation is logged in `audit_logs` with actor attribution. Preview artifacts (live translation) assist users in real-time but are explicitly non-authoritative.
 
@@ -85,7 +85,7 @@ Every authoritative artifact must have clear producer attribution.
 |----------|-------------------|-------------|-------|
 | **SignalWire** | `recordings` | High | Carrier-grade media capture |
 | **AssemblyAI** | `transcript_versions` | High | Canonical transcription |
-| **Server (CallMonitor)** | `calls`, `evidence_manifests`, `audit_logs` | High | System-generated |
+| **Server (Word Is Bond)** | `calls`, `evidence_manifests`, `audit_logs` | High | System-generated |
 | **AI Survey Bot** | `survey_responses` | Medium | Automated collection |
 | **SignalWire AI Agent** | Live translation | Low (Preview) | Real-time assist only |
 | **User** | Manual notes, dispositions | Medium | Human input |

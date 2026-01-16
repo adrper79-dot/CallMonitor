@@ -123,13 +123,13 @@ async function createTestUsers() {
   const testUsers = [
     {
       email: 'admin@callmonitor.local',
-      password: 'CallMonitor2026!',
+      password: 'Word Is Bond2026!',
       role: 'admin',
       name: 'Admin User'
     },
     {
       email: 'user@callmonitor.local',
-      password: 'CallMonitor2026!',
+      password: 'Word Is Bond2026!',
       role: 'member',
       name: 'Test User'
     }
@@ -237,10 +237,10 @@ async function createTestUsers() {
   console.log('\n✅ Test users created successfully!\n');
   console.log('You can now log in with:');
   console.log('  - Email: admin@callmonitor.local');
-  console.log('  - Password: CallMonitor2026!');
+  console.log('  - Password: Word Is Bond2026!');
   console.log('  OR');
   console.log('  - Email: user@callmonitor.local');
-  console.log('  - Password: CallMonitor2026!');
+  console.log('  - Password: Word Is Bond2026!');
   console.log('');
 }
 
@@ -248,7 +248,7 @@ async function testAuthentication() {
   console.log('\n🔐 Testing authentication...\n');
   
   const testEmail = 'admin@callmonitor.local';
-  const testPassword = 'CallMonitor2026!';
+  const testPassword = 'Word Is Bond2026!';
   
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -279,7 +279,7 @@ async function testAuthentication() {
 }
 
 async function main() {
-  console.log('🔧 CallMonitor Authentication Reset Script');
+  console.log('🔧 Word Is Bond Authentication Reset Script');
   console.log('==========================================\n');
   
   // List current users

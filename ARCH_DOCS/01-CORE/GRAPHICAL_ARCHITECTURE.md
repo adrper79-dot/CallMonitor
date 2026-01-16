@@ -1,6 +1,6 @@
 # Graphical Architecture Overview (Current State)
 
-**Product:** CallMonitor  
+**Product:** Word Is Bond  
 **Doc Type:** Graphical design document + full-scope architectural summary  
 **Version:** 1.0  
 **Last Updated:** January 14, 2026  

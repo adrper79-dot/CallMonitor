@@ -1,4 +1,4 @@
-# CallMonitor Chrome Extension
+# Word Is Bond Chrome Extension
 
 A powerful Chrome extension for managing voice calls, scheduling bookings, and click-to-call functionality directly from any webpage.
 
@@ -39,12 +39,12 @@ The extension requires icon files in the `icons/` folder:
 - `icon48.png` (48x48)
 - `icon128.png` (128x128)
 
-You can create these from any square image or use the CallMonitor logo.
+You can create these from any square image or use the Word Is Bond logo.
 
 ## Configuration
 
 1. Click the extension icon
-2. Sign in to your CallMonitor account
+2. Sign in to your Word Is Bond account
 3. Go to Settings (⚙️) to customize:
    - API URL (default: https://voxsouth.online)
    - Click-to-call enabled/disabled
@@ -80,7 +80,7 @@ This extension requires the following permissions:
 
 ## API Integration
 
-The extension communicates with the CallMonitor API:
+The extension communicates with the Word Is Bond API:
 
 - `GET /api/health/user` - Check authentication
 - `POST /api/voice/call` - Initiate calls
@@ -94,7 +94,7 @@ The extension communicates with the CallMonitor API:
 - Check for errors in `chrome://extensions/`
 
 ### Can't make calls?
-- Make sure you're signed in to CallMonitor
+- Make sure you're signed in to Word Is Bond
 - Check the API URL in settings
 
 ### Phone numbers not detected?
@@ -104,13 +104,13 @@ The extension communicates with the CallMonitor API:
 ## Privacy
 
 - No data is collected or stored by the extension
-- All data is transmitted securely to your CallMonitor server
+- All data is transmitted securely to your Word Is Bond server
 - Phone numbers are only processed locally for click-to-call
 
 ## Support
 
-For issues or feature requests, contact your CallMonitor administrator.
+For issues or feature requests, contact your Word Is Bond administrator.
 
 ---
 
-Made with ❤️ for CallMonitor
+Made with ❤️ for Word Is Bond

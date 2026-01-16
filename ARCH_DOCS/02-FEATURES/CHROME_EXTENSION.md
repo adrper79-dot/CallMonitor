@@ -1,4 +1,4 @@
-# CallMonitor Chrome Extension
+# Word Is Bond Chrome Extension
 
 **Last Updated:** January 14, 2026  
 **Version:** 1.0.0  
@@ -8,7 +8,7 @@
 
 ## Overview
 
-The CallMonitor Chrome Extension provides:
+The Word Is Bond Chrome Extension provides:
 
 - **Quick Call** - Make calls directly from the browser
 - **Click-to-Call** - Auto-detect phone numbers on any webpage
@@ -64,8 +64,8 @@ Automatically on every webpage:
 ### 3. Context Menu
 
 Right-click selected text to:
-- "📞 Call with CallMonitor"
-- "📅 Schedule Call with CallMonitor"
+- "📞 Call with Word Is Bond"
+- "📅 Schedule Call with Word Is Bond"
 
 ### 4. Notifications
 
@@ -81,7 +81,7 @@ Chrome notifications for:
 ```json
 {
   "manifest_version": 3,
-  "name": "CallMonitor - Click to Call",
+  "name": "Word Is Bond - Click to Call",
   "version": "1.0.0",
   
   "permissions": [
@@ -115,7 +115,7 @@ Chrome notifications for:
 
 ## API Integration
 
-The extension communicates with CallMonitor API:
+The extension communicates with Word Is Bond API:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -154,7 +154,7 @@ User-configurable settings:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| API URL | voxsouth.online | CallMonitor server URL |
+| API URL | voxsouth.online | Word Is Bond server URL |
 | Click-to-call enabled | true | Auto-detect phone numbers |
 | Show tooltip | true | Show Call/Schedule on hover |
 | Call notifications | true | Show call status notifications |
@@ -199,7 +199,7 @@ zip -r callmonitor-extension.zip . -x ".*"
 - Check for manifest errors
 
 ### Can't make calls?
-- Sign in to CallMonitor web app first
+- Sign in to Word Is Bond web app first
 - Check API URL in settings
 
 ### Phone numbers not detected?

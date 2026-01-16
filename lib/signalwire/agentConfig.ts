@@ -102,7 +102,7 @@ export function buildAgentConfig(input: AgentConfigInput): SignalWireAgentConfig
 
   return {
     agent: {
-      name: 'CallMonitor Live Translation Agent (Preview)',
+      name: 'Word Is Bond Live Translation Agent (Preview)',
       version: '1.0.0',
       description: 'Real-time bi-directional translation executed by SignalWire AI. Canonical transcript and evidence provided by AssemblyAI.',
       languages: {

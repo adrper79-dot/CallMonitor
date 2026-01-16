@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document defines the UX workflow patterns implemented in CallMonitor to ensure efficient, intuitive user journeys. These patterns work in conjunction with the Design System and UX Design Principles.
+This document defines the UX workflow patterns implemented in Word Is Bond to ensure efficient, intuitive user journeys. These patterns work in conjunction with the Design System and UX Design Principles.
 
 ---
 

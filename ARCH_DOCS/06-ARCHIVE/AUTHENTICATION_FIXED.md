@@ -15,13 +15,13 @@ Authentication is now fully functional. You can log in with the test credentials
 
 ### Admin User
 - **Email:** `admin@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 - **Role:** Admin/Owner
 - **Organization:** Test Organization
 
 ### Regular User
 - **Email:** `user@callmonitor.local`  
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 - **Role:** Member
 - **Organization:** Test Organization
 
@@ -215,7 +215,7 @@ All documentation is in the project root and ARCH_DOCS:
 
 Try logging in now with:
 - Email: `admin@callmonitor.local`
-- Password: `CallMonitor2026!`
+- Password: `Word Is Bond2026!`
 
 **Don't forget to apply the RLS policies!**
 

@@ -91,7 +91,7 @@ curl 'https://voxsouth.online/api/bookings?orgId=143a4ad7-403c-4933-a0e6-553b05c
 
 **Via Dashboard**:
 1. Go to: https://vercel.com/dashboard
-2. Click your project (CallMonitor)
+2. Click your project (Word Is Bond)
 3. Click "Logs" tab
 4. Filter by last 10 minutes
 5. Look for POST /api/calls/start or errors

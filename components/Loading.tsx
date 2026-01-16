@@ -82,7 +82,7 @@ export function Loading({
       </div>
 
       {/* Loading message */}
-      <p className="text-[#666666] text-sm max-w-xs text-center">
+      <p className="text-gray-500 text-sm max-w-xs text-center">
         {displayMessage}
       </p>
     </div>
@@ -90,7 +90,7 @@ export function Loading({
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#FAFAFA]">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50">
         {content}
       </div>
     )
@@ -107,11 +107,8 @@ function LoadingOrbit() {
   return (
     <div className="relative w-32 h-32">
       <div 
-        className="absolute inset-0 rounded-full border-2 border-[#E5E5E5] border-t-[#C4001A] animate-spin"
-        style={{
-          animationDuration: '0.8s',
-          boxShadow: '0 0 8px rgba(196, 0, 26, 0.2)',
-        }}
+        className="absolute inset-0 rounded-full border-2 border-gray-200 border-t-primary-600 animate-spin"
+        style={{ animationDuration: '0.8s' }}
       />
     </div>
   )
@@ -133,12 +130,7 @@ export function Skeleton({ className = '', variant = 'default' }: {
   
   return (
     <div 
-      className={`bg-[#1E1E3F] shimmer ${variants[variant]} ${className}`}
-      style={{
-        background: 'linear-gradient(90deg, #1E1E3F 0%, #2D2D5A 50%, #1E1E3F 100%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 1.5s linear infinite',
-      }}
+      className={`bg-gray-200 animate-pulse ${variants[variant]} ${className}`}
     />
   )
 }

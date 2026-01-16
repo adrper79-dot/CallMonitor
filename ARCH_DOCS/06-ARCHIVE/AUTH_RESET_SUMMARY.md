@@ -8,7 +8,7 @@
 
 ## 🎯 Executive Summary
 
-**Problem:** Users cannot authenticate to the CallMonitor application  
+**Problem:** Users cannot authenticate to the Word Is Bond application  
 **Root Cause:** Users exist in database but passwords are unknown/invalid  
 **Solution:** Created automated reset script to clear and recreate users with known passwords  
 **Critical Finding:** No Row Level Security (RLS) policies enabled - immediate security risk
@@ -70,7 +70,7 @@ When prompted, type `yes` to confirm.
 
 Use these credentials:
 - **Email:** `admin@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 
 ### Step 3: Apply RLS Policies (CRITICAL)
 
@@ -151,8 +151,8 @@ supabase db push
 
 After reset, verify:
 
-- [ ] Can log in with `admin@callmonitor.local` / `CallMonitor2026!`
-- [ ] Can log in with `user@callmonitor.local` / `CallMonitor2026!`
+- [ ] Can log in with `admin@callmonitor.local` / `Word Is Bond2026!`
+- [ ] Can log in with `user@callmonitor.local` / `Word Is Bond2026!`
 - [ ] Session persists across page reloads
 - [ ] Can access organization data
 - [ ] Logout works properly

@@ -1,4 +1,4 @@
-# CallMonitor Call Setup Guide
+# Word Is Bond Call Setup Guide
 
 **Date:** January 12, 2026  
 **Purpose:** Explain call flow logic and fix configuration

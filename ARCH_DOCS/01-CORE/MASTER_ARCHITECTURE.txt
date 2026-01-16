@@ -47,7 +47,7 @@ Agent Config Payload Structure:
 ```json
 {
   "agent": {
-    "name": "CallMonitor Live Translation Agent (Preview)",
+    "name": "Word Is Bond Live Translation Agent (Preview)",
     "version": "1.0.0",
     "languages": {
       "primary": "en-US",

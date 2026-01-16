@@ -236,15 +236,17 @@ export default function CallModulations({ callId, organizationId, initialModulat
               </div>
             </div>
             
-            {/* Expanded config for translate */}
-            {checked && t.key === 'translate' && (
+            {/* Translation config - ALWAYS show language selectors when translate toggle is visible */}
+            {/* This fixes the UX bug where users couldn't enable translation without first setting languages */}
+            {t.key === 'translate' && (
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <Select
-                    label="From"
+                    label="From Language"
                     value={config?.translate_from || ''}
                     onChange={(e) => updateConfig({ translate_from: e.target.value || undefined })}
                     disabled={!canEdit}
+                    hint={!checked ? 'Select before enabling' : undefined}
                   >
                     <option value="">Select...</option>
                     <option value="en">English</option>
@@ -253,12 +255,17 @@ export default function CallModulations({ callId, organizationId, initialModulat
                     <option value="de">German</option>
                     <option value="zh">Chinese</option>
                     <option value="ja">Japanese</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="it">Italian</option>
+                    <option value="ko">Korean</option>
+                    <option value="ar">Arabic</option>
                   </Select>
                   <Select
-                    label="To"
+                    label="To Language"
                     value={config?.translate_to || ''}
                     onChange={(e) => updateConfig({ translate_to: e.target.value || undefined })}
                     disabled={!canEdit}
+                    hint={!checked ? 'Select before enabling' : undefined}
                   >
                     <option value="">Select...</option>
                     <option value="en">English</option>
@@ -267,21 +274,34 @@ export default function CallModulations({ callId, organizationId, initialModulat
                     <option value="de">German</option>
                     <option value="zh">Chinese</option>
                     <option value="ja">Japanese</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="it">Italian</option>
+                    <option value="ko">Korean</option>
+                    <option value="ar">Arabic</option>
                   </Select>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
-                  <div>
-                    <span className="text-xs font-medium text-gray-700">Voice Cloning</span>
-                    <p className="text-xs text-gray-500">Clone caller voice</p>
+                {/* Show validation message if trying to enable without languages */}
+                {!checked && (!config?.translate_from || !config?.translate_to) && (
+                  <p className="text-xs text-warning">
+                    Select both languages before enabling translation
+                  </p>
+                )}
+                {/* Voice cloning - only show when translation is enabled */}
+                {checked && (
+                  <div className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                    <div>
+                      <span className="text-xs font-medium text-gray-700">Voice Cloning</span>
+                      <p className="text-xs text-gray-500">Clone caller voice</p>
+                    </div>
+                    <Switch
+                      id="voice-cloning-toggle"
+                      checked={config?.use_voice_cloning || false}
+                      onCheckedChange={(checked) => updateConfig({ use_voice_cloning: checked })}
+                      disabled={!canEdit}
+                      aria-label="Voice Cloning"
+                    />
                   </div>
-                  <Switch
-                    id="voice-cloning-toggle"
-                    checked={config?.use_voice_cloning || false}
-                    onCheckedChange={(checked) => updateConfig({ use_voice_cloning: checked })}
-                    disabled={!canEdit}
-                    aria-label="Voice Cloning"
-                  />
-                </div>
+                )}
               </div>
             )}
             

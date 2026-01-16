@@ -28,7 +28,7 @@ export default function VoiceHeader({ organizationId, organizationName }: VoiceH
     <header className="w-full h-14 border-b border-gray-200 bg-white px-6 flex items-center justify-between">
       {/* Left: Logo and title */}
       <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold text-gray-900">CallMonitor</h1>
+        <h1 className="text-lg font-semibold text-gray-900">Wordis Bond</h1>
         {organizationName && (
           <>
             <span className="text-gray-300">|</span>

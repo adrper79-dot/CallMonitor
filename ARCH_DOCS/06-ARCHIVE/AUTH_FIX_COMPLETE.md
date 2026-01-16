@@ -80,8 +80,8 @@
 ## 📋 **Test Credentials**
 
 ### Primary Test Users:
-- **Admin:** `admin@callmonitor.local` / `CallMonitor2026!`
-- **Member:** `user@callmonitor.local` / `CallMonitor2026!`
+- **Admin:** `admin@callmonitor.local` / `Word Is Bond2026!`
+- **Member:** `user@callmonitor.local` / `Word Is Bond2026!`
 
 ### Your User:
 - **Email:** `adrper791@gmail.com`

@@ -1,5 +1,5 @@
 /**
- * CallMonitor Chrome Extension - Popup Script
+ * Word Is Bond Chrome Extension - Popup Script
  * 
  * Handles popup UI interactions, authentication, and API calls.
  */

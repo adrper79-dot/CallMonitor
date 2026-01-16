@@ -1,4 +1,4 @@
-# CallMonitor - Deployment Notes
+# Word Is Bond - Deployment Notes
 
 **Last Updated:** January 13, 2026  
 **Version:** 1.1.0  

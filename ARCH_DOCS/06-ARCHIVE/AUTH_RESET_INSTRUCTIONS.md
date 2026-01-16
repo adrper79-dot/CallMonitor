@@ -37,12 +37,12 @@ node scripts/reset-auth-users.js --clear --create
 
 **Test Credentials:**
 - **Email:** `admin@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 
 OR
 
 - **Email:** `user@callmonitor.local`
-- **Password:** `CallMonitor2026!`
+- **Password:** `Word Is Bond2026!`
 
 ---
 

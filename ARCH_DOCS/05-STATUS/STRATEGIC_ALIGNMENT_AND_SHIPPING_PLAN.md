@@ -568,7 +568,7 @@ export async function GET(
 
 ```tsx
 // OLD
-<h1>AI-Powered Call Monitoring</h1>
+<h1>AI-Powered Word Is Bonding</h1>
 
 // NEW
 <h1>The System of Record for Business Conversations</h1>
@@ -578,7 +578,7 @@ export async function GET(
 
 // Add trust section
 <section className="mt-16">
-  <h2>Why Companies Choose CallMonitor</h2>
+  <h2>Why Companies Choose Word Is Bond</h2>
   <div className="grid grid-cols-3 gap-8">
     <FeatureCard
       icon="🔒"
@@ -706,11 +706,11 @@ const TOGGLES = [
 **Contents:**
 
 ```markdown
-# CallMonitor Positioning: System of Record
+# Word Is Bond Positioning: System of Record
 
 ## What We Are
 
-**CallMonitor is the system of record for business conversations.**
+**Word Is Bond is the system of record for business conversations.**
 
 We provide authoritative reconstruction of what happened on a call — 
 with evidence, not opinions.
@@ -741,7 +741,7 @@ with evidence, not opinions.
 ## Positioning Statement
 
 > "If RingCentral is 'make calls and manage people,' and Verint is 
-> 'analyze conversations at scale,' then CallMonitor is 'remember 
+> 'analyze conversations at scale,' then Word Is Bond is 'remember 
 > what happened — correctly — when it matters.'"
 
 ## Feature Hierarchy
@@ -794,9 +794,9 @@ If NO to all three → Don't build it.
 **Add Section:**
 
 ```markdown
-## What Makes CallMonitor Different
+## What Makes Word Is Bond Different
 
-CallMonitor is not another call recording tool or AI insights platform.
+Word Is Bond is not another call recording tool or AI insights platform.
 
 We are the **system of record** for business conversations.
 

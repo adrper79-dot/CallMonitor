@@ -19,7 +19,7 @@ if (!SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 async function cleanupOrphanedData() {
-  console.log('🧹 CallMonitor - Cleanup Orphaned Data');
+  console.log('🧹 Word Is Bond - Cleanup Orphaned Data');
   console.log('======================================\n');
   
   // Step 1: Clear dependent tables first (reverse order of dependencies)

@@ -39,7 +39,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
     return { success: false, error: 'Email service not configured' }
   }
 
-  const fromAddress = options.from || process.env.RESEND_FROM_EMAIL || 'CallMonitor <onboarding@resend.dev>'
+  const fromAddress = options.from || process.env.RESEND_FROM_EMAIL || 'Wordis Bond <onboarding@resend.dev>'
 
   try {
     const attachments = options.attachments?.map(att => ({
@@ -213,7 +213,7 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     }
 
     const callDate = call.started_at ? new Date(call.started_at).toLocaleDateString() : 'Unknown'
-    const subject = `CallMonitor: Call Artifacts - ${callDate}`
+    const subject = `Word Is Bond: Call Artifacts - ${callDate}`
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -232,7 +232,7 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
           The artifacts are attached to this email.
         </p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-        <p style="color: #9ca3af; font-size: 12px;">Sent by CallMonitor</p>
+        <p style="color: #9ca3af; font-size: 12px;">Sent by Word Is Bond</p>
       </div>
     `
 

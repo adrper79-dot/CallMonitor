@@ -10,6 +10,12 @@ type SwitchProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   'aria-label'?: string
 }
 
+/**
+ * Switch Component - Professional Design System v3.0
+ * 
+ * Toggle switch with Navy primary color.
+ * Accessible with proper ARIA attributes.
+ */
 export function Switch({ 
   checked = false, 
   onChange, 
@@ -33,11 +39,11 @@ export function Switch({
       aria-disabled={disabled}
       onClick={handleClick}
       disabled={disabled}
-      className={`inline-flex items-center h-6 w-11 rounded-full p-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#C4001A] focus:ring-offset-2 ${
+      className={`inline-flex items-center h-6 w-11 rounded-full p-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2 ${
         disabled 
           ? 'bg-gray-200 cursor-not-allowed opacity-60' 
           : checked 
-            ? 'bg-[#C4001A] cursor-pointer shadow-[0_0_8px_rgba(196,0,26,0.3)]' 
+            ? 'bg-primary-600 cursor-pointer' 
             : 'bg-gray-300 cursor-pointer hover:bg-gray-400'
       } ${className}`}
       {...rest}

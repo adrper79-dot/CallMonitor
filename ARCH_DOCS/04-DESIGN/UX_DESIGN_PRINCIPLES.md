@@ -10,7 +10,7 @@
 > "Simple can be harder than complex. You have to work hard to get your thinking clean to make it simple."  
 > — Steve Jobs
 
-CallMonitor is designed for **SMBs who need to look competent and trustworthy** to their customers. Our design should make them feel like they have professional-grade tools without the complexity of enterprise software.
+Word Is Bond is designed for **SMBs who need to look competent and trustworthy** to their customers. Our design should make them feel like they have professional-grade tools without the complexity of enterprise software.
 
 ---
 
@@ -101,7 +101,7 @@ Mono: JetBrains Mono, Consolas, monospace
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Header (56px)                                             │
-│  CallMonitor  │  Org Name  │           Plan │ Role │       │
+│  Word Is Bond  │  Org Name  │           Plan │ Role │       │
 ├────────────────────────────────────────────────────────────┤
 │         │                                    │             │
 │  Left   │         Main Content               │   Right     │

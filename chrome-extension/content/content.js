@@ -1,5 +1,5 @@
 /**
- * CallMonitor Chrome Extension - Content Script
+ * Word Is Bond Chrome Extension - Content Script
  * 
  * Detects phone numbers on web pages and adds click-to-call functionality.
  */
@@ -137,7 +137,7 @@ function processTextNode(textNode) {
     phoneSpan.className = 'callmonitor-phone'
     phoneSpan.textContent = phoneText
     phoneSpan.dataset.phone = normalizedPhone
-    phoneSpan.title = 'Click to call with CallMonitor'
+    phoneSpan.title = 'Click to call with Word Is Bond'
     
     // Add event listeners
     phoneSpan.addEventListener('mouseenter', (e) => showTooltip(e, normalizedPhone))
@@ -264,4 +264,4 @@ if (document.readyState === 'loading') {
   init()
 }
 
-console.log('CallMonitor content script loaded')
+console.log('Word Is Bond content script loaded')

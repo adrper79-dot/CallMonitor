@@ -1,11 +1,12 @@
 "use client"
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { useCallDetails } from '@/hooks/useCallDetails'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/use-toast'
 import CallModulations from './CallModulations'
 import ArtifactViewer from './ArtifactViewer'
 import CallAnalytics from './CallAnalytics'
@@ -25,6 +26,50 @@ export interface CallDetailViewProps {
 export default function CallDetailView({ callId, organizationId, onModulationChange }: CallDetailViewProps) {
   const { call, recording, transcript, translation, manifest, score, survey, loading, error } = useCallDetails(callId)
   const { config } = useVoiceConfig(organizationId)
+  const { toast } = useToast()
+  const [exporting, setExporting] = useState(false)
+
+  // Download evidence bundle
+  async function handleDownloadEvidence() {
+    if (!callId) return
+    
+    try {
+      setExporting(true)
+      const res = await fetch(`/api/calls/${callId}/export`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Export failed' }))
+        throw new Error(errorData.error || 'Failed to export evidence')
+      }
+      
+      // Get the blob and trigger download
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `evidence-${callId.slice(0, 8)}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      toast({
+        title: 'Evidence Downloaded',
+        description: 'Complete evidence bundle exported successfully',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Export Failed',
+        description: err?.message || 'Failed to download evidence bundle',
+        variant: 'destructive',
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   if (!callId) {
     return (
@@ -144,6 +189,34 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
               Review Evidence
             </Button>
           </Link>
+        )}
+        
+        {/* Download Evidence - Export complete bundle */}
+        {call.status === 'completed' && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-1.5"
+            onClick={handleDownloadEvidence}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Evidence
+              </>
+            )}
+          </Button>
         )}
         
         {recording?.recording_url && (

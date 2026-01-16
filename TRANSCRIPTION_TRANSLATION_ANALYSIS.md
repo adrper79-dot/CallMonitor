@@ -1,7 +1,7 @@
 # 🔬 Transcription & Translation Pipeline Analysis
 
 **Date:** January 14, 2026  
-**Project:** CallMonitor (voxsouth.online)
+**Project:** Word Is Bond (voxsouth.online)
 
 ---
 

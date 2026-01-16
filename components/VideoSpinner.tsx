@@ -24,7 +24,7 @@ export function VideoSpinner({ size = 'md', className = '' }: VideoSpinnerProps)
     // Fallback to CSS spinner if video fails
     return (
       <div 
-        className={`${sizeMap[size]} border-2 border-[#E5E5E5] border-t-[#C4001A] rounded-full animate-spin ${className}`}
+        className={`${sizeMap[size]} border-2 border-gray-200 border-t-primary-600 rounded-full animate-spin ${className}`}
         aria-label="Loading"
         role="status"
       />

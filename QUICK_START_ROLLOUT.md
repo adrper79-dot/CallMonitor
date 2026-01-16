@@ -51,7 +51,7 @@ open ROLLOUT_EXECUTION_PLAN.md
 
 # 4. Paste to your AI assistant:
 "TASK: Create the Artifact Authority Contract document
-CONTEXT: We are formalizing CallMonitor as a System of Record...
+CONTEXT: We are formalizing Word Is Bond as a System of Record...
 [full prompt]"
 
 # 5. AI generates the document

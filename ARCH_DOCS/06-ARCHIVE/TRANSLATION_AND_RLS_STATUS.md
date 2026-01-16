@@ -175,7 +175,7 @@ After applying:
 
 - **Production:** https://voxsouth.online
 - **Supabase Dashboard:** https://supabase.com/dashboard/project/fiijrhpjpebevfavzlhu
-- **GitHub Repo:** https://github.com/adrper79-dot/CallMonitor
+- **GitHub Repo:** https://github.com/adrper79-dot/Word Is Bond
 - **Vercel Dashboard:** https://vercel.com/adrians-projects-266d9a4f/callmonitor
 
 ---

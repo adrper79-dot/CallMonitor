@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     // Send invitation email
     const emailResult = await sendEmail({
       to: email,
-      subject: `You're invited to join ${orgName} on CallMonitor`,
+      subject: `You're invited to join ${orgName} on Word Is Bond`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #1e40af;">You're Invited! 🎉</h2>

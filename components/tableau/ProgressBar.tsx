@@ -5,26 +5,27 @@ import React from 'react'
 interface ProgressBarProps {
   value: number // 0-100
   label?: string
-  color?: 'blue' | 'green' | 'orange' | 'red' | 'purple'
+  color?: 'primary' | 'blue' | 'green' | 'orange' | 'red'
   showValue?: boolean
   className?: string
 }
 
-const colorMap = {
-  blue: 'bg-[#4E79A7]',
-  green: 'bg-[#59A14F]',
-  orange: 'bg-[#F28E2B]',
-  red: 'bg-[#E15759]',
-  purple: 'bg-[#AF7AA1]'
+const colorMap: Record<string, string> = {
+  primary: 'bg-primary-600',
+  blue: 'bg-primary-600', // Alias for backward compatibility
+  green: 'bg-success',
+  orange: 'bg-warning',
+  red: 'bg-error'
 }
 
 /**
- * ProgressBar - Tableau-style clean progress indicator
+ * ProgressBar - Professional Design System v3.0
+ * Clean progress indicator with semantic colors
  */
 export function ProgressBar({ 
   value, 
   label, 
-  color = 'blue', 
+  color = 'primary', 
   showValue = false,
   className = '' 
 }: ProgressBarProps) {
@@ -35,18 +36,18 @@ export function ProgressBar({
     <div className={className}>
       {label && (
         <div className="flex justify-between text-xs mb-1">
-          <span className="text-[#666666]" id={`progress-label-${label.replace(/\s+/g, '-').toLowerCase()}`}>
+          <span className="text-gray-500" id={`progress-label-${label.replace(/\s+/g, '-').toLowerCase()}`}>
             {label}
           </span>
           {showValue && (
-            <span className="text-[#333333] font-medium tabular-nums">
+            <span className="text-gray-900 font-medium tabular-nums">
               {Math.round(clampedValue)}%
             </span>
           )}
         </div>
       )}
       <div 
-        className="h-2 bg-[#F0F0F0] rounded-full overflow-hidden"
+        className="h-2 bg-gray-100 rounded-full overflow-hidden"
         role="progressbar"
         aria-valuenow={Math.round(clampedValue)}
         aria-valuemin={0}

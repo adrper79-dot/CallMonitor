@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "CallMonitor - Click to Call",
+  "name": "Word Is Bond - Click to Call",
   "version": "1.0.0",
   "description": "Make calls, schedule bookings, and manage voice operations directly from any webpage.",
-  "author": "CallMonitor",
+  "author": "Word Is Bond",
   
   "permissions": [
     "activeTab",
@@ -25,7 +25,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "CallMonitor"
+    "default_title": "Word Is Bond"
   },
   
   "icons": {

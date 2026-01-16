@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna">
-    Hello! This is CallMonitor verification.
+    Hello! This is Word Is Bond verification.
   </Say>
   <Pause length="1"/>
   <Say voice="Polly.Joanna">
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   </Say>
   <Pause length="1"/>
   <Say voice="Polly.Joanna">
-    Please enter this code in CallMonitor to verify your number. Goodbye!
+    Please enter this code in Word Is Bond to verify your number. Goodbye!
   </Say>
 </Response>`
 

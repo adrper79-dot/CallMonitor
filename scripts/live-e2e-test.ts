@@ -3,7 +3,7 @@
  * LIVE END-TO-END FEATURE PIPELINE TEST
  * 
  * This script tests the REAL deployed system, not mocks.
- * It exercises the full CallMonitor feature pipeline:
+ * It exercises the full Word Is Bond feature pipeline:
  * 
  * 1. Create a voice target (number to call)
  * 2. Create a survey

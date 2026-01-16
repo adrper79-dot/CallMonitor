@@ -47,18 +47,11 @@ export function Logo({
       
       {showText && (
         <div className="flex flex-col">
-          <span className={`font-display font-bold tracking-wider ${text}`}
-            style={{
-              background: 'linear-gradient(135deg, #C5A045 0%, #00CED1 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            LATIMER + WOODS
+          <span className={`font-display font-bold tracking-wide ${text} text-gray-900`}>
+            Wordis Bond
           </span>
-          <span className="text-xs tracking-[0.3em] text-[#C0C0C0] uppercase">
-            Tech LLC
+          <span className="text-xs tracking-wider text-gray-500">
+            System of Record
           </span>
         </div>
       )}

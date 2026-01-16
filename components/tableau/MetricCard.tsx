@@ -11,26 +11,26 @@ interface MetricCardProps {
 }
 
 /**
- * MetricCard - Tableau-style metric widget
+ * MetricCard - Professional Design System v3.0
  * Clean, data-first design with large numbers and subtle styling
  */
 export function MetricCard({ label, value, change, trend, className = '' }: MetricCardProps) {
   const trendColor = 
-    trend === 'up' ? 'text-[#59A14F]' :
-    trend === 'down' ? 'text-[#E15759]' : 
-    'text-[#666666]'
+    trend === 'up' ? 'text-success' :
+    trend === 'down' ? 'text-error' : 
+    'text-gray-500'
   
   const trendIcon = trend === 'up' ? '↑' : trend === 'down' ? '↓' : null
 
   return (
-    <div className={`bg-white border border-[#E5E5E5] rounded-lg p-5 shadow-sm hover:shadow-md hover:border-[#D0D0D0] transition-all duration-200 ${className}`}>
+    <div className={`bg-white border border-gray-200 rounded-md p-5 hover:border-gray-300 transition-colors ${className}`}>
       {/* Small muted label */}
-      <p className="text-xs font-medium text-[#666666] uppercase tracking-wide mb-1">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
         {label}
       </p>
       
       {/* Large prominent value */}
-      <p className="text-3xl font-semibold text-[#333333] tabular-nums mb-1">
+      <p className="text-3xl font-semibold text-gray-900 tabular-nums mb-1">
         {value}
       </p>
       

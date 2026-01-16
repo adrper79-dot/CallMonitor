@@ -1,7 +1,7 @@
 # Secret Shopper (CallAudit) Infrastructure Requirements
 
 ## Overview
-Infrastructure requirements for the "Secret Shopper Calling" add-on feature (branded as CallAudit), which extends CallMonitor with automated mystery shopping capabilities: scripted calls, recordings, transcription, and performance analytics.
+Infrastructure requirements for the "Secret Shopper Calling" add-on feature (branded as CallAudit), which extends Word Is Bond with automated mystery shopping capabilities: scripted calls, recordings, transcription, and performance analytics.
 
 **Feature Value**: $49-79/mo upsell targeting medical, legal, and property management verticals  
 **Market**: $1.5-2.3B mystery shopping industry (phone segment 10-20%)  
@@ -775,4 +775,4 @@ jest.mock('assemblyai', () => ({
 **End of Infrastructure Requirements**  
 **Version**: 1.0  
 **Last Updated**: 2025  
-**Owner**: CallMonitor Product Team
+**Owner**: Word Is Bond Product Team
