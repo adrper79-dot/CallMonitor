@@ -342,6 +342,55 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════════
+          VERTICAL SOLUTIONS
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="py-16 px-6 bg-gray-50">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl font-semibold text-center text-gray-900 mb-10">
+            Solutions by Industry
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Link 
+              href="/verticals/healthcare"
+              className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Healthcare</h3>
+                  <p className="text-sm text-gray-500">HIPAA-ready compliance</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Consent capture, patient intake verification, and evidentiary-grade audit trails for healthcare providers.
+              </p>
+            </Link>
+            
+            <div className="p-6 bg-white rounded-md border border-gray-200 opacity-75">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Financial Services</h3>
+                  <p className="text-sm text-gray-500">Coming soon</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Regulatory compliance, customer verification, and dispute resolution documentation.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
           FINAL CTA
       ═══════════════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6 bg-primary-600">

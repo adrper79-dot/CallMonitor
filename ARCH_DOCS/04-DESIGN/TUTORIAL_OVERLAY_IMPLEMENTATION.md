@@ -571,3 +571,4 @@ Add to `globals.css`:
 3. **Analytics** - Track tour completion rates
 4. **A/B testing** - Different tour content variants
 5. **Interactive steps** - Require user to click target before proceeding
+6. **Team visibility tour** - Guide users through activity feed + QA alerts

@@ -9,13 +9,14 @@ import ShopperScriptManager from '@/components/voice/ShopperScriptManager'
 import ScorecardTemplateLibrary from '@/components/voice/ScorecardTemplateLibrary'
 import VoiceTargetManager from '@/components/voice/VoiceTargetManager'
 import SurveyBuilder from '@/components/voice/SurveyBuilder'
+import { RetentionSettings } from '@/components/settings/RetentionSettings'
 import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { AppShell } from '@/components/layout/AppShell'
 
-type TabId = 'call-config' | 'ai-control' | 'quality' | 'team' | 'billing'
+type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'billing'
 
 function SettingsPageContent() {
   const { data: session } = useSession()
@@ -214,6 +215,14 @@ function SettingsPageContent() {
                 )}
               </div>
             </section>
+          )}
+
+          {/* Compliance - Retention & Legal Holds */}
+          {activeTab === 'compliance' && (
+            <RetentionSettings 
+              organizationId={organizationId} 
+              canEdit={role === 'owner' || role === 'admin'}
+            />
           )}
 
           {/* Team Management */}

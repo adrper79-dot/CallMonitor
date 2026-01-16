@@ -150,6 +150,33 @@ export async function GET(
       return Errors.forbidden('Not authorized to export this call')
     }
 
+    // COMPLIANCE CHECK: Verify export is allowed (legal hold, retention policy)
+    // Call the check_export_compliance function
+    const { data: complianceResult, error: complianceErr } = await supabaseAdmin
+      .rpc('check_export_compliance', { p_call_id: callId, p_user_id: ctx.userId })
+    
+    if (complianceErr) {
+      logger.error('callExport: compliance check failed', { callId, error: complianceErr })
+      // Non-fatal - proceed with export but log the issue
+    } else if (complianceResult && !complianceResult.allowed) {
+      logger.warn('callExport: export blocked by compliance policy', { 
+        callId, 
+        reasons: complianceResult.reasons,
+        custody_status: complianceResult.custody_status,
+        legal_hold: complianceResult.legal_hold_flag
+      })
+      return new NextResponse(JSON.stringify({
+        error: 'Export blocked by compliance policy',
+        reasons: complianceResult.reasons || [],
+        custody_status: complianceResult.custody_status,
+        legal_hold_flag: complianceResult.legal_hold_flag,
+        message: 'This call is under legal hold or has a custody status that prevents export. Contact your administrator.'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
     // 2. Get recording (handle null call_sid gracefully)
     let recording = null
     if (call.call_sid) {

@@ -201,6 +201,46 @@ Settings are organized by job-to-be-done, not feature name.
 
 ---
 
+### 8. Pricing & Upgrade Drivers
+
+Pricing clarity is surfaced in two locations:
+
+- **Public pricing page** (`/pricing`) for market positioning and plan clarity.
+- **Settings → Billing** for in-app upgrade drivers tied to evidence features.
+
+**Upgrade Drivers (required callouts):**
+- Audit-ready evidence bundles
+- Export + debug bundle access
+- Verification readiness
+
+---
+
+### 9. QA Templates + Alerts
+
+Quality Assurance is split into **authoring** and **alerts**:
+
+- **Templates**: Scorecard templates in Settings → Quality Assurance  
+  Location: `components/voice/ScorecardTemplateLibrary.tsx`
+- **Alerts**: Dashboard QA alerts surface failed criteria  
+  Location: `components/voice/ScorecardAlerts.tsx`
+
+**Pattern rule:** Alerts are read-only and link to call review.
+
+---
+
+### 10. Team Visibility
+
+The dashboard includes a **Team Visibility** section to surface:
+
+- Real-time activity (audit log activity feed)
+- QA alerts (failed criteria)
+
+**Locations:**
+- Activity feed: `components/voice/ActivityFeedEmbed.tsx`
+- Dashboard section: `components/dashboard/DashboardHome.tsx`
+
+---
+
 ## Mobile Patterns
 
 ### Bottom Navigation

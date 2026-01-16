@@ -185,6 +185,12 @@ Button specifications:
 - Shadow: none by default (shadow-sm on hover optional)
 - Padding: 16px or 24px
 
+### Pricing Cards
+
+- Same base as standard cards
+- Highlighted plan uses primary border + subtle primary background
+- CTA is the only primary action in the grid
+
 ### Badges
 
 ```
