@@ -74,6 +74,12 @@ export const DASHBOARD_TOUR: TourStepDefinition[] = [
     content: 'Jump back into any recent call to review recordings and transcripts. Click to see full details.',
     position: 'left',
   },
+  {
+    targetSelector: '[data-tour="activity-feed"]',
+    title: 'Team Visibility',
+    content: 'Real-time activity and QA alerts help your team spot issues early.',
+    position: 'top',
+  },
 ]
 
 /**

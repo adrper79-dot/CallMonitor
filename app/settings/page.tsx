@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import TeamManagement from '@/components/team/TeamManagement'
 import CallerIdManager from '@/components/voice/CallerIdManager'
 import ShopperScriptManager from '@/components/voice/ShopperScriptManager'
+import ScorecardTemplateLibrary from '@/components/voice/ScorecardTemplateLibrary'
 import VoiceTargetManager from '@/components/voice/VoiceTargetManager'
 import SurveyBuilder from '@/components/voice/SurveyBuilder'
 import { useRBAC } from '@/hooks/useRBAC'
@@ -200,6 +201,18 @@ function SettingsPageContent() {
                 </p>
               </div>
               <ShopperScriptManager organizationId={organizationId} />
+
+              <div className="border-t border-gray-200 pt-8">
+                <ScorecardTemplateLibrary
+                  organizationId={organizationId}
+                  disabled={!(plan === 'business' || plan === 'enterprise')}
+                />
+                {!(plan === 'business' || plan === 'enterprise') && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Upgrade to Business for scorecard templates and QA alerts.
+                  </p>
+                )}
+              </div>
             </section>
           )}
 
@@ -245,6 +258,27 @@ function SettingsPageContent() {
                 <button className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-md font-medium transition-colors">
                   Manage Subscription
                 </button>
+              </div>
+
+              <div className="bg-white rounded-md border border-gray-200 p-6">
+                <h3 className="font-medium text-gray-900 mb-4">Upgrade Drivers</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  {[
+                    { title: 'Audit‑Ready Evidence', detail: 'Custody‑grade bundles with canonical hashing.' },
+                    { title: 'Export + Debug Bundle', detail: 'Deterministic exports with manifests + provenance.' },
+                    { title: 'Verification Ready', detail: 'Verify bundles and manifests independently.' },
+                  ].map((item) => (
+                    <div key={item.title} className="bg-gray-50 rounded-md p-4 border border-gray-200">
+                      <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                      <p className="text-xs text-gray-600 mt-1">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <a href="/pricing" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                    View pricing and plan details
+                  </a>
+                </div>
               </div>
 
               <div className="bg-white rounded-md border border-gray-200 p-6">

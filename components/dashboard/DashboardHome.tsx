@@ -7,6 +7,8 @@ import { MetricCard } from '@/components/tableau/MetricCard'
 import { ProgressBar } from '@/components/tableau/ProgressBar'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { Badge } from '@/components/ui/badge'
+import ActivityFeedEmbed from '@/components/voice/ActivityFeedEmbed'
+import ScorecardAlerts from '@/components/voice/ScorecardAlerts'
 
 interface DashboardStats {
   totalCalls: number
@@ -118,7 +120,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
       </section>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="dashboard-grid">
         {/* Quick Actions */}
         <section aria-label="Quick Actions" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
@@ -237,6 +239,16 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
           </div>
         </section>
       </div>
+
+      {/* Team Visibility */}
+      <section aria-label="Team Visibility" className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="activity-feed">
+        <div className="lg:col-span-2">
+          <div className="bg-white border border-gray-200 rounded-md p-4">
+            <ActivityFeedEmbed organizationId={organizationId} limit={12} />
+          </div>
+        </div>
+        <ScorecardAlerts organizationId={organizationId} />
+      </section>
     </div>
   )
 }
