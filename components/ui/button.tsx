@@ -35,13 +35,15 @@ export function Button({
     disabled:opacity-50 disabled:cursor-not-allowed
   `.replace(/\s+/g, ' ').trim()
   
+  // Use explicit hex colors to ensure visibility regardless of Tailwind JIT compilation
+  // Primary: Navy Blue #1E3A5F (Design System v3.0)
   const variants: Record<string, string> = {
-    default: 'bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-600',
-    primary: 'bg-primary-600 text-white hover:bg-primary-700 focus-visible:ring-primary-600',
+    default: 'bg-[#1E3A5F] text-white hover:bg-[#15294A] focus-visible:ring-[#1E3A5F]',
+    primary: 'bg-[#1E3A5F] text-white hover:bg-[#15294A] focus-visible:ring-[#1E3A5F]',
     secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus-visible:ring-gray-500',
-    outline: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-primary-600',
+    outline: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 focus-visible:ring-[#1E3A5F]',
     ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-500',
-    destructive: 'bg-error text-white hover:bg-error-dark focus-visible:ring-error',
+    destructive: 'bg-[#DC2626] text-white hover:bg-[#B91C1C] focus-visible:ring-[#DC2626]',
   }
   
   const sizes: Record<string, string> = { 

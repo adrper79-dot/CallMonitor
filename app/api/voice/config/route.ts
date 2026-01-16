@@ -114,17 +114,16 @@ async function handlePUT(req: Request) {
 
     // Map incoming modulation keys to columns allowed by Schema
     // Per TOOL_TABLE_ALIGNMENT: voice_configs PUT allows all modulation columns
+    // NOTE: target_id and campaign_id are NOT in the database schema - they are transient/session fields
     const allowedKeys = [
       'record', 'transcribe', 'translate', 'translate_from', 'translate_to', 
       'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id',
       // AI Survey Bot fields
       'survey_prompts', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number',
-      // Target/Campaign selection (UI→API→Table contract)
-      'target_id', 'campaign_id',
       // Caller ID masking
       'caller_id_mask', 'caller_id_verified'
     ]
-    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number', 'target_id', 'campaign_id', 'caller_id_mask']
+    const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number', 'caller_id_mask']
     const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning', 'caller_id_verified']
     const jsonArrayKeys = ['survey_prompts'] // Array fields stored as JSONB
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.

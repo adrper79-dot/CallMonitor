@@ -108,15 +108,22 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
       setError(null)
       
       // Transient fields are stored locally only, not sent to server
-      const { quick_dial_number, from_number, ...persistentUpdates } = updates
+      // NOTE: target_id and campaign_id are transient because they don't exist in the DB schema
+      const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } = updates
       
       // Build transient updates object
-      const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number'> = {}
+      const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'> = {}
       if ('quick_dial_number' in updates) {
         transientUpdates.quick_dial_number = quick_dial_number
       }
       if ('from_number' in updates) {
         transientUpdates.from_number = from_number
+      }
+      if ('target_id' in updates) {
+        transientUpdates.target_id = target_id
+      }
+      if ('campaign_id' in updates) {
+        transientUpdates.campaign_id = campaign_id
       }
       
       // Update local state immediately for transient fields (synchronous update)
@@ -157,6 +164,8 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
         ...(data.config || {}), 
         quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
         from_number: transientUpdates.from_number ?? config?.from_number,
+        target_id: transientUpdates.target_id ?? config?.target_id,
+        campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
       }
       setConfig(newConfig)
       return newConfig
@@ -223,14 +232,21 @@ export function useVoiceConfig(organizationId?: string | null) {
       throw new Error('Organization ID required')
     }
 
-    const { quick_dial_number, from_number, ...persistentUpdates } = updates
+    // Transient fields - not persisted to database
+    const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } = updates
     
-    const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number'> = {}
+    const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'> = {}
     if ('quick_dial_number' in updates) {
       transientUpdates.quick_dial_number = quick_dial_number
     }
     if ('from_number' in updates) {
       transientUpdates.from_number = from_number
+    }
+    if ('target_id' in updates) {
+      transientUpdates.target_id = target_id
+    }
+    if ('campaign_id' in updates) {
+      transientUpdates.campaign_id = campaign_id
     }
     
     if (Object.keys(transientUpdates).length > 0) {
@@ -263,6 +279,8 @@ export function useVoiceConfig(organizationId?: string | null) {
       ...(data.config || {}), 
       quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
       from_number: transientUpdates.from_number ?? config?.from_number,
+      target_id: transientUpdates.target_id ?? config?.target_id,
+      campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
     }
     setConfig(newConfig)
     return newConfig
