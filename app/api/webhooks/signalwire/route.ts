@@ -21,6 +21,14 @@ export const dynamic = 'force-dynamic'
  * - Rate limited: 1000 requests/minute per source
  */
 async function handleWebhook(req: Request) {
+  // Log ALL incoming webhook requests for debugging
+  const incomingUrl = new URL(req.url)
+  logger.info('SignalWire webhook: incoming request', { 
+    path: incomingUrl.pathname,
+    hasQueryParams: incomingUrl.search.length > 0,
+    queryParams: incomingUrl.search || 'none'
+  })
+  
   const skipValidation = process.env.SIGNALWIRE_SKIP_SIGNATURE_VALIDATION === 'true'
   const authToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
   
@@ -32,9 +40,16 @@ async function handleWebhook(req: Request) {
     
     if (signature) {
       const rawBody = await req.text()
+      // Use the FULL URL including query params for signature validation
+      // This is critical because SignalWire signs the exact URL it sends to
       const webhookUrl = process.env.NEXT_PUBLIC_APP_URL 
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+        ? `${process.env.NEXT_PUBLIC_APP_URL}${incomingUrl.pathname}${incomingUrl.search}`
         : req.url
+      
+      logger.debug('SignalWire webhook: validating signature', { 
+        webhookUrl: webhookUrl.substring(0, 60) + '...',
+        hasSignature: !!signature
+      })
       
       const isValid = verifySignalWireSignature(rawBody, signature, authToken, webhookUrl)
       
@@ -216,11 +231,46 @@ async function processWebhookAsync(req: Request) {
         .eq('id', organizationId)
         .limit(1)
 
-      const orgToolId = orgRows?.[0]?.tool_id
+      let orgToolId = orgRows?.[0]?.tool_id
 
+      // If organization has no tool_id, get or create the voice tool
       if (!orgToolId) {
-        logger.warn('SignalWire webhook: organization has no tool_id', { organizationId })
-      } else {
+        logger.warn('SignalWire webhook: organization has no tool_id, attempting to assign', { organizationId })
+        
+        // Get or create voice tool
+        const { data: toolRows } = await supabaseAdmin
+          .from('tools')
+          .select('id')
+          .eq('name', 'voice')
+          .limit(1)
+        
+        if (toolRows?.[0]?.id) {
+          orgToolId = toolRows[0].id
+          // Update org with tool_id for future calls
+          await supabaseAdmin
+            .from('organizations')
+            .update({ tool_id: orgToolId })
+            .eq('id', organizationId)
+          logger.info('SignalWire webhook: assigned tool_id to organization', { organizationId, toolId: orgToolId })
+        } else {
+          // Create voice tool if it doesn't exist
+          const newToolId = uuidv4()
+          const { error: toolErr } = await supabaseAdmin
+            .from('tools')
+            .insert({ id: newToolId, name: 'voice', description: 'Voice operations tool' })
+          
+          if (!toolErr) {
+            orgToolId = newToolId
+            await supabaseAdmin
+              .from('organizations')
+              .update({ tool_id: newToolId })
+              .eq('id', organizationId)
+            logger.info('SignalWire webhook: created voice tool and assigned to org', { organizationId, toolId: newToolId })
+          }
+        }
+      }
+
+      if (orgToolId) {
         const durationSeconds = recordingDuration 
           ? Math.round(parseInt(String(recordingDuration), 10) / 1000) 
           : callDuration ? Math.round(parseInt(String(callDuration), 10)) : null
@@ -285,6 +335,12 @@ async function processWebhookAsync(req: Request) {
             await triggerTranscriptionIfEnabled(callId, recordingId, organizationId)
           }
         }
+      } else {
+        logger.error('SignalWire webhook: could not assign tool_id, recording not saved', { 
+          organizationId, 
+          recordingSid,
+          recordingUrl: recordingUrl ? '[PRESENT]' : '[MISSING]'
+        })
       }
     }
 

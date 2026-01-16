@@ -77,6 +77,15 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   }
 
   const elements: string[] = []
+  const recordingCallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callId ? `?callId=${callId}` : ''}`
+
+  // Enable recording via LaML <Record> verb if record=true in voice_configs
+  // This is a backup to the REST API Record=true parameter
+  if (voiceConfig?.record === true) {
+    logger.info('LaML outbound: enabling recording via LaML', { callId, organizationId })
+    // Record the entire call - maxLength 3600 seconds (1 hour), send callback when done
+    elements.push(`<Record maxLength="3600" recordingStatusCallback="${escapeXml(recordingCallbackUrl)}" recordingStatusCallbackEvent="completed" playBeep="false" trim="trim-silence"/>`)
+  }
 
   // Secret Shopper script
   if (voiceConfig?.synthetic_caller) {
