@@ -2,6 +2,9 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import crypto from 'crypto'
 import { logger } from '@/lib/logger'
+import { createEvidenceBundle, ensureEvidenceBundle } from '@/app/services/evidenceBundle'
+import { hashPayloadPrefixed } from '@/lib/crypto/canonicalize'
+import type { ArtifactReference } from '@/app/services/evidenceTypes'
 
 /**
  * Evidence Manifest Service - Generates IMMUTABLE evidence manifests for call artifacts
@@ -12,20 +15,6 @@ import { logger } from '@/lib/logger'
  * - Each artifact includes produced_by, version, and input_refs
  * - All manifests are cryptographically hashed for integrity verification
  */
-
-export interface ArtifactReference {
-  type: 'recording' | 'transcript' | 'translation' | 'survey' | 'score'
-  id: string
-  uri?: string
-  sha256?: string
-  produced_by: 'system' | 'human' | 'model'
-  produced_by_model?: string
-  produced_by_user_id?: string
-  produced_at: string
-  input_refs?: Array<{ type: string; id: string; hash?: string }>
-  version: number
-  metadata?: Record<string, any>
-}
 
 export interface EvidenceManifestData {
   manifest_id: string
@@ -267,10 +256,9 @@ export async function generateEvidenceManifest(
       provenance
     }
 
-    // Generate cryptographic hash of manifest
-    const manifestJson = JSON.stringify(manifestData, Object.keys(manifestData).sort())
-    const hash = crypto.createHash('sha256').update(manifestJson).digest('hex')
-    manifestData.manifest_hash = `sha256:${hash}`
+    // Generate cryptographic hash of manifest using canonical serialization
+    // Per ARCH_DOCS: Use deterministic JSON serialization for hash reproducibility
+    manifestData.manifest_hash = hashPayloadPrefixed(manifestData)
 
     // Insert new manifest (APPEND-ONLY - database trigger prevents updates)
     const { error: insertErr } = await supabaseAdmin.from('evidence_manifests').insert({
@@ -288,6 +276,18 @@ export async function generateEvidenceManifest(
       logger.error('evidenceManifest: failed to insert manifest', insertErr, { callId, recordingId })
       throw new Error(`Failed to store evidence manifest: ${insertErr.message}`)
     }
+
+    // Create evidence bundle (custody-grade) for this manifest
+    const bundleId = await createEvidenceBundle({
+      manifestId,
+      manifestHash: manifestData.manifest_hash,
+      organizationId,
+      callId,
+      recordingId,
+      artifacts,
+      version: newVersion,
+      parentManifestId: parentManifestId || null
+    })
 
     // Mark previous manifest as superseded (if exists)
     if (parentManifestId) {
@@ -308,6 +308,18 @@ export async function generateEvidenceManifest(
       produced_by: 'system',
       produced_by_system_id: null,
       input_refs: artifacts.map(a => ({ type: a.type, id: a.id, hash: a.sha256 })),
+      version: newVersion,
+      metadata: { artifact_count: artifacts.length }
+    })
+
+    // Record bundle provenance (links manifest + artifact hashes)
+    await recordArtifactProvenance(organizationId, 'evidence_bundle', bundleId, {
+      produced_by: 'system',
+      produced_by_system_id: null,
+      input_refs: [
+        { type: 'evidence_manifest', id: manifestId, hash: manifestData.manifest_hash },
+        ...artifacts.map(a => ({ type: a.type, id: a.id, hash: a.sha256 }))
+      ],
       version: newVersion,
       metadata: { artifact_count: artifacts.length }
     })
@@ -368,7 +380,7 @@ export async function checkAndGenerateManifest(
  */
 export async function recordArtifactProvenance(
   organizationId: string,
-  artifactType: 'recording' | 'transcript' | 'translation' | 'survey' | 'score' | 'evidence_manifest',
+  artifactType: 'recording' | 'transcript' | 'translation' | 'survey' | 'score' | 'evidence_manifest' | 'evidence_bundle',
   artifactId: string,
   options: {
     produced_by: 'system' | 'human' | 'model'

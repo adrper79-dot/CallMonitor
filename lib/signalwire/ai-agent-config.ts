@@ -16,6 +16,7 @@ export interface AIAgentTranslationConfig {
   translateFrom: string  // e.g., 'en', 'es', 'fr', 'de'
   translateTo: string    // e.g., 'en', 'es', 'fr', 'de'
   postPromptUrl?: string // Webhook URL for completion
+  agentId?: string       // SignalWire AI Agent ID (from dashboard)
 }
 
 export interface SWMLConfig {
@@ -24,14 +25,22 @@ export interface SWMLConfig {
     main: Array<{
       answer?: Record<string, unknown>
       ai?: {
-        prompt: {
-          text: string
+        agent?: string  // SignalWire AI Agent ID (required for AI features)
+        prompt?: {
+          text?: string
+          confidence?: number
           temperature?: number
           top_p?: number
+          presence_penalty?: number
+          frequency_penalty?: number
         }
         post_prompt_url?: string
         post_prompt?: {
-          url: string
+          url?: string
+          top_p?: number
+          temperature?: number
+          presence_penalty?: number
+          frequency_penalty?: number
         }
         params?: {
           language?: string
@@ -47,6 +56,9 @@ export interface SWMLConfig {
 
 /**
  * Build SWML configuration for live translation AI Agent
+ * 
+ * IMPORTANT: Requires a SignalWire AI Agent to be created in the dashboard first.
+ * The agent ID must be passed in config or set via SIGNALWIRE_AI_AGENT_ID env var.
  */
 export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWMLConfig {
   const {
@@ -54,70 +66,50 @@ export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWML
     organizationId,
     translateFrom,
     translateTo,
-    postPromptUrl
+    postPromptUrl,
+    agentId
   } = config
 
-  // Language name mapping for better prompts
-  const languageNames: Record<string, string> = {
-    en: 'English',
-    es: 'Spanish',
-    fr: 'French',
-    de: 'German',
-    it: 'Italian',
-    pt: 'Portuguese',
-    zh: 'Chinese',
-    ja: 'Japanese',
-    ko: 'Korean',
-    ar: 'Arabic',
-    ru: 'Russian',
-    hi: 'Hindi',
+  // Get AI Agent ID from config or environment variable
+  const aiAgentId = agentId || process.env.SIGNALWIRE_AI_AGENT_ID
+  
+  if (!aiAgentId) {
+    console.warn('No SignalWire AI Agent ID configured. Set SIGNALWIRE_AI_AGENT_ID env var.')
+    // Return basic SWML without AI Agent
+    return {
+      version: '1.0.0',
+      sections: {
+        main: [{ answer: {} }]
+      }
+    }
   }
 
-  const fromLang = languageNames[translateFrom] || translateFrom
-  const toLang = languageNames[translateTo] || translateTo
-
-  // Build AI Agent prompt for translation
-  const prompt = `You are a professional real-time translator for phone calls. Your ONLY job is to listen to speech, translate it accurately, and speak the translation naturally.
-
-SOURCE LANGUAGE: ${fromLang}
-TARGET LANGUAGE: ${toLang}
-
-RULES:
-1. Translate speech from ${fromLang} to ${toLang} in real-time
-2. Maintain tone, intent, and nuance of the original speaker
-3. Speak clearly at natural conversational speed
-4. Do NOT add commentary, explanations, or opinions
-5. Do NOT summarize or paraphrase - translate directly
-6. If you detect language switching, adapt automatically
-7. If something is unclear, translate what you heard without guessing
-
-RESPONSE FORMAT:
-- Speak only the translation, nothing else
-- Use natural speech patterns for ${toLang}
-- Preserve emphasis and emotion from original
-
-Begin translating now.`
-
-  // Build SWML configuration
+  // Build SWML configuration with AI Agent reference
+  // Format matches SignalWire's expected SWML structure
   const swml: SWMLConfig = {
     version: '1.0.0',
     sections: {
       main: [
-        // Answer the call
-        {
-          answer: {}
-        },
-        // Attach AI Agent for translation
+        // AI Agent block - references pre-created agent in SignalWire
         {
           ai: {
+            agent: aiAgentId,  // CRITICAL: Reference to SignalWire AI Agent
             prompt: {
-              text: prompt,
-              temperature: 0.3,  // Low temperature for accurate translation
-              top_p: 0.8
+              text: `Translate from ${translateFrom} to ${translateTo}`,
+              confidence: 0.6,
+              temperature: 0.3,
+              top_p: 1.0,
+              presence_penalty: 0.0,
+              frequency_penalty: 0.0
+            },
+            post_prompt: {
+              top_p: 1.0,
+              temperature: 0.0,
+              presence_penalty: 0.0,
+              frequency_penalty: 0.0
             },
             params: {
-              language: translateFrom,  // Source language for STT
-              // Additional params for SignalWire AI Agent
+              language: translateFrom,
               call_id: callId,
               organization_id: organizationId,
               feature: 'live_translation',
@@ -129,14 +121,9 @@ Begin translating now.`
     }
   }
 
-  // Add post-prompt webhook if provided
-  if (postPromptUrl) {
-    const aiSection = swml.sections.main[1]
-    if (aiSection.ai) {
-      aiSection.ai.post_prompt = {
-        url: postPromptUrl
-      }
-    }
+  // Add post-prompt webhook URL if provided
+  if (postPromptUrl && swml.sections.main[0].ai) {
+    swml.sections.main[0].ai.post_prompt_url = postPromptUrl
   }
 
   return swml

@@ -160,9 +160,56 @@ CREATE TABLE public.evidence_manifests (
   scorecard_id uuid,
   manifest jsonb NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
+  version integer NOT NULL DEFAULT 1,
+  parent_manifest_id uuid,
+  superseded_at timestamp with time zone,
+  superseded_by uuid,
   CONSTRAINT evidence_manifests_pkey PRIMARY KEY (id),
-  CONSTRAINT evidence_manifests_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id)
+  CONSTRAINT evidence_manifests_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id),
+  CONSTRAINT evidence_manifests_parent_fkey FOREIGN KEY (parent_manifest_id) REFERENCES public.evidence_manifests(id)
 );
+-- Custody-grade evidence bundles with RFC3161 timestamping (January 2026)
+-- Per ARCH_DOCS/01-CORE/THE_FINAL_ARCHITECTURE_MINIMAL_ADDITIONS.md
+CREATE TABLE public.evidence_bundles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  call_id uuid NOT NULL,
+  recording_id uuid,
+  manifest_id uuid NOT NULL,
+  manifest_hash text NOT NULL,
+  artifact_hashes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  bundle_payload jsonb NOT NULL,
+  bundle_hash text NOT NULL,
+  bundle_hash_algo text NOT NULL DEFAULT 'sha256',
+  version integer NOT NULL DEFAULT 1,
+  parent_bundle_id uuid,
+  superseded_at timestamp with time zone,
+  superseded_by uuid,
+  immutable_storage boolean NOT NULL DEFAULT true,
+  is_authoritative boolean NOT NULL DEFAULT true,
+  produced_by text NOT NULL DEFAULT 'system_cas',
+  immutability_policy text NOT NULL DEFAULT 'immutable',
+  tsa jsonb,
+  tsa_status text NOT NULL DEFAULT 'not_configured',
+  tsa_requested_at timestamp with time zone,
+  tsa_received_at timestamp with time zone,
+  tsa_error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT evidence_bundles_pkey PRIMARY KEY (id),
+  CONSTRAINT evidence_bundles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT evidence_bundles_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
+  CONSTRAINT evidence_bundles_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id),
+  CONSTRAINT evidence_bundles_manifest_id_fkey FOREIGN KEY (manifest_id) REFERENCES public.evidence_manifests(id),
+  CONSTRAINT evidence_bundles_parent_bundle_id_fkey FOREIGN KEY (parent_bundle_id) REFERENCES public.evidence_bundles(id),
+  CONSTRAINT evidence_bundles_immutability_policy_check CHECK (immutability_policy IN ('immutable', 'limited', 'mutable')),
+  CONSTRAINT evidence_bundles_tsa_status_check CHECK (tsa_status IN ('not_configured', 'pending', 'completed', 'error'))
+);
+-- Unique constraint: one active bundle per manifest
+CREATE UNIQUE INDEX uq_evidence_bundles_manifest_active ON public.evidence_bundles (manifest_id) WHERE superseded_at IS NULL;
+-- Indexes for evidence_bundles
+CREATE INDEX idx_evidence_bundles_org_created ON public.evidence_bundles (organization_id, created_at DESC);
+CREATE INDEX idx_evidence_bundles_call ON public.evidence_bundles (call_id, created_at DESC);
+CREATE INDEX idx_evidence_bundles_manifest ON public.evidence_bundles (manifest_id);
 CREATE TABLE public.execution_contexts (
   id uuid NOT NULL,
   name text UNIQUE,

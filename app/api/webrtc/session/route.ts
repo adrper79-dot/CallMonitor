@@ -31,7 +31,11 @@ function generateSessionToken(): string {
 
 /**
  * Get SignalWire WebRTC token
- * This creates a temporary token for the browser to connect
+ * 
+ * Creates a JWT token for browser-based WebRTC calls.
+ * Uses SignalWire Relay REST API for token generation.
+ * 
+ * @see https://developer.signalwire.com/sdks/reference/browser-sdk/
  */
 async function getSignalWireWebRTCToken(sessionId: string): Promise<{
   token: string
@@ -42,16 +46,17 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     return null
   }
   
+  const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
+  
   try {
-    // Create a SignalWire WebRTC resource
-    // Note: This is a simplified example - actual implementation depends on SignalWire API
-    const response = await fetch(
+    // Try Relay REST JWT endpoint first (for Relay SDK v3)
+    const jwtResponse = await fetch(
       `https://${SIGNALWIRE_SPACE}/api/relay/rest/jwt`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
+          'Authorization': authHeader
         },
         body: JSON.stringify({
           resource: sessionId,
@@ -60,25 +65,48 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
       }
     )
     
-    if (!response.ok) {
-      console.error('[webrtc] SignalWire token request failed:', await response.text())
-      return null
+    if (jwtResponse.ok) {
+      const data = await jwtResponse.json()
+      console.log('[webrtc] Got SignalWire JWT token')
+      
+      return {
+        token: data.jwt_token,
+        iceServers: [
+          // SignalWire STUN/TURN servers
+          { urls: `stun:${SIGNALWIRE_SPACE}:3478` },
+          // Google STUN as fallback
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          // Include any SignalWire-provided ICE servers
+          ...(data.ice_servers || [])
+        ]
+      }
     }
     
-    const data = await response.json()
+    // Log the error but continue - we can still return a session without pre-fetched token
+    const errorText = await jwtResponse.text()
+    console.warn('[webrtc] SignalWire JWT endpoint returned non-OK:', jwtResponse.status, errorText)
     
+    // Return null token but provide ICE servers for fallback WebRTC
+    // The client can authenticate directly with project/token
     return {
-      token: data.jwt_token,
+      token: '', // Empty - client will use project credentials directly
       iceServers: [
+        { urls: `stun:${SIGNALWIRE_SPACE}:3478` },
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        // SignalWire TURN servers if provided
-        ...(data.ice_servers || [])
       ]
     }
   } catch (error) {
     console.error('[webrtc] Error getting SignalWire token:', error)
-    return null
+    // Return fallback ICE servers even if token fails
+    return {
+      token: '',
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ]
+    }
   }
 }
 

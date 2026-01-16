@@ -165,8 +165,12 @@ export function getCORSHeaders(origin: string | null): Record<string, string> {
     origin === allowed || origin.endsWith(allowed.replace(/^https?:\/\//, ''))
   )
 
+  // Security: Never fall back to wildcard '*' in production
+  // Only allow explicitly configured origins
+  const allowedOrigin = isAllowed && origin ? origin : allowedOrigins[0]
+
   return {
-    'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0] || '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key',
     'Access-Control-Max-Age': '86400'

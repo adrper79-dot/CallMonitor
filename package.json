@@ -12,6 +12,7 @@
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.30.0",
     "@next-auth/supabase-adapter": "^0.2.1",
+    "@signalwire/js": "^3.29.0",
     "@supabase/supabase-js": "^2.27.0",
     "csv-parse": "^6.1.0",
     "elevenlabs": "^1.59.0",

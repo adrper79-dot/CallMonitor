@@ -7,6 +7,12 @@ vi.mock('@/lib/supabaseAdmin', () => {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
+          is: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              data: [],
+              error: null
+            }))
+          })),
           limit: vi.fn(() => ({
             data: [],
             error: null
