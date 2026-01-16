@@ -3,7 +3,7 @@
 **Product:** Word Is Bond  
 **Doc Type:** Graphical design document + full-scope architectural summary  
 **Version:** 1.0  
-**Last Updated:** January 14, 2026  
+**Last Updated:** January 16, 2026  
 **Status:** Current (v1 SignalWire-first)
 
 ---
@@ -148,6 +148,7 @@ flowchart LR
   TV[transcript_versions]
   AIR[ai_runs]
   EM[evidence_manifests]
+  EB[evidence_bundles]
   AP[artifact_provenance]
   EXP[call_export_bundles]
 
@@ -155,13 +156,31 @@ flowchart LR
   REC --> TV
   TV --> AIR
   AIR --> EM
-  EM --> AP
-  EM --> EXP
+  EM --> EB
+  EB --> AP
+  EB --> EXP
 ```
 
 ---
 
-## 5) Security & Permission Gates (Request Path)
+## 5) Evidence Bundle + RFC3161 (Custody Flow)
+
+```mermaid
+sequenceDiagram
+  participant API as API Routes / Services
+  participant DB as Supabase
+  participant TSA as RFC3161 TSA Proxy
+
+  API->>DB: insert evidence_manifest (append-only)
+  API->>DB: insert evidence_bundle (bundle_hash, tsa_status=pending|not_configured)
+  API-->>TSA: POST hash_hex (async, if configured)
+  TSA-->>API: token payload (timestamp token)
+  API->>DB: update evidence_bundle TSA fields
+```
+
+---
+
+## 6) Security & Permission Gates (Request Path)
 
 ```mermaid
 flowchart TD
@@ -174,7 +193,7 @@ flowchart TD
 
 ---
 
-## 6) Deployment Topology (Current v1)
+## 7) Deployment Topology (Current v1)
 
 ```mermaid
 flowchart LR
@@ -196,7 +215,19 @@ flowchart LR
 
 ---
 
-## 7) Detailed Summary — How Everything Works
+## 8) Design System Flow (UI Architecture)
+
+```mermaid
+flowchart TB
+  TOK[Design Tokens\n(Color, Type, Spacing)] --> DS[Design System Specs]
+  DS --> COMP[UI Components]
+  COMP --> PAGES[App Router Pages]
+  PAGES --> UX[User Flows (Voice Ops, Settings, Tests)]
+```
+
+---
+
+## 9) Detailed Summary — How Everything Works
 
 ### 7.1 Product Surfaces
 - **Web UI (Next.js App Router)** drives all configuration and execution; the UI submits intent and never writes tables directly.
@@ -221,8 +252,9 @@ flowchart LR
 
 ### 7.5 Evidence & System-of-Record
 - Evidence manifests are immutable, append-only records that stitch together recordings, transcripts, translations, surveys, and scores.  
-- Provenance is recorded per artifact, including producer, version, and input references; manifests are cryptographically hashed for integrity.  
-- Exports and debug endpoints provide fast reconstruction of the call timeline.  
+- Evidence bundles package manifests + artifact hashes into custody-grade bundles with bundle-level hashing.  
+- Provenance is recorded per artifact and bundle, including producer, version, and input references; hashes are canonicalized for integrity.  
+- RFC3161 timestamp tokens are stored when configured (via TSA proxy) to provide external time anchors.  
 
 ### 7.6 Data Layer (Supabase)
 - **Postgres** holds call-rooted tables (`calls`, `recordings`, `ai_runs`, `evidence_manifests`, etc.).  
@@ -241,11 +273,12 @@ flowchart LR
 
 ---
 
-## 8) Architectural Guarantees (Current State)
+## 10) Architectural Guarantees (Current State)
 - **Single call root:** every artifact attaches to `calls.id`.
 - **UI never orchestrates:** all execution is server-controlled.
 - **SignalWire-first v1:** no FreeSWITCH dependency in production.
 - **Canonical transcripts:** AssemblyAI is authoritative.
-- **Immutability:** evidence and provenance are append-only and hashed.
+- **Custody-grade hashing:** manifests + bundles are canonicalized and hashed.
+- **Immutability:** evidence, bundles, and provenance are append-only with triggers.
 - **Capability-driven:** plan and role gates decide execution, not UI visibility.
 

@@ -200,12 +200,18 @@ Explicitly marks the artifact set as immutable and governed by retention policy.
    - Add bundle creation after manifest generation.
    - Canonicalize payload before hashing.
    - Store RFC 3161 token if configured (via TSA proxy).
+   - Use async TSA processing to avoid blocking request flow.
+   - Provide recovery path for orphan manifests without bundles.
+   - Note: serverless async is best-effort; use a worker/queue for hard guarantees.
 3) **Storage immutability**
    - Set `immutable_storage = true` on bundle + artifacts.
    - Apply bucket retention lock/WORM policy where supported.
 4) **Audit & compliance**
    - Verify hash reproducibility and TSA token verification.
    - Document custody workflow for SOC 2 / ISO 27001 evidence.
+5) **Verification & reconstitution**
+   - Add read-only verification endpoint for bundle/manifest hashes.
+   - Publish a simple verification procedure for third parties.
 
 ### Database (minimal)
 - Add `evidence_bundles` table.
@@ -217,11 +223,17 @@ Explicitly marks the artifact set as immutable and governed by retention policy.
   - Gather artifact hashes referenced by manifest.
   - Compute bundle hash.
   - Store bundle record.
-  - Request RFC 3161 token (optional) and store it.
+  - Request RFC 3161 token asynchronously (optional) and store it.
+  - Run recovery if manifest exists without bundle.
+  - Expose verification endpoint to recompute hashes.
 
 ### Storage (minimal)
 - Mark artifacts in storage with `immutable_storage` metadata.
 - Use bucket retention policy where available.
+ 
+### Custody policy (minimal)
+- Add `custody_status`, `retention_class`, and `legal_hold_flag` to custody tables.
+- Define `evidence_completeness` for bundle readiness.
 
 ---
 

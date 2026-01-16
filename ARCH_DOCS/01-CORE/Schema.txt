@@ -66,6 +66,8 @@ CREATE TABLE public.audit_logs (
   organization_id uuid,
   user_id uuid,
   system_id uuid,
+  actor_type text,                           -- human | system | vendor | automation
+  actor_label text,                          -- optional display label
   resource_type text,
   resource_id uuid,
   action text,
@@ -127,6 +129,10 @@ CREATE TABLE public.calls (
   ended_at timestamp with time zone,
   created_by uuid,
   call_sid text,
+  custody_status text DEFAULT 'active'::text,
+  retention_class text DEFAULT 'default'::text,
+  legal_hold_flag boolean DEFAULT false,
+  evidence_completeness text DEFAULT 'unknown'::text,
   CONSTRAINT calls_pkey PRIMARY KEY (id),
   CONSTRAINT calls_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT calls_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id),
@@ -189,6 +195,10 @@ CREATE TABLE public.evidence_bundles (
   is_authoritative boolean NOT NULL DEFAULT true,
   produced_by text NOT NULL DEFAULT 'system_cas',
   immutability_policy text NOT NULL DEFAULT 'immutable',
+  custody_status text DEFAULT 'active'::text,
+  retention_class text DEFAULT 'default'::text,
+  legal_hold_flag boolean DEFAULT false,
+  evidence_completeness text DEFAULT 'unknown'::text,
   tsa jsonb,
   tsa_status text NOT NULL DEFAULT 'not_configured',
   tsa_requested_at timestamp with time zone,
@@ -357,6 +367,10 @@ CREATE TABLE public.recordings (
   status text DEFAULT 'pending'::text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  custody_status text DEFAULT 'active'::text,
+  retention_class text DEFAULT 'default'::text,
+  legal_hold_flag boolean DEFAULT false,
+  evidence_completeness text DEFAULT 'unknown'::text,
   tool_id uuid NOT NULL,
   created_by uuid,
   CONSTRAINT recordings_pkey PRIMARY KEY (id),
@@ -755,7 +769,7 @@ CREATE TABLE public.transcript_versions (
 CREATE TABLE public.artifact_provenance (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
-  artifact_type text NOT NULL CHECK (artifact_type IN ('recording', 'transcript', 'translation', 'survey', 'score', 'evidence_manifest')),
+  artifact_type text NOT NULL CHECK (artifact_type IN ('recording', 'transcript', 'translation', 'survey', 'score', 'evidence_manifest', 'evidence_bundle')),
   artifact_id uuid NOT NULL,
   parent_artifact_id uuid,                    -- Reference to input artifact
   parent_artifact_type text,
@@ -767,6 +781,36 @@ CREATE TABLE public.artifact_provenance (
   input_refs jsonb,                           -- Array of {type, id, hash} references
   version integer NOT NULL DEFAULT 1,
   metadata jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Evidence bundles for custody-grade packaging
+CREATE TABLE public.evidence_bundles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id),
+  call_id uuid NOT NULL REFERENCES public.calls(id),
+  recording_id uuid REFERENCES public.recordings(id),
+  manifest_id uuid NOT NULL REFERENCES public.evidence_manifests(id),
+  manifest_hash text NOT NULL,
+  artifact_hashes jsonb NOT NULL DEFAULT '[]'::jsonb,  -- List of {type, id, sha256}
+  bundle_payload jsonb NOT NULL,                       -- Canonical payload
+  bundle_hash text NOT NULL,                           -- SHA256 of payload
+  bundle_hash_algo text NOT NULL DEFAULT 'sha256',
+  version integer NOT NULL DEFAULT 1,
+  parent_bundle_id uuid REFERENCES public.evidence_bundles(id),
+  superseded_at timestamptz,
+  superseded_by uuid REFERENCES public.evidence_bundles(id),
+  immutable_storage boolean NOT NULL DEFAULT true,
+  is_authoritative boolean NOT NULL DEFAULT true,
+  produced_by text NOT NULL DEFAULT 'system_cas',
+  immutability_policy text NOT NULL DEFAULT 'immutable'
+    CHECK (immutability_policy IN ('immutable', 'limited', 'mutable')),
+  tsa jsonb,                                           -- RFC3161 token payload
+  tsa_status text NOT NULL DEFAULT 'not_configured'
+    CHECK (tsa_status IN ('not_configured', 'pending', 'completed', 'error')),
+  tsa_requested_at timestamptz,
+  tsa_received_at timestamptz,
+  tsa_error text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

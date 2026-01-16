@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import crypto from 'crypto'
 import { logger } from '@/lib/logger'
-import { createEvidenceBundle, ensureEvidenceBundle } from '@/app/services/evidenceBundle'
+import { createEvidenceBundle } from '@/app/services/evidenceBundle'
 import { hashPayloadPrefixed } from '@/lib/crypto/canonicalize'
 import type { ArtifactReference } from '@/app/services/evidenceTypes'
 
@@ -323,6 +323,24 @@ export async function generateEvidenceManifest(
       version: newVersion,
       metadata: { artifact_count: artifacts.length }
     })
+
+    // Mark evidence completeness on call and recording (best-effort)
+    try {
+      await supabaseAdmin
+        .from('recordings')
+        .update({ evidence_completeness: 'complete' })
+        .eq('id', recordingId)
+      await supabaseAdmin
+        .from('calls')
+        .update({ evidence_completeness: 'complete' })
+        .eq('id', callId)
+    } catch (err) {
+      logger.warn('evidenceManifest: could not update evidence completeness', {
+        callId,
+        recordingId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
 
     logger.info('evidenceManifest: generated manifest', {
       manifestId,

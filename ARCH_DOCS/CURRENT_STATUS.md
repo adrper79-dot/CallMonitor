@@ -1,8 +1,8 @@
 # Word Is Bond - Current Status & Quick Reference
 
-**Last Updated:** January 14, 2026  
-**Version:** 1.4.0  
-**Status:** ✅ Production Ready
+**Last Updated:** January 16, 2026  
+**Version:** 1.4.1  
+**Status:** ✅ Production Ready (pending verification of recent bundle updates)
 
 ---
 
@@ -36,7 +36,8 @@ Word Is Bond is a voice operations platform for managing calls with modulations 
 7. **After-call Surveys** - IVR surveys post-call
 8. **Secret Shopper** - AI-powered call scoring
 9. **Evidence Manifests** - Structured call evidence
-10. **Email Artifacts** - Send recordings/transcripts/translations via email
+10. **Evidence Bundles** - Custody-grade bundle hash + TSA-ready fields
+11. **Email Artifacts** - Send recordings/transcripts/translations via email
 
 ### **✅ Live Translation (Preview - Business+ Plan)**
 11. **Real-time Translation** - SignalWire AI Agents for live bi-directional translation
@@ -84,15 +85,32 @@ Word Is Bond is a voice operations platform for managing calls with modulations 
 
 | Metric | Status | Notes |
 |--------|--------|-------|
-| **Build Status** | ✅ Success | Clean build, all routes dynamic |
-| **TypeScript** | ✅ Compiles | No errors |
-| **Test Pass Rate** | 98.5% (64/65) | 🟢 Excellent |
-| **Critical Issues** | 0 | 🟢 All resolved |
-| **Production Readiness** | ✅ Approved | Safe to deploy |
+| **Build Status** | ⚪ Not re-verified | Verify after latest bundle changes |
+| **TypeScript** | ⚪ Not re-verified | Run `npm run typecheck` |
+| **Test Pass Rate** | ⚪ Not re-verified | Run `vitest` |
+| **Critical Issues** | ⚪ Not re-verified | Review after tests |
+| **Production Readiness** | ✅ Approved | Pending bundle verification |
 
 ---
 
-## 🔧 **Recent Updates (January 14, 2026)**
+## 🔧 **Recent Updates (January 16, 2026)**
+
+### **Evidence Custody Upgrades (v1.4.1):**
+
+1. **Evidence Bundles** - Append-only bundles with canonical hashing
+   - New `evidence_bundles` table with immutability trigger + RLS
+   - Bundle payload + hash for custody-grade exports
+   - RFC3161 TSA integration (async, via proxy)
+   - Provenance entries for bundles
+   - Verification endpoint for bundle/manifest recomputation
+
+2. **Canonical Hashing Utilities**
+   - Shared `lib/crypto/canonicalize.ts` for deterministic hashing
+   - Consistent hashing across manifests and bundles
+
+3. **Custody Policy Fields**
+   - `custody_status`, `retention_class`, `legal_hold_flag`
+   - `evidence_completeness` flags for readiness
 
 ### **New Features Added (v1.3):**
 

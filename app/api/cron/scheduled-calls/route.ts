@@ -14,11 +14,23 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 
-    if (process.env.NODE_ENV === 'production' && cronSecret) {
+    // SECURITY: Always require CRON_SECRET if configured (not just in production)
+    // This prevents unauthorized access to the cron endpoint in all environments
+    if (cronSecret) {
       if (authHeader !== `Bearer ${cronSecret}`) {
-        logger.warn('Cron: Unauthorized access attempt')
+        logger.warn('Cron: Unauthorized access attempt', {
+          environment: process.env.NODE_ENV,
+          hasAuth: !!authHeader
+        })
         return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      // In production, CRON_SECRET must be set
+      logger.error('Cron: CRON_SECRET not configured in production')
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Server configuration error: CRON_SECRET required' 
+      }, { status: 500 })
     }
 
     const now = new Date()

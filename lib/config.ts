@@ -64,6 +64,19 @@ function getOptionalEnv(key: string): string | undefined {
   return process.env[key]
 }
 
+/**
+ * Get SignalWire token with fallback support
+ * Supports both SIGNALWIRE_TOKEN (preferred) and SIGNALWIRE_API_TOKEN (legacy)
+ */
+function getSignalWireToken(): string {
+  const token = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
+  if (!token) {
+    logger.error('Missing required environment variable: SIGNALWIRE_TOKEN')
+    throw new Error('Missing required environment variable: SIGNALWIRE_TOKEN (or SIGNALWIRE_API_TOKEN)')
+  }
+  return token
+}
+
 function validateConfig(): Config {
   // Validate required variables
   const config: Config = {
@@ -77,7 +90,8 @@ function validateConfig(): Config {
     
     signalwire: {
       projectId: getRequiredEnv('SIGNALWIRE_PROJECT_ID'),
-      token: getRequiredEnv('SIGNALWIRE_TOKEN') || getRequiredEnv('SIGNALWIRE_API_TOKEN'),
+      // Support both SIGNALWIRE_TOKEN (preferred) and SIGNALWIRE_API_TOKEN (legacy)
+      token: getSignalWireToken(),
       space: getRequiredEnv('SIGNALWIRE_SPACE'),
       number: getRequiredEnv('SIGNALWIRE_NUMBER'),
     },

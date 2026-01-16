@@ -206,7 +206,7 @@ async function checkEnvironmentVariables() {
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
     'SIGNALWIRE_PROJECT_ID',
-    'SIGNALWIRE_API_TOKEN',
+    'SIGNALWIRE_TOKEN',  // Standardized: was SIGNALWIRE_API_TOKEN
     'NEXTAUTH_SECRET',
     'NEXTAUTH_URL'
   ]
@@ -276,12 +276,13 @@ async function testSupabaseConnection() {
 async function testSignalWireConnection() {
   try {
     const projectId = process.env.SIGNALWIRE_PROJECT_ID
-    const apiToken = process.env.SIGNALWIRE_API_TOKEN
+    // Standardized: use SIGNALWIRE_TOKEN (with fallback for legacy SIGNALWIRE_API_TOKEN)
+    const apiToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
 
     if (!projectId || !apiToken) {
       return NextResponse.json({
         passed: false,
-        error: 'SignalWire credentials not configured'
+        error: 'SignalWire credentials not configured (SIGNALWIRE_PROJECT_ID and SIGNALWIRE_TOKEN required)'
       })
     }
 

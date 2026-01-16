@@ -24,6 +24,9 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebRPCMethod, WebRPCRequest, WebRPCResponse } from '@/types/tier1-features'
 import { emitCallStarted, emitCallCompleted } from '@/lib/webhookDelivery'
+import { startCallHandler } from '@/app/actions/calls/startCallHandler'
+import { checkRateLimit } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +71,12 @@ async function signalWireRequest(
 
 /**
  * Handle call.place
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - Uses startCallHandler (orchestration layer)
+ * - Does NOT write directly to database
+ * - Adds audit log
+ * - Adds source='webrpc' attribution
  */
 async function handleCallPlace(
   params: Record<string, unknown>,
@@ -77,6 +86,7 @@ async function handleCallPlace(
 ): Promise<WebRPCResponse['result'] | WebRPCResponse['error']> {
   const { to_number, from_number, modulations } = params
   
+  // Validation
   if (!to_number || typeof to_number !== 'string') {
     return { code: 'INVALID_PARAMS', message: 'to_number is required' }
   }
@@ -86,61 +96,94 @@ async function handleCallPlace(
     return { code: 'INVALID_PHONE', message: 'Phone number must be in E.164 format' }
   }
   
-  // Get organization's default from number
-  const { data: orgConfig } = await supabaseAdmin
-    .from('voice_configs')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .single()
-  
-  // Create call record
-  const callId = crypto.randomUUID()
-  const { error: callError } = await supabaseAdmin
-    .from('calls')
-    .insert({
-      id: callId,
+  try {
+    // CORRECT: Call existing orchestration handler (no direct DB writes)
+    const result = await startCallHandler({
+      phone_to: to_number,
+      from_number: from_number as string | undefined,
       organization_id: organizationId,
-      status: 'pending',
-      created_by: userId,
-      started_at: new Date().toISOString()
+      actor_id: userId,  // Actor attribution for RBAC
+      source: 'webrpc',  // Source attribution for audit trail
+      modulations: modulations as any
     })
-  
-  if (callError) {
-    return { code: 'CALL_CREATE_FAILED', message: 'Failed to create call record' }
-  }
-  
-  // Update WebRTC session with call ID
-  await supabaseAdmin
-    .from('webrtc_sessions')
-    .update({
-      call_id: callId,
-      status: 'on_call'
+    
+    if (!result.success) {
+      logger.warn('WebRPC call.place failed via orchestration', {
+        error: result.error,
+        params: { to_number, from_number }
+      })
+      
+      return { 
+        code: result.error?.code || 'CALL_START_FAILED', 
+        message: result.error?.user_message || result.error?.message || 'Failed to start call' 
+      }
+    }
+    
+    // Update WebRTC session with call ID (state management only, not orchestration)
+    await supabaseAdmin
+      .from('webrtc_sessions')
+      .update({
+        call_id: result.call_id,
+        status: 'on_call',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+    
+    // CORRECT: Audit log for WebRPC access
+    await supabaseAdmin.from('audit_logs').insert({
+      organization_id: organizationId,
+      user_id: userId,
+      resource_type: 'call',
+      resource_id: result.call_id,
+      action: 'webrpc:call.place',
+      after: { 
+        method: 'call.place', 
+        to_number,
+        from_number,
+        session_id: sessionId,
+        call_sid: result.call_sid
+      },
+      created_at: new Date().toISOString()
     })
-    .eq('id', sessionId)
-  
-  // Emit webhook event
-  await emitCallStarted({
-    id: callId,
-    organization_id: organizationId,
-    phone_to: to_number,
-    phone_from: from_number as string | undefined,
-    status: 'pending'
-  })
-  
-  return {
-    call_id: callId,
-    status: 'initiating',
-    to_number,
-    from_number
+    
+    logger.info('WebRPC call placed successfully', {
+      call_id: result.call_id,
+      call_sid: result.call_sid,
+      source: 'webrpc',
+      actor_id: userId
+    })
+    
+    return {
+      call_id: result.call_id,
+      call_sid: result.call_sid,
+      status: 'initiating',
+      to_number,
+      from_number
+    }
+  } catch (err: any) {
+    logger.error('WebRPC call.place exception', err, {
+      params: { to_number, from_number }
+    })
+    
+    return { 
+      code: 'INTERNAL_ERROR', 
+      message: err.message || 'Failed to place call' 
+    }
   }
 }
 
 /**
  * Handle call.hangup
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - Allows call termination via WebRTC session
+ * - Logs to audit_logs
+ * - Limited DB writes (status update only, not orchestration)
  */
 async function handleCallHangup(
   params: Record<string, unknown>,
   userId: string,
+  organizationId: string,
   sessionId: string
 ): Promise<WebRPCResponse['result'] | WebRPCResponse['error']> {
   // Get current call from session
@@ -154,7 +197,16 @@ async function handleCallHangup(
     return { code: 'NO_ACTIVE_CALL', message: 'No active call to hang up' }
   }
   
-  // Update call status
+  // Verify organization match
+  if (session.organization_id !== organizationId) {
+    logger.warn('WebRPC call.hangup org mismatch', {
+      session_org: session.organization_id,
+      request_org: organizationId
+    })
+    return { code: 'ORG_MISMATCH', message: 'Call does not belong to your organization' }
+  }
+  
+  // Update call status (limited mutability - state machine only)
   const { error: updateError } = await supabaseAdmin
     .from('calls')
     .update({
@@ -164,6 +216,7 @@ async function handleCallHangup(
     .eq('id', session.call_id)
   
   if (updateError) {
+    logger.error('WebRPC failed to update call status', updateError)
     return { code: 'UPDATE_FAILED', message: 'Failed to update call status' }
   }
   
@@ -172,15 +225,34 @@ async function handleCallHangup(
     .from('webrtc_sessions')
     .update({
       call_id: null,
-      status: 'connected'
+      status: 'connected',
+      updated_at: new Date().toISOString()
     })
     .eq('id', sessionId)
+  
+  // CORRECT: Audit log
+  await supabaseAdmin.from('audit_logs').insert({
+    organization_id: session.organization_id,
+    user_id: userId,
+    resource_type: 'call',
+    resource_id: session.call_id,
+    action: 'webrpc:call.hangup',
+    before: { status: 'in-progress' },
+    after: { status: 'completed' },
+    created_at: new Date().toISOString()
+  })
   
   // Emit webhook event
   await emitCallCompleted({
     id: session.call_id,
     organization_id: session.organization_id,
     status: 'completed'
+  })
+  
+  logger.info('WebRPC call hangup successful', {
+    call_id: session.call_id,
+    source: 'webrpc',
+    actor_id: userId
   })
   
   return {
@@ -245,6 +317,12 @@ async function handleSessionPing(
 /**
  * POST /api/webrpc
  * Execute WebRPC method
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - Rate limited (100 req/min per user)
+ * - Audit logged (all operations)
+ * - Calls orchestration layer (no direct DB writes)
+ * - Source attribution (source='webrpc')
  */
 export async function POST(request: NextRequest) {
   try {
@@ -257,6 +335,22 @@ export async function POST(request: NextRequest) {
         id: 'unknown',
         error: { code: 'AUTH_REQUIRED', message: 'Authentication required' }
       } as WebRPCResponse, { status: 401 })
+    }
+    
+    // Rate limiting (100 requests/minute per user)
+    const rateLimitKey = `webrpc:${userId}`
+    const rateLimitCheck = await checkRateLimit(rateLimitKey, 100, 60000)
+    
+    if (!rateLimitCheck.allowed) {
+      logger.warn('WebRPC rate limit exceeded', { userId, remaining: rateLimitCheck.remaining })
+      
+      return NextResponse.json({
+        id: 'unknown',
+        error: { 
+          code: 'RATE_LIMIT_EXCEEDED', 
+          message: `Too many requests. Please try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.` 
+        }
+      } as WebRPCResponse, { status: 429 })
     }
     
     // Parse request
@@ -278,6 +372,13 @@ export async function POST(request: NextRequest) {
         error: { code: 'INVALID_METHOD', message: `Invalid method. Must be one of: ${VALID_METHODS.join(', ')}` }
       } as WebRPCResponse, { status: 400 })
     }
+    
+    logger.info('WebRPC request received', {
+      request_id: id,
+      method,
+      user_id: userId,
+      source: 'webrpc'
+    })
     
     // Get user's active WebRTC session
     const { data: webrtcSession } = await supabaseAdmin

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
-import { stableStringify, hashPayload } from '@/lib/crypto/canonicalize'
+import { hashPayload } from '@/lib/crypto/canonicalize'
 import type { ArtifactReference } from '@/app/services/evidenceTypes'
 
 /**
@@ -51,6 +51,13 @@ function buildArtifactHashes(artifacts: ArtifactReference[]): EvidenceBundleArti
       if (a.type === b.type) return a.id.localeCompare(b.id)
       return a.type.localeCompare(b.type)
     })
+}
+
+function deriveEvidenceCompleteness(artifacts: ArtifactReference[]): 'complete' | 'partial' | 'failed' {
+  const types = new Set(artifacts.map((artifact) => artifact.type))
+  if (!types.has('recording')) return 'failed'
+  if (!types.has('transcript')) return 'partial'
+  return 'complete'
 }
 
 /**
@@ -241,6 +248,7 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
     // Determine initial TSA status
     const tsaConfigured = !!process.env.RFC3161_TSA_PROXY_URL
     const initialTsaStatus = tsaConfigured ? 'pending' : 'not_configured'
+    const evidenceCompleteness = deriveEvidenceCompleteness(artifacts)
 
     // Insert bundle with pending TSA status (non-blocking)
     const bundleId = uuidv4()
@@ -258,6 +266,10 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
       version,
       parent_bundle_id: parentBundleId,
       immutable_storage: true,
+      custody_status: 'active',
+      retention_class: 'default',
+      legal_hold_flag: false,
+      evidence_completeness: evidenceCompleteness,
       tsa: null,
       tsa_status: initialTsaStatus,
       tsa_requested_at: null,

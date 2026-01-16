@@ -1,7 +1,7 @@
 # Artifact Authority Contract
 
 **Version:** 1.0  
-**Last Updated:** January 15, 2026  
+**Last Updated:** January 16, 2026  
 **Status:** Canonical  
 **Purpose:** Define what artifacts are authoritative (legally defensible) vs preview (assist-only)
 
@@ -12,6 +12,22 @@
 Word Is Bond operates as a **System of Record** for business conversations. This contract formally declares which artifacts are **authoritative** (canonical, immutable, legally defensible) and which are **preview** (real-time assist only, not evidential).
 
 All authoritative artifacts follow the principle: **evidence, not opinions**. Source recordings are never modified. Transcripts are produced by a single canonical provider (AssemblyAI). Every mutation is logged in `audit_logs` with actor attribution. Preview artifacts (live translation) assist users in real-time but are explicitly non-authoritative.
+
+---
+
+## Trust Boundary Declaration
+
+This table defines explicit authority boundaries for audit and legal review:
+
+| Component | Trust Level | Notes |
+|-----------|-------------|-------|
+| SignalWire recording | Authoritative input | Source audio, immutable |
+| AssemblyAI transcript | Canonical derivative | Versioned, append-only |
+| Evidence manifest | Authoritative record | Hash + provenance |
+| Evidence bundle | Authoritative record | Bundle hash + TSA-ready |
+| WebRTC live translation | Non-authoritative | Preview only, not persisted |
+| ElevenLabs TTS | Non-authoritative | Playback convenience only |
+| AI summaries | Non-authoritative | Assistive, not evidential |
 
 ---
 
@@ -92,6 +108,21 @@ Every authoritative artifact must have clear producer attribution.
 
 ---
 
+## Actor Taxonomy (Audit Semantics)
+
+Actors are explicitly labeled in `audit_logs.actor_type`:
+
+| Actor Type | Example | Notes |
+|-----------|---------|------|
+| human | Operator / Admin | Authenticated user session |
+| system | wordis-bond-core | Server-side service actor |
+| vendor | signalwire-webhook | External vendor webhook |
+| automation | nightly-export | Scheduled system automation |
+
+The audit insert trigger assigns `actor_type` when not provided.
+
+---
+
 ## Decision Framework
 
 When adding a new artifact type, answer these questions:
@@ -136,6 +167,12 @@ When adding a new artifact type, answer these questions:
 │  AI Runs    │◀────│  Translation │◀────│  Evidence Manifest  │
 │  (limited)  │     │  (if needed) │     │  (immutable)        │
 └─────────────┘     └──────────────┘     └─────────────────────┘
+                                                   │
+                                                   ▼
+                                         ┌─────────────────────┐
+                                         │  Evidence Bundle    │
+                                         │  (custody-grade)    │
+                                         └─────────────────────┘
                                                    │
                                                    ▼
                                          ┌─────────────────────┐

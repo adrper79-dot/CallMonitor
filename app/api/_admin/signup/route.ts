@@ -1,10 +1,40 @@
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
+/**
+ * Admin Signup API
+ * 
+ * SECURITY: Requires ADMIN_API_KEY authentication
+ * This endpoint creates users directly via Supabase Admin API
+ * Only use for internal/admin operations
+ */
 export async function POST(req: Request) {
   try {
+    // CRITICAL SECURITY: Require ADMIN_API_KEY authentication
+    const adminKey = process.env.ADMIN_API_KEY
+    if (!adminKey) {
+      logger.error('Admin signup: ADMIN_API_KEY not configured')
+      return NextResponse.json({ 
+        ok: false, 
+        error: 'Admin endpoint not configured. Set ADMIN_API_KEY in environment.' 
+      }, { status: 500 })
+    }
+
+    const providedKey = req.headers.get('x-admin-key') || req.headers.get('X-Admin-Key') || ''
+    if (providedKey !== adminKey) {
+      logger.warn('Admin signup: Unauthorized access attempt', { 
+        hasKey: !!providedKey,
+        source: req.headers.get('x-forwarded-for') || 'unknown'
+      })
+      return NextResponse.json({ 
+        ok: false, 
+        error: 'Unauthorized. Valid X-Admin-Key header required.' 
+      }, { status: 401 })
+    }
+
     const body = await req.json()
     const email = body?.email
     const password = body?.password

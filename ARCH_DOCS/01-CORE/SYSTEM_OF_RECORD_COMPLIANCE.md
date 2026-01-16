@@ -1,7 +1,7 @@
 # Conversation System of Record — Compliance Documentation
 
 **Version:** 1.0.0  
-**Date:** January 15, 2026  
+**Date:** January 16, 2026  
 **Status:** ✅ COMPLIANT
 
 ---
@@ -24,6 +24,20 @@ This document certifies that Word Is Bond meets all 12 requirements for a **Conv
 | 10. Exportability & Portability | ✅ PASS | `/api/calls/[id]/export` endpoint |
 | 11. Time & Order Consistency | ✅ PASS | Server-side timestamps only |
 | 12. Operational Readiness | ✅ PASS | `/api/calls/[id]/debug` endpoint |
+
+---
+
+## Supplemental Trust-Grade Controls (2026-01-16)
+
+These controls extend the core 12 requirements to reach evidentiary-grade rigor:
+
+| Control | Status | Implementation |
+|---------|--------|----------------|
+| Trust Boundary Declaration | ✅ PASS | `ARTIFACT_AUTHORITY_CONTRACT.md` |
+| Custody & Retention Policy | ✅ PASS | custody fields on `calls`, `recordings`, `evidence_bundles` |
+| Verification & Reconstitution | ✅ PASS | `/api/evidence/verify` endpoint |
+| Actor Identity Semantics | ✅ PASS | `audit_logs.actor_type` + taxonomy |
+| Failure Semantics | ✅ PASS | `evidence_completeness` flags |
 
 ---
 
@@ -176,6 +190,26 @@ This document certifies that Word Is Bond meets all 12 requirements for a **Conv
 
 ---
 
+### 4b. ACTOR IDENTITY SEMANTICS (Trust-Grade)
+
+**Requirement:** Actor identity must be explicit, consistent, and auditable.
+
+**Implementation:**
+
+- `audit_logs.actor_type` (`human | system | vendor | automation`) with insert trigger:
+  ```sql
+  CREATE TRIGGER audit_logs_actor_type
+    BEFORE INSERT ON public.audit_logs
+    FOR EACH ROW
+    EXECUTE FUNCTION set_audit_log_actor_type();
+  ```
+
+- Actor taxonomy documented in `ARTIFACT_AUTHORITY_CONTRACT.md`
+
+**Evidence:** `migrations/2026-01-16-add-custody-policy-and-actors.sql`
+
+---
+
 ### 5. STRUCTURED ERROR JOURNALING
 
 **Requirement:** Failures recorded as first-class events, not logs.
@@ -312,6 +346,21 @@ This document certifies that Word Is Bond meets all 12 requirements for a **Conv
 
 ---
 
+### 9b. CUSTODY & RETENTION POLICY (Trust-Grade)
+
+**Requirement:** Evidence must carry explicit custody and retention semantics.
+
+**Implementation:**
+
+- Fields on `calls`, `recordings`, `evidence_bundles`:
+  - `custody_status` (`active | archived | legal_hold | expired`)
+  - `retention_class` (`default | regulated | legal_hold`)
+  - `legal_hold_flag` (boolean)
+
+**Evidence:** `migrations/2026-01-16-add-custody-policy-and-actors.sql`
+
+---
+
 ### 10. EXPORTABILITY & PORTABILITY
 
 **Requirement:** Conversation exportable as self-contained bundle.
@@ -334,6 +383,35 @@ This document certifies that Word Is Bond meets all 12 requirements for a **Conv
 - Export tracked in `call_export_bundles` table
 
 **Evidence:** `app/api/calls/[id]/export/route.ts`
+
+---
+
+### 10b. VERIFICATION & RECONSTITUTION (Trust-Grade)
+
+**Requirement:** A third party can recompute and verify hashes from stored state.
+
+**Implementation:**
+
+- Verification endpoint:
+  - `GET /api/evidence/verify?bundleId=...`
+  - `GET /api/evidence/verify?manifestId=...`
+- Recomputes canonical hashes and checks bundle/manifest alignment.
+
+**Evidence:** `app/api/evidence/verify/route.ts`, `lib/crypto/canonicalize.ts`
+
+---
+
+### 10c. FAILURE SEMANTICS & COMPLETENESS
+
+**Requirement:** Evidence completeness must be explicit and queryable.
+
+**Implementation:**
+
+- `evidence_completeness` on `calls`, `recordings`, `evidence_bundles`:
+  - `unknown | partial | complete | failed`
+- Bundles marked `complete` when at least recording + transcript exist.
+
+**Evidence:** `migrations/2026-01-16-add-custody-policy-and-actors.sql`, `app/services/evidenceBundle.ts`
 
 ---
 

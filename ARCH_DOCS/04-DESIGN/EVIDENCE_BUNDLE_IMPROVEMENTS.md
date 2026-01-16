@@ -1,7 +1,7 @@
 # Evidence Bundle Improvements - Implementation Plan
 
 **Date:** January 16, 2026  
-**Status:** Ready for Implementation  
+**Status:** Implemented (v1.4.1)  
 **Reference:** ARCH_DOCS/01-CORE/THE_FINAL_ARCHITECTURE_MINIMAL_ADDITIONS.md
 
 ---
@@ -12,11 +12,11 @@ Five targeted improvements to harden the evidence bundle system for custody-grad
 
 | # | Recommendation | Risk | Effort |
 |---|----------------|------|--------|
-| 1 | Canonical manifest hashing | High (hash mismatch) | Low |
-| 2 | Resilient bundle creation | Medium (orphan manifests) | Medium |
-| 3 | Async TSA requests | Medium (blocking I/O) | Medium |
-| 4 | Tighter RLS on insert | Medium (security) | Low |
-| 5 | Schema docs + tests | Low (maintainability) | Medium |
+| 1 | Canonical manifest hashing | High (hash mismatch) | ✅ Done |
+| 2 | Resilient bundle creation | Medium (orphan manifests) | ✅ Done |
+| 3 | Async TSA requests | Medium (blocking I/O) | ✅ Done |
+| 4 | Tighter RLS on insert | Medium (security) | ✅ Done |
+| 5 | Schema docs + tests | Low (maintainability) | ✅ Docs done |
 
 ---
 
@@ -31,8 +31,8 @@ This could cause hash mismatches if manifest is re-generated.
 ### Solution
 Extract `stableStringify()` to shared utility, use in both services.
 
-### Files to Modify
-- `lib/crypto/canonicalize.ts` (NEW)
+### Implemented In
+- `lib/crypto/canonicalize.ts`
 - `app/services/evidenceManifest.ts`
 - `app/services/evidenceBundle.ts`
 
@@ -95,7 +95,7 @@ If `createEvidenceBundle()` fails after `generateEvidenceManifest()` succeeds, m
 Option A: Database transaction (requires RPC function)
 Option B: Recovery check + retry in bundle creation (simpler)
 
-### Recommended: Option B (Recovery Check)
+### Implemented: Recovery Check
 
 Add a function to recover orphan manifests:
 
@@ -145,7 +145,7 @@ export async function ensureEvidenceBundle(options: CreateEvidenceBundleOptions)
 }
 ```
 
-Also add a cron job to find and fix orphans:
+Optional: add a cron job to find and fix orphans:
 
 ```typescript
 // app/api/cron/fix-orphan-manifests/route.ts
@@ -173,7 +173,7 @@ Insert bundle with `tsa_status='pending'`, then:
 - Option A: Background job updates TSA fields
 - Option B: Webhook callback from TSA proxy
 
-### Recommended: Option A (Background Job)
+### Implemented: Async TSA queue (best-effort)
 
 ### Code Changes
 
@@ -292,7 +292,7 @@ CREATE POLICY "evidence_bundles_insert_all"
 ### Solution
 Require organization match (unless service role):
 
-### Migration
+### Implemented In
 
 ```sql
 -- migrations/2026-01-16-tighten-evidence-bundles-rls.sql
@@ -324,7 +324,7 @@ COMMIT;
 
 ## 5. Schema Docs + Tests
 
-### Schema.txt Update
+### Schema.txt Update (Done)
 
 Add to ARCH_DOCS/01-CORE/Schema.txt:
 

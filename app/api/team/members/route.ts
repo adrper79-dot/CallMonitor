@@ -1,15 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireAuth, requireRole, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/team/members
  * List all team members in the organization
+ * Rate limited: 60 requests per minute (DoS protection)
  */
-export async function GET() {
+async function handleGET() {
   const ctx = await requireAuth()
   if (ctx instanceof NextResponse) return ctx
 
@@ -45,7 +47,7 @@ export async function GET() {
  * PUT /api/team/members
  * Update a team member's role
  */
-export async function PUT(req: NextRequest) {
+async function handlePUT(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
 
@@ -106,7 +108,7 @@ export async function PUT(req: NextRequest) {
  * DELETE /api/team/members
  * Remove a team member
  */
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
 
@@ -146,3 +148,26 @@ export async function DELETE(req: NextRequest) {
 
   return success({ message: 'Member removed' })
 }
+
+// Rate limiting configuration for team member operations
+const readRateLimitConfig = {
+  identifier: (req: Request) => getClientIP(req),
+  config: {
+    maxAttempts: 60,         // 60 reads
+    windowMs: 60 * 1000,     // per minute
+    blockMs: 60 * 1000       // 1 minute block on abuse
+  }
+}
+
+const writeRateLimitConfig = {
+  identifier: (req: Request) => getClientIP(req),
+  config: {
+    maxAttempts: 20,         // 20 writes
+    windowMs: 60 * 60 * 1000, // per hour
+    blockMs: 60 * 60 * 1000   // 1 hour block on abuse
+  }
+}
+
+export const GET = withRateLimit(handleGET, readRateLimitConfig)
+export const PUT = withRateLimit(handlePUT, writeRateLimitConfig)
+export const DELETE = withRateLimit(handleDELETE, writeRateLimitConfig)

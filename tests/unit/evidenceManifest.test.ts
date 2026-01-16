@@ -19,6 +19,12 @@ vi.mock('@/lib/supabaseAdmin', () => {
           }))
         }))
       })),
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          data: null,
+          error: null
+        }))
+      })),
       insert: vi.fn(() => ({
         data: { id: 'manifest-123' },
         error: null

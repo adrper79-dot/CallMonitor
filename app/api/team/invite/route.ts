@@ -1,16 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { sendEmail } from '@/app/services/emailService'
 import { v4 as uuidv4 } from 'uuid'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/team/invite - Send team invitation email
+ * Rate limited: 20 invites per hour per user (DoS protection)
  */
-export async function POST(req: NextRequest) {
+async function handlePOST(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
 
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
 /**
  * DELETE /api/team/invite - Cancel pending invitation
  */
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
 
@@ -170,3 +172,16 @@ export async function DELETE(req: NextRequest) {
 
   return success({ message: 'Invitation cancelled' })
 }
+
+// Rate limiting configuration for team invite operations
+const rateLimitConfig = {
+  identifier: (req: Request) => getClientIP(req),
+  config: {
+    maxAttempts: 20,        // 20 invites
+    windowMs: 60 * 60 * 1000, // per hour
+    blockMs: 60 * 60 * 1000   // 1 hour block on abuse
+  }
+}
+
+export const POST = withRateLimit(handlePOST, rateLimitConfig)
+export const DELETE = withRateLimit(handleDELETE, rateLimitConfig)
