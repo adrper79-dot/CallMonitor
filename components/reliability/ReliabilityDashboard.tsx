@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface WebhookFailure {
   id: string
@@ -67,7 +68,10 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
         setMetrics(data.metrics || null)
       } catch (err) {
         setError('Failed to load reliability data')
-        console.error(err)
+        logger.error('ReliabilityDashboard: failed to fetch data', err, {
+          organizationId,
+          filter
+        })
       } finally {
         setLoading(false)
       }
@@ -109,7 +113,11 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
       ))
     } catch (err) {
       setError('Failed to process action')
-      console.error(err)
+      logger.error('ReliabilityDashboard: action failed', err, {
+        organizationId,
+        failureId,
+        action
+      })
     } finally {
       setProcessing(null)
     }

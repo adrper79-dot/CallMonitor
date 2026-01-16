@@ -20,6 +20,16 @@ export interface TranslationInput {
 export async function translateText(input: TranslationInput): Promise<void> {
   const { callId, translationRunId, text, fromLanguage, toLanguage, organizationId, recordingUrl, useVoiceCloning } = input
 
+  logger.info('translation: starting', { 
+    callId, 
+    translationRunId, 
+    fromLanguage, 
+    toLanguage, 
+    textLength: text?.length || 0,
+    hasRecordingUrl: !!recordingUrl,
+    useVoiceCloning
+  })
+
   try {
     const { data: orgRows } = await supabaseAdmin
       .from('organizations')
@@ -28,9 +38,13 @@ export async function translateText(input: TranslationInput): Promise<void> {
       .limit(1)
 
     const orgPlan = orgRows?.[0]?.plan?.toLowerCase()
-    const translationPlans = ['global', 'enterprise', 'business', 'pro', 'standard', 'active']
+    const translationPlans = ['global', 'enterprise', 'business', 'pro', 'standard', 'active', 'free']
     if (!translationPlans.includes(orgPlan || '')) {
-      logger.warn('translation: plan does not support translation', { organizationId, plan: orgPlan })
+      logger.error('TRANSLATION_FAILED: Plan does not support translation', undefined, { 
+        organizationId, 
+        plan: orgPlan,
+        allowedPlans: translationPlans.join(', ')
+      })
       await supabaseAdmin.from('ai_runs').update({
         status: 'failed',
         completed_at: new Date().toISOString(),
@@ -42,7 +56,14 @@ export async function translateText(input: TranslationInput): Promise<void> {
     let translatedText: string | null = null
     let translationError: string | null = null
 
-    if (process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY) {
+      translationError = 'OPENAI_API_KEY not configured - translation requires OpenAI'
+      logger.error('TRANSLATION_FAILED: OPENAI_API_KEY not set', undefined, {
+        translationRunId,
+        callId,
+        resolution: 'Set OPENAI_API_KEY environment variable'
+      })
+    } else {
       try {
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -79,8 +100,6 @@ export async function translateText(input: TranslationInput): Promise<void> {
       } catch (err: any) {
         translationError = `OpenAI translation failed: ${err?.message || 'Unknown error'}`
       }
-    } else {
-      translationError = 'No translation provider configured (OPENAI_API_KEY not set)'
     }
 
     if (translatedText) {

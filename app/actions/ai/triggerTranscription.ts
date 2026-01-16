@@ -5,6 +5,8 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { fetchAssemblyAIWithRetry } from '@/lib/utils/fetchWithRetry'
+import { assemblyAIBreaker } from '@/lib/utils/circuitBreaker'
 
 export type TriggerTranscriptionInput = {
   recording_id: string
@@ -184,18 +186,30 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       throw e
     }
 
-    // Execute AssemblyAI (Intelligence Plane)
-    const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
-      method: 'POST',
-      headers: {
-        'Authorization': process.env.ASSEMBLYAI_API_KEY!,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        audio_url: rec.recording_url,
-        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`
+    // Execute AssemblyAI (Intelligence Plane) with retry and circuit breaker
+    let aaiRes
+    try {
+      aaiRes = await assemblyAIBreaker.execute(async () => {
+        return await fetchAssemblyAIWithRetry('https://api.assemblyai.com/v2/transcript', {
+          method: 'POST',
+          headers: {
+            'Authorization': process.env.ASSEMBLYAI_API_KEY!,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            audio_url: rec.recording_url,
+            webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`
+          })
+        })
       })
-    })
+    } catch (fetchErr: any) {
+      // Error already logged and wrapped by retry utility or circuit breaker
+      if (fetchErr instanceof AppError) {
+        throw fetchErr
+      }
+      const e = new AppError({ code: 'ASSEMBLYAI_FETCH_FAILED', message: 'Failed to reach AssemblyAI', user_message: 'Transcription service unavailable', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message } })
+      throw e
+    }
 
     if (!aaiRes.ok) {
       const errText = await aaiRes.text()

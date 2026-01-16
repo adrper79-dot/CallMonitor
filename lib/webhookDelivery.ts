@@ -14,6 +14,7 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebhookEventType, WebhookPayload, WebhookSubscription } from '@/types/tier1-features'
 import crypto from 'crypto'
+import { logger } from '@/lib/logger'
 
 /**
  * Generate HMAC signature for webhook payload
@@ -99,7 +100,10 @@ export async function queueWebhookEvent(
       .contains('events', [eventType])
     
     if (fetchError) {
-      console.error('[webhookDelivery] Error fetching subscriptions:', fetchError)
+      logger.error('webhookDelivery: failed to fetch subscriptions', fetchError, {
+        organizationId,
+        eventType
+      })
       return
     }
     
@@ -133,11 +137,19 @@ export async function queueWebhookEvent(
     if (insertError) {
       // Ignore duplicate errors (idempotency)
       if (insertError.code !== '23505') {
-        console.error('[webhookDelivery] Error queuing deliveries:', insertError)
+        logger.error('webhookDelivery: failed to queue deliveries', insertError, {
+          organizationId,
+          eventType,
+          eventId
+        })
       }
     }
   } catch (error) {
-    console.error('[webhookDelivery] Error in queueWebhookEvent:', error)
+    logger.error('webhookDelivery: queueWebhookEvent failed', error, {
+      organizationId,
+      eventType,
+      eventId
+    })
   }
 }
 
@@ -163,7 +175,9 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
       .single()
     
     if (fetchError || !delivery || !delivery.subscription) {
-      console.error('[webhookDelivery] Delivery not found:', deliveryId)
+      logger.error('webhookDelivery: delivery not found', fetchError, {
+        deliveryId
+      })
       return false
     }
     
@@ -266,7 +280,9 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
     
     return false
   } catch (error: any) {
-    console.error('[webhookDelivery] Error delivering webhook:', error)
+    logger.error('webhookDelivery: error delivering webhook', error, {
+      deliveryId
+    })
     
     // Mark as failed
     await supabaseAdmin
@@ -301,7 +317,7 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
       .limit(batchSize)
     
     if (fetchError || !deliveries) {
-      console.error('[webhookDelivery] Error fetching queue:', fetchError)
+      logger.error('webhookDelivery: failed to fetch queue', fetchError)
       return results
     }
     
@@ -316,7 +332,7 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
       }
     }
   } catch (error) {
-    console.error('[webhookDelivery] Error processing queue:', error)
+    logger.error('webhookDelivery: error processing queue', error)
   }
   
   return results
@@ -326,6 +342,24 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
 // Event Helper Functions
 // Call these when events occur in your application
 // ============================================================================
+
+function createWebhookEventId(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `evt_${crypto.randomBytes(16).toString('hex')}`
+}
+
+export async function emitWebhookEvent(params: {
+  organizationId: string
+  eventType: WebhookEventType
+  data: Record<string, unknown>
+  eventId?: string
+}): Promise<string> {
+  const resolvedEventId = params.eventId || createWebhookEventId()
+  await queueWebhookEvent(params.organizationId, params.eventType, resolvedEventId, params.data)
+  return resolvedEventId
+}
 
 export async function emitCallStarted(call: {
   id: string

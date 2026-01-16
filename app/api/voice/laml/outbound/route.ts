@@ -62,7 +62,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   if (organizationId) {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_webhook_email')
+      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
       .eq('organization_id', organizationId)
       .limit(1)
 
@@ -72,7 +72,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       transcribe: voiceConfig?.transcribe,
       translate: voiceConfig?.translate,
       survey: voiceConfig?.survey,
-      surveyPromptsCount: voiceConfig?.survey_prompts?.length || 0
+      surveyPromptsCount: Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts.length : 0
     })
   } else {
     logger.warn('LaML outbound: could not find organization for call', { callId })
@@ -106,17 +106,19 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
   }
   
-  // Survey prompts - use dynamic questions from voice_configs.survey_prompts
+  // Survey prompts - use localized prompts when available
   if (voiceConfig?.survey) {
-    const surveyPrompts: string[] = Array.isArray(voiceConfig.survey_prompts) && voiceConfig.survey_prompts.length > 0
-      ? voiceConfig.survey_prompts
+    const { prompts: surveyPrompts, locale: promptLocale } = resolveSurveyPrompts(voiceConfig)
+    const resolvedPrompts = surveyPrompts.length > 0
+      ? surveyPrompts
       : ['On a scale of 1 to 5, how satisfied were you with this call?']
     
-    const totalQuestions = surveyPrompts.length
+    const totalQuestions = resolvedPrompts.length
     logger.info('LaML outbound: generating survey with prompts', { 
       callId, 
       organizationId, 
       totalQuestions,
+      promptLocale,
       hasWebhookEmail: !!voiceConfig.survey_webhook_email 
     })
     
@@ -128,8 +130,8 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
     const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
     
-    for (let i = 0; i < surveyPrompts.length; i++) {
-      const prompt = surveyPrompts[i]
+    for (let i = 0; i < resolvedPrompts.length; i++) {
+      const prompt = resolvedPrompts[i]
       const questionIdx = i + 1
       
       // Add question number for multi-question surveys
@@ -150,7 +152,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       elements.push('</Gather>')
       
       // No input fallback - move to next question
-      if (i < surveyPrompts.length - 1) {
+      if (i < resolvedPrompts.length - 1) {
         elements.push('<Say voice="alice">Let me move to the next question.</Say>')
         elements.push('<Pause length="0.5"/>')
       }
@@ -166,6 +168,17 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
 <Response>
 ${elements.map(el => `  ${el}`).join('\n')}
 </Response>`
+}
+
+function resolveSurveyPrompts(voiceConfig: any): { prompts: string[]; locale: string } {
+  const promptLocale = voiceConfig?.translate_to || 'en'
+  const localized = voiceConfig?.survey_prompts_locales?.[promptLocale]
+  if (Array.isArray(localized) && localized.length > 0) {
+    return { prompts: localized, locale: promptLocale }
+  }
+
+  const defaultPrompts = Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts : []
+  return { prompts: defaultPrompts, locale: promptLocale }
 }
 
 async function generateBridgeLaML(conferenceName: string, callId: string, leg?: number): Promise<string> {

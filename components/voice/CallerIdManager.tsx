@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface CallerIdNumber {
   id: string
@@ -159,7 +160,11 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
         fetchNumbers()
       }
     } catch (err) {
-      console.error('Failed to set default', err)
+      logger.error('CallerIdManager: failed to set default mask', err, {
+        organizationId,
+        numberId,
+        phoneNumber
+      })
     }
   }
 

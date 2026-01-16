@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface ExpectedOutcome {
   type: 'keyword' | 'sentiment' | 'duration_min' | 'duration_max' | 'response_time'
@@ -186,7 +187,10 @@ Thank you for the information. I'll get back to you soon.`,
         fetchScripts()
       }
     } catch (err) {
-      console.error('Failed to delete script', err)
+      logger.error('ShopperScriptManager: failed to delete script', err, {
+        organizationId,
+        scriptId
+      })
     }
   }
 

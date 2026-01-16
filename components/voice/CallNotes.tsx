@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { ClientDate } from '@/components/ui/ClientDate'
+import { logger } from '@/lib/logger'
 
 interface CallNotesProps {
   callId: string
@@ -72,7 +73,10 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
           setNotes(data.notes || [])
         }
       } catch (err) {
-        console.error('Failed to fetch notes:', err)
+        logger.error('CallNotes: failed to fetch notes', err, {
+          callId,
+          organizationId
+        })
       } finally {
         setLoading(false)
       }

@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if (configId) {
       const { data: vcRows } = await supabaseAdmin
         .from('voice_configs')
-        .select('id, organization_id, survey, survey_prompts, survey_voice, survey_webhook_email')
+        .select('id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email')
         .eq('id', configId)
         .limit(1)
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     } else if (orgId) {
       const { data: vcRows } = await supabaseAdmin
         .from('voice_configs')
-        .select('id, organization_id, survey, survey_prompts, survey_voice, survey_webhook_email')
+        .select('id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email')
         .eq('organization_id', orgId)
         .limit(1)
 
@@ -57,10 +57,11 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.callmonitor.com'
     const callId = callSid || `survey-${Date.now()}`
     
+    const { prompts: resolvedPrompts } = resolveSurveyPrompts(voiceConfig)
     const swml = buildSurveySWML({
       callId,
       organizationId: organizationId || 'unknown',
-      prompts: voiceConfig.survey_prompts || [],
+      prompts: resolvedPrompts,
       voice: voiceConfig.survey_voice,
       postPromptWebhook: `${appUrl}/api/survey/ai-results?configId=${voiceConfig.id}&callId=${callId}`,
       recordCall: true
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     logger.info('SWML survey: generated SWML', { 
       organizationId,
       configId: voiceConfig.id,
-      promptCount: voiceConfig.survey_prompts?.length || 0
+      promptCount: resolvedPrompts.length
     })
 
     if (callSid && organizationId) {
@@ -101,4 +102,15 @@ export async function GET() {
     description: 'SWML endpoint for AI Survey Bot',
     params: { configId: 'voice_configs.id', orgId: 'organization_id (fallback)' }
   })
+}
+
+function resolveSurveyPrompts(voiceConfig: any): { prompts: string[]; locale: string } {
+  const promptLocale = voiceConfig?.translate_to || 'en'
+  const localized = voiceConfig?.survey_prompts_locales?.[promptLocale]
+  if (Array.isArray(localized) && localized.length > 0) {
+    return { prompts: localized, locale: promptLocale }
+  }
+
+  const defaultPrompts = Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts : []
+  return { prompts: defaultPrompts, locale: promptLocale }
 }

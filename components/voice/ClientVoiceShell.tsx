@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import type { Call } from '@/app/voice/page'
 import CallList from '@/components/voice/CallList'
 import CallDetailView from '@/components/voice/CallDetailView'
+import { logger } from '@/lib/logger'
 
 export interface ClientVoiceShellProps {
   initialCalls: Call[]
@@ -39,7 +40,7 @@ export default function ClientVoiceShell({
   async function handleModulationChange(mods: Record<string, boolean>) {
     // This would update voice_configs via API
     // For now, just log
-    console.log('Modulation change:', mods)
+    logger.debug('ClientVoiceShell: modulation change requested', { mods })
   }
 
   return (

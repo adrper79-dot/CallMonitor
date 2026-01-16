@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
+import { logger } from '@/lib/logger'
 
 export interface TTSGeneratorProps {
   organizationId: string
@@ -73,7 +74,11 @@ export default function TTSGenerator({ organizationId }: TTSGeneratorProps) {
         description: 'Your text has been converted to speech'
       })
     } catch (err: any) {
-      console.error('TTS generation error:', err)
+      logger.error('TTSGenerator: generation failed', err, {
+        organizationId,
+        language: selectedLanguage,
+        voice: selectedVoice
+      })
       toast({
         title: 'Generation failed',
         description: err.message || 'An error occurred',

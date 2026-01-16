@@ -16,21 +16,55 @@ type AlertItem = {
 export default function ScorecardAlerts({ organizationId }: { organizationId: string | null }) {
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!organizationId) return
+    if (!organizationId) {
+      setLoading(false)
+      return
+    }
+
+    let isActive = true
+    setLoading(true)
+    setError(null)
+
     fetch('/api/scorecards/alerts', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
+        if (!isActive) return
+        if (data?.success === false) {
+          setError(data?.error || 'Unable to load alerts')
+          setAlerts([])
+          return
+        }
         setAlerts(data.alerts || [])
       })
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (!isActive) return
+        setError(err?.message || 'Unable to load alerts')
+        setAlerts([])
+      })
+      .finally(() => {
+        if (isActive) setLoading(false)
+      })
+
+    return () => {
+      isActive = false
+    }
   }, [organizationId])
 
   if (loading) {
     return (
       <div className="bg-white border border-gray-200 rounded-md p-4">
         <p className="text-sm text-gray-500">Loading alerts...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-md p-4">
+        <p className="text-sm text-gray-500">{error}</p>
       </div>
     )
   }

@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
+import { logger } from '@/lib/logger'
 
 export interface AudioUploadProps {
   organizationId: string
@@ -109,7 +110,9 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
         onUploadComplete(transcribeData.transcript_id)
       }
     } catch (err: any) {
-      console.error('Upload error:', err)
+      logger.error('AudioUpload: upload/transcription failed', err, {
+        organizationId
+      })
       toast({
         title: 'Upload failed',
         description: err.message || 'An error occurred',

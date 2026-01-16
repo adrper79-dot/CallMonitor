@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
+import { logger } from '@/lib/logger'
 
 interface VoiceTarget {
   id: string
@@ -146,7 +147,10 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
         fetchTargets()
       }
     } catch (err) {
-      console.error('Failed to delete target', err)
+      logger.error('VoiceTargetManager: failed to delete target', err, {
+        organizationId,
+        targetId
+      })
     }
   }
 

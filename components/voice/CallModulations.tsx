@@ -4,10 +4,12 @@ import React, { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRBAC } from '@/hooks/useRBAC'
 import { planSupportsFeature } from '@/lib/rbac'
 import { Select } from '@/components/ui/select'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
+import type { SurveyQuestionConfig, SurveyQuestionType } from '@/types/tier1-features'
 
 export type ModKey = 'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller'
 
@@ -72,6 +74,20 @@ const TOGGLES: {
   }
 ]
 
+const SURVEY_QUESTION_TYPE_OPTIONS: Array<{ value: SurveyQuestionType; label: string }> = [
+  { value: 'scale_1_5', label: 'Scale 1-5' },
+  { value: 'scale_1_10', label: 'Scale 1-10' },
+  { value: 'yes_no', label: 'Yes/No' },
+  { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'open_ended', label: 'Open-ended' }
+]
+
+const SURVEY_PROMPT_LOCALES = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' }
+]
+
 function useCallCapabilities(organizationId: string | null) {
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
@@ -121,6 +137,15 @@ export default function CallModulations({ callId, organizationId, initialModulat
   const { role, plan, loading: rbacLoading } = useRBAC(organizationId)
   const { config, updateConfig, loading: configLoading } = useVoiceConfig(organizationId)
   const { capabilities } = useCallCapabilities(organizationId)
+  const surveyPrompts = config?.survey_prompts || []
+  const surveyPromptLocales = typeof config?.survey_prompts_locales === 'object' && config?.survey_prompts_locales
+    ? config.survey_prompts_locales
+    : {}
+  const defaultLocale = 'en'
+  const defaultSurveyPrompts = surveyPromptLocales[defaultLocale] || surveyPrompts
+  const surveyQuestionTypes: SurveyQuestionConfig[] = Array.isArray(config?.survey_question_types)
+    ? config?.survey_question_types
+    : []
   
   const effectiveMods = config && !configLoading ? {
     record: config.record ?? false,
@@ -184,6 +209,44 @@ export default function CallModulations({ callId, organizationId, initialModulat
       return { disabled: true, reason: 'Owner/Admin only' }
     }
     return { disabled: false }
+  }
+
+  function getSurveyQuestionType(index: number): SurveyQuestionType {
+    return surveyQuestionTypes.find((q) => q.index === index)?.type || 'scale_1_5'
+  }
+
+  function updateSurveyQuestionType(index: number, type: SurveyQuestionType) {
+    const nextTypes = surveyQuestionTypes.filter((q) => q.index !== index)
+    nextTypes.push({ index, type })
+    nextTypes.sort((a, b) => a.index - b.index)
+    updateConfig({ survey_question_types: nextTypes })
+  }
+
+  function handleSurveyPromptsChange(locale: string, value: string) {
+    const prompts = value.split('\n').filter((q) => q.trim())
+    const nextLocales = { ...surveyPromptLocales }
+    if (prompts.length > 0) {
+      nextLocales[locale] = prompts
+    } else {
+      delete nextLocales[locale]
+    }
+
+    const updates: Record<string, any> = {
+      survey_prompts_locales: nextLocales
+    }
+
+    if (locale === defaultLocale) {
+      const trimmedTypes = surveyQuestionTypes.filter((q) => q.index < prompts.length)
+      updates.survey_prompts = prompts.length > 0 ? prompts : []
+      updates.survey_question_types = trimmedTypes
+    }
+
+    updateConfig(updates)
+  }
+
+  function getPromptsForLocale(locale: string) {
+    if (locale === defaultLocale) return defaultSurveyPrompts
+    return surveyPromptLocales[locale] || []
   }
 
   return (
@@ -310,20 +373,54 @@ export default function CallModulations({ callId, organizationId, initialModulat
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Survey Questions
+                    Survey Questions (by locale)
                   </label>
-                  <textarea
-                    placeholder="On a scale of 1-5, how satisfied were you?&#10;What could we improve?"
-                    value={config?.survey_prompts?.join('\n') || ''}
-                    onChange={(e) => {
-                      const prompts = e.target.value.split('\n').filter(q => q.trim())
-                      updateConfig({ survey_prompts: prompts.length > 0 ? prompts : [] })
-                    }}
-                    disabled={!canEdit}
-                    rows={3}
-                    className="w-full text-sm p-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
-                  />
+                  <Tabs defaultValue={defaultLocale}>
+                    <TabsList className="mb-2">
+                      {SURVEY_PROMPT_LOCALES.map((locale) => (
+                        <TabsTrigger key={locale.code} value={locale.code}>
+                          {locale.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {SURVEY_PROMPT_LOCALES.map((locale) => (
+                      <TabsContent key={locale.code} value={locale.code}>
+                        <textarea
+                          placeholder="On a scale of 1-5, how satisfied were you?&#10;What could we improve?"
+                          value={getPromptsForLocale(locale.code).join('\n')}
+                          onChange={(e) => handleSurveyPromptsChange(locale.code, e.target.value)}
+                          disabled={!canEdit}
+                          rows={3}
+                          className="w-full text-sm p-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
+                        />
+                      </TabsContent>
+                    ))}
+                  </Tabs>
                 </div>
+                {defaultSurveyPrompts.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-gray-700">Question Types</div>
+                    {defaultSurveyPrompts.map((prompt, idx) => (
+                      <div key={`${idx}-${prompt.slice(0, 16)}`} className="flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-600 truncate">
+                          Q{idx + 1}: {prompt}
+                        </div>
+                        <select
+                          value={getSurveyQuestionType(idx)}
+                          onChange={(e) => updateSurveyQuestionType(idx, e.target.value as SurveyQuestionType)}
+                          disabled={!canEdit}
+                          className="text-xs bg-white border border-gray-300 rounded px-2 py-1"
+                        >
+                          {SURVEY_QUESTION_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Email Results To

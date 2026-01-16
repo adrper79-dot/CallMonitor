@@ -341,6 +341,10 @@ async function getCallSidFromCallId(callId: string): Promise<string | null> {
 
 /**
  * Check if translation is enabled and trigger translation pipeline
+ * 
+ * Auto-detection logic:
+ * - If translate_from is 'auto', use AssemblyAI's detected language
+ * - If translate_to is 'auto', infer target (en→es, es→en, other→en)
  */
 async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string, detectedLanguage?: string, recordingUrl?: string) {
   try {
@@ -352,6 +356,17 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
 
     const config = vcRows?.[0]
     if (!config?.translate) {
+      logger.debug('AssemblyAI webhook: Translation not enabled in voice_configs', { callId, organizationId })
+      return
+    }
+
+    // Check for OPENAI_API_KEY early - it's required for translation
+    if (!process.env.OPENAI_API_KEY) {
+      logger.error('POST_CALL_TRANSLATION_FAILED: OPENAI_API_KEY not configured', undefined, {
+        callId,
+        organizationId,
+        resolution: 'Set OPENAI_API_KEY environment variable'
+      })
       return
     }
 
@@ -395,16 +410,48 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       // Single leg call: use detected language if auto
       if (fromLanguage === 'auto' && detectedLanguage) {
         fromLanguage = detectedLanguage
+      } else if (fromLanguage === 'auto' && !detectedLanguage) {
+        logger.warn('AssemblyAI webhook: translate_from is auto but no language detected', { 
+          callId,
+          hint: 'AssemblyAI should detect language automatically - check transcript payload'
+        })
+        // Default to English if we can't detect
+        fromLanguage = 'en'
       }
+      
+      // Auto-detect target language for single-leg calls
       if (toLanguage === 'auto') {
-        logger.warn('AssemblyAI webhook: toLanguage cannot be auto for single-leg calls', { callId })
-        return
+        // Infer target language: if source is English, translate to Spanish (most common)
+        // If source is non-English, translate to English
+        if (fromLanguage?.startsWith('en')) {
+          toLanguage = 'es'  // English → Spanish
+          logger.info('AssemblyAI webhook: Auto-detected target language', { 
+            callId, fromLanguage, toLanguage, reason: 'en→es default'
+          })
+        } else {
+          toLanguage = 'en'  // Non-English → English
+          logger.info('AssemblyAI webhook: Auto-detected target language', { 
+            callId, fromLanguage, toLanguage, reason: 'non-en→en default'
+          })
+        }
       }
     }
 
     if (!fromLanguage || !toLanguage || fromLanguage === 'auto' || toLanguage === 'auto') {
-      logger.info('AssemblyAI webhook: Language detection incomplete', { 
-        callId, fromLanguage, toLanguage, detectedLanguage 
+      logger.error('POST_CALL_TRANSLATION_FAILED: Language configuration incomplete', undefined, { 
+        callId, 
+        fromLanguage: fromLanguage || 'NOT_SET', 
+        toLanguage: toLanguage || 'NOT_SET', 
+        detectedLanguage: detectedLanguage || 'NOT_DETECTED',
+        resolution: 'Configure translate_from and translate_to in voice_configs or ensure language detection works'
+      })
+      return
+    }
+    
+    // Skip if source and target are the same
+    if (fromLanguage === toLanguage) {
+      logger.info('AssemblyAI webhook: Skipping translation - source and target languages are the same', {
+        callId, language: fromLanguage
       })
       return
     }

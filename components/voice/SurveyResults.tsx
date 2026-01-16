@@ -13,6 +13,12 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
   const questions = survey?.questions || []
   const sentiment = survey?.sentiment || survey?.sentiment_analysis
   const overallScore = survey?.score || survey?.overall_score
+  const dtmfResponses = Array.isArray(survey?.responses)
+    ? survey.responses
+    : Array.isArray(survey?.results?.responses)
+      ? survey.results.responses
+      : []
+  const isDtmfSurvey = dtmfResponses.length > 0 && dtmfResponses[0]?.question_index !== undefined
 
   return (
     <section aria-labelledby="survey-results" className="w-full space-y-4">
@@ -43,7 +49,23 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
         </div>
       )}
 
-      {questions.length > 0 ? (
+      {isDtmfSurvey ? (
+        <div className="space-y-4">
+          {dtmfResponses.map((r: any) => (
+            <div key={`${r.question_index}-${r.digit || r.value}`} className="p-4 bg-slate-900 rounded-md border border-slate-800">
+              <div className="text-sm font-medium text-slate-100 mb-2">
+                Q{r.question_index}: {r.question || 'Question'}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300">{r.value || r.digit || 'No response'}</span>
+                {r.digit && (
+                  <Badge variant="info">DTMF: {r.digit}</Badge>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : questions.length > 0 ? (
         <div className="space-y-4">
           {questions.map((q: any, idx: number) => (
             <div key={idx} className="p-4 bg-slate-900 rounded-md border border-slate-800">

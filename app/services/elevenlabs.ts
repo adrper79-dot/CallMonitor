@@ -5,6 +5,8 @@
 
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import { logger } from '@/lib/logger'
+import { fetchElevenLabsWithRetry } from '@/lib/utils/fetchWithRetry'
+import { elevenLabsBreaker } from '@/lib/utils/circuitBreaker'
 
 export function getElevenLabsClient() {
   const apiKey = process.env.ELEVENLABS_API_KEY
@@ -71,11 +73,19 @@ export async function cloneVoice(
     formData.append('files', audioBlob, 'voice_sample.mp3')
     formData.append('labels', JSON.stringify({ source: 'callmonitor', type: 'instant_clone' }))
 
-    const response = await fetch('https://api.elevenlabs.io/v1/voices/add', {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey },
-      body: formData,
-    })
+    let response
+    try {
+      response = await elevenLabsBreaker.execute(async () => {
+        return await fetchElevenLabsWithRetry('https://api.elevenlabs.io/v1/voices/add', {
+          method: 'POST',
+          headers: { 'xi-api-key': apiKey },
+          body: formData,
+        })
+      })
+    } catch (fetchErr: any) {
+      logger.error('ElevenLabs voice clone fetch error', fetchErr)
+      throw new Error(`Voice cloning failed: ${fetchErr?.message || 'Network error'}`)
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -100,10 +110,18 @@ export async function deleteClonedVoice(voiceId: string): Promise<void> {
   }
 
   try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
-      method: 'DELETE',
-      headers: { 'xi-api-key': apiKey },
-    })
+    let response
+    try {
+      response = await elevenLabsBreaker.execute(async () => {
+        return await fetchElevenLabsWithRetry(`https://api.elevenlabs.io/v1/voices/${voiceId}`, {
+          method: 'DELETE',
+          headers: { 'xi-api-key': apiKey },
+        })
+      })
+    } catch (fetchErr: any) {
+      logger.warn('ElevenLabs voice delete fetch error', { error: fetchErr?.message })
+      return
+    }
 
     if (!response.ok && response.status !== 404) {
       const errorText = await response.text()

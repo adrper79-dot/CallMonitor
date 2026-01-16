@@ -81,6 +81,46 @@ export default function VoiceOperationsClient({
     })
   }, [updates, activeCallId])
 
+  // Polling fallback for active call status (when real-time doesn't work)
+  useEffect(() => {
+    if (!activeCallId) return
+    
+    // Don't poll if call is already in a terminal state
+    const terminalStates = ['completed', 'failed', 'no-answer', 'busy']
+    if (activeCallStatus && terminalStates.includes(activeCallStatus)) return
+
+    let mounted = true
+    
+    async function pollCallStatus() {
+      try {
+        const res = await fetch(`/api/calls/${encodeURIComponent(activeCallId!)}`, {
+          credentials: 'include'
+        })
+        if (res.ok && mounted) {
+          const data = await res.json()
+          const serverStatus = data.call?.status
+          if (serverStatus && serverStatus !== activeCallStatus) {
+            setActiveCallStatus(serverStatus)
+          }
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }
+
+    // Poll every 3 seconds while call is active
+    const pollInterval = setInterval(pollCallStatus, 3000)
+    
+    // Initial poll after 2 seconds (give SignalWire time to update)
+    const initialTimeout = setTimeout(pollCallStatus, 2000)
+
+    return () => {
+      mounted = false
+      clearInterval(pollInterval)
+      clearTimeout(initialTimeout)
+    }
+  }, [activeCallId, activeCallStatus])
+
   // Timer for active calls
   useEffect(() => {
     if (!activeCallId || activeCallStatus !== 'in_progress') return

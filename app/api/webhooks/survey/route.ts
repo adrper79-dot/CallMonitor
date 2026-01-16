@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { parseRequestBody, xmlResponse } from '@/lib/api/utils'
 import { sendEmail } from '@/app/services/emailService'
+import { emitWebhookEvent } from '@/lib/webhookDelivery'
+import type { SurveyQuestionConfig, SurveyQuestionType } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -85,20 +87,25 @@ async function processSurveyResponseAsync(
     // Load voice_configs for survey prompts and email
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('survey_prompts, survey_webhook_email')
+      .select('survey_prompts, survey_prompts_locales, survey_webhook_email, survey_question_types, translate_to')
       .eq('organization_id', call.organization_id)
       .limit(1)
     
     const voiceConfig = vcRows?.[0]
-    const surveyPrompts: string[] = Array.isArray(voiceConfig?.survey_prompts) 
-      ? voiceConfig.survey_prompts 
+    const { prompts: surveyPrompts } = resolveSurveyPrompts(voiceConfig)
+    const resolvedPrompts = surveyPrompts.length > 0
+      ? surveyPrompts
       : ['On a scale of 1 to 5, how satisfied were you with this call?']
     
     // Get the question that was answered
-    const questionText = surveyPrompts[questionIdx - 1] || `Question ${questionIdx}`
+    const questionText = resolvedPrompts[questionIdx - 1] || `Question ${questionIdx}`
+    const questionTypes: SurveyQuestionConfig[] = Array.isArray(voiceConfig?.survey_question_types)
+      ? voiceConfig.survey_question_types
+      : []
+    const questionType = questionTypes.find((q) => q.index === questionIdx - 1)?.type || 'scale_1_5'
     
     // Map digit to response value
-    const responseValue = mapDigitToResponse(digits, questionText)
+    const responseValue = mapDigitToResponseByType(digits, questionType, questionText)
 
     const { data: systemsRows } = await supabaseAdmin
       .from('systems')
@@ -115,7 +122,7 @@ async function processSurveyResponseAsync(
     // Check if we already have a survey run for this call
     const { data: existingRuns } = await supabaseAdmin
       .from('ai_runs')
-      .select('id, output')
+      .select('id, output, status')
       .eq('call_id', call.id)
       .eq('model', 'laml-dtmf-survey')
       .limit(1)
@@ -149,6 +156,7 @@ async function processSurveyResponseAsync(
       
       // Check if survey is complete
       const isComplete = responses.length >= totalQuestions
+      const wasComplete = existingRun.status === 'completed'
       
       await supabaseAdmin
         .from('ai_runs')
@@ -183,7 +191,27 @@ async function processSurveyResponseAsync(
           from,
           to,
           responses,
-          prompts: surveyPrompts
+          prompts: resolvedPrompts
+        })
+      }
+
+      // Emit webhook event when survey completes (once)
+      if (isComplete && !wasComplete) {
+        await emitWebhookEvent({
+          organizationId: call.organization_id,
+          eventType: 'survey.completed',
+          eventId: existingRun.id,
+          data: {
+            survey_run_id: existingRun.id,
+            call_id: call.id,
+            call_sid: callSid,
+            responses,
+            total_questions: totalQuestions,
+            questions_answered: responses.length,
+            from_number: from,
+            to_number: to,
+            completed_at: now
+          }
         })
       }
       
@@ -238,7 +266,33 @@ async function processSurveyResponseAsync(
             value: responseValue,
             timestamp: now
           }],
-          prompts: surveyPrompts
+          prompts: resolvedPrompts
+        })
+      }
+
+      // Emit webhook event when survey completes
+      if (isComplete) {
+        await emitWebhookEvent({
+          organizationId: call.organization_id,
+          eventType: 'survey.completed',
+          eventId: surveyRunId,
+          data: {
+            survey_run_id: surveyRunId,
+            call_id: call.id,
+            call_sid: callSid,
+            responses: [{
+              question_index: questionIdx,
+              question: questionText,
+              digit: digits,
+              value: responseValue,
+              timestamp: now
+            }],
+            total_questions: totalQuestions,
+            questions_answered: 1,
+            from_number: from,
+            to_number: to,
+            completed_at: now
+          }
         })
       }
     }
@@ -275,6 +329,48 @@ function mapDigitToResponse(digit: string | undefined, question: string): string
   
   // Default: return the digit
   return digit
+}
+
+function mapDigitToResponseByType(
+  digit: string | undefined,
+  questionType: SurveyQuestionType,
+  questionText: string
+): string {
+  if (!digit) return 'No response'
+  const d = parseInt(digit, 10)
+
+  if (questionType === 'yes_no') {
+    if (d === 1) return 'Yes'
+    if (d === 2) return 'No'
+    return 'No response'
+  }
+
+  if (questionType === 'scale_1_10') {
+    if (Number.isNaN(d)) return 'No response'
+    return `${d}/10`
+  }
+
+  if (questionType === 'multiple_choice') {
+    if (Number.isNaN(d)) return 'No response'
+    return `Option ${d}`
+  }
+
+  if (questionType === 'open_ended') {
+    return digit
+  }
+
+  return mapDigitToResponse(digit, questionText)
+}
+
+function resolveSurveyPrompts(voiceConfig: any): { prompts: string[]; locale: string } {
+  const promptLocale = voiceConfig?.translate_to || 'en'
+  const localized = voiceConfig?.survey_prompts_locales?.[promptLocale]
+  if (Array.isArray(localized) && localized.length > 0) {
+    return { prompts: localized, locale: promptLocale }
+  }
+
+  const defaultPrompts = Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts : []
+  return { prompts: defaultPrompts, locale: promptLocale }
 }
 
 /**

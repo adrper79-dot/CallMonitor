@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface RetentionPolicy {
   organization_id: string
@@ -73,7 +74,9 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
         }
       } catch (err) {
         setError('Failed to load retention settings')
-        console.error(err)
+        logger.error('RetentionSettings: failed to load policy or holds', err, {
+          organizationId
+        })
       } finally {
         setLoading(false)
       }
@@ -103,7 +106,10 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       setPolicy(data.policy)
     } catch (err) {
       setError('Failed to save retention policy')
-      console.error(err)
+      logger.error('RetentionSettings: failed to save policy', err, {
+        organizationId,
+        updates
+      })
     } finally {
       setSaving(false)
     }
@@ -140,7 +146,11 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       setNewHoldAppliesToAll(false)
     } catch (err) {
       setError('Failed to create legal hold')
-      console.error(err)
+      logger.error('RetentionSettings: failed to create legal hold', err, {
+        organizationId,
+        holdName: newHoldName,
+        appliesToAll: newHoldAppliesToAll
+      })
     } finally {
       setSaving(false)
     }
@@ -168,7 +178,10 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       ))
     } catch (err) {
       setError('Failed to release legal hold')
-      console.error(err)
+      logger.error('RetentionSettings: failed to release legal hold', err, {
+        organizationId,
+        holdId
+      })
     } finally {
       setSaving(false)
     }

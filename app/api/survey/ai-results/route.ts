@@ -41,7 +41,7 @@ async function processResultsAsync(req: NextRequest) {
     if (configId) {
       const { data: vcRows } = await supabaseAdmin
         .from('voice_configs')
-        .select('id, organization_id, survey_webhook_email, survey_prompts')
+      .select('id, organization_id, survey_webhook_email, survey_prompts, survey_prompts_locales, translate_to')
         .eq('id', configId)
         .limit(1)
       
@@ -66,7 +66,8 @@ async function processResultsAsync(req: NextRequest) {
       }
     }
 
-    const surveyResponses = extractSurveyResponses(conversation, voiceConfig?.survey_prompts || [])
+    const { prompts: resolvedPrompts } = resolveSurveyPrompts(voiceConfig)
+    const surveyResponses = extractSurveyResponses(conversation, resolvedPrompts)
 
     const aiRunId = uuidv4()
     await supabaseAdmin.from('ai_runs').insert({
@@ -89,7 +90,7 @@ async function processResultsAsync(req: NextRequest) {
       try {
         const emailResult = await sendSurveyResultsEmail(voiceConfig.survey_webhook_email, {
           callSid, from: callMetadata.from, to: callMetadata.to,
-          duration: callMetadata.duration, prompts: voiceConfig.survey_prompts || [],
+          duration: callMetadata.duration, prompts: resolvedPrompts,
           responses: surveyResponses, summary, conversation
         })
         logger.info('survey/ai-results: email sent', { success: emailResult.success })
@@ -137,6 +138,17 @@ function extractSurveyResponses(
   }
   
   return responses
+}
+
+function resolveSurveyPrompts(voiceConfig: any): { prompts: string[]; locale: string } {
+  const promptLocale = voiceConfig?.translate_to || 'en'
+  const localized = voiceConfig?.survey_prompts_locales?.[promptLocale]
+  if (Array.isArray(localized) && localized.length > 0) {
+    return { prompts: localized, locale: promptLocale }
+  }
+
+  const defaultPrompts = Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts : []
+  return { prompts: defaultPrompts, locale: promptLocale }
 }
 
 async function sendSurveyResultsEmail(to: string, data: {

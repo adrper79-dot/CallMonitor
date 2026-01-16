@@ -2,6 +2,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { AppError } from '@/types/app-error'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
+import { fetchSignalWireWithRetry } from '@/lib/utils/fetchWithRetry'
+import { signalWireBreaker } from '@/lib/utils/circuitBreaker'
+import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -44,8 +47,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   let organization_id: string = input.organization_id
 
   async function writeAuditError(resource: string, resourceId: string | null, payload: any) {
-    try {
-      await supabaseAdmin.from('audit_logs').insert({
+    // Use monitored best-effort audit logging
+    await bestEffortAuditLog(
+      () => supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(),
         organization_id,
         user_id: capturedActorId,
@@ -56,11 +60,9 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         before: null,
         after: payload,
         created_at: new Date().toISOString()
-      })
-    } catch (e) {
-      // best-effort
-      logger.error('failed to write audit error', e as Error)
-    }
+      }),
+      { resource, resourceId, action: 'error' }
+    )
   }
 
   // helper to place a single SignalWire call (returns sid)
@@ -247,22 +249,27 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     })
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000)
+    // Use circuit breaker and retry logic for SignalWire API calls
     let swRes
     try {
-      swRes = await fetch(swEndpoint, {
-        method: 'POST',
-        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-        signal: controller.signal
+      swRes = await signalWireBreaker.execute(async () => {
+        return await fetchSignalWireWithRetry(swEndpoint, {
+          method: 'POST',
+          headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params
+        })
       })
     } catch (fetchErr: any) {
+      // Error already logged and wrapped by retry utility or circuit breaker
+      if (fetchErr instanceof AppError) {
+        await writeAuditError('calls', callId, fetchErr.toJSON())
+        throw fetchErr
+      }
+      
       logger.error('startCallHandler: SignalWire fetch error', fetchErr, { error: fetchErr?.message ?? String(fetchErr) })
       const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
-    } finally {
-      clearTimeout(timeout)
     }
 
     if (!swRes.ok) {

@@ -8,7 +8,13 @@
  * - AI Agent provides LIVE translation (1-3 second latency)
  * - AssemblyAI still provides CANONICAL transcript post-call
  * - AI Agent output is ephemeral and non-authoritative
+ * 
+ * Required Environment Variables for Live Translation:
+ * - SIGNALWIRE_AI_AGENT_ID: The AI Agent ID from SignalWire dashboard
+ * - TRANSLATION_LIVE_ASSIST_PREVIEW: Must be "true" to enable feature
  */
+
+import { logger } from '@/lib/logger'
 
 export interface AIAgentTranslationConfig {
   callId: string
@@ -74,8 +80,14 @@ export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWML
   const aiAgentId = agentId || process.env.SIGNALWIRE_AI_AGENT_ID
   
   if (!aiAgentId) {
-    console.warn('No SignalWire AI Agent ID configured. Set SIGNALWIRE_AI_AGENT_ID env var.')
-    // Return basic SWML without AI Agent
+    logger.error('LIVE_TRANSLATION_FAILED: No SignalWire AI Agent ID configured', undefined, {
+      callId,
+      organizationId,
+      translateFrom,
+      translateTo,
+      resolution: 'Set SIGNALWIRE_AI_AGENT_ID environment variable with agent ID from SignalWire dashboard'
+    })
+    // Return basic SWML without AI Agent - call will proceed but without live translation
     return {
       version: '1.0.0',
       sections: {

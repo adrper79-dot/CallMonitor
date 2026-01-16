@@ -128,6 +128,23 @@ export interface ConsentCaptureRequest {
 }
 
 // ============================================================================
+// SURVEY QUESTION TYPES
+// ============================================================================
+
+export type SurveyQuestionType =
+  | 'scale_1_5'
+  | 'scale_1_10'
+  | 'yes_no'
+  | 'multiple_choice'
+  | 'open_ended'
+
+export interface SurveyQuestionConfig {
+  index: number
+  type: SurveyQuestionType
+  options?: string[]
+}
+
+// ============================================================================
 // WEBHOOKS
 // ============================================================================
 

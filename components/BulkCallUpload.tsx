@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import { Button } from './ui/button'
+import { logger } from '@/lib/logger'
 
 interface BulkUploadResult {
   phone_number: string
@@ -44,7 +45,9 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('Failed to download template:', error)
+      logger.error('BulkCallUpload: failed to download template', error, {
+        organizationId
+      })
       alert('Failed to download template')
     }
   }
@@ -54,7 +57,9 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
     
     // Prevent double submission (race condition protection)
     if (isUploadingRef.current) {
-      console.warn('handleUpload: already uploading, ignoring duplicate click')
+      logger.warn('BulkCallUpload: duplicate upload prevented', {
+        organizationId
+      })
       return
     }
 
@@ -87,7 +92,9 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
         alert(data.error || 'Upload failed')
       }
     } catch (error) {
-      console.error('Upload error:', error)
+      logger.error('BulkCallUpload: upload failed', error, {
+        organizationId
+      })
       alert('Upload failed')
     } finally {
       setUploading(false)

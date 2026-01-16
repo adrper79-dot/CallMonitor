@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import type { SurveyQuestionConfig } from '@/types/tier1-features'
 
 export interface VoiceConfig {
   // Database column names (what comes from API)
@@ -21,6 +22,8 @@ export interface VoiceConfig {
   cloned_voice_id?: string | null
   // AI Survey Bot fields
   survey_prompts?: string[]
+  survey_question_types?: SurveyQuestionConfig[]
+  survey_prompts_locales?: Record<string, string[]>
   survey_voice?: string
   survey_webhook_email?: string
   survey_inbound_number?: string

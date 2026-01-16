@@ -9,6 +9,7 @@ import { ClientDate } from '@/components/ui/ClientDate'
 import { Badge } from '@/components/ui/badge'
 import ActivityFeedEmbed from '@/components/voice/ActivityFeedEmbed'
 import ScorecardAlerts from '@/components/voice/ScorecardAlerts'
+import SurveyAnalyticsWidget from '@/components/dashboard/SurveyAnalyticsWidget'
 
 interface DashboardStats {
   totalCalls: number
@@ -42,6 +43,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([])
   const [loading, setLoading] = useState(true)
+  const hasSurveyAnalytics = plan && ['insights', 'global', 'business', 'enterprise'].includes(plan)
 
   useEffect(() => {
     if (!organizationId) return
@@ -196,6 +198,9 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
           <h2 className="text-lg font-semibold text-gray-900">Intelligence</h2>
           
           <div className="space-y-4">
+            {hasSurveyAnalytics && (
+              <SurveyAnalyticsWidget organizationId={organizationId} />
+            )}
             {/* Sentiment Overview */}
             <div className="bg-white border border-gray-200 rounded-md p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Sentiment Trend</h3>

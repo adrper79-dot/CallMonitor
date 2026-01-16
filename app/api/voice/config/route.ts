@@ -21,6 +21,8 @@ type VoiceConfigRow = {
   translate_to?: string | null
   survey?: boolean
   synthetic_caller?: boolean
+  survey_question_types?: any
+  survey_prompts_locales?: any
   updated_by?: string | null
   updated_at?: string | null
 }
@@ -119,13 +121,14 @@ async function handlePUT(req: Request) {
       'record', 'transcribe', 'translate', 'translate_from', 'translate_to', 
       'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id',
       // AI Survey Bot fields
-      'survey_prompts', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number',
+      'survey_prompts', 'survey_question_types', 'survey_prompts_locales', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number',
       // Caller ID masking
       'caller_id_mask', 'caller_id_verified'
     ]
     const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number', 'caller_id_mask']
     const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning', 'caller_id_verified']
-    const jsonArrayKeys = ['survey_prompts'] // Array fields stored as JSONB
+    const jsonArrayKeys = ['survey_prompts', 'survey_question_types'] // Array fields stored as JSONB
+    const jsonObjectKeys = ['survey_prompts_locales'] // JSON objects stored as JSONB
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.
     // Keep `organization_id` only for the INSERT row below.
     const updatePayload: any = { updated_by: actorId }
@@ -140,6 +143,8 @@ async function handlePUT(req: Request) {
         } else if (jsonArrayKeys.includes(k)) {
           // Accept arrays for JSONB columns
           if (v === null || Array.isArray(v)) updatePayload[k] = v
+        } else if (jsonObjectKeys.includes(k)) {
+          if (v === null || typeof v === 'object') updatePayload[k] = v
         }
       }
     }

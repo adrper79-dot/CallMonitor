@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { logger } from '@/lib/logger'
 
 export interface TranscriptViewProps {
   transcript: any
@@ -26,7 +27,7 @@ export default function TranscriptView({ transcript }: TranscriptViewProps) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy', err)
+      logger.error('TranscriptView: clipboard copy failed', err)
     }
   }
 

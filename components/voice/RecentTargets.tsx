@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { logger } from '@/lib/logger'
 
 interface RecentTarget {
   number: string
@@ -79,7 +80,9 @@ export function RecentTargets({ organizationId, onSelect, limit = 5 }: RecentTar
 
         setTargets(sorted)
       } catch (err) {
-        console.error('Failed to fetch recent targets', err)
+        logger.error('RecentTargets: failed to fetch recent calls', err, {
+          organizationId
+        })
       } finally {
         setLoading(false)
       }
