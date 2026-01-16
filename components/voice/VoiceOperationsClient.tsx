@@ -16,6 +16,7 @@ import { OnboardingWizard, OnboardingConfig } from './OnboardingWizard'
 import { RecentTargets } from './RecentTargets'
 import { ActiveCallPanel } from './ActiveCallPanel'
 import { useRealtime } from '@/hooks/useRealtime'
+import { ProductTour, VOICE_TOUR } from '@/components/tour'
 
 // Mobile tab type
 type MobileTab = 'dial' | 'calls' | 'activity'
@@ -163,7 +164,7 @@ export default function VoiceOperationsClient({
         {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
         <div className="hidden lg:flex flex-1 overflow-hidden">
           {/* Left Rail - Call List (280px) */}
-          <aside className="w-72 border-r border-gray-200 flex flex-col overflow-hidden bg-white">
+          <aside className="w-72 border-r border-gray-200 flex flex-col overflow-hidden bg-white" data-tour="call-list">
             {/* Scheduled Calls */}
             <div className="border-b border-gray-200 p-4">
               <BookingsList
@@ -211,7 +212,7 @@ export default function VoiceOperationsClient({
               </div>
 
               {/* Call Options - Progressive Disclosure */}
-              <section className="bg-white rounded-md border border-gray-200">
+              <section className="bg-white rounded-md border border-gray-200" data-tour="call-options">
                 <button
                   onClick={() => setOptionsExpanded(!optionsExpanded)}
                   className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
@@ -449,6 +450,9 @@ export default function VoiceOperationsClient({
             setShowBookingModal(false)
           }}
         />
+
+        {/* Tutorial Tour - Auto-starts for new users */}
+        <ProductTour tourId="voice" steps={VOICE_TOUR} />
       </div>
     </VoiceConfigProvider>
   )

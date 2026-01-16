@@ -14,6 +14,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import crypto from 'crypto'
+import { checkRateLimit } from '@/lib/rateLimit'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -113,6 +115,11 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
 /**
  * POST /api/webrtc/session
  * Create a new WebRTC session for browser calling
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - Rate limited (30 sessions/hour per user)
+ * - Audit logged (session creation)
+ * - Source attribution (source='webrtc')
  */
 export async function POST(request: NextRequest) {
   try {
@@ -124,6 +131,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
+      )
+    }
+    
+    // Rate limiting (30 sessions per hour per user - prevents abuse)
+    const rateLimitKey = `webrtc:session:${userId}`
+    const rateLimitCheck = await checkRateLimit(rateLimitKey, 30, 60 * 60 * 1000) // 30/hour
+    
+    if (!rateLimitCheck.allowed) {
+      logger.warn('WebRTC session rate limit exceeded', { userId, remaining: rateLimitCheck.remaining })
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: { 
+            code: 'RATE_LIMIT_EXCEEDED', 
+            message: `Too many session requests. Please try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.` 
+          } 
+        },
+        { status: 429 }
       )
     }
     
@@ -191,7 +217,7 @@ export async function POST(request: NextRequest) {
     const forwardedFor = request.headers.get('x-forwarded-for')
     const ipAddress = forwardedFor?.split(',')[0] || 'unknown'
     
-    // Create session record
+    // Create session record (direct DB write acceptable for session management)
     const { data: newSession, error: insertError } = await supabaseAdmin
       .from('webrtc_sessions')
       .insert({
@@ -208,12 +234,36 @@ export async function POST(request: NextRequest) {
       .single()
     
     if (insertError) {
-      console.error('[webrtc POST] Insert error:', insertError)
+      logger.error('WebRTC session creation failed', insertError, { userId, sessionId })
       return NextResponse.json(
         { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create WebRTC session' } },
         { status: 500 }
       )
     }
+    
+    // CORRECT: Audit log for WebRTC session creation
+    await supabaseAdmin.from('audit_logs').insert({
+      organization_id: member.organization_id,
+      user_id: userId,
+      resource_type: 'webrtc_session',
+      resource_id: sessionId,
+      action: 'webrtc:session.create',
+      after: {
+        session_id: sessionId,
+        status: 'initializing',
+        source: 'webrtc',
+        user_agent: userAgent,
+        ip_address: ipAddress
+      },
+      created_at: new Date().toISOString()
+    })
+    
+    logger.info('WebRTC session created', {
+      session_id: sessionId,
+      user_id: userId,
+      organization_id: member.organization_id,
+      source: 'webrtc'
+    })
     
     return NextResponse.json({
       success: true,
@@ -297,6 +347,9 @@ export async function GET(request: NextRequest) {
 /**
  * DELETE /api/webrtc/session
  * End WebRTC session
+ * 
+ * ARCHITECTURE COMPLIANCE:
+ * - Audit logged (session termination)
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -310,6 +363,13 @@ export async function DELETE(request: NextRequest) {
         { status: 401 }
       )
     }
+    
+    // Get organization for audit logging
+    const { data: member } = await supabaseAdmin
+      .from('org_members')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .single()
     
     // Find and update active session
     const { data: updatedSession, error: updateError } = await supabaseAdmin
@@ -325,11 +385,31 @@ export async function DELETE(request: NextRequest) {
     
     if (updateError && updateError.code !== 'PGRST116') {
       // Ignore "no rows returned" error
-      console.error('[webrtc DELETE] Update error:', updateError)
+      logger.error('WebRTC session disconnect failed', updateError, { userId })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to end session' } },
         { status: 500 }
       )
+    }
+    
+    // CORRECT: Audit log for WebRTC session termination
+    if (updatedSession && member?.organization_id) {
+      await supabaseAdmin.from('audit_logs').insert({
+        organization_id: member.organization_id,
+        user_id: userId,
+        resource_type: 'webrtc_session',
+        resource_id: updatedSession.id,
+        action: 'webrtc:session.disconnect',
+        before: { status: 'connected' },
+        after: { status: 'disconnected', source: 'webrtc' },
+        created_at: new Date().toISOString()
+      })
+      
+      logger.info('WebRTC session disconnected', {
+        session_id: updatedSession.id,
+        user_id: userId,
+        source: 'webrtc'
+      })
     }
     
     return NextResponse.json({
