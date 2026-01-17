@@ -59,7 +59,7 @@ interface Subscription {
 
 interface SubscriptionManagerProps {
   organizationId: string
-  role: 'owner' | 'admin' | 'operator' | 'viewer'
+  role: 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
 }
 
 export function SubscriptionManager({ organizationId, role }: SubscriptionManagerProps) {
@@ -183,9 +183,9 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
     const variants = {
       active: { label: 'Active', variant: 'success' as const, icon: CheckCircle },
       trialing: { label: 'Trial', variant: 'default' as const, icon: CheckCircle },
-      past_due: { label: 'Past Due', variant: 'destructive' as const, icon: XCircle },
+      past_due: { label: 'Past Due', variant: 'error' as const, icon: XCircle },
       canceled: { label: 'Canceled', variant: 'secondary' as const, icon: XCircle },
-      incomplete: { label: 'Incomplete', variant: 'destructive' as const, icon: XCircle },
+      incomplete: { label: 'Incomplete', variant: 'error' as const, icon: XCircle },
     }
 
     const config = variants[status]

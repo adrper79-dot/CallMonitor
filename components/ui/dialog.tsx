@@ -77,3 +77,71 @@ type DialogTriggerProps = {
 export function DialogTrigger({ children, asChild }: DialogTriggerProps) {
   return <>{children}</>
 }
+
+// Shadcn/ui compatible sub-components
+type DialogContentProps = React.HTMLAttributes<HTMLDivElement> & {
+  children: React.ReactNode
+}
+
+export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <div ref={ref} className={`${className || ''}`} {...props}>
+        {children}
+      </div>
+    )
+  }
+)
+DialogContent.displayName = 'DialogContent'
+
+type DialogHeaderProps = React.HTMLAttributes<HTMLDivElement>
+
+export const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={`flex flex-col space-y-1.5 text-center sm:text-left ${className || ''}`}
+      {...props}
+    />
+  )
+)
+DialogHeader.displayName = 'DialogHeader'
+
+type DialogFooterProps = React.HTMLAttributes<HTMLDivElement>
+
+export const DialogFooter = React.forwardRef<HTMLDivElement, DialogFooterProps>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={`flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 ${className || ''}`}
+      {...props}
+    />
+  )
+)
+DialogFooter.displayName = 'DialogFooter'
+
+type DialogTitleProps = React.HTMLAttributes<HTMLHeadingElement>
+
+export const DialogTitle = React.forwardRef<HTMLHeadingElement, DialogTitleProps>(
+  ({ className, ...props }, ref) => (
+    <h2
+      ref={ref}
+      className={`text-lg font-semibold leading-none tracking-tight ${className || ''}`}
+      {...props}
+    />
+  )
+)
+DialogTitle.displayName = 'DialogTitle'
+
+type DialogDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>
+
+export const DialogDescription = React.forwardRef<HTMLParagraphElement, DialogDescriptionProps>(
+  ({ className, ...props }, ref) => (
+    <p
+      ref={ref}
+      className={`text-sm text-muted-foreground ${className || ''}`}
+      {...props}
+    />
+  )
+)
+DialogDescription.displayName = 'DialogDescription'

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { exportToCSV, exportToJSON } from '@/lib/reports/generator'
 
 export const dynamic = 'force-dynamic'

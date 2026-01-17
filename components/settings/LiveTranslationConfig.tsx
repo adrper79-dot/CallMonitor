@@ -306,7 +306,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
             {config.default_target_language && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Default Language:</span>
-                <Badge variant="outline">
+                <Badge variant="secondary">
                   {supportedLanguages.find((l) => l.code === config.default_target_language)?.name || config.default_target_language}
                 </Badge>
               </div>

@@ -53,7 +53,7 @@ interface PaymentMethod {
 
 interface PaymentMethodManagerProps {
   organizationId: string
-  role: 'owner' | 'admin' | 'operator' | 'viewer'
+  role: 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
 }
 
 export function PaymentMethodManager({ organizationId, role }: PaymentMethodManagerProps) {

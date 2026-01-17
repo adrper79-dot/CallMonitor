@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/auth/rbac'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -24,7 +24,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
     const webhookId = params.id
 
     const body = await req.json()
@@ -57,7 +57,7 @@ export async function PATCH(
       .single()
 
     if (updateError) {
-      throw new AppError('Failed to update webhook', 500, updateError)
+      throw new AppError('Failed to update webhook', 500, 'UPDATE_ERROR', updateError)
     }
 
     logger.info('Webhook subscription updated', {
@@ -85,7 +85,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
     const webhookId = params.id
 
     // Get webhook to verify ownership
@@ -110,7 +110,7 @@ export async function DELETE(
       .eq('id', webhookId)
 
     if (deleteError) {
-      throw new AppError('Failed to delete webhook', 500, deleteError)
+      throw new AppError('Failed to delete webhook', 500, 'DELETE_ERROR', deleteError)
     }
 
     logger.info('Webhook subscription deleted', {

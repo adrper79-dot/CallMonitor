@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
 
 export const dynamic = 'force-dynamic'
@@ -77,7 +77,7 @@ export async function GET(
       failed: calls?.filter(c => c.status === 'failed').length || 0,
       answered: calls?.filter(c => c.outcome === 'answered').length || 0,
       no_answer: calls?.filter(c => c.outcome === 'no_answer').length || 0,
-      avg_duration: calls?.filter(c => c.duration_seconds)
+      avg_duration: (calls?.filter(c => c.duration_seconds) || [])
         .reduce((sum, c) => sum + (c.duration_seconds || 0), 0) / 
         (calls?.filter(c => c.duration_seconds).length || 1)
     }
@@ -124,10 +124,7 @@ export async function PATCH(
     }
 
     // Check RBAC
-    const allowed = await requireRole(user.organization_id, userId, ['owner', 'admin'])
-    if (!allowed) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    await requireRole(['owner', 'admin'])
 
     // Get existing campaign
     const { data: existingCampaign, error: fetchError } = await supabaseAdmin
@@ -243,10 +240,7 @@ export async function DELETE(
     }
 
     // Check RBAC
-    const allowed = await requireRole(user.organization_id, userId, ['owner', 'admin'])
-    if (!allowed) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    await requireRole(['owner', 'admin'])
 
     // Get existing campaign
     const { data: campaign, error: fetchError } = await supabaseAdmin

@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/auth/rbac'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -24,8 +24,22 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const session = await requireRole(['owner', 'admin'])
+    const userId = session.user.id
     const scheduleId = params.id
+
+    // Get user's organization
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('organization_id')
+      .eq('id', userId)
+      .single()
+
+    if (userError || !user?.organization_id) {
+      throw new AppError('Organization not found', 404)
+    }
+
+    const organizationId = user.organization_id
 
     const body = await req.json()
     const { isActive } = body
@@ -57,7 +71,7 @@ export async function PATCH(
       .single()
 
     if (updateError) {
-      throw new AppError('Failed to update schedule', 500, updateError)
+      throw new AppError('Failed to update schedule', 500, 'UPDATE_ERROR', updateError)
     }
 
     logger.info('Scheduled report updated', {
@@ -85,8 +99,22 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const session = await requireRole(['owner', 'admin'])
+    const userId = session.user.id
     const scheduleId = params.id
+
+    // Get user's organization
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('organization_id')
+      .eq('id', userId)
+      .single()
+
+    if (userError || !user?.organization_id) {
+      throw new AppError('Organization not found', 404)
+    }
+
+    const organizationId = user.organization_id
 
     // Get schedule to verify ownership
     const { data: schedule, error: fetchError } = await supabaseAdmin
@@ -110,7 +138,7 @@ export async function DELETE(
       .eq('id', scheduleId)
 
     if (deleteError) {
-      throw new AppError('Failed to delete schedule', 500, deleteError)
+      throw new AppError('Failed to delete schedule', 500, 'DELETE_ERROR', deleteError)
     }
 
     logger.info('Scheduled report deleted', {

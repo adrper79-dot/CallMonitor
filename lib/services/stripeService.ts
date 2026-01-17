@@ -14,10 +14,10 @@
  */
 
 import Stripe from 'stripe'
-import { supabaseAdmin } from '@/lib/supabase/supabaseAdmin'
-import { AppError } from '@/lib/errors/AppError'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
-import { writeAudit, writeAuditError } from '@/lib/audit/auditLogger'
+import { writeAuditLegacy as writeAudit, writeAuditErrorLegacy as writeAuditError, writeSubscriptionAudit } from '@/lib/audit/auditLogger'
 
 // Initialize Stripe with API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

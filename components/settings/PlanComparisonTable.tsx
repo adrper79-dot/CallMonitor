@@ -40,7 +40,7 @@ interface PlanFeature {
 interface PlanComparisonTableProps {
   currentPlan: 'free' | 'pro' | 'enterprise'
   organizationId: string
-  role: 'owner' | 'admin' | 'operator' | 'viewer'
+  role: 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
 }
 
 const features: PlanFeature[] = [

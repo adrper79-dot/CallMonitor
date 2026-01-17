@@ -16,9 +16,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/services/stripeService'
-import { supabaseAdmin } from '@/lib/supabase/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
-import { writeAudit, writeAuditError } from '@/lib/audit/auditLogger'
+import { 
+  writeAudit, 
+  writeAuditLegacy, 
+  writeAuditErrorLegacy,
+  writeStripeWebhookAudit, 
+  writeSubscriptionAudit 
+} from '@/lib/audit/auditLogger'
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
@@ -138,7 +144,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const subscription = await stripe.subscriptions.retrieve(session.subscription as string)
   
   await handleSubscriptionUpdated(subscription)
-  await writeAudit('organizations', organizationId, 'subscription_checkout_completed', { 
+  await writeAuditLegacy('organizations', organizationId, 'subscription_checkout_completed', { 
     session_id: session.id,
     subscription_id: subscription.id 
   })
@@ -198,7 +204,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     plan 
   })
 
-  await writeAudit('organizations', organizationId, 'subscription_updated', { 
+  await writeAuditLegacy('organizations', organizationId, 'subscription_updated', { 
     subscription_id: subscription.id,
     status: subscription.status,
     plan 
@@ -232,7 +238,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 
   logger.info('handleSubscriptionDeleted: subscription cancelled', { organizationId, subscriptionId: subscription.id })
-  await writeAudit('organizations', organizationId, 'subscription_deleted', { subscription_id: subscription.id })
+  await writeAuditLegacy('organizations', organizationId, 'subscription_deleted', { subscription_id: subscription.id })
 }
 
 /**
@@ -277,7 +283,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   }
 
   logger.info('handleInvoicePaid: invoice recorded', { organizationId, invoiceId: invoice.id })
-  await writeAudit('organizations', organizationId, 'invoice_paid', { 
+  await writeAuditLegacy('organizations', organizationId, 'invoice_paid', { 
     invoice_id: invoice.id,
     amount_cents: invoice.amount_paid 
   })
@@ -325,7 +331,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   }
 
   logger.error('handleInvoicePaymentFailed: payment failed', undefined, { organizationId, invoiceId: invoice.id })
-  await writeAuditError('organizations', organizationId, { 
+  await writeAuditErrorLegacy('organizations', organizationId, { 
     message: 'Invoice payment failed',
     invoice_id: invoice.id,
     amount_due_cents: invoice.amount_due 
@@ -386,7 +392,7 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
   }
 
   logger.info('handlePaymentMethodAttached: payment method stored', { organizationId, paymentMethodId: paymentMethod.id })
-  await writeAudit('organizations', organizationId, 'payment_method_added', { payment_method_id: paymentMethod.id })
+  await writeAuditLegacy('organizations', organizationId, 'payment_method_added', { payment_method_id: paymentMethod.id })
 }
 
 /**

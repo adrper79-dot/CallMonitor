@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth/rbac'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
 
     const body = await req.json()
     const { aiAgentId } = body

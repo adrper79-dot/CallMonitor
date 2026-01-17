@@ -198,3 +198,59 @@ export function checkApiPermission(
 
   return { allowed: true }
 }
+
+/**
+ * Require specific role for API route
+ * Used as middleware in API routes to check user role
+ * 
+ * @param role - Required role (or array of roles)
+ * @returns User session if authorized
+ * @throws AppError if unauthorized
+ */
+export async function requireRole(role: UserRole | UserRole[]): Promise<any> {
+  const { createServerClient } = await import('@supabase/ssr')
+  const { cookies } = await import('next/headers')
+  const { AppError } = await import('@/types/app-error')
+  
+  // Create Supabase client with cookies
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // Cookie setting can fail in server component
+          }
+        },
+      },
+    }
+  )
+
+  // Get session
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  
+  if (sessionError || !session) {
+    throw new AppError('Unauthorized', 401, 'AUTH_REQUIRED')
+  }
+
+  // Get user role from user metadata or organization membership
+  const userId = session.user.id
+  const userRole = session.user.user_metadata?.role as UserRole || 'viewer'
+
+  // Check if user has required role
+  const requiredRoles = Array.isArray(role) ? role : [role]
+  if (!requiredRoles.includes(userRole)) {
+    throw new AppError('Insufficient permissions', 403, 'INSUFFICIENT_ROLE')
+  }
+
+  return session
+}

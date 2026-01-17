@@ -1,11 +1,13 @@
 "use client"
 
 import React from 'react'
+import { Slot } from '@radix-ui/react-slot'
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'default' | 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive'
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
+  asChild?: boolean
 }
 
 /**
@@ -18,15 +20,18 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
  * - ghost: Transparent, for inline/subtle actions
  * - destructive: Red, for delete/danger actions ONLY
  */
-export function Button({ 
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ 
   children, 
   className = '', 
   variant = 'primary', 
   size = 'md', 
   loading = false,
   disabled,
+  asChild = false,
   ...rest 
-}: ButtonProps) {
+}, ref) => {
+  const Comp = asChild ? Slot : 'button'
+  
   const base = `
     inline-flex items-center justify-center 
     font-medium rounded-md
@@ -53,7 +58,8 @@ export function Button({
   }
   
   return (
-    <button 
+    <Comp
+      ref={ref}
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} 
       disabled={disabled || loading}
       {...rest}
@@ -64,8 +70,9 @@ export function Button({
           <span>Loading...</span>
         </>
       ) : children}
-    </button>
+    </Comp>
   )
-}
+})
+Button.displayName = 'Button'
 
 export default Button

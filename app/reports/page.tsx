@@ -132,7 +132,7 @@ export default function ReportsPage() {
     const variants = {
       generating: { label: 'Generating', variant: 'default' as const },
       completed: { label: 'Completed', variant: 'success' as const },
-      failed: { label: 'Failed', variant: 'destructive' as const },
+      failed: { label: 'Failed', variant: 'error' as const },
     }
     const config = variants[status]
     return <Badge variant={config.variant}>{config.label}</Badge>
@@ -224,7 +224,7 @@ export default function ReportsPage() {
                       <TableRow key={report.id}>
                         <TableCell className="font-medium">{report.name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="uppercase">
+                          <Badge variant="secondary" className="uppercase">
                             {report.file_format}
                           </Badge>
                         </TableCell>

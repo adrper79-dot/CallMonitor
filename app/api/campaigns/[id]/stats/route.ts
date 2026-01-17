@@ -9,8 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/auth/rbac'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -25,8 +25,22 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId } = await requireRole('user')
+    const session = await requireRole('viewer')
+    const userId = session.user.id
     const campaignId = params.id
+
+    // Get user's organization
+    const { data: user, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('organization_id')
+      .eq('id', userId)
+      .single()
+
+    if (userError || !user?.organization_id) {
+      throw new AppError('Organization not found', 404)
+    }
+
+    const organizationId = user.organization_id
 
     // Verify campaign access
     const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -48,7 +62,7 @@ export async function GET(
       .rpc('get_campaign_stats', { campaign_id_param: campaignId })
 
     if (statsError) {
-      throw new AppError('Failed to fetch stats', 500, statsError)
+      throw new AppError('Failed to fetch stats', 500, 'STATS_FETCH_ERROR', statsError)
     }
 
     // Return first row (function returns table with one row)

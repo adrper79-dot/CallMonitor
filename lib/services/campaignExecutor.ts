@@ -14,7 +14,7 @@
  * @module lib/services/campaignExecutor
  */
 
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors/AppError'
 

@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
 
 export const dynamic = 'force-dynamic'
@@ -44,11 +44,8 @@ export async function POST(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    // Check RBAC
-    const allowed = await requireRole(user.organization_id, userId, ['owner', 'admin'])
-    if (!allowed) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    // Role check - must be owner or admin
+    await requireRole(['owner', 'admin'])
 
     // Get campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -127,12 +124,12 @@ export async function POST(
     queueCampaignExecution(campaignId).catch(error => {
       console.error('Campaign execution error:', error)
       // Log to audit but don't fail the API response
-      supabaseAdmin.from('campaign_audit_log').insert({
+      void supabaseAdmin.from('campaign_audit_log').insert({
         campaign_id: campaignId,
         user_id: userId,
         action: 'execution_error',
         changes: { error: error.message }
-      }).catch(console.error)
+      })
     })
 
     return NextResponse.json({ 

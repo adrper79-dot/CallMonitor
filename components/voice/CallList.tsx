@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import type { Call } from '@/app/voice/page'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
@@ -187,21 +187,31 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
         <div className="grid grid-cols-2 gap-2">
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
+            <SelectTrigger>
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
           </Select>
 
           <Select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            onValueChange={(value) => setSortBy(value as SortBy)}
           >
-            <option value="date">Newest First</option>
-            <option value="score">By Score</option>
-            <option value="duration">By Duration</option>
+            <SelectTrigger>
+              <SelectValue placeholder="Newest First" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Newest First</SelectItem>
+              <SelectItem value="score">By Score</SelectItem>
+              <SelectItem value="duration">By Duration</SelectItem>
+            </SelectContent>
           </Select>
         </div>
 

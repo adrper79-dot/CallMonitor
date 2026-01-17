@@ -50,7 +50,7 @@ interface Invoice {
 
 interface InvoiceHistoryProps {
   organizationId: string
-  role: 'owner' | 'admin' | 'operator' | 'viewer'
+  role: 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
 }
 
 export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
@@ -105,7 +105,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       open: { label: 'Open', variant: 'default' as const },
       draft: { label: 'Draft', variant: 'secondary' as const },
       void: { label: 'Void', variant: 'secondary' as const },
-      uncollectible: { label: 'Uncollectible', variant: 'destructive' as const },
+      uncollectible: { label: 'Uncollectible', variant: 'error' as const },
     }
 
     const config = variants[status]

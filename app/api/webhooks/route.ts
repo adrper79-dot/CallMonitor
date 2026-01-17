@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/auth/rbac'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 import { randomBytes } from 'crypto'
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
 
     const searchParams = req.nextUrl.searchParams
     const orgId = searchParams.get('orgId') || organizationId
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      throw new AppError('Failed to fetch webhooks', 500, error)
+      throw new AppError('Failed to fetch webhooks', 500, 'FETCH_ERROR', error)
     }
 
     return NextResponse.json({ webhooks })
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
 
     const body = await req.json()
     const { url, eventTypes } = body
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (insertError) {
-      throw new AppError('Failed to create webhook', 500, insertError)
+      throw new AppError('Failed to create webhook', 500, 'CREATE_ERROR', insertError)
     }
 
     logger.info('Webhook subscription created', {

@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { generateCallVolumeReport, generateCampaignPerformanceReport } from '@/lib/reports/generator'
 
@@ -124,10 +124,18 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     let reportData: any
     let reportType = report_templates.report_type
 
+    // Create filters from date range
+    const filters = {
+      date_range: {
+        start: start_date,
+        end: end_date
+      }
+    }
+
     if (reportType === 'call_volume') {
-      reportData = await generateCallVolumeReport(organization_id, start_date, end_date)
+      reportData = await generateCallVolumeReport(organization_id, filters, [])
     } else if (reportType === 'campaign_performance') {
-      reportData = await generateCampaignPerformanceReport(organization_id, start_date, end_date)
+      reportData = await generateCampaignPerformanceReport(organization_id, filters)
     } else {
       throw new Error(`Unsupported report type: ${reportType}`)
     }

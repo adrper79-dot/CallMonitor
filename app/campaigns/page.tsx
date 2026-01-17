@@ -101,7 +101,7 @@ export default function CampaignsPage() {
       active: { label: 'Active', variant: 'success' as const },
       paused: { label: 'Paused', variant: 'secondary' as const },
       completed: { label: 'Completed', variant: 'success' as const },
-      canceled: { label: 'Canceled', variant: 'destructive' as const },
+      canceled: { label: 'Canceled', variant: 'error' as const },
     }
     const config = variants[status]
     return <Badge variant={config.variant}>{config.label}</Badge>
@@ -195,7 +195,7 @@ export default function CampaignsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="capitalize">
+                          <Badge variant="secondary" className="capitalize">
                             {campaign.call_flow_type.replace('_', ' ')}
                           </Badge>
                         </TableCell>

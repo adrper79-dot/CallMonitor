@@ -83,7 +83,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
         user_message: 'Unable to record usage. Please contact support.',
         severity: 'HIGH',
         retriable: true,
-        context: { organizationId, metric, quantity }
+        details: { organizationId, metric, quantity }
       })
     }
 
@@ -97,7 +97,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
       user_message: 'Unable to record usage. Please contact support.',
       severity: 'HIGH',
       retriable: true,
-      context: { error: err.message }
+      details: { error: err.message }
     })
   }
 }

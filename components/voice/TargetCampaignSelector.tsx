@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { useRBAC } from '@/hooks/useRBAC'
-import { Select } from '@/components/ui/select'
+import { NativeSelect as Select } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog } from '@/components/ui/dialog'

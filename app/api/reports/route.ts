@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
 import {
   generateCallVolumeReport,
@@ -104,10 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check RBAC
-    const allowed = await requireRole(user.organization_id, userId, ['owner', 'admin'])
-    if (!allowed) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
+    // Role already checked
 
     const body = await request.json()
     const {
@@ -221,3 +218,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+

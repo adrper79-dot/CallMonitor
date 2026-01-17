@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRBAC } from '@/hooks/useRBAC'
 import { planSupportsFeature } from '@/lib/rbac'
-import { Select } from '@/components/ui/select'
+import { NativeSelect as Select } from '@/components/ui/native-select'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import type { SurveyQuestionConfig, SurveyQuestionType } from '@/types/tier1-features'
 

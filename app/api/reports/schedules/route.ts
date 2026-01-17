@@ -8,8 +8,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/auth/rbac'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -21,13 +21,13 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId, organizationId } = await requireRole('user')
+    const { userId, organizationId } = await requireRole('viewer')
 
-    // Get org from query
+    // Get org from query - use session org if not provided
     const searchParams = req.nextUrl.searchParams
     const orgId = searchParams.get('orgId') || organizationId
 
-    // Verify access
+    // Verify access - user can only access their own org
     if (orgId !== organizationId) {
       throw new AppError('Unauthorized', 403)
     }
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      throw new AppError('Failed to fetch schedules', 500, error)
+      throw new AppError('Failed to fetch schedules', 500, error.message)
     }
 
     return NextResponse.json({ schedules })
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId, organizationId, role } = await requireRole('owner', 'admin')
+    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
 
     const body = await req.json()
     const { templateId, cronPattern, deliveryConfig } = body
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (insertError) {
-      throw new AppError('Failed to create schedule', 500, insertError)
+      throw new AppError('Failed to create schedule', 500, insertError.message)
     }
 
     logger.info('Scheduled report created', {
@@ -161,3 +161,4 @@ function calculateNextRun(cronPattern: string): string {
   nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0)
   return nextHour.toISOString()
 }
+
