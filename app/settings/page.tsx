@@ -12,6 +12,10 @@ import SurveyBuilder from '@/components/voice/SurveyBuilder'
 import { RetentionSettings } from '@/components/settings/RetentionSettings'
 import { UsageDisplay } from '@/components/settings/UsageDisplay'
 import { BillingActions } from '@/components/settings/BillingActions'
+import { SubscriptionManager } from '@/components/settings/SubscriptionManager'
+import { PaymentMethodManager } from '@/components/settings/PaymentMethodManager'
+import { InvoiceHistory } from '@/components/settings/InvoiceHistory'
+import { PlanComparisonTable } from '@/components/settings/PlanComparisonTable'
 import { AIAgentConfig } from '@/components/settings/AIAgentConfig'
 import { WebhookList } from '@/components/settings/WebhookList'
 import { useRBAC } from '@/hooks/useRBAC'
@@ -273,12 +277,32 @@ function SettingsPageContent() {
                 </p>
               </div>
               
+              {/* Usage Display */}
               <UsageDisplay organizationId={organizationId} plan={plan || 'free'} />
 
-              <BillingActions 
+              {/* Subscription Manager - New Component */}
+              <SubscriptionManager 
                 organizationId={organizationId} 
-                plan={plan || 'free'}
-                role={role || null}
+                role={role || 'viewer'}
+              />
+
+              {/* Payment Methods - New Component */}
+              <PaymentMethodManager 
+                organizationId={organizationId} 
+                role={role || 'viewer'}
+              />
+
+              {/* Invoice History - New Component */}
+              <InvoiceHistory 
+                organizationId={organizationId} 
+                role={role || 'viewer'}
+              />
+
+              {/* Plan Comparison - New Component */}
+              <PlanComparisonTable 
+                currentPlan={plan as 'free' | 'pro' | 'enterprise' || 'free'}
+                organizationId={organizationId} 
+                role={role || 'viewer'}
               />
 
               <div className="bg-white rounded-md border border-gray-200 p-6">
@@ -299,27 +323,6 @@ function SettingsPageContent() {
                   <a href="/pricing" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                     View pricing and plan details
                   </a>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-md border border-gray-200 p-6">
-                <h3 className="font-medium text-gray-900 mb-4">Available Plans</h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  {[
-                    { name: 'Pro', price: '$49/mo', features: ['Recording', 'Transcription', 'Survey'] },
-                    { name: 'Business', price: '$149/mo', features: ['+ Translation', '+ Secret Shopper', '+ Voice Cloning'] },
-                    { name: 'Enterprise', price: 'Custom', features: ['+ SSO', '+ API Access', '+ Dedicated Support'] },
-                  ].map(p => (
-                    <div key={p.name} className="bg-gray-50 rounded-md p-4 border border-gray-200">
-                      <p className="font-semibold text-gray-900">{p.name}</p>
-                      <p className="text-xl font-bold text-primary-600 my-2">{p.price}</p>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        {p.features.map(f => (
-                          <li key={f}>✓ {f}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
                 </div>
               </div>
             </section>

@@ -366,13 +366,107 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
                 disabled={!canEdit}
                 rows={4}
                 placeholder="Custom instructions for the AI agent..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-transparent font-mono text-sm"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Override default translation prompt with custom instructions.
               </p>
             </div>
           )}
+
+          {/* Post-Prompt Webhook URL (Business/Enterprise) */}
+          {(featuresAvailable.custom_agent_id || featuresAvailable.custom_prompts) && (
+            <div className="bg-white rounded-md border border-gray-200 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium text-gray-900">
+                  Post-Prompt Webhook URL (Optional)
+                </label>
+                <Badge variant="secondary" className="text-xs">
+                  Advanced
+                </Badge>
+              </div>
+              <input
+                type="url"
+                value={config.ai_post_prompt_url || ''}
+                onChange={(e) => updateConfig({ ai_post_prompt_url: e.target.value })}
+                disabled={!canEdit}
+                placeholder="https://your-domain.com/webhooks/ai-agent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-transparent font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Webhook endpoint called after AI agent completes processing. Must be HTTPS. Used for custom integrations and workflow triggers.
+              </p>
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-xs text-gray-700">
+                  <strong className="text-gray-900">Webhook Payload:</strong> Receives call metadata, AI model used, processing time, and agent output. See{' '}
+                  <a href="/docs/webhooks/ai-agent" className="text-primary-600 hover:text-primary-700 underline">
+                    webhook documentation
+                  </a>{' '}
+                  for payload schema.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Configuration Summary */}
+          <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-md border border-primary-200 p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Current Configuration
+            </h4>
+            <dl className="space-y-2 text-xs">
+              <div className="flex justify-between">
+                <dt className="text-gray-600">AI Features:</dt>
+                <dd className="font-medium text-gray-900">
+                  {config.ai_features_enabled ? '✓ Enabled' : '✗ Disabled'}
+                </dd>
+              </div>
+              {config.ai_features_enabled && (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-gray-600">Model:</dt>
+                    <dd className="font-medium text-gray-900">
+                      {MODEL_OPTIONS.find(m => m.value === config.ai_agent_model)?.label || 'GPT-4o Mini'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-gray-600">Temperature:</dt>
+                    <dd className="font-medium text-gray-900">{config.ai_agent_temperature ?? 0.3}</dd>
+                  </div>
+                  {config.live_translate && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-600">Live Translation:</dt>
+                      <dd className="font-medium text-gray-900">
+                        {config.translate_from?.toUpperCase()} → {config.translate_to?.toUpperCase()}
+                      </dd>
+                    </div>
+                  )}
+                  {config.use_voice_cloning && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-600">Voice Cloning:</dt>
+                      <dd className="font-medium text-gray-900">✓ Enabled</dd>
+                    </div>
+                  )}
+                  {config.ai_agent_id && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-600">Custom Agent:</dt>
+                      <dd className="font-mono text-xs text-gray-900 truncate max-w-[200px]" title={config.ai_agent_id}>
+                        {config.ai_agent_id}
+                      </dd>
+                    </div>
+                  )}
+                  {config.ai_post_prompt_url && (
+                    <div className="flex justify-between">
+                      <dt className="text-gray-600">Webhook:</dt>
+                      <dd className="font-medium text-gray-900">✓ Configured</dd>
+                    </div>
+                  )}
+                </>
+              )}
+            </dl>
+          </div>
 
           {/* Save Button */}
           {canEdit && (
