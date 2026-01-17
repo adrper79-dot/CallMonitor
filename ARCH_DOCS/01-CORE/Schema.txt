@@ -835,3 +835,184 @@ CREATE TABLE public.call_export_bundles (
 -- ai_runs: is_deleted, deleted_at, deleted_by
 -- scored_recordings: is_deleted, deleted_at, deleted_by
 -- evidence_manifests: version, parent_manifest_id, superseded_at, superseded_by
+
+-- =============================================================================
+-- STRIPE BILLING TABLES (Migration: 20260116_stripe_billing)
+-- =============================================================================
+
+-- Subscriptions table: Track Stripe subscription state
+CREATE TABLE public.stripe_subscriptions (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  -- Stripe identifiers
+  stripe_customer_id text NOT NULL,
+  stripe_subscription_id text UNIQUE NOT NULL,
+  stripe_price_id text NOT NULL,
+  
+  -- Subscription details
+  plan text NOT NULL CHECK (plan IN ('free', 'pro', 'business', 'enterprise')),
+  status text NOT NULL CHECK (status IN ('active', 'canceled', 'past_due', 'unpaid', 'incomplete', 'incomplete_expired', 'trialing', 'paused')),
+  
+  -- Billing cycle
+  current_period_start timestamptz NOT NULL,
+  current_period_end timestamptz NOT NULL,
+  cancel_at_period_end boolean NOT NULL DEFAULT false,
+  canceled_at timestamptz,
+  
+  -- Pricing
+  amount_cents integer NOT NULL,
+  currency text NOT NULL DEFAULT 'usd',
+  interval text NOT NULL CHECK (interval IN ('month', 'year')),
+  
+  -- Trial
+  trial_start timestamptz,
+  trial_end timestamptz,
+  
+  -- Metadata
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  
+  -- Constraints
+  UNIQUE(organization_id, stripe_subscription_id)
+);
+
+-- Payment methods table: Track customer payment methods
+CREATE TABLE public.stripe_payment_methods (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  stripe_customer_id text NOT NULL,
+  stripe_payment_method_id text UNIQUE NOT NULL,
+  
+  -- Payment method details
+  type text NOT NULL CHECK (type IN ('card', 'bank_account', 'sepa_debit', 'us_bank_account')),
+  is_default boolean NOT NULL DEFAULT false,
+  
+  -- Card details (if type = 'card')
+  card_brand text,
+  card_last4 text,
+  card_exp_month integer,
+  card_exp_year integer,
+  
+  -- Bank details (if type = 'bank_account' or 'us_bank_account')
+  bank_name text,
+  bank_last4 text,
+  
+  -- Metadata
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Invoice history table: Track billing history
+CREATE TABLE public.stripe_invoices (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  stripe_invoice_id text UNIQUE NOT NULL,
+  stripe_customer_id text NOT NULL,
+  stripe_subscription_id text,
+  
+  -- Invoice details
+  status text NOT NULL CHECK (status IN ('draft', 'open', 'paid', 'void', 'uncollectible')),
+  amount_due_cents integer NOT NULL,
+  amount_paid_cents integer NOT NULL DEFAULT 0,
+  currency text NOT NULL DEFAULT 'usd',
+  
+  -- Dates
+  invoice_date timestamptz NOT NULL,
+  due_date timestamptz,
+  paid_at timestamptz,
+  
+  -- Links
+  invoice_pdf_url text,
+  hosted_invoice_url text,
+  
+  -- Metadata
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Billing events log: Audit trail for all billing events
+CREATE TABLE public.stripe_events (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  stripe_event_id text UNIQUE NOT NULL,
+  event_type text NOT NULL,
+  organization_id uuid REFERENCES public.organizations(id) ON DELETE SET NULL,
+  
+  -- Event data
+  data jsonb NOT NULL,
+  processed boolean NOT NULL DEFAULT false,
+  error_message text,
+  
+  -- Metadata
+  created_at timestamptz NOT NULL DEFAULT now(),
+  processed_at timestamptz
+);
+
+-- =============================================================================
+-- USAGE METERING TABLES (Migration: 20260116_usage_metering)
+-- =============================================================================
+
+-- Usage Records Table: Tracks all billable usage events per organization
+CREATE TABLE public.usage_records (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  call_id uuid REFERENCES public.calls(id) ON DELETE SET NULL,
+  
+  -- Usage metrics
+  metric text NOT NULL CHECK (metric IN ('call', 'minute', 'transcription', 'translation', 'ai_run')),
+  quantity integer NOT NULL DEFAULT 1,
+  unit_cost_cents integer,
+  
+  -- Billing period tracking
+  billing_period_start timestamptz NOT NULL,
+  billing_period_end timestamptz NOT NULL,
+  
+  -- Metadata
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Usage Limits Table: Define plan limits per organization
+CREATE TABLE public.usage_limits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  -- Limits per metric
+  metric text NOT NULL CHECK (metric IN ('call', 'minute', 'transcription', 'translation', 'ai_run')),
+  limit_value integer NOT NULL,
+  billing_period text NOT NULL CHECK (billing_period IN ('month', 'year', 'lifetime')),
+  
+  -- Enforcement
+  enforce_limit boolean NOT NULL DEFAULT true,
+  notify_at_percent integer DEFAULT 80 CHECK (notify_at_percent > 0 AND notify_at_percent <= 100),
+  
+  -- Metadata
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  
+  UNIQUE(organization_id, metric, billing_period)
+);
+
+-- =============================================================================
+-- AI AGENT CONFIGURATION (Migration: 20260116_ai_agent_config)
+-- =============================================================================
+
+-- AI Agent Audit Log: Tracks configuration changes
+CREATE TABLE public.ai_agent_audit_log (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  changed_by uuid REFERENCES public.users(id),
+  change_type text NOT NULL CHECK (change_type IN ('created', 'updated', 'deleted', 'enabled', 'disabled')),
+  old_config jsonb,
+  new_config jsonb,
+  change_reason text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Note: AI Agent configuration fields are added to voice_configs table:
+-- - ai_agent_id text
+-- - ai_agent_prompt text
+-- - ai_agent_temperature numeric(3,2) DEFAULT 0.3
+-- - ai_agent_model text DEFAULT 'gpt-4o-mini'
+-- - ai_post_prompt_url text
+-- - ai_features_enabled boolean DEFAULT true

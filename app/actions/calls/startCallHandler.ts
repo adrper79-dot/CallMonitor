@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger'
 import { fetchSignalWireWithRetry } from '@/lib/utils/fetchWithRetry'
 import { signalWireBreaker } from '@/lib/utils/circuitBreaker'
 import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
+import { trackUsage, checkUsageLimits } from '@/lib/services/usageTracker'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -345,6 +346,20 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw err
     }
 
+    // Check usage limits before executing call
+    const usageCheck = await checkUsageLimits(organization_id, org.plan, 'call')
+    if (!usageCheck.allowed) {
+      const err = new AppError({
+        code: 'USAGE_LIMIT_EXCEEDED',
+        message: usageCheck.reason || 'Usage limit exceeded',
+        user_message: usageCheck.reason || 'Your monthly call limit has been reached. Please upgrade your plan.',
+        severity: 'MEDIUM',
+        retriable: false
+      })
+      await writeAuditError('calls', callId, err.toJSON())
+      throw err
+    }
+
     // membership check
     const { data: membershipRows, error: membershipErr } = await supabaseAdmin
       .from('org_members')
@@ -503,6 +518,23 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       logger.error('startCallHandler: failed to update call', undefined, { callId, error: updateErr?.message })
       await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
     } else {
+      // Track call usage (best-effort, don't fail call if tracking fails)
+      try {
+        await trackUsage({
+          organizationId: organization_id,
+          callId,
+          metric: 'call',
+          quantity: 1,
+          metadata: { 
+            phone_number, 
+            flow_type, 
+            plan: org.plan, 
+            call_sid: call_sid || null 
+          }
+        })
+      } catch (usageErr: any) {
+        logger.error('startCallHandler: failed to track call usage', usageErr, { callId, organization_id })
+      }
       logger.info('startCallHandler: updated call with call_sid', { callId, hasSid: !!call_sid })
     }
 

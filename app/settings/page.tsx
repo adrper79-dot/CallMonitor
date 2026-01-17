@@ -10,13 +10,17 @@ import ScorecardTemplateLibrary from '@/components/voice/ScorecardTemplateLibrar
 import VoiceTargetManager from '@/components/voice/VoiceTargetManager'
 import SurveyBuilder from '@/components/voice/SurveyBuilder'
 import { RetentionSettings } from '@/components/settings/RetentionSettings'
+import { UsageDisplay } from '@/components/settings/UsageDisplay'
+import { BillingActions } from '@/components/settings/BillingActions'
+import { AIAgentConfig } from '@/components/settings/AIAgentConfig'
+import { WebhookList } from '@/components/settings/WebhookList'
 import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { AppShell } from '@/components/layout/AppShell'
 
-type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'billing'
+type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'webhooks' | 'billing'
 
 function SettingsPageContent() {
   const { data: session } = useSession()
@@ -104,6 +108,7 @@ function SettingsPageContent() {
     { id: 'ai-control', label: 'AI & Intelligence', description: 'Transcription, translation, surveys' },
     { id: 'quality', label: 'Quality Assurance', description: 'Secret shopper scripts' },
     { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
+    { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations' },
     { id: 'billing', label: 'Billing', description: 'Plan and payment' },
   ]
 
@@ -181,6 +186,22 @@ function SettingsPageContent() {
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">AI Agent Configuration</h2>
+                    <p className="text-sm text-gray-500">
+                      Configure live translation, voice cloning, and AI model settings.
+                    </p>
+                  </div>
+                  <AIAgentConfig 
+                    organizationId={organizationId} 
+                    plan={plan || 'free'}
+                    canEdit={role === 'owner' || role === 'admin'} 
+                  />
+                </section>
+              </div>
+              
+              <div className="border-t border-gray-200 pt-8">
+                <section className="space-y-6">
+                  <div>
                     <h2 className="text-lg font-semibold text-gray-900 mb-1">Survey Builder</h2>
                     <p className="text-sm text-gray-500">
                       Create after-call surveys to gather customer feedback.
@@ -230,6 +251,18 @@ function SettingsPageContent() {
             <TeamManagement organizationId={organizationId} />
           )}
 
+          {/* Webhooks - Integrations & Event Subscriptions */}
+          {activeTab === 'webhooks' && (
+            <div className="space-y-8">
+              <section className="space-y-6">
+                <WebhookList 
+                  organizationId={organizationId} 
+                  canEdit={role === 'owner' || role === 'admin'}
+                />
+              </section>
+            </div>
+          )}
+
           {/* Billing */}
           {activeTab === 'billing' && (
             <section className="space-y-6">
@@ -240,34 +273,13 @@ function SettingsPageContent() {
                 </p>
               </div>
               
-              <div className="bg-white rounded-md border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Current Plan</p>
-                    <p className="text-2xl font-semibold text-gray-900 capitalize">{plan || 'Free'}</p>
-                  </div>
-                  <Badge variant="success">Active</Badge>
-                </div>
-                
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-md p-4">
-                    <p className="text-sm text-gray-500">Calls this month</p>
-                    <p className="text-xl font-semibold text-gray-900">—</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-md p-4">
-                    <p className="text-sm text-gray-500">Minutes used</p>
-                    <p className="text-xl font-semibold text-gray-900">—</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-md p-4">
-                    <p className="text-sm text-gray-500">Team members</p>
-                    <p className="text-xl font-semibold text-gray-900">—</p>
-                  </div>
-                </div>
+              <UsageDisplay organizationId={organizationId} plan={plan || 'free'} />
 
-                <button className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-md font-medium transition-colors">
-                  Manage Subscription
-                </button>
-              </div>
+              <BillingActions 
+                organizationId={organizationId} 
+                plan={plan || 'free'}
+                role={role || null}
+              />
 
               <div className="bg-white rounded-md border border-gray-200 p-6">
                 <h3 className="font-medium text-gray-900 mb-4">Upgrade Drivers</h3>

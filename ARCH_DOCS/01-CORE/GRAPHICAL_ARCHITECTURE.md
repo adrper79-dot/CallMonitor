@@ -1,10 +1,17 @@
 # Graphical Architecture Overview (Current State)
 
-**Product:** Word Is Bond  
-**Doc Type:** Graphical design document + full-scope architectural summary  
-**Version:** 1.0  
-**Last Updated:** January 16, 2026  
+**Product:** Wordis Bond  
+**Company:** Latimer + Woods Tech LLC  
+**Doc Type:** Graphical design document + architectural summary  
+**Version:** 1.2  
+**Last Updated:** January 17, 2026  
 **Status:** Current (v1 SignalWire-first)
+
+> **Brand:** "The System of Record for Business Conversations"
+
+> **Note:** For full system architecture with gap analysis, see:
+> - `FULL_SYSTEM_ARCHITECTURE.md` - Comprehensive architecture with site maps
+> - `GAP_ANALYSIS.md` - Detailed gap analysis and resolution plan
 
 ---
 
@@ -33,6 +40,7 @@ flowchart LR
     AAI[AssemblyAI\nTranscription/Translation]
     EL[ElevenLabs\nTTS + Voice Cloning]
     RS[Resend\nEmail]
+    ST[Stripe\nBilling - Planned]
   end
 
   U1 --> UI
