@@ -23,6 +23,7 @@ import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { AppShell } from '@/components/layout/AppShell'
+import { logger } from '@/lib/logger'
 
 type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'webhooks' | 'billing'
 
@@ -56,7 +57,7 @@ function SettingsPageContent() {
           setOrganizationName(data.organization_name || null)
         }
       } catch (e) {
-        console.error('Failed to fetch organization', e)
+        logger.error('Failed to fetch organization', e, { userId })
       } finally {
         setLoading(false)
       }

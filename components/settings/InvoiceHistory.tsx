@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, Download, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface Invoice {
   id: string
@@ -92,7 +93,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       setInvoices(data.invoices || [])
       setHasMore(data.hasMore || false)
     } catch (err) {
-      console.error('Error fetching invoices:', err)
+      logger.error('Error fetching invoices', err, { organizationId, page })
       setError(err instanceof Error ? err.message : 'Failed to load invoices')
     } finally {
       setLoading(false)

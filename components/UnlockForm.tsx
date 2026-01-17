@@ -44,7 +44,8 @@ export default function UnlockForm() {
         const res = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name: name || undefined })
+          body: JSON.stringify({ email, password, name: name || undefined }),
+          credentials: 'include'
         })
 
         const data = await res.json()

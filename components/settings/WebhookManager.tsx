@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/select'
 import { Webhook, Plus, Trash2, TestTube2, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface WebhookSubscription {
   id: string
@@ -86,13 +87,15 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
   const fetchWebhooks = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/webhooks?orgId=${organizationId}`)
+      const res = await fetch(`/api/webhooks?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
       if (res.ok) {
         const data = await res.json()
         setWebhooks(data.webhooks || [])
       }
     } catch (error) {
-      console.error('Failed to fetch webhooks:', error)
+      logger.error('Failed to fetch webhooks', error, { organizationId })
     } finally {
       setLoading(false)
     }
@@ -110,6 +113,7 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
           url: formData.url,
           eventTypes: formData.eventTypes,
         }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to create webhook')
@@ -118,7 +122,7 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
       setOpen(false)
       await fetchWebhooks()
     } catch (error) {
-      console.error('Failed to create webhook:', error)
+      logger.error('Failed to create webhook', error, { organizationId, url: formData.url })
     }
   }
 
@@ -128,13 +132,14 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive }),
+        credentials: 'include'
       })
 
       if (res.ok) {
         await fetchWebhooks()
       }
     } catch (error) {
-      console.error('Failed to toggle webhook:', error)
+      logger.error('Failed to toggle webhook', error, { webhookId, isActive })
     }
   }
 
@@ -144,13 +149,14 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
     try {
       const res = await fetch(`/api/webhooks/${webhookId}`, {
         method: 'DELETE',
+        credentials: 'include'
       })
 
       if (res.ok) {
         await fetchWebhooks()
       }
     } catch (error) {
-      console.error('Failed to delete webhook:', error)
+      logger.error('Failed to delete webhook', error, { webhookId })
     }
   }
 
@@ -159,6 +165,7 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
       setTesting(webhookId)
       const res = await fetch(`/api/webhooks/${webhookId}/test`, {
         method: 'POST',
+        credentials: 'include'
       })
 
       if (res.ok) {
@@ -167,7 +174,7 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
         alert('Failed to send test webhook. Please check the URL.')
       }
     } catch (error) {
-      console.error('Failed to test webhook:', error)
+      logger.error('Failed to test webhook', error, { webhookId })
       alert('Failed to send test webhook.')
     } finally {
       setTesting(null)

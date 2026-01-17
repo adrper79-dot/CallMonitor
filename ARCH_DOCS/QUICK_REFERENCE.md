@@ -227,7 +227,50 @@ npm run build
 
 ---
 
-## 📚 **Documentation Index**
+## �️ **Best Practices**
+
+### **Logging - Use Centralized Logger:**
+```typescript
+// ✅ CORRECT - Use centralized logger
+import { logger } from '@/lib/logger'
+
+logger.error('Operation failed', error, { context: 'value' })
+logger.warn('Deprecated feature used', { feature: 'name' })
+logger.info('Operation completed', { result: 'success' })
+logger.debug('Debug info', { data: object })
+
+// ❌ WRONG - Never use console directly
+console.error('Error:', err)  // DON'T DO THIS
+console.log('Debug:', data)   // DON'T DO THIS
+```
+
+### **API Error Responses - Use Centralized Helpers:**
+```typescript
+// ✅ CORRECT - Use ApiErrors helpers
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+
+return ApiErrors.unauthorized()       // 401
+return ApiErrors.notFound('Campaign') // 404
+return ApiErrors.badRequest('Invalid') // 400
+return apiSuccess({ data })           // 200
+
+// ❌ WRONG - Don't use raw error objects
+return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })  // DON'T DO THIS
+```
+
+### **Client Fetch - Always Include Credentials:**
+```typescript
+// ✅ CORRECT - Include credentials
+const res = await fetch('/api/endpoint', { credentials: 'include' })
+
+// ✅ BETTER - Use apiClient helpers
+import { apiGet, apiPost } from '@/lib/apiClient'
+const data = await apiGet('/api/endpoint')
+```
+
+---
+
+## �📚 **Documentation Index**
 
 ### **Start Here:**
 1. `00-README.md` - Full navigation guide

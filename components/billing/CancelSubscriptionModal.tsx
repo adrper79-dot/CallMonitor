@@ -29,6 +29,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { AlertTriangle, Loader2, XCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface CancelSubscriptionModalProps {
   subscriptionId: string
@@ -85,7 +86,7 @@ export function CancelSubscriptionModal({
       setOpen(false)
       setConfirmed(false)
     } catch (error) {
-      console.error('Cancellation failed:', error)
+      logger.error('Subscription cancellation failed', error, { subscriptionId, currentPlan })
     } finally {
       setCanceling(false)
     }

@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, CreditCard, XCircle, CheckCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface Subscription {
   id: string
@@ -80,7 +81,9 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/billing/subscription?orgId=${organizationId}`)
+      const res = await fetch(`/api/billing/subscription?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
       
       if (!res.ok) {
         if (res.status === 404) {
@@ -94,7 +97,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       const data = await res.json()
       setSubscription(data.subscription)
     } catch (err) {
-      console.error('Error fetching subscription:', err)
+      logger.error('Error fetching subscription', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to load subscription')
     } finally {
       setLoading(false)
@@ -114,7 +117,8 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
         body: JSON.stringify({
           priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
           organizationId
-        })
+        }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to create checkout session')
@@ -122,7 +126,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       const { url } = await res.json()
       window.location.href = url
     } catch (err) {
-      console.error('Error upgrading:', err)
+      logger.error('Error upgrading subscription', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to upgrade')
     } finally {
       setUpgrading(false)
@@ -139,7 +143,8 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       const res = await fetch('/api/billing/portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId })
+        body: JSON.stringify({ organizationId }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to access billing portal')
@@ -147,7 +152,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       const { url } = await res.json()
       window.location.href = url
     } catch (err) {
-      console.error('Error accessing portal:', err)
+      logger.error('Error accessing billing portal', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to access billing portal')
     } finally {
       setUpgrading(false)
@@ -164,7 +169,8 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       const res = await fetch('/api/billing/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId })
+        body: JSON.stringify({ organizationId }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to cancel subscription')
@@ -172,7 +178,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       await fetchSubscription()
       router.refresh()
     } catch (err) {
-      console.error('Error canceling subscription:', err)
+      logger.error('Error canceling subscription', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to cancel subscription')
     } finally {
       setCanceling(false)

@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
 import { Check, X, Loader2, Crown, Zap } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface PlanFeature {
   name: string
@@ -85,7 +86,8 @@ export function PlanComparisonTable({
         body: JSON.stringify({
           priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
           organizationId
-        })
+        }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to create checkout session')
@@ -93,7 +95,7 @@ export function PlanComparisonTable({
       const { url } = await res.json()
       window.location.href = url
     } catch (err) {
-      console.error('Error upgrading:', err)
+      logger.error('Error upgrading plan', err, { organizationId, currentPlan })
       setError(err instanceof Error ? err.message : 'Failed to upgrade')
     } finally {
       setUpgrading(false)

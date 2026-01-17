@@ -28,6 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Check, Sparkles, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface Plan {
   id: string
@@ -150,7 +151,7 @@ export function PlanComparisonModal({
       await onUpgrade(planId)
       setOpen(false)
     } catch (error) {
-      console.error('Upgrade failed:', error)
+      logger.error('Plan upgrade failed', error, { planId, currentPlanId })
     } finally {
       setUpgrading(null)
     }

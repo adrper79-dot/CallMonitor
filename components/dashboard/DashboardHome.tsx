@@ -50,8 +50,8 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
     
     // Fetch dashboard stats
     Promise.all([
-      fetch(`/api/calls?orgId=${organizationId}&limit=5`).then(r => r.json()),
-      fetch(`/api/bookings?status=pending&limit=3`).then(r => r.json()).catch(() => ({ bookings: [] }))
+      fetch(`/api/calls?orgId=${organizationId}&limit=5`, { credentials: 'include' }).then(r => r.json()),
+      fetch(`/api/bookings?status=pending&limit=3`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ bookings: [] }))
     ]).then(([callsData, bookingsData]) => {
       const calls = callsData.calls || []
       const bookings = bookingsData.bookings || []

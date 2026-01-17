@@ -146,13 +146,14 @@ All API endpoints return consistent JSON:
 
 ### Error Handling:
 ```typescript
+import { logger } from '@/lib/logger'
+
 try {
   const data = await apiGet('/api/endpoint')
   // Handle success
 } catch (err) {
-  if (err instanceof ApiError) {
-    console.error(`API Error ${err.status}: ${err.message}`)
-  }
+  // Use centralized logger, NOT console.error
+  logger.error('API call failed', err, { endpoint: '/api/endpoint' })
 }
 ```
 
@@ -192,8 +193,48 @@ try {
 1. **Use apiClient helpers** - Less error-prone than raw fetch
 2. **Handle errors gracefully** - Show user-friendly messages
 3. **Check auth before rendering** - Don't show features user can't access
-4. **Log API errors** - Use console.error for debugging
+4. **Use centralized logger** - Use `logger.error()` from `@/lib/logger`, NEVER use console.error
 5. **Test with fresh session** - Ensure no stale cookie issues
+
+---
+
+## 🛡️ Server-Side Error Responses
+
+API routes should use the centralized error helpers from `lib/errors/apiHandler.ts`:
+
+```typescript
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+import { logger } from '@/lib/logger'
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return ApiErrors.unauthorized()
+    }
+    
+    const data = await fetchData()
+    return apiSuccess({ data })
+    
+  } catch (error) {
+    logger.error('API endpoint failed', error)
+    return ApiErrors.internal('Failed to fetch data')
+  }
+}
+```
+
+### Available Error Helpers:
+
+| Helper | Status | Use Case |
+|--------|--------|----------|
+| `ApiErrors.unauthorized()` | 401 | Missing authentication |
+| `ApiErrors.forbidden()` | 403 | Insufficient permissions |
+| `ApiErrors.notFound('Resource')` | 404 | Resource not found |
+| `ApiErrors.badRequest('message')` | 400 | Invalid request |
+| `ApiErrors.validationError('message')` | 400 | Validation failed |
+| `ApiErrors.internal('message')` | 500 | Server error |
+| `ApiErrors.dbError('message')` | 500 | Database error |
+| `ApiErrors.serviceUnavailable('Service')` | 503 | External service down |
 
 ---
 

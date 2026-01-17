@@ -94,3 +94,46 @@ export function withErrorHandling<T extends any[]>(
     }
   }
 }
+
+/**
+ * Create a standardized error response
+ * Use this for inline error responses in API routes
+ * Per ERROR_HANDLING_PLAN.txt
+ */
+export function apiError(
+  code: string,
+  message: string,
+  httpStatus: number = 500,
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM'
+) {
+  const errorId = `ERR_${new Date().toISOString().slice(0,10).replace(/-/g, '')}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+  
+  return NextResponse.json({
+    success: false,
+    error: {
+      id: errorId,
+      code,
+      message,
+      severity: severity.toLowerCase()
+    }
+  }, { status: httpStatus })
+}
+
+/**
+ * Create a standardized success response
+ */
+export function apiSuccess<T extends Record<string, any>>(data: T, status: number = 200) {
+  return NextResponse.json({ success: true, ...data }, { status })
+}
+
+// Common error responses
+export const ApiErrors = {
+  unauthorized: () => apiError('UNAUTHORIZED', 'Authentication required', 401, 'MEDIUM'),
+  forbidden: () => apiError('FORBIDDEN', 'You do not have permission to access this resource', 403, 'MEDIUM'),
+  notFound: (resource: string = 'Resource') => apiError('NOT_FOUND', `${resource} not found`, 404, 'LOW'),
+  badRequest: (message: string = 'Invalid request') => apiError('BAD_REQUEST', message, 400, 'LOW'),
+  internal: (message: string = 'An unexpected error occurred') => apiError('INTERNAL_ERROR', message, 500, 'HIGH'),
+  dbError: (message: string = 'Database operation failed') => apiError('DB_ERROR', message, 500, 'HIGH'),
+  validationError: (message: string) => apiError('VALIDATION_ERROR', message, 400, 'LOW'),
+  serviceUnavailable: (service: string) => apiError('SERVICE_UNAVAILABLE', `${service} is temporarily unavailable`, 503, 'HIGH'),
+}

@@ -39,6 +39,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Loader2, CreditCard, Plus, Trash2, CheckCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface PaymentMethod {
   id: string
@@ -74,7 +75,9 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       setLoading(true)
       setError(null)
 
-      const res = await fetch(`/api/billing/payment-methods?orgId=${organizationId}`)
+      const res = await fetch(`/api/billing/payment-methods?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
 
       if (!res.ok) {
         if (res.status === 404) {
@@ -88,7 +91,7 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       const data = await res.json()
       setPaymentMethods(data.paymentMethods || [])
     } catch (err) {
-      console.error('Error fetching payment methods:', err)
+      logger.error('Error fetching payment methods', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to load payment methods')
     } finally {
       setLoading(false)
@@ -106,7 +109,8 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       const res = await fetch('/api/billing/portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId })
+        body: JSON.stringify({ organizationId }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to access billing portal')
@@ -114,7 +118,7 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       const { url } = await res.json()
       window.location.href = url
     } catch (err) {
-      console.error('Error accessing portal:', err)
+      logger.error('Error accessing billing portal', err, { organizationId })
       setError(err instanceof Error ? err.message : 'Failed to add payment method')
     } finally {
       setAdding(false)
@@ -131,14 +135,15 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       const res = await fetch(`/api/billing/payment-methods/${paymentMethodId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId })
+        body: JSON.stringify({ organizationId }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to remove payment method')
 
       await fetchPaymentMethods()
     } catch (err) {
-      console.error('Error removing payment method:', err)
+      logger.error('Error removing payment method', err, { organizationId, paymentMethodId })
       setError(err instanceof Error ? err.message : 'Failed to remove payment method')
     } finally {
       setRemoving(null)

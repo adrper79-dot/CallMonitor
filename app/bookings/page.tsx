@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { BookingModal } from '@/components/voice/BookingModal'
 import { ClientDate } from '@/components/ui/ClientDate'
+import { logger } from '@/lib/logger'
 
 interface Booking {
   id: string
@@ -111,7 +112,7 @@ export default function BookingsPage() {
         fetchBookings()
       }
     } catch (err) {
-      console.error('Failed to cancel booking', err)
+      logger.error('Failed to cancel booking', err, { bookingId: id })
     }
   }
 

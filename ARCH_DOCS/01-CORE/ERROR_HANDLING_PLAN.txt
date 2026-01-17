@@ -12,6 +12,7 @@ This document describes the error handling architecture, philosophy, and impleme
 - KPIs are collected for error frequency, endpoint health, and system status.
 - Customer-facing messages are separated from internal/debug messages.
 - All API endpoints use a consistent error response structure.
+- **NEVER use console.log/console.error** - Use centralized `logger` from `@/lib/logger`.
 
 **New error codes for live translation (SignalWire AI Agents):**
 - `LIVE_TRANSLATE_EXECUTION_FAILED` (MEDIUM, EXTERNAL category)
@@ -71,14 +72,38 @@ This document describes the error handling architecture, philosophy, and impleme
 ---
 
 ## 5. API Integration
-- All API endpoints use a wrapper (`lib/errors/apiHandler.ts`) for error handling:
-  - Wraps handler in try/catch
-  - On error: creates AppError, logs, records KPI, returns structured error response
-  - On success: records KPI, returns success response
+- All API endpoints use helpers from `lib/errors/apiHandler.ts`:
+  - `ApiErrors.*` - Pre-built error responses (unauthorized, notFound, etc.)
+  - `apiError()` - Custom error response with tracking ID
+  - `apiSuccess()` - Standard success response
+  - `withErrorHandling()` - Full wrapper with KPI tracking
 - Error responses always include:
   - `success: false`
   - `error: { id, code, message, severity, ... }`
   - Internal details only in development
+
+### Quick Reference:
+```typescript
+import { ApiErrors, apiSuccess, apiError } from '@/lib/errors/apiHandler'
+import { logger } from '@/lib/logger'
+
+// Standard error responses
+return ApiErrors.unauthorized()           // 401
+return ApiErrors.forbidden()              // 403
+return ApiErrors.notFound('Campaign')     // 404
+return ApiErrors.badRequest('Invalid ID') // 400
+return ApiErrors.internal('Server error') // 500
+return ApiErrors.dbError('Query failed')  // 500
+
+// Custom error
+return apiError('CUSTOM_CODE', 'Message', 400, 'MEDIUM')
+
+// Success response
+return apiSuccess({ data: result })
+
+// Logging (NEVER use console.error)
+logger.error('Operation failed', error, { context: 'value' })
+```
 
 ---
 

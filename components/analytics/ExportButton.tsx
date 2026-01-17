@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { logger } from '@/lib/logger'
 
 /**
  * ExportButton - Professional Design System v3.0
@@ -45,7 +46,7 @@ export function ExportButton({ type, startDate, endDate }: ExportButtonProps) {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err: any) {
-      console.error('Export failed:', err)
+      logger.error('Export failed', err, { type, format })
       setError(err.message || 'Export failed. Please try again.')
     } finally {
       setLoading(false)

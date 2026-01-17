@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Languages, Save, TestTube2, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface VoiceConfig {
   id: string
@@ -80,7 +81,9 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
   const fetchConfig = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/voice/config?orgId=${organizationId}`)
+      const res = await fetch(`/api/voice/config?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
       if (res.ok) {
         const data = await res.json()
         setConfig(data.config)
@@ -93,7 +96,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
         }
       }
     } catch (error) {
-      console.error('Failed to fetch config:', error)
+      logger.error('Failed to fetch live translation config', error, { organizationId })
     } finally {
       setLoading(false)
     }
@@ -113,6 +116,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           translationEnabled: formData.translationEnabled,
           defaultTargetLanguage: formData.defaultLanguage,
         }),
+        credentials: 'include'
       })
 
       if (!res.ok) {
@@ -123,7 +127,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
       await fetchConfig()
       setTestResult({ success: true, message: 'Configuration saved successfully' })
     } catch (error: any) {
-      console.error('Failed to save config:', error)
+      logger.error('Failed to save live translation config', error, { organizationId, aiAgentId: formData.aiAgentId })
       setTestResult({ success: false, message: error.message })
     } finally {
       setSaving(false)
@@ -147,6 +151,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           organizationId,
           aiAgentId: formData.aiAgentId,
         }),
+        credentials: 'include'
       })
 
       const data = await res.json()
@@ -163,7 +168,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
         })
       }
     } catch (error: any) {
-      console.error('Failed to test config:', error)
+      logger.error('Failed to test AI agent connection', error, { organizationId, aiAgentId: formData.aiAgentId })
       setTestResult({
         success: false,
         message: 'Network error: Could not test AI Agent connection',

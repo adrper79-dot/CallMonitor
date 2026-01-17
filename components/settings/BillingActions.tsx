@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 interface BillingActionsProps {
   organizationId: string
@@ -64,7 +65,7 @@ export function BillingActions({ organizationId, plan, role }: BillingActionsPro
         window.location.href = url
       }
     } catch (err: any) {
-      console.error('Billing action failed:', err)
+      logger.error('Billing action failed', err, { organizationId, plan })
       setError(err.message || 'Failed to manage subscription')
     } finally {
       setLoading(false)

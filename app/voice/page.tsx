@@ -2,6 +2,7 @@ import React from 'react'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getServerSession } from 'next-auth/next'
 import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
+import { logger } from '@/lib/logger'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -58,7 +59,7 @@ export default async function VoiceOperationsPage(_props: PageProps) {
     // Fetch user's organization using actual user ID
     const userIdToQuery = actualUserId || (session.user as any)?.id
     if (!userIdToQuery) {
-      console.error('Voice page: No user ID available for org lookup')
+      logger.warn('Voice page: No user ID available for org lookup')
     }
     
     const { data: userData } = await (supabaseAdmin as any)
@@ -80,7 +81,7 @@ export default async function VoiceOperationsPage(_props: PageProps) {
       organizationName = orgData?.name || null
     }
   } catch (e) {
-    console.error('Failed to fetch organization', e)
+    logger.error('Failed to fetch organization for voice page', e)
   }
 
   // read-only: fetch calls using allowed columns from TOOL_TABLE_ALIGNMENT / Schema.txt

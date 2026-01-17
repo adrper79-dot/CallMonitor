@@ -14,6 +14,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +30,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -42,7 +44,7 @@ export async function GET(
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Get campaign with creator info
@@ -60,7 +62,7 @@ export async function GET(
       .single()
 
     if (campaignError || !campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return ApiErrors.notFound('Campaign')
     }
 
     // Get campaign calls summary
@@ -82,15 +84,15 @@ export async function GET(
         (calls?.filter(c => c.duration_seconds).length || 1)
     }
 
-    return NextResponse.json({ 
+    return apiSuccess({ 
       campaign: {
         ...campaign,
         call_stats: callStats
       }
     })
   } catch (error) {
-    console.error('Error in GET /api/campaigns/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('GET /api/campaigns/[id] failed', error)
+    return ApiErrors.internal('Failed to fetch campaign')
   }
 }
 
@@ -106,7 +108,7 @@ export async function PATCH(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -120,7 +122,7 @@ export async function PATCH(
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Check RBAC
@@ -135,7 +137,7 @@ export async function PATCH(
       .single()
 
     if (fetchError || !existingCampaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return ApiErrors.notFound('Campaign')
     }
 
     const body = await request.json()
@@ -159,9 +161,7 @@ export async function PATCH(
     }
 
     if (status && !validTransitions[existingCampaign.status]?.includes(status)) {
-      return NextResponse.json({ 
-        error: `Invalid status transition from ${existingCampaign.status} to ${status}` 
-      }, { status: 400 })
+      return ApiErrors.badRequest(`Invalid status transition from ${existingCampaign.status} to ${status}`)
     }
 
     // Build update object
@@ -191,8 +191,8 @@ export async function PATCH(
       .single()
 
     if (updateError) {
-      console.error('Error updating campaign:', updateError)
-      return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 })
+      logger.error('Error updating campaign', updateError, { campaignId })
+      return ApiErrors.dbError('Failed to update campaign')
     }
 
     // Log audit event
@@ -203,10 +203,10 @@ export async function PATCH(
       changes: { before: existingCampaign, after: campaign }
     })
 
-    return NextResponse.json({ campaign })
+    return apiSuccess({ campaign })
   } catch (error) {
-    console.error('Error in PATCH /api/campaigns/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('PATCH /api/campaigns/[id] failed', error)
+    return ApiErrors.internal('Failed to update campaign')
   }
 }
 
@@ -222,7 +222,7 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -236,7 +236,7 @@ export async function DELETE(
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Check RBAC
@@ -251,15 +251,13 @@ export async function DELETE(
       .single()
 
     if (fetchError || !campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return ApiErrors.notFound('Campaign')
     }
 
     // Can only delete draft or completed campaigns
     // Active campaigns must be canceled first
     if (!['draft', 'completed', 'canceled'].includes(campaign.status)) {
-      return NextResponse.json({ 
-        error: 'Can only delete draft, completed, or canceled campaigns. Please cancel active campaigns first.' 
-      }, { status: 400 })
+      return ApiErrors.badRequest('Can only delete draft, completed, or canceled campaigns. Please cancel active campaigns first.')
     }
 
     // Hard delete campaign (cascades to campaign_calls and campaign_audit_log)
@@ -270,13 +268,13 @@ export async function DELETE(
       .eq('organization_id', user.organization_id)
 
     if (deleteError) {
-      console.error('Error deleting campaign:', deleteError)
-      return NextResponse.json({ error: 'Failed to delete campaign' }, { status: 500 })
+      logger.error('Error deleting campaign', deleteError, { campaignId })
+      return ApiErrors.dbError('Failed to delete campaign')
     }
 
-    return NextResponse.json({ success: true }, { status: 200 })
+    return apiSuccess({ deleted: true })
   } catch (error) {
-    console.error('Error in DELETE /api/campaigns/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('DELETE /api/campaigns/[id] failed', error)
+    return ApiErrors.internal('Failed to delete campaign')
   }
 }

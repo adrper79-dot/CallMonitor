@@ -12,6 +12,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+import { logger } from '@/lib/logger'
 import {
   generateCallVolumeReport,
   generateCampaignPerformanceReport,
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Fetch generated reports
@@ -60,11 +62,11 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1)
 
     if (reportsError) {
-      console.error('Error fetching reports:', reportsError)
-      return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 })
+      logger.error('Error fetching reports', reportsError)
+      return ApiErrors.dbError('Failed to fetch reports')
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       reports: reports || [],
       pagination: {
         page,
@@ -74,8 +76,8 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error in GET /api/reports:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('GET /api/reports failed', error)
+    return ApiErrors.internal('Failed to fetch reports')
   }
 }
 
@@ -87,7 +89,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Check RBAC
@@ -117,15 +119,11 @@ export async function POST(request: NextRequest) {
 
     // Validation
     if (!name || !report_type) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: name, report_type' 
-      }, { status: 400 })
+      return ApiErrors.validationError('Missing required fields: name, report_type')
     }
 
     if (!['call_volume', 'campaign_performance', 'quality_scorecard', 'custom'].includes(report_type)) {
-      return NextResponse.json({ 
-        error: 'Invalid report_type' 
-      }, { status: 400 })
+      return ApiErrors.validationError('Invalid report_type')
     }
 
     const startTime = Date.now()
@@ -151,7 +149,7 @@ export async function POST(request: NextRequest) {
           throw new Error(`Report type ${report_type} not implemented yet`)
       }
     } catch (err) {
-      console.error('Error generating report:', err)
+      logger.error('Error generating report', err, { report_type, filters })
       
       // Save failed report record
       await supabaseAdmin.from('generated_reports').insert({
@@ -164,10 +162,7 @@ export async function POST(request: NextRequest) {
         generation_duration_ms: Date.now() - startTime
       })
 
-      return NextResponse.json({ 
-        error: 'Failed to generate report',
-        details: err instanceof Error ? err.message : 'Unknown error'
-      }, { status: 500 })
+      return ApiErrors.internal('Failed to generate report')
     }
 
     // Export if requested
@@ -181,7 +176,7 @@ export async function POST(request: NextRequest) {
           fileData = exportToJSON(reportData)
           break
         default:
-          console.warn(`Export format ${file_format} not implemented, storing inline`)
+          logger.warn('Export format not implemented, storing inline', { file_format })
       }
     }
 
@@ -204,18 +199,19 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (saveError) {
-      console.error('Error saving report:', saveError)
-      return NextResponse.json({ error: 'Failed to save report' }, { status: 500 })
+      logger.error('Error saving report', saveError)
+      return ApiErrors.dbError('Failed to save report')
     }
 
     return NextResponse.json({ 
+      success: true,
       report,
       data: reportData,
       file_data: fileData
     }, { status: 201 })
   } catch (error) {
-    console.error('Error in POST /api/reports/generate:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('POST /api/reports failed', error)
+    return ApiErrors.internal('Failed to generate report')
   }
 }
 

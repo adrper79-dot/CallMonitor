@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table'
 import { formatDate } from '@/lib/utils'
 import { Loader2, FileText, Download, Plus } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface GeneratedReport {
   id: string
@@ -65,12 +66,14 @@ export default function ReportsPage() {
 
   const fetchOrganization = async () => {
     try {
-      const res = await fetch(`/api/users/${userId}/organization`)
+      const res = await fetch(`/api/users/${userId}/organization`, {
+        credentials: 'include'
+      })
       if (!res.ok) throw new Error('Failed to fetch organization')
       const data = await res.json()
       setOrganizationId(data.organization_id)
     } catch (err) {
-      console.error('Error fetching organization:', err)
+      logger.error('Error fetching organization', err, { userId })
       setError('Failed to load organization')
     }
   }
@@ -79,12 +82,14 @@ export default function ReportsPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/reports`)
+      const res = await fetch(`/api/reports`, {
+        credentials: 'include'
+      })
       if (!res.ok) throw new Error('Failed to fetch reports')
       const data = await res.json()
       setReports(data.reports || [])
     } catch (err) {
-      console.error('Error fetching reports:', err)
+      logger.error('Error fetching reports', err)
       setError('Failed to load reports')
     } finally {
       setLoading(false)
@@ -110,14 +115,15 @@ export default function ReportsPage() {
           },
           metrics: ['total_calls', 'successful_calls', 'avg_duration'],
           file_format: 'json'
-        })
+        }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to generate report')
 
       await fetchReports()
     } catch (err) {
-      console.error('Error generating report:', err)
+      logger.error('Error generating report', err)
       setError('Failed to generate report')
     } finally {
       setGenerating(false)

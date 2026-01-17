@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Calendar, Mail, Loader2, Clock, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface ScheduledReport {
   id: string
@@ -88,13 +89,15 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
   const fetchSchedules = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/reports/schedules?orgId=${organizationId}`)
+      const res = await fetch(`/api/reports/schedules?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
       if (res.ok) {
         const data = await res.json()
         setSchedules(data.schedules || [])
       }
     } catch (error) {
-      console.error('Failed to fetch schedules:', error)
+      logger.error('Failed to fetch schedules', error, { organizationId })
     } finally {
       setLoading(false)
     }
@@ -124,6 +127,7 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
             email_to: formData.emailTo,
           },
         }),
+        credentials: 'include'
       })
 
       if (!res.ok) throw new Error('Failed to schedule report')
@@ -132,7 +136,7 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
       setFormData({ templateId: '', frequency: 'daily', emailTo: '' })
       await fetchSchedules()
     } catch (error) {
-      console.error('Failed to schedule report:', error)
+      logger.error('Failed to schedule report', error, { organizationId, templateId: formData.templateId })
     } finally {
       setLoading(false)
     }
@@ -144,13 +148,14 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive }),
+        credentials: 'include'
       })
 
       if (res.ok) {
         await fetchSchedules()
       }
     } catch (error) {
-      console.error('Failed to toggle schedule:', error)
+      logger.error('Failed to toggle schedule', error, { scheduleId, isActive })
     }
   }
 
@@ -160,13 +165,14 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
     try {
       const res = await fetch(`/api/reports/schedules/${scheduleId}`, {
         method: 'DELETE',
+        credentials: 'include'
       })
 
       if (res.ok) {
         await fetchSchedules()
       }
     } catch (error) {
-      console.error('Failed to delete schedule:', error)
+      logger.error('Failed to delete schedule', error, { scheduleId })
     }
   }
 

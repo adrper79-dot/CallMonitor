@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { formatDate } from '@/lib/utils'
 import { Loader2, Plus, PlayCircle, PauseCircle, XCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface Campaign {
   id: string
@@ -68,12 +69,14 @@ export default function CampaignsPage() {
 
   const fetchOrganization = async () => {
     try {
-      const res = await fetch(`/api/users/${userId}/organization`)
+      const res = await fetch(`/api/users/${userId}/organization`, {
+        credentials: 'include'
+      })
       if (!res.ok) throw new Error('Failed to fetch organization')
       const data = await res.json()
       setOrganizationId(data.organization_id)
     } catch (err) {
-      console.error('Error fetching organization:', err)
+      logger.error('Error fetching organization', err, { userId })
       setError('Failed to load organization')
     }
   }
@@ -82,12 +85,14 @@ export default function CampaignsPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/campaigns?orgId=${organizationId}`)
+      const res = await fetch(`/api/campaigns?orgId=${organizationId}`, {
+        credentials: 'include'
+      })
       if (!res.ok) throw new Error('Failed to fetch campaigns')
       const data = await res.json()
       setCampaigns(data.campaigns || [])
     } catch (err) {
-      console.error('Error fetching campaigns:', err)
+      logger.error('Error fetching campaigns', err, { organizationId })
       setError('Failed to load campaigns')
     } finally {
       setLoading(false)

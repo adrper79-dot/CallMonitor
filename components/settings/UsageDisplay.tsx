@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { logger } from '@/lib/logger'
 
 
 interface UsageData {
@@ -46,7 +47,7 @@ export function UsageDisplay({ organizationId, plan }: UsageDisplayProps) {
         const result = await res.json()
         setData(result)
       } catch (err: any) {
-        console.error('Failed to fetch usage:', err)
+        logger.error('Failed to fetch usage', err, { organizationId })
         setError(err.message || 'Failed to load usage data')
       } finally {
         setLoading(false)

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { logger } from "@/lib/logger";
 
 // Mock server hook - replace with real server action call
 function useCapabilities(callId: string) {
@@ -86,13 +87,11 @@ export default function CallModulations({ callId, initialModulations, onChange }
         try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
         setUnlocked(true)
       } else {
-        // eslint-disable-next-line no-console
-        console.error('unlock failed', j?.error)
+        logger.error('Unlock failed', undefined, { error: j?.error, callId })
         setUnlocked(false)
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('unlock error', e)
+      logger.error('Unlock error', e, { callId })
       setUnlocked(false)
     } finally { setUnlocking(false) }
   }
