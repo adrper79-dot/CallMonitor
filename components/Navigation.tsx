@@ -18,6 +18,7 @@ export default function Navigation() {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: '🎛️' },
     { href: '/voice', label: 'Calls', icon: '📞' },
+    { href: '/analytics', label: 'Analytics', icon: '📊' },
     { href: '/bookings', label: 'Schedule', icon: '📅' },
     { href: '/settings', label: 'Settings', icon: '⚙️' },
   ]
