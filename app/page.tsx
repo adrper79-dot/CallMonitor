@@ -344,12 +344,15 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════════
           VERTICAL SOLUTIONS
       ═══════════════════════════════════════════════════════════════════════ */}
-      <section className="py-16 px-6 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-semibold text-center text-gray-900 mb-10">
+      <section id="solutions" className="py-16 px-6 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-2xl font-semibold text-center text-gray-900 mb-4">
             Solutions by Industry
           </h2>
-          <div className="grid md:grid-cols-2 gap-6">
+          <p className="text-center text-gray-600 mb-10 max-w-2xl mx-auto">
+            Evidence-grade documentation tailored to your industry's compliance and documentation needs.
+          </p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link 
               href="/verticals/healthcare"
               className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
@@ -362,31 +365,109 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Healthcare</h3>
-                  <p className="text-sm text-gray-500">HIPAA-ready compliance</p>
+                  <p className="text-sm text-gray-500">HIPAA compliance</p>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Consent capture, patient intake verification, and evidentiary-grade audit trails for healthcare providers.
+                Patient consent, intake verification, and malpractice defense documentation.
               </p>
             </Link>
             
-            <div className="p-6 bg-white rounded-md border border-gray-200 opacity-75">
+            <Link 
+              href="/verticals/legal"
+              className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
+            >
               <div className="flex items-center gap-4 mb-3">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Financial Services</h3>
-                  <p className="text-sm text-gray-500">Coming soon</p>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Legal</h3>
+                  <p className="text-sm text-gray-500">Bar compliance</p>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Regulatory compliance, customer verification, and dispute resolution documentation.
+                Attorney-client privilege, malpractice defense, and client instruction records.
               </p>
-            </div>
+            </Link>
+
+            <Link 
+              href="/verticals/property-management"
+              className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Property</h3>
+                  <p className="text-sm text-gray-500">Dispute resolution</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Tenant communications, maintenance tracking, and eviction proceedings evidence.
+              </p>
+            </Link>
+
+            <Link 
+              href="/verticals/government"
+              className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
+            >
+              <div className="flex items-center gap-4 mb-3">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Government</h3>
+                  <p className="text-sm text-gray-500">FOIA compliance</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Public records, constituent services, and transparent accountability documentation.
+              </p>
+            </Link>
           </div>
+
+          <div className="mt-10 text-center">
+            <Link 
+              href="/case-studies"
+              className="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
+            >
+              See Customer Results & ROI Examples
+              <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          COMPARISON & EDUCATION
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="py-16 px-6 bg-white">
+        <div className="max-w-5xl mx-auto text-center">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+            Not Sure What You Need?
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            Compare traditional call recording, AI insights platforms, and Word Is Bond's System of Record approach.
+          </p>
+          <Link 
+            href="/compare"
+            className="inline-flex items-center justify-center px-8 py-4 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 transition-colors"
+          >
+            Compare Solutions
+            <svg className="ml-2 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
       </section>
 
@@ -425,6 +506,9 @@ export default function HomePage() {
           </div>
           <div className="flex gap-6 text-sm text-gray-500">
             <Link href="/trust" className="hover:text-gray-700">Trust Pack</Link>
+            <Link href="/compare" className="hover:text-gray-700">Compare</Link>
+            <Link href="/case-studies" className="hover:text-gray-700">Case Studies</Link>
+            <Link href="/pricing" className="hover:text-gray-700">Pricing</Link>
             <Link href="/api/auth/signin" className="hover:text-gray-700">Sign In</Link>
           </div>
           <p className="text-sm text-gray-500">
