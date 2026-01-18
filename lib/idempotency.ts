@@ -1,5 +1,6 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 /**
  * Idempotency Service
@@ -54,8 +55,7 @@ export async function checkIdempotency(
     return { cached: false }
   } catch (err) {
     // If idempotency check fails, allow request (fail open)
-    // eslint-disable-next-line no-console
-    console.warn('idempotency check failed', err)
+    logger.warn('idempotency check failed', { error: (err as Error).message })
     return { cached: false }
   }
 }
@@ -91,8 +91,7 @@ export async function storeIdempotency(
       })
   } catch (err) {
     // Best-effort
-    // eslint-disable-next-line no-console
-    console.warn('storeIdempotency failed', err)
+    logger.warn('storeIdempotency failed', { error: (err as Error).message })
   }
 }
 

@@ -1,4 +1,5 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 /**
  * Rate Limiting Service
@@ -75,8 +76,7 @@ export async function rateLimit(
     }
   } catch (err) {
     // Fallback to in-memory if DB fails
-    // eslint-disable-next-line no-console
-    console.warn('rateLimit: DB query failed, using in-memory fallback', err)
+    logger.warn('rateLimit: DB query failed, using in-memory fallback', { error: (err as Error).message })
   }
 
   // In-memory fallback
@@ -137,8 +137,7 @@ export async function recordAttempt(
       })
   } catch (err) {
     // Best-effort
-    // eslint-disable-next-line no-console
-    console.warn('recordAttempt: failed', err)
+    logger.warn('recordAttempt: failed', { error: (err as Error).message })
   }
 
   // Also update in-memory limiter

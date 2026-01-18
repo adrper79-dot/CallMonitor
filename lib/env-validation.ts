@@ -5,6 +5,8 @@
  * Per PRODUCTION_READINESS_TASKS.md
  */
 
+import { logger } from '@/lib/logger'
+
 interface EnvVar {
   name: string
   required: boolean
@@ -154,8 +156,7 @@ export function validateEnvVarsOrThrow(): void {
 
   if (result.warnings.length > 0 && process.env.NODE_ENV !== 'production') {
     const warningMessages = result.warnings.map(w => `  - ${w.name}: ${w.message}`).join('\n')
-    // eslint-disable-next-line no-console
-    console.warn(`Environment variable warnings:\n${warningMessages}`)
+    logger.warn(`Environment variable warnings:\n${warningMessages}`)
   }
 }
 

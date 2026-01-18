@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { checkApiPermission, UserRole, Plan } from '@/lib/rbac'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 /**
  * RBAC Middleware
@@ -160,8 +161,7 @@ export function withRBAC(
       // Call handler with context
       return await handler(req, context)
     } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.error('RBAC middleware error', { error: err?.message })
+      logger.error('RBAC middleware error', err, { errorMessage: err?.message })
       return NextResponse.json(
         { success: false, error: { code: 'RBAC_ERROR', message: 'Authorization check failed', severity: 'HIGH' } },
         { status: 500 }
@@ -194,7 +194,6 @@ async function logPermissionDenial(
     })
   } catch (err) {
     // Best-effort logging
-    // eslint-disable-next-line no-console
-    console.error('Failed to log permission denial', err)
+    logger.error('Failed to log permission denial', err as Error)
   }
 }

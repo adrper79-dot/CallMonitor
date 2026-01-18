@@ -6,6 +6,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -20,7 +21,7 @@ export async function downloadRecordingToStorage(
   organizationId: string
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
   try {
-    console.log('downloadRecording: starting download', { recordingId })
+    logger.info('downloadRecording: starting download', { recordingId })
 
     // Download recording from SignalWire with authentication
     const response = await fetch(recordingUrl, {
@@ -31,7 +32,7 @@ export async function downloadRecordingToStorage(
     })
 
     if (!response.ok) {
-      console.error('downloadRecording: SignalWire fetch failed', { 
+      logger.error('downloadRecording: SignalWire fetch failed', undefined, { 
         status: response.status, 
         statusText: response.statusText 
       })
@@ -45,7 +46,7 @@ export async function downloadRecordingToStorage(
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    console.log('downloadRecording: downloaded from SignalWire', { 
+    logger.debug('downloadRecording: downloaded from SignalWire', { 
       recordingId, 
       sizeBytes: buffer.length 
     })
@@ -65,8 +66,7 @@ export async function downloadRecordingToStorage(
       })
 
     if (uploadError) {
-      console.error('downloadRecording: Supabase upload failed', { 
-        error: uploadError.message,
+      logger.error('downloadRecording: Supabase upload failed', uploadError, { 
         recordingId 
       })
       return { 
@@ -80,7 +80,7 @@ export async function downloadRecordingToStorage(
       .from('recordings')
       .getPublicUrl(filePath)
 
-    console.log('downloadRecording: successfully stored', { 
+    logger.info('downloadRecording: successfully stored', { 
       recordingId, 
       publicUrl: urlData.publicUrl 
     })
@@ -91,8 +91,7 @@ export async function downloadRecordingToStorage(
     }
 
   } catch (err: any) {
-    console.error('downloadRecording: unexpected error', { 
-      error: err.message, 
+    logger.error('downloadRecording: unexpected error', err, { 
       recordingId 
     })
     return { 

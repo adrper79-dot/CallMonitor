@@ -13,6 +13,7 @@ import TwitterProvider from "next-auth/providers/twitter"
 import FacebookProvider from "next-auth/providers/facebook"
 import { createClient } from '@supabase/supabase-js'
 import { SupabaseAdapter } from '@next-auth/supabase-adapter'
+import { logger } from '@/lib/logger'
 
 async function sendViaResend(to: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY
@@ -45,7 +46,7 @@ function getAdapter() {
   if (!supabaseUrl || !serviceKey) {
     // Only log if we're clearly in runtime (not during module initialization)
     if (typeof globalThis !== 'undefined' && (globalThis as any).__NEXTAUTH_RUNTIME_INIT) {
-      console.warn('Supabase adapter skipped: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not available')
+      logger.warn('Supabase adapter skipped: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not available')
     }
     return undefined
   }
@@ -287,7 +288,7 @@ export function getAuthOptions() {
                   
                   if (orgs && orgs.length > 0) {
                     orgId = orgs[0].id
-                    console.log('Session callback: using existing organization', orgId, 'for', session.user.email)
+                    logger.info('Session callback: using existing organization', { orgId, email: session.user.email })
                   } else {
                     const { data: newOrg, error: orgError } = await supabase
                       .from('organizations')
@@ -301,12 +302,12 @@ export function getAuthOptions() {
                       .single()
                     
                     if (orgError) {
-                      console.error('Session callback: failed to create organization:', orgError.message)
+                      logger.error('Session callback: failed to create organization', orgError, { email: session.user.email })
                       throw new Error('Failed to create organization')
                     }
                     
                     orgId = newOrg.id
-                    console.log('Session callback: created organization', orgId, 'for', session.user.email)
+                    logger.info('Session callback: created organization', { orgId, email: session.user.email })
                     
                     const { data: tool, error: toolError } = await supabase
                       .from('tools')
@@ -320,7 +321,7 @@ export function getAuthOptions() {
                       .single()
                     
                     if (toolError) {
-                      console.error('Session callback: failed to create tool:', toolError.message)
+                      logger.error('Session callback: failed to create tool', toolError)
                     } else if (tool) {
                       const { error: updateError } = await supabase
                         .from('organizations')
@@ -328,9 +329,9 @@ export function getAuthOptions() {
                         .eq('id', orgId)
                       
                       if (updateError) {
-                        console.error('Session callback: failed to link tool to organization:', updateError.message)
+                        logger.error('Session callback: failed to link tool to organization', updateError)
                       } else {
-                        console.log('Session callback: created and linked tool', tool.id, 'to organization', orgId)
+                        logger.info('Session callback: created and linked tool', { toolId: tool.id, orgId })
                       }
                     }
                   }
@@ -348,11 +349,11 @@ export function getAuthOptions() {
                   })
                   
                   if (userInsertErr) {
-                    console.error('Session callback: failed to create user:', userInsertErr.message)
+                    logger.error('Session callback: failed to create user', userInsertErr)
                     throw new Error('Failed to create user record')
                   }
                   
-                  console.log('Session callback: created user record for', session.user.email)
+                  logger.info('Session callback: created user record', { email: session.user.email })
                   
                   const { error: memberInsertErr } = await supabase.from('org_members').insert({
                     organization_id: orgId,
@@ -361,15 +362,15 @@ export function getAuthOptions() {
                   })
                   
                   if (memberInsertErr) {
-                    console.error('Session callback: failed to create org membership:', memberInsertErr.message)
+                    logger.error('Session callback: failed to create org membership', memberInsertErr)
                     throw new Error('Failed to create organization membership')
                   }
                   
-                  console.log('Session callback: created org_members record for', session.user.email)
+                  logger.info('Session callback: created org_members record', { email: session.user.email })
                 }
               }
             } catch (err) {
-              console.error('Failed to ensure user organization setup:', err)
+              logger.error('Failed to ensure user organization setup', err)
             }
           }
         }
@@ -397,7 +398,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
     _cachedAuthOptions = getAuthOptions()
     return _cachedAuthOptions
   } catch (e) {
-    console.error('[auth] Failed to initialize auth options:', e)
+    logger.error('[auth] Failed to initialize auth options', e)
     // Return minimal fallback to prevent crashes
     const fallback = {
       providers: [] as any[],
