@@ -37,8 +37,10 @@ interface VoiceConfig {
   id: string
   organization_id: string
   signalwire_ai_agent_id: string | null
-  translation_enabled: boolean
-  default_target_language: string | null
+  translate: boolean
+  live_translate: boolean
+  translate_from: string | null
+  translate_to: string | null
   created_at: string
   updated_at: string
 }
@@ -90,8 +92,8 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
         if (data.config) {
           setFormData({
             aiAgentId: data.config.signalwire_ai_agent_id || '',
-            translationEnabled: data.config.translation_enabled || false,
-            defaultLanguage: data.config.default_target_language || 'es',
+            translationEnabled: data.config.translate || data.config.live_translate || false,
+            defaultLanguage: data.config.translate_to || 'es',
           })
         }
       }
@@ -107,21 +109,25 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
       setSaving(true)
       setTestResult(null)
 
+      // Use PUT method with correct field names matching voice_configs schema
       const res = await fetch('/api/voice/config', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          organizationId,
-          signalwireAiAgentId: formData.aiAgentId || null,
-          translationEnabled: formData.translationEnabled,
-          defaultTargetLanguage: formData.defaultLanguage,
+          orgId: organizationId,
+          modulations: {
+            translate: formData.translationEnabled,
+            live_translate: formData.translationEnabled,
+            translate_from: 'en', // Source language (English)
+            translate_to: formData.defaultLanguage,
+          }
         }),
         credentials: 'include'
       })
 
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.message || 'Failed to save configuration')
+        throw new Error(error.error?.message || error.message || 'Failed to save configuration')
       }
 
       await fetchConfig()
@@ -292,7 +298,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
             <h4 className="text-sm font-medium">Current Status</h4>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Translation:</span>
-              {config.translation_enabled ? (
+              {config.translate ? (
                 <Badge variant="default" className="bg-green-500">
                   Enabled
                 </Badge>
@@ -308,11 +314,11 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
                 </code>
               </div>
             )}
-            {config.default_target_language && (
+            {config.translate_to && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Default Language:</span>
                 <Badge variant="secondary">
-                  {supportedLanguages.find((l) => l.code === config.default_target_language)?.name || config.default_target_language}
+                  {supportedLanguages.find((l) => l.code === config.translate_to)?.name || config.translate_to}
                 </Badge>
               </div>
             )}
