@@ -81,6 +81,19 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   const elements: string[] = []
   const recordingCallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callId ? `?callId=${callId}` : ''}`
 
+  // ============================================================================
+  // PHASE 1: RECORDING DISCLOSURE (AI Role Compliance)
+  // Per WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md:
+  // - System speaks disclosure (procedural, not contractual)
+  // - Disclosure must be given BEFORE recording begins
+  // - This is infrastructure, not an actor making commitments
+  // ============================================================================
+  if (voiceConfig?.record === true) {
+    // Recording disclosure - system speaks this before recording starts
+    elements.push('<Say voice="alice">This call may be recorded for quality assurance and compliance purposes. By continuing, you consent to recording.</Say>')
+    elements.push('<Pause length="1"/>')
+  }
+
   // Enable recording via LaML <Record> verb if record=true in voice_configs
   // This is a backup to the REST API Record=true parameter
   if (voiceConfig?.record === true) {

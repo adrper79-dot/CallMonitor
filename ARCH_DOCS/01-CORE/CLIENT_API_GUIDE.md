@@ -1,6 +1,8 @@
 # Client-Side API Development Guide
 
-**Version:** 1.0 | **Date:** January 15, 2026
+**Version:** 2.0 | **Date:** January 27, 2026
+
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](AI_ROLE_POLICY.md)
 
 ---
 

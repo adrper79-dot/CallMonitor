@@ -111,7 +111,7 @@ function SettingsPageContent() {
   const tabs: { id: TabId; label: string; description: string }[] = [
     { id: 'call-config', label: 'Call Configuration', description: 'Targets, Caller ID, defaults' },
     { id: 'ai-control', label: 'AI & Intelligence', description: 'Transcription, translation, surveys' },
-    { id: 'quality', label: 'Quality Assurance', description: 'Secret shopper scripts' },
+    { id: 'quality', label: 'Quality Assurance', description: 'AI quality evaluation scripts' },
     { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
     { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations' },
     { id: 'billing', label: 'Billing', description: 'Plan and payment' },
@@ -222,9 +222,9 @@ function SettingsPageContent() {
           {activeTab === 'quality' && (
             <section className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Secret Shopper Scripts</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">AI Quality Evaluation Scripts</h2>
                 <p className="text-sm text-gray-500">
-                  Create and manage scripts for quality assurance evaluations.
+                  Create and manage scripts for AI-powered quality evaluations. For internal QA purposes only.
                 </p>
               </div>
               <ShopperScriptManager organizationId={organizationId} />

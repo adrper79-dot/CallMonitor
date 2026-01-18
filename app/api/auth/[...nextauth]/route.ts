@@ -5,6 +5,8 @@
  * Auth configuration is in lib/auth.ts to comply with App Router requirements.
  */
 
+export const dynamic = 'force-dynamic'
+
 import NextAuth from "next-auth"
 import { getAuthOptions } from "@/lib/auth"
 

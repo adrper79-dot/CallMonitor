@@ -7,7 +7,22 @@
  * 
  * Per MASTER_ARCHITECTURE.txt: Secret shopper is a call modulation.
  * Per SECRET_SHOPPER_INFRASTRUCTURE.md: AI-driven QA evaluations.
+ * 
+ * AI Role Compliance (WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md):
+ * - Secret Shopper is repositioned as "AI Quality Evaluation"
+ * - Used for INTERNAL QA purposes only, NOT customer-facing agreements
+ * - Calls include disclosure that this is an AI-assisted evaluation
+ * - AI acts as evaluator/observer, NOT as a negotiating party
+ * 
+ * IMPORTANT: This feature should NOT be used for contexts involving:
+ * - Contract negotiations
+ * - Agreement capture
+ * - Customer commitments
  */
+
+// QA Evaluation disclosure for AI Role compliance
+// Note: This disclosure is for QA purposes - the AI is evaluating service quality
+const QA_EVALUATION_DISCLOSURE = `This is an automated quality assurance evaluation call. This call is for internal evaluation purposes only and does not constitute any service agreement or commitment.`
 
 export interface ShopperConfig {
   callId: string

@@ -9,12 +9,21 @@
  * - AssemblyAI still provides CANONICAL transcript post-call
  * - AI Agent output is ephemeral and non-authoritative
  * 
+ * AI Role Compliance (WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md):
+ * - Translation is a NEUTRAL SERVICE (accessibility support)
+ * - AI assists communication but does NOT negotiate or make commitments
+ * - Disclosure is given that translation is AI-assisted
+ * - Original language preserved for canonical record
+ * 
  * Required Environment Variables for Live Translation:
  * - SIGNALWIRE_AI_AGENT_ID: The AI Agent ID from SignalWire dashboard
  * - TRANSLATION_LIVE_ASSIST_PREVIEW: Must be "true" to enable feature
  */
 
 import { logger } from '@/lib/logger'
+
+// Translation disclosure for AI Role compliance
+const TRANSLATION_DISCLOSURE = `This call includes AI-powered real-time translation. Translation is provided to assist communication and may not capture every nuance. Please confirm understanding of important terms directly with the other party.`
 
 export interface AIAgentTranslationConfig {
   callId: string
@@ -98,6 +107,11 @@ export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWML
 
   // Build SWML configuration with AI Agent reference
   // Format matches SignalWire's expected SWML structure
+  // Includes translation disclosure for AI Role compliance
+  const translationPrompt = `IMPORTANT: At the start of the call, announce: "${TRANSLATION_DISCLOSURE}"
+
+Then proceed to translate between ${translateFrom} and ${translateTo}. You are a neutral translation service - you translate what is said but do not add opinions, negotiate, or make commitments on behalf of any party.`
+
   const swml: SWMLConfig = {
     version: '1.0.0',
     sections: {
@@ -107,7 +121,7 @@ export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWML
           ai: {
             agent: aiAgentId,  // CRITICAL: Reference to SignalWire AI Agent
             prompt: {
-              text: `Translate from ${translateFrom} to ${translateTo}`,
+              text: translationPrompt,
               confidence: 0.6,
               temperature: 0.3,
               top_p: 1.0,
@@ -125,7 +139,8 @@ export function buildLiveTranslationSWML(config: AIAgentTranslationConfig): SWML
               call_id: callId,
               organization_id: organizationId,
               feature: 'live_translation',
-              translation_pair: `${translateFrom}-${translateTo}`
+              translation_pair: `${translateFrom}-${translateTo}`,
+              disclosure_given: true  // Track that disclosure was provided
             }
           }
         }

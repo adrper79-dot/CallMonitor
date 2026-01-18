@@ -1,9 +1,45 @@
 # Translation Agent Implementation Plan
 **Production-Ready Deployment for SignalWire AI Agents Live Translation**
 
-**Date:** January 11, 2026  
-**Status:** Planning Phase  
+**Date:** January 27, 2026  
+**Version:** 2.0.0  
+**Status:** Implemented (AI Role Compliant)  
 **Architecture Reference:** Translation_Agent document (addendum design)
+
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
+
+---
+
+## ⚠️ AI Role Policy Compliance
+
+Per the AI Role Policy:
+
+1. **Translation is a NEUTRAL SERVICE** - Accessibility support, not negotiation
+2. **All calls include translation disclosure** - Parties know AI is translating
+3. **Original language preserved** - Canonical record in original language
+4. **Nuance disclaimer** - Parties understand translation may not be perfect
+
+### Mandatory Disclosure
+
+Every translation call MUST include:
+
+```
+"This call includes AI-powered real-time translation between [Language A] 
+and [Language B]. Translation is provided to assist communication and may 
+not capture every nuance. Please confirm understanding of important terms 
+directly with the other party."
+```
+
+### Permitted Functions
+
+| Function | Allowed | Notes |
+|----------|---------|-------|
+| Translate speech | ✅ Yes | Neutral accessibility service |
+| Preserve original | ✅ Yes | Required for canonical record |
+| Detect language | ✅ Yes | Technical capability |
+| Interpret meaning | ❌ No | AI does not interpret intent |
+| Negotiate terms | ❌ No | AI never negotiates |
+| Summarize agreements | ❌ No | Humans declare outcomes |
 
 ---
 

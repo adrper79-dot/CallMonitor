@@ -139,6 +139,22 @@ export async function GET(
       })
     }
     
+    // 3.5 Disclosure given (AI Role Compliance)
+    if (call.disclosure_given && call.disclosure_timestamp) {
+      events.push({
+        id: `${callId}-disclosure`,
+        call_id: callId,
+        event_type: 'disclosure_given',
+        timestamp: call.disclosure_timestamp,
+        actor_id: null,
+        actor_name: 'System',
+        details: {
+          disclosure_type: call.disclosure_type || 'recording',
+          disclosure_text: call.disclosure_text || null
+        }
+      })
+    }
+    
     // 4. Disposition set
     if (call.disposition_set_at) {
       events.push({

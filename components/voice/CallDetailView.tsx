@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useCallDetails } from '@/hooks/useCallDetails'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/use-toast'
 import CallModulations from './CallModulations'
 import ArtifactViewer from './ArtifactViewer'
 import CallAnalytics from './CallAnalytics'
+import { OutcomeDeclaration } from './OutcomeDeclaration'
+import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
 
 export interface CallDetailViewProps {
   callId: string | null
@@ -28,6 +30,50 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
   const { config } = useVoiceConfig(organizationId)
   const { toast } = useToast()
   const [exporting, setExporting] = useState(false)
+  const [callOutcome, setCallOutcome] = useState<CallOutcome | null>(null)
+  const [outcomeLoading, setOutcomeLoading] = useState(false)
+
+  // Fetch existing outcome when call changes
+  const fetchOutcome = useCallback(async () => {
+    if (!callId) return
+    
+    setOutcomeLoading(true)
+    try {
+      const res = await fetch(`/api/calls/${callId}/outcome`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && data.data.outcome) {
+          setCallOutcome(data.data.outcome)
+        }
+      }
+    } catch (err) {
+      // Silently fail - outcome may not exist yet
+      console.debug('No existing outcome found')
+    } finally {
+      setOutcomeLoading(false)
+    }
+  }, [callId])
+
+  useEffect(() => {
+    if (callId && call?.status === 'completed') {
+      fetchOutcome()
+    } else {
+      setCallOutcome(null)
+    }
+  }, [callId, call?.status, fetchOutcome])
+
+  // Handle outcome saved
+  const handleOutcomeSaved = useCallback((outcome: CallOutcome) => {
+    setCallOutcome(outcome)
+    toast({
+      title: 'Outcome Declared',
+      description: 'Call outcome has been recorded successfully',
+    })
+  }, [toast])
 
   // Download evidence bundle
   async function handleDownloadEvidence() {
@@ -280,6 +326,21 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
           </Button>
         )}
       </section>
+
+      {/* Outcome Declaration - Post-Call Outcome Capture */}
+      {/* Per AI Role Policy: Humans declare outcomes, not AI */}
+      {call.status === 'completed' && organizationId && (
+        <section aria-label="Outcome Declaration">
+          <OutcomeDeclaration
+            callId={call.id}
+            organizationId={organizationId}
+            callCompleted={true}
+            existingOutcome={callOutcome}
+            onOutcomeSaved={handleOutcomeSaved}
+            enableAISummary={true}
+          />
+        </section>
+      )}
 
       {/* Analytics Panel - AI-Powered Insights */}
       {transcript && (transcript.sentiment_analysis || transcript.entities || transcript.chapters) && (

@@ -1,9 +1,11 @@
 # API Endpoints Reference
 
-**Last Updated:** January 17, 2026  
+**Last Updated:** January 27, 2026  
 **Status:** Complete
 
 > Comprehensive reference for all API endpoints in Wordis Bond
+> 
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
 
 ---
 
@@ -605,10 +607,12 @@ This document provides a complete reference for all API endpoints available in t
 
 ---
 
-## 🛍️ Secret Shopper
+## � AI Quality Evaluation (formerly Secret Shopper)
+
+> **AI Role Policy:** QA evaluation is for internal purposes only. See [AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
 
 ### GET /api/shopper/scripts
-**Description:** List shopper scripts  
+**Description:** List QA evaluation scripts  
 **Auth:** Required  
 **Role:** All  
 **Plan:** Insights+
@@ -616,7 +620,7 @@ This document provides a complete reference for all API endpoints available in t
 ---
 
 ### POST /api/shopper/scripts/manage
-**Description:** Create or update shopper script  
+**Description:** Create or update QA evaluation script  
 **Auth:** Required  
 **Role:** Owner, Admin  
 **Plan:** Insights+

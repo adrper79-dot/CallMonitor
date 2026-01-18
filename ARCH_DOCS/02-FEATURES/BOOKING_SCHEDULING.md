@@ -1,8 +1,32 @@
 # Cal.com-Style Booking & Scheduling Feature
 
-**Last Updated:** January 14, 2026  
-**Version:** 1.0.0  
-**Status:** Implemented
+**Last Updated:** January 27, 2026  
+**Version:** 2.0.0  
+**Status:** Implemented (AI Role Compliant)
+
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
+
+---
+
+## ⚠️ AI Role Policy Compliance
+
+Per the AI Role Policy:
+
+1. **Recording disclosures** - All booked calls include recording disclosure
+2. **Human agency** - Bookings are created by humans, not AI
+3. **Confirmation capture** - If call modulations are enabled, operators capture confirmations
+4. **No AI negotiation** - AI never negotiates on scheduled calls
+
+### Booked Call Flow (AI Role Compliant)
+
+```
+1. Human creates booking (UI/Extension)
+2. System schedules call (cron)
+3. Call connects with recording disclosure  ← AI Role Phase 1
+4. Human-to-human conversation
+5. Operator uses confirmation prompts       ← AI Role Phase 2
+6. Operator declares outcome                ← AI Role Phase 3
+```
 
 ---
 
@@ -257,8 +281,27 @@ The Chrome extension supports booking:
 
 ---
 
+## AI Role Policy Integration
+
+When a booked call executes, the following AI Role features apply automatically:
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Phase 1 | Recording disclosure | ✅ Automatic at call start |
+| Phase 2 | Confirmation prompts | ✅ Available to operator |
+| Phase 3 | Outcome declaration | ✅ Available post-call |
+| Phase 4 | QA restrictions | ✅ If QA modulation enabled |
+
+The booking system respects all call modulation settings from `voice_configs`:
+- Recording disclosure is always given
+- Survey disclaimers apply if after-call survey enabled
+- Translation disclosures apply if live translation enabled
+
+---
+
 ## References
 
+- **AI Role Policy:** [ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
 - MASTER_ARCHITECTURE.txt: Call-rooted design
 - lib/rbac.ts: Feature gating
 - vercel.json: Cron configuration

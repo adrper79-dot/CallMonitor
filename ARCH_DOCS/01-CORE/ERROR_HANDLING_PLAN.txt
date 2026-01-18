@@ -1,5 +1,11 @@
 # Error Handling Plan
 
+**Version:** 2.0  
+**Last Updated:** January 27, 2026  
+**Status:** Implemented
+
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](AI_ROLE_POLICY.md)
+
 ## Overview
 This document describes the error handling architecture, philosophy, and implementation for the CallRoute Monitor project. It covers error categorization, tracking, reporting, and integration with monitoring systems.
 

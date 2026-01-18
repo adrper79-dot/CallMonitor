@@ -5,7 +5,16 @@
  * Supports dynamic survey prompts, configurable voice, and post-call results webhook.
  * 
  * Per MASTER_ARCHITECTURE.txt: Survey is a call modulation.
+ * 
+ * IMPORTANT (AI Role Compliance - WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md):
+ * - Surveys are PROCEDURAL, not CONTRACTUAL
+ * - AI asks questions but does NOT negotiate or make commitments
+ * - Responses are feedback, NOT agreements
+ * - All calls include disclosure that this is an automated survey
  */
+
+// Survey disclaimer for AI Role compliance
+const SURVEY_DISCLAIMER = `This is an automated customer satisfaction survey. Your responses will be recorded for quality improvement purposes. This survey does not constitute any agreement or commitment. You may end the call at any time.`
 
 export interface SurveyConfig {
   callId: string
@@ -42,10 +51,20 @@ export interface SurveySWMLConfig {
 
 /**
  * Build the AI prompt for the survey bot
+ * 
+ * AI Role Compliance: The survey bot is PROCEDURAL, not CONTRACTUAL.
+ * It collects feedback but does not negotiate or make commitments.
  */
 function buildSurveyPrompt(prompts: string[]): string {
+  // Procedural disclaimer is prepended to all survey prompts
+  const disclaimerInstruction = `IMPORTANT: You MUST begin by saying: "${SURVEY_DISCLAIMER}"
+
+After the disclaimer, proceed with the survey questions.
+
+`
+
   if (prompts.length === 0) {
-    return `You are a friendly survey assistant. Ask the caller:
+    return `${disclaimerInstruction}You are a friendly survey assistant. Ask the caller:
 1. How was your overall experience today?
 2. On a scale of 1-5, how likely are you to recommend us?
 3. Is there anything we could improve?
@@ -57,7 +76,7 @@ Keep responses natural and conversational.`
 
   const numberedPrompts = prompts.map((q, i) => `${i + 1}. ${q}`).join('\n')
   
-  return `You are a professional survey assistant conducting a customer feedback survey.
+  return `${disclaimerInstruction}You are a professional survey assistant conducting a customer feedback survey.
 
 Ask these questions ONE AT A TIME, waiting for the caller's response before proceeding:
 

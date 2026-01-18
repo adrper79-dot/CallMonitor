@@ -13,6 +13,8 @@
  * - payment_method.attached: New payment method added
  */
 
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/services/stripeService'

@@ -1282,3 +1282,122 @@ CREATE TABLE public.sso_login_events (
   
   created_at timestamptz DEFAULT now()
 );
+
+-- ============================================================================
+-- AI Role Policy Tables (January 27, 2026)
+-- Phase 2: Confirmation System
+-- ============================================================================
+
+CREATE TABLE public.call_confirmations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id uuid NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  confirmation_type text NOT NULL CHECK (confirmation_type IN (
+    'disclosure_accepted', 'recording_consent', 'terms_agreed', 'price_confirmed',
+    'scope_confirmed', 'identity_verified', 'authorization_given', 'understanding_confirmed'
+  )),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'captured', 'skipped', 'not_applicable')),
+  
+  confirmed_at timestamptz,
+  confirmer_role text CHECK (confirmer_role IN ('customer', 'operator', 'third_party')),
+  captured_by text NOT NULL DEFAULT 'human' CHECK (captured_by IN ('human', 'system')),
+  recording_timestamp_seconds decimal(10,2),
+  verification_method text CHECK (verification_method IN ('verbal', 'dtmf', 'written', 'biometric')),
+  notes text,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Phase 3: Outcome Declaration System
+CREATE TABLE public.call_outcomes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id uuid NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  declared_by uuid NOT NULL REFERENCES public.users(id),
+  
+  outcome_status text NOT NULL CHECK (outcome_status IN (
+    'agreed', 'declined', 'partial', 'inconclusive', 'follow_up_required', 'cancelled'
+  )),
+  summary text NOT NULL,
+  summary_source text NOT NULL DEFAULT 'human' CHECK (summary_source IN ('human', 'ai_generated', 'ai_confirmed')),
+  
+  agreed_items jsonb DEFAULT '[]',
+  declined_items jsonb DEFAULT '[]',
+  ambiguities jsonb DEFAULT '[]',
+  follow_up_actions jsonb DEFAULT '[]',
+  
+  confirmation_method text NOT NULL DEFAULT 'read_back' CHECK (confirmation_method IN (
+    'read_back', 'verbal_yes', 'written', 'implied'
+  )),
+  confirmed_at timestamptz,
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE public.call_outcome_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  outcome_id uuid NOT NULL REFERENCES public.call_outcomes(id) ON DELETE CASCADE,
+  call_id uuid NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  changed_by uuid NOT NULL REFERENCES public.users(id),
+  
+  change_type text NOT NULL CHECK (change_type IN ('created', 'updated', 'finalized')),
+  previous_values jsonb,
+  new_values jsonb,
+  change_reason text,
+  
+  created_at timestamptz DEFAULT now()
+);
+
+-- Phase 4: AI Quality Evaluation (QA Compliance)
+CREATE TABLE public.qa_evaluation_disclosures (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  call_id uuid NOT NULL REFERENCES public.calls(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  disclosure_type text NOT NULL DEFAULT 'qa_evaluation' CHECK (disclosure_type IN (
+    'qa_evaluation', 'internal_audit', 'training'
+  )),
+  disclosure_text text NOT NULL,
+  disclosed_at timestamptz NOT NULL DEFAULT now(),
+  disclosure_position_seconds decimal(10,2),
+  
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE public.compliance_restrictions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  restriction_code text NOT NULL UNIQUE CHECK (restriction_code IN (
+    'QA_NO_CONFIRMATIONS', 'QA_NO_OUTCOMES', 'QA_NO_AGREEMENTS',
+    'SURVEY_NO_AGREEMENTS', 'AI_NO_NEGOTIATION'
+  )),
+  restriction_name text NOT NULL,
+  description text NOT NULL,
+  is_active boolean DEFAULT true,
+  violation_action text NOT NULL DEFAULT 'warn' CHECK (violation_action IN ('block', 'warn', 'log')),
+  
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE public.compliance_violations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  call_id uuid REFERENCES public.calls(id) ON DELETE SET NULL,
+  user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  
+  restriction_code text NOT NULL,
+  violation_type text NOT NULL CHECK (violation_type IN ('blocked', 'warned', 'detected', 'prevented')),
+  violation_context jsonb,
+  
+  resolution_status text DEFAULT 'open' CHECK (resolution_status IN ('open', 'reviewed', 'dismissed', 'confirmed')),
+  resolution_notes text,
+  resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  resolved_at timestamptz,
+  
+  created_at timestamptz DEFAULT now()
+);

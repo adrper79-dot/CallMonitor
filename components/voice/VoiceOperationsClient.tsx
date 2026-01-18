@@ -230,10 +230,12 @@ export default function VoiceOperationsClient({
               {activeCallId && activeCallStatus && (
                 <ActiveCallPanel
                   callId={activeCallId}
+                  organizationId={organizationId || undefined}
                   status={activeCallStatus}
                   duration={activeCallDuration}
                   onViewDetails={() => setSelectedCallId(activeCallId)}
                   onNewCall={handleNewCall}
+                  showConfirmations={true}
                 />
               )}
 
@@ -329,10 +331,12 @@ export default function VoiceOperationsClient({
                 {activeCallId && activeCallStatus && (
                   <ActiveCallPanel
                     callId={activeCallId}
+                    organizationId={organizationId || undefined}
                     status={activeCallStatus}
                     duration={activeCallDuration}
                     onViewDetails={() => setSelectedCallId(activeCallId)}
                     onNewCall={handleNewCall}
+                    showConfirmations={true}
                   />
                 )}
 

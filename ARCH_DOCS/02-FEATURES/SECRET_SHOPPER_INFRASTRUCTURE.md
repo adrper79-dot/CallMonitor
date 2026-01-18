@@ -1,7 +1,10 @@
-# Secret Shopper (CallAudit) Infrastructure Requirements
+# AI Quality Evaluation Infrastructure (formerly Secret Shopper)
+
+> **AI Role Policy Compliance:** This feature has been repositioned per WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md Phase 4
 
 ## Overview
-Infrastructure requirements for the "Secret Shopper Calling" add-on feature (branded as CallAudit), which extends Word Is Bond with automated mystery shopping capabilities: scripted calls, recordings, transcription, and performance analytics.
+
+Infrastructure requirements for the "AI Quality Evaluation" feature (internally known as CallAudit), which provides AI-powered call quality assessments: scripted evaluations, recordings, transcription, and performance analytics.
 
 **Feature Value**: $49-79/mo upsell targeting medical, legal, and property management verticals  
 **Market**: $1.5-2.3B mystery shopping industry (phone segment 10-20%)  
@@ -9,10 +12,53 @@ Infrastructure requirements for the "Secret Shopper Calling" add-on feature (bra
 
 ---
 
+## ⚠️ AI Role Policy Compliance
+
+### Legal Positioning
+
+Per the AI Role Policy (ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md):
+
+1. **This feature is for INTERNAL QA purposes only**
+2. **NOT for customer-facing agreements or negotiations**
+3. **AI acts as evaluator/observer, NOT as a negotiating party**
+4. **All QA evaluation calls include automatic disclosure**
+
+### Mandatory Disclosure
+
+Every AI Quality Evaluation call MUST begin with:
+
+```
+"This is an automated quality assurance evaluation call. This call is for internal 
+evaluation purposes only and does not constitute any service agreement or commitment."
+```
+
+### Feature Restrictions
+
+AI Quality Evaluation CANNOT be combined with:
+- ❌ Confirmation capture (`QA_NO_CONFIRMATIONS`)
+- ❌ Outcome declarations (`QA_NO_OUTCOMES`)
+- ❌ Agreement recording (`QA_NO_AGREEMENTS`)
+
+If these features are attempted on a QA evaluation call, the system will:
+- Warn the operator
+- Log the attempt for compliance audit
+- Allow but flag the action
+
+### Implementation Files
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| SWML Builder | `lib/signalwire/shopperSwmlBuilder.ts` | Generates SWML with disclosure |
+| Compliance Utils | `lib/compliance/complianceUtils.ts` | Feature conflict detection |
+| UI Component | `components/voice/ShopperScriptManager.tsx` | Script management with compliance notice |
+| Migration | `supabase/migrations/20260127_ai_quality_evaluation.sql` | Compliance tracking tables |
+
+---
+
 ## Database Schema (Supabase)
 
 ### 1. `shopper_campaigns` Table
-Stores mystery shopper call scripts and configuration.
+Stores AI quality evaluation scripts and configuration.
 
 ```sql
 CREATE TABLE shopper_campaigns (

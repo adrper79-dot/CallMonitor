@@ -1,11 +1,15 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmationPrompts } from './ConfirmationPrompts'
+import { logger } from '@/lib/logger'
+import type { ConfirmationType, ConfirmerRole } from '@/lib/confirmation/promptDefinitions'
 
 interface ActiveCallPanelProps {
   callId: string
+  organizationId?: string
   status: string
   targetNumber?: string
   fromNumber?: string
@@ -13,16 +17,25 @@ interface ActiveCallPanelProps {
   onViewDetails: () => void
   onEndCall?: () => void
   onNewCall: () => void
+  /** Whether to show the confirmation checklist for active calls */
+  showConfirmations?: boolean
 }
 
 /**
- * ActiveCallPanel - Call Success State
+ * ActiveCallPanel - Call Success State with Confirmation Tracking
  * 
  * Shows real-time call status with clear next actions.
+ * Includes confirmation checklist for AI Role compliance.
  * Professional Design System v3.0
+ * 
+ * Per AI Role Policy:
+ * - Shows confirmation prompts during active calls
+ * - Operators mark confirmations as captured
+ * - System records timestamps linked to recording
  */
 export function ActiveCallPanel({
   callId,
+  organizationId,
   status,
   targetNumber,
   fromNumber,
@@ -30,8 +43,10 @@ export function ActiveCallPanel({
   onViewDetails,
   onEndCall,
   onNewCall,
+  showConfirmations = true,
 }: ActiveCallPanelProps) {
   const [showCopied, setShowCopied] = useState(false)
+  const [confirmationsExpanded, setConfirmationsExpanded] = useState(false)
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -57,6 +72,50 @@ export function ActiveCallPanel({
 
   const config = statusConfig[status] || statusConfig.initiating
   const isActive = ['initiating', 'ringing', 'in_progress'].includes(status)
+
+  /**
+   * Handle confirmation capture
+   * Per AI Role Policy: Human captures, system records
+   */
+  const handleConfirmationCaptured = useCallback(async (confirmation: {
+    templateId: string
+    confirmationType: ConfirmationType
+    confirmerRole: ConfirmerRole
+    recordingTimestamp: number
+    notes?: string
+  }) => {
+    if (!organizationId) return
+
+    try {
+      const response = await fetch(`/api/calls/${callId}/confirmations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmation_type: confirmation.confirmationType,
+          prompt_text: confirmation.templateId, // Template reference
+          confirmer_role: confirmation.confirmerRole,
+          recording_timestamp_seconds: confirmation.recordingTimestamp,
+          verification_method: 'verbal',
+          notes: confirmation.notes,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save confirmation')
+      }
+    } catch (error) {
+      logger.error('Failed to save confirmation', error as Error, { callId, organizationId })
+      throw error
+    }
+  }, [callId, organizationId])
+
+  /**
+   * Handle confirmation skip
+   */
+  const handleConfirmationSkipped = useCallback(async (templateId: string, reason: string) => {
+    // For now, we just log the skip - could be stored in DB later
+    logger.debug('Confirmation skipped', { callId, templateId, reason })
+  }, [callId])
 
   return (
     <div className={`
@@ -140,7 +199,44 @@ export function ActiveCallPanel({
             <span className="text-sm font-mono text-gray-900">{formatDuration(duration)}</span>
           </div>
         )}
+
+        {/* Confirmation Checklist Toggle - Only for active calls */}
+        {isActive && showConfirmations && organizationId && (
+          <div className="pt-2 border-t border-gray-100">
+            <button
+              onClick={() => setConfirmationsExpanded(!confirmationsExpanded)}
+              className="w-full flex items-center justify-between py-2 text-sm text-gray-700 hover:text-gray-900"
+            >
+              <span className="flex items-center gap-2">
+                <span>📋</span>
+                <span className="font-medium">Confirmation Checklist</span>
+              </span>
+              <svg
+                className={`w-4 h-4 transition-transform ${confirmationsExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Expanded Confirmation Checklist */}
+      {isActive && showConfirmations && organizationId && confirmationsExpanded && (
+        <div className="border-t border-gray-200">
+          <ConfirmationPrompts
+            callId={callId}
+            organizationId={organizationId}
+            callDuration={duration}
+            onConfirmationCaptured={handleConfirmationCaptured}
+            onConfirmationSkipped={handleConfirmationSkipped}
+            isCallActive={isActive}
+          />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex gap-2">

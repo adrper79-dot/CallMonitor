@@ -1,8 +1,42 @@
 # AI Survey Bot Feature
 
-**Last Updated:** January 14, 2026  
-**Version:** 1.0.0  
-**Status:** Implemented
+**Last Updated:** January 27, 2026  
+**Version:** 2.0.0  
+**Status:** Implemented (AI Role Compliant)
+
+> **AI Role Policy Reference:** [AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
+
+---
+
+## ⚠️ AI Role Policy Compliance
+
+Per the AI Role Policy:
+
+1. **Surveys are PROCEDURAL, not CONTRACTUAL**
+2. **AI asks questions but does NOT negotiate or make commitments**
+3. **Responses are feedback, NOT agreements**
+4. **All calls include mandatory disclosure**
+
+### Mandatory Disclosure
+
+Every survey call MUST begin with:
+
+```
+"This is an automated customer satisfaction survey. Your responses will be 
+recorded for quality improvement purposes. This survey does not constitute 
+any agreement or commitment. You may end the call at any time."
+```
+
+### Permitted Functions
+
+| Function | Allowed | Notes |
+|----------|---------|-------|
+| Ask survey questions | ✅ Yes | Procedural feedback collection |
+| Record responses | ✅ Yes | For quality improvement |
+| Analyze sentiment | ✅ Yes | Neutral analysis only |
+| Negotiate terms | ❌ No | Never permitted |
+| Capture agreements | ❌ No | Not a contractual context |
+| Make commitments | ❌ No | AI does not commit |
 
 ---
 
@@ -216,8 +250,28 @@ buildSurveySWML({
 
 ---
 
+## Legal Considerations
+
+### AI Role Policy Compliance
+
+This feature operates under the AI Role Policy which mandates:
+
+1. **Disclosure First** - Survey disclaimer before any questions
+2. **No Contractual Weight** - Responses are feedback only
+3. **Human Agency** - Callers can end the call at any time
+4. **Transparent Purpose** - Clearly stated as "quality improvement"
+
+### Regulatory Compliance
+
+- **TCPA** - Automated calls follow consent requirements
+- **GDPR** - Response data is stored per privacy policy
+- **CCPA** - California privacy rights respected
+
+---
+
 ## References
 
+- **AI Role Policy:** [ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md](../01-CORE/AI_ROLE_POLICY.md)
 - SignalWire SWML: https://developer.signalwire.com/guides/swml-quickstart
 - SignalWire AI Agents: https://developer.signalwire.com/guides/ai-agents
 - MASTER_ARCHITECTURE.txt: Survey as call modulation

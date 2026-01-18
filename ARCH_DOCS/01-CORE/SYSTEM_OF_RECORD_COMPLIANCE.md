@@ -1,14 +1,18 @@
 # Conversation System of Record — Compliance Documentation
 
-**Version:** 1.0.0  
-**Date:** January 16, 2026  
+**Version:** 2.0.0  
+**Date:** January 27, 2026  
 **Status:** ✅ COMPLIANT
+
+> **Related Policies:** [AI_ROLE_POLICY.md](AI_ROLE_POLICY.md) - Defines AI's role as witness/notary
 
 ---
 
 ## Executive Summary
 
 This document certifies that Word Is Bond meets all 12 requirements for a **Conversation System of Record** as defined in the engineering-grade requirements specification.
+
+**Core Principle:** "People speak the commitments. The system ensures those commitments are captured correctly."
 
 | Requirement | Status | Implementation |
 |-------------|--------|----------------|

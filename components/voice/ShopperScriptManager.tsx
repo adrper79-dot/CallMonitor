@@ -55,8 +55,15 @@ const TTS_VOICES = {
 }
 
 /**
- * ShopperScriptManager - Professional Design System v3.0
- * Light theme, no emojis, Navy primary color
+ * ShopperScriptManager - AI Quality Evaluation Scripts
+ * 
+ * Per AI Role Policy (ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md):
+ * - Repositioned from "Secret Shopper" to "AI Quality Evaluation"
+ * - For INTERNAL QA purposes only, NOT customer-facing agreements
+ * - Calls include disclosure that this is an AI-assisted evaluation
+ * - Cannot be combined with confirmation capture or outcome declaration
+ * 
+ * Professional Design System v3.0 - Light theme, no emojis
  */
 export default function ShopperScriptManager({ organizationId }: ShopperScriptManagerProps) {
   const [scripts, setScripts] = useState<ShopperScript[]>([])
@@ -228,12 +235,28 @@ Thank you for the information. I'll get back to you soon.`,
 
   return (
     <div className="space-y-6">
+      {/* AI Role Compliance Notice */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+        <div className="flex items-start gap-3">
+          <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <h4 className="text-sm font-medium text-blue-800">AI Quality Evaluation - Internal QA Only</h4>
+            <p className="text-xs text-blue-700 mt-1">
+              These scripts are for internal quality assurance evaluations only. AI evaluation calls include an 
+              automatic disclosure and cannot be used for capturing customer agreements or confirmations.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Secret Shopper Scripts</h3>
+          <h3 className="text-lg font-semibold text-gray-900">AI Quality Evaluation Scripts</h3>
           <p className="text-sm text-gray-500">
-            Create scripts for synthetic callers to evaluate call quality
+            Create scripts for AI-powered QA evaluations. For internal evaluation purposes only.
           </p>
         </div>
         <Button onClick={handleNewScript} variant="primary">
@@ -260,9 +283,9 @@ Thank you for the information. I'll get back to you soon.`,
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
           </svg>
-          <h4 className="text-lg font-medium text-gray-900 mb-2">No Scripts Yet</h4>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">No Evaluation Scripts Yet</h4>
           <p className="text-gray-500 mb-4">
-            Create a secret shopper script to test your call handling quality
+            Create an AI quality evaluation script to test your call handling
           </p>
           <Button onClick={handleNewScript}>Create Your First Script</Button>
         </div>

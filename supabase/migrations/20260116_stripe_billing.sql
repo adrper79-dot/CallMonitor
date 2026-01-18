@@ -139,6 +139,16 @@ alter table stripe_payment_methods enable row level security;
 alter table stripe_invoices enable row level security;
 alter table stripe_events enable row level security;
 
+-- Drop existing policies if they exist (for idempotency)
+drop policy if exists "Users can view own organization subscriptions" on stripe_subscriptions;
+drop policy if exists "Users can view own organization payment methods" on stripe_payment_methods;
+drop policy if exists "Users can view own organization invoices" on stripe_invoices;
+drop policy if exists "Users can view own organization events" on stripe_events;
+drop policy if exists "Service role can manage subscriptions" on stripe_subscriptions;
+drop policy if exists "Service role can manage payment methods" on stripe_payment_methods;
+drop policy if exists "Service role can manage invoices" on stripe_invoices;
+drop policy if exists "Service role can manage events" on stripe_events;
+
 -- RLS Policies: Users can view their own organization's billing data
 create policy "Users can view own organization subscriptions"
   on stripe_subscriptions for select
@@ -205,6 +215,12 @@ begin
   return new;
 end;
 $$ language plpgsql;
+
+-- Drop existing triggers if they exist (for idempotency)
+drop trigger if exists update_stripe_subscriptions_updated_at on stripe_subscriptions;
+drop trigger if exists update_stripe_payment_methods_updated_at on stripe_payment_methods;
+drop trigger if exists update_stripe_invoices_updated_at on stripe_invoices;
+drop trigger if exists sync_org_plan_on_subscription_change on stripe_subscriptions;
 
 create trigger update_stripe_subscriptions_updated_at before update on stripe_subscriptions
   for each row execute function update_updated_at_column();

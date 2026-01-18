@@ -434,6 +434,7 @@ export type TimelineEventType =
   | 'disposition_set'
   | 'evidence_exported'
   | 'consent_captured'
+  | 'disclosure_given'  // AI Role Compliance: Track when disclosure was provided
 
 export interface TimelineEvent {
   id: string

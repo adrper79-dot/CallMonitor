@@ -44,7 +44,8 @@ const EVENT_CONFIG: Record<TimelineEventType, {
   note_added: { icon: '📌', label: 'Note Added', color: 'bg-indigo-100 text-indigo-800' },
   disposition_set: { icon: '🏷️', label: 'Disposition Set', color: 'bg-teal-100 text-teal-800' },
   evidence_exported: { icon: '📤', label: 'Evidence Exported', color: 'bg-emerald-100 text-emerald-800' },
-  consent_captured: { icon: '🔒', label: 'Consent Captured', color: 'bg-lime-100 text-lime-800' }
+  consent_captured: { icon: '🔒', label: 'Consent Captured', color: 'bg-lime-100 text-lime-800' },
+  disclosure_given: { icon: '📢', label: 'Disclosure Given', color: 'bg-amber-100 text-amber-800' }  // AI Role Compliance
 }
 
 export default function CallTimeline({ callId, organizationId }: CallTimelineProps) {
