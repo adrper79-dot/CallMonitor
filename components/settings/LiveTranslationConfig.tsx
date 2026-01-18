@@ -36,7 +36,7 @@ import { logger } from '@/lib/logger'
 interface VoiceConfig {
   id: string
   organization_id: string
-  signalwire_ai_agent_id: string | null
+  ai_agent_id: string | null
   translate: boolean
   live_translate: boolean
   translate_from: string | null
@@ -91,7 +91,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
         setConfig(data.config)
         if (data.config) {
           setFormData({
-            aiAgentId: data.config.signalwire_ai_agent_id || '',
+            aiAgentId: data.config.ai_agent_id || '',
             translationEnabled: data.config.translate || data.config.live_translate || false,
             defaultLanguage: data.config.translate_to || 'es',
           })
@@ -306,11 +306,11 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
                 <Badge variant="secondary">Disabled</Badge>
               )}
             </div>
-            {config.signalwire_ai_agent_id && (
+            {config.ai_agent_id && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">AI Agent:</span>
                 <code className="text-xs bg-muted px-2 py-1 rounded">
-                  {config.signalwire_ai_agent_id}
+                  {config.ai_agent_id}
                 </code>
               </div>
             )}
