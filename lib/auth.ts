@@ -119,6 +119,30 @@ function getProviders(adapter: any) {
         return null
       }
 
+      // Check if SSO is required for this email domain
+      // Skip this check if the table doesn't exist yet (migration not run)
+      try {
+        const sup = createClient(supabaseUrl, serviceKey)
+        const emailDomain = emailToUse.toLowerCase().split('@')[1]
+        const { data: ssoConfig, error: ssoError } = await sup
+          .from('org_sso_configs')
+          .select('require_sso, provider_name')
+          .eq('is_enabled', true)
+          .contains('verified_domains', [emailDomain])
+          .limit(1)
+          .single()
+        
+        // If SSO is required for this domain, block password login
+        if (!ssoError && ssoConfig?.require_sso) {
+          logger.warn('Password login blocked: SSO required for domain', { email: emailToUse, domain: emailDomain })
+          // Return null to block login - user must use SSO
+          return null
+        }
+      } catch (e) {
+        // Ignore errors (table may not exist)
+        logger.debug('SSO check skipped', { error: (e as Error).message })
+      }
+
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       if (!anonKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY not configured for password login')
 

@@ -1203,3 +1203,82 @@ CREATE TABLE public.report_access_log (
   action text NOT NULL CHECK (action IN ('viewed', 'downloaded', 'shared')),
   accessed_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- =============================================================================
+-- ENTERPRISE SSO TABLES (Phase 2: Enterprise Readiness)
+-- Migration: 20260118_org_sso_configs
+-- =============================================================================
+
+-- Organization SSO Configuration
+CREATE TABLE public.org_sso_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  -- Provider Configuration
+  provider_type text NOT NULL CHECK (provider_type IN ('saml', 'oidc', 'azure_ad', 'okta', 'google_workspace')),
+  provider_name text NOT NULL,
+  is_enabled boolean DEFAULT false,
+  
+  -- SAML Configuration
+  saml_entity_id text,
+  saml_sso_url text,
+  saml_slo_url text,
+  saml_certificate text,
+  saml_signature_algorithm text DEFAULT 'sha256',
+  saml_name_id_format text DEFAULT 'emailAddress',
+  
+  -- OIDC Configuration
+  oidc_client_id text,
+  oidc_client_secret_encrypted text,
+  oidc_issuer_url text,
+  oidc_authorization_url text,
+  oidc_token_url text,
+  oidc_userinfo_url text,
+  oidc_scopes text[] DEFAULT ARRAY['openid', 'email', 'profile'],
+  
+  -- Domain & Provisioning
+  verified_domains text[] DEFAULT '{}',
+  auto_provision_users boolean DEFAULT true,
+  default_role text DEFAULT 'member',
+  require_sso boolean DEFAULT false,
+  allow_idp_initiated boolean DEFAULT true,
+  session_duration_hours integer DEFAULT 24,
+  
+  -- Attribute/Group Mapping
+  attribute_mapping jsonb DEFAULT '{"email": "email", "name": "displayName"}',
+  group_mapping jsonb DEFAULT '{}',
+  
+  -- Audit
+  created_by uuid REFERENCES public.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_by uuid REFERENCES public.users(id),
+  updated_at timestamptz DEFAULT now(),
+  last_login_at timestamptz,
+  login_count integer DEFAULT 0,
+  
+  CONSTRAINT unique_org_provider UNIQUE (organization_id, provider_type)
+);
+
+-- SSO Login Events (Audit Trail)
+CREATE TABLE public.sso_login_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  sso_config_id uuid NOT NULL REFERENCES public.org_sso_configs(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES public.users(id),
+  
+  event_type text NOT NULL CHECK (event_type IN ('login_success', 'login_failure', 'logout', 'token_refresh')),
+  idp_subject text,
+  idp_session_id text,
+  
+  email text,
+  name text,
+  groups text[],
+  raw_claims jsonb,
+  
+  ip_address inet,
+  user_agent text,
+  error_code text,
+  error_message text,
+  
+  created_at timestamptz DEFAULT now()
+);
