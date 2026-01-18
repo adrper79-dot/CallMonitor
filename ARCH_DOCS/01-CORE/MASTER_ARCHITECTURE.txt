@@ -730,17 +730,46 @@ Plan controls **availability**, Role controls **authority**.
 
 ---
 
+### **Campaign Manager** ⭐ **NEW (January 17, 2026)**
+
+| Feature              | Owner | Admin | Operator | Analyst | Viewer | Plan     |
+| -------------------- | ----- | ----- | -------- | ------- | ------ | -------- |
+| Create Campaigns     | ✅     | ✅     | ❌        | ❌       | ❌      | Business |
+| Execute Campaigns    | ✅     | ✅     | ✅        | ❌       | ❌      | Business |
+| View Campaign Stats  | ✅     | ✅     | ✅        | ✅       | 👁     | Business |
+| Configure Schedule   | ✅     | ✅     | ❌        | ❌       | ❌      | Business |
+| Manage Target Lists  | ✅     | ✅     | ❌        | ❌       | ❌      | Business |
+
+---
+
+### **Report Builder** ⭐ **NEW (January 17, 2026)**
+
+| Feature                | Owner | Admin | Operator | Analyst | Viewer | Plan     |
+| ---------------------- | ----- | ----- | -------- | ------- | ------ | -------- |
+| Create Report Templates| ✅     | ✅     | ❌        | ✅       | ❌      | Business |
+| Generate Reports       | ✅     | ✅     | ✅        | ✅       | ❌      | Business |
+| Schedule Reports       | ✅     | ✅     | ❌        | ❌       | ❌      | Business |
+| Export Reports         | ✅     | ✅     | ✅        | ✅       | 👁     | Business |
+| View Report Access Log | ✅     | ✅     | ❌        | ✅       | ❌      | Business |
+
+---
+
 ## 4️⃣ Execution Rights Matrix (API-Level)
 
-| API Endpoint               | Owner | Admin | Operator | Analyst | Viewer |
-| -------------------------- | ----- | ----- | -------- | ------- | ------ |
-| `POST /api/voice/call`     | ✅     | ✅     | ✅        | ❌       | ❌      |
-| `PUT /api/voice/config`    | ✅     | ✅     | ❌        | ❌       | ❌      |
-| `GET /api/voice/config`    | ✅     | ✅     | ✅        | ✅       | 👁     |
-| `GET /api/recordings`      | ✅     | ✅     | ✅        | ✅       | 👁     |
-| `GET /api/transcripts`     | ✅     | ✅     | ✅        | ✅       | 👁     |
-| `GET /api/surveys/results` | ✅     | ✅     | ✅        | ✅       | 👁     |
-| `GET /api/shopper/results` | ✅     | ✅     | ✅        | ✅       | 👁     |
+| API Endpoint                    | Owner | Admin | Operator | Analyst | Viewer |
+| ------------------------------- | ----- | ----- | -------- | ------- | ------ |
+| `POST /api/voice/call`          | ✅     | ✅     | ✅        | ❌       | ❌      |
+| `PUT /api/voice/config`         | ✅     | ✅     | ❌        | ❌       | ❌      |
+| `GET /api/voice/config`         | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `GET /api/recordings`           | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `GET /api/transcripts`          | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `GET /api/surveys/results`      | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `GET /api/shopper/results`      | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `POST /api/campaigns`           | ✅     | ✅     | ❌        | ❌       | ❌      |
+| `POST /api/campaigns/[id]/execute` | ✅  | ✅     | ✅        | ❌       | ❌      |
+| `GET /api/campaigns/[id]/stats` | ✅     | ✅     | ✅        | ✅       | 👁     |
+| `POST /api/reports`             | ✅     | ✅     | ❌        | ✅       | ❌      |
+| `GET /api/reports/[id]/export`  | ✅     | ✅     | ✅        | ✅       | 👁     |
 
 👁 = masked / metadata-only
 

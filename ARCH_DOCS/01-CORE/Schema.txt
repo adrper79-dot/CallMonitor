@@ -1016,3 +1016,190 @@ CREATE TABLE public.ai_agent_audit_log (
 -- - ai_agent_model text DEFAULT 'gpt-4o-mini'
 -- - ai_post_prompt_url text
 -- - ai_features_enabled boolean DEFAULT true
+
+-- =============================================================================
+-- CAMPAIGN MANAGER TABLES (Migration: 20260117000000_campaigns)
+-- =============================================================================
+
+-- Campaigns table: Manage bulk outbound calling campaigns
+CREATE TABLE public.campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  
+  -- Campaign configuration
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'active', 'paused', 'completed', 'canceled')),
+  call_flow_type text NOT NULL CHECK (call_flow_type IN ('secret_shopper', 'survey', 'outbound', 'test')),
+  
+  -- Target configuration
+  target_list jsonb NOT NULL DEFAULT '[]'::jsonb, -- Array of {phone, metadata}
+  caller_id_id uuid REFERENCES public.caller_id_numbers(id) ON DELETE SET NULL,
+  
+  -- Script configuration
+  script_id uuid REFERENCES public.shopper_scripts(id) ON DELETE SET NULL,
+  survey_id uuid REFERENCES public.surveys(id) ON DELETE SET NULL,
+  custom_prompt text,
+  
+  -- Scheduling
+  schedule_type text NOT NULL DEFAULT 'immediate' CHECK (schedule_type IN ('immediate', 'scheduled', 'recurring')),
+  scheduled_at timestamptz,
+  recurring_pattern jsonb, -- cron-like pattern: {frequency: 'daily' | 'weekly', time: 'HH:MM', days: [0-6]}
+  
+  -- Call configuration
+  call_config jsonb DEFAULT '{}'::jsonb, -- {max_duration, timeout, retry_attempts}
+  
+  -- Progress tracking
+  total_targets integer NOT NULL DEFAULT 0,
+  calls_completed integer NOT NULL DEFAULT 0,
+  calls_successful integer NOT NULL DEFAULT 0,
+  calls_failed integer NOT NULL DEFAULT 0,
+  
+  -- Audit fields
+  created_by uuid NOT NULL REFERENCES public.users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  started_at timestamptz,
+  completed_at timestamptz
+);
+
+-- Campaign calls table: Track individual calls within a campaign
+CREATE TABLE public.campaign_calls (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+  call_id uuid REFERENCES public.calls(id) ON DELETE SET NULL,
+  
+  -- Target information
+  target_phone text NOT NULL,
+  target_metadata jsonb DEFAULT '{}'::jsonb,
+  
+  -- Execution status
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'calling', 'completed', 'failed', 'canceled')),
+  attempt_number integer NOT NULL DEFAULT 1,
+  max_attempts integer NOT NULL DEFAULT 3,
+  
+  -- Result tracking
+  outcome text CHECK (outcome IN ('answered', 'no_answer', 'busy', 'failed', 'error')),
+  duration_seconds integer,
+  error_message text,
+  
+  -- Scoring (for secret shopper campaigns)
+  score_data jsonb,
+  
+  -- Timestamps
+  scheduled_for timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Campaign audit log: Track all campaign changes
+CREATE TABLE public.campaign_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id uuid NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  action text NOT NULL, -- created, updated, started, paused, resumed, completed, canceled
+  changes jsonb, -- Before/after snapshot
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- =============================================================================
+-- REPORT BUILDER TABLES (Migration: 20260117000001_reports)
+-- =============================================================================
+
+-- Report templates: Reusable report configurations
+CREATE TABLE public.report_templates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  description text,
+  
+  -- Report configuration
+  report_type text NOT NULL CHECK (report_type IN ('call_volume', 'quality_scorecard', 'campaign_performance', 'custom')),
+  data_source text NOT NULL CHECK (data_source IN ('calls', 'campaigns', 'scorecards', 'surveys', 'multi')),
+  
+  -- Filters and parameters
+  filters jsonb NOT NULL DEFAULT '{}'::jsonb, -- {date_range, statuses, users, tags, etc}
+  metrics jsonb NOT NULL DEFAULT '[]'::jsonb, -- Array of metric names to include
+  dimensions jsonb NOT NULL DEFAULT '[]'::jsonb, -- Group by dimensions
+  
+  -- Visualization config
+  visualization_config jsonb DEFAULT '{}'::jsonb, -- Chart types, colors, layout
+  
+  -- Access control
+  is_public boolean NOT NULL DEFAULT false, -- Accessible to all org members
+  created_by uuid NOT NULL REFERENCES public.users(id),
+  
+  -- Timestamps
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Generated reports: Instances of report execution
+CREATE TABLE public.generated_reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL REFERENCES public.report_templates(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  -- Report metadata
+  name text NOT NULL,
+  file_path text, -- S3/storage path for exported report
+  file_format text CHECK (file_format IN ('pdf', 'csv', 'xlsx', 'json')),
+  file_size_bytes integer,
+  
+  -- Report data (for JSON reports, stored inline)
+  report_data jsonb, -- Actual report results
+  
+  -- Generation metadata
+  parameters jsonb NOT NULL DEFAULT '{}'::jsonb, -- Parameters used for generation
+  generated_by uuid NOT NULL REFERENCES public.users(id),
+  generated_at timestamptz NOT NULL DEFAULT now(),
+  
+  -- Status tracking
+  status text NOT NULL DEFAULT 'generating' CHECK (status IN ('generating', 'completed', 'failed')),
+  error_message text,
+  generation_duration_ms integer,
+  
+  -- Expiration
+  expires_at timestamptz, -- Auto-delete after this date
+  
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Scheduled reports: Automated report generation
+CREATE TABLE public.scheduled_reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id uuid NOT NULL REFERENCES public.report_templates(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  
+  -- Schedule configuration
+  name text NOT NULL,
+  schedule_pattern text NOT NULL, -- cron-like: 'daily', 'weekly', 'monthly'
+  schedule_time time NOT NULL DEFAULT '09:00:00', -- Time of day to run
+  schedule_days integer[], -- Days of week (0-6) or month (1-31)
+  timezone text NOT NULL DEFAULT 'UTC',
+  
+  -- Delivery configuration
+  delivery_method text NOT NULL DEFAULT 'email' CHECK (delivery_method IN ('email', 'webhook', 'storage')),
+  delivery_config jsonb NOT NULL DEFAULT '{}'::jsonb, -- {emails: [], webhook_url: '', etc}
+  
+  -- Status
+  is_active boolean NOT NULL DEFAULT true,
+  last_run_at timestamptz,
+  next_run_at timestamptz,
+  
+  -- Audit
+  created_by uuid NOT NULL REFERENCES public.users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Report access log: Track who viewed which reports
+CREATE TABLE public.report_access_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id uuid NOT NULL REFERENCES public.generated_reports(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
+  action text NOT NULL CHECK (action IN ('viewed', 'downloaded', 'shared')),
+  accessed_at timestamptz NOT NULL DEFAULT now()
+);
