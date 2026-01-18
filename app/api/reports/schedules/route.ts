@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Verify template exists and belongs to org
     const { data: template, error: templateError } = await supabaseAdmin
       .from('report_templates')
-      .select('id, organization_id')
+      .select('id, organization_id, name')
       .eq('id', templateId)
       .single()
 
@@ -98,10 +98,11 @@ export async function POST(req: NextRequest) {
       .insert({
         organization_id: organizationId,
         template_id: templateId,
-        cron_pattern: cronPattern,
+        name: template.name || 'Scheduled Report', // Required field
+        schedule_pattern: cronPattern, // Fixed: was cron_pattern
         delivery_config: deliveryConfig || {},
         is_active: true,
-        next_run: nextRun,
+        next_run_at: nextRun, // Fixed: was next_run
         created_by: userId,
       })
       .select()

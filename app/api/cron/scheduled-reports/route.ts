@@ -142,18 +142,18 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     }
 
     // Create generated report record
+    // Note: generated_reports schema requires 'name' and 'parameters' fields
     const { data: generatedReport, error: insertError } = await supabaseAdmin
       .from('generated_reports')
       .insert({
         organization_id,
         template_id,
-        report_type: reportType,
+        name: `${report_templates.name} - ${start_date.split('T')[0]}`, // Required
         report_data: reportData,
-        date_range_start: start_date,
-        date_range_end: end_date,
+        parameters: { date_range: { start: start_date, end: end_date } }, // Store date range in parameters
         file_format: 'json',
         status: 'completed',
-        generated_by: null, // System generated
+        generated_by: scheduledReport.created_by, // Use schedule creator
         generation_duration_ms: 0, // Not tracking for scheduled
       })
       .select()
@@ -176,12 +176,13 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     const nextRun = calculateNextRun(schedule_pattern)
 
     // Update scheduled report
+    // Note: last_report_id column doesn't exist in schema, using updated_at instead
     await supabaseAdmin
       .from('scheduled_reports')
       .update({
         last_run_at: new Date().toISOString(),
         next_run_at: nextRun,
-        last_report_id: generatedReport.id,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
 
@@ -193,12 +194,15 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
   } catch (error: any) {
     logger.error('processScheduledReport: failed', error, { scheduledReportId: id })
 
-    // Update with error
+    // Update with error timestamp only (last_error column doesn't exist in schema)
+    // Calculate next run even on failure to prevent infinite retry loops
+    const nextRun = calculateNextRun(schedule_pattern)
     await supabaseAdmin
       .from('scheduled_reports')
       .update({
         last_run_at: new Date().toISOString(),
-        last_error: error.message,
+        next_run_at: nextRun,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
 
