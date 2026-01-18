@@ -16,7 +16,7 @@ export default function UnlockForm() {
 
   useEffect(() => {
     let mounted = true
-    fetch('/api/health/auth-providers')
+    fetch('/api/health/auth-providers', { credentials: 'include' })
       .then(r => r.json())
       .then((j) => {
         if (!mounted) return

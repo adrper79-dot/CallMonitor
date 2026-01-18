@@ -76,7 +76,8 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       setError(null)
 
       const res = await fetch(
-        `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`
+        `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`,
+        { credentials: 'include' }
       )
 
       if (!res.ok) {

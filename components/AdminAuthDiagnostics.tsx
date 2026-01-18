@@ -17,7 +17,9 @@ export default function AdminAuthDiagnostics() {
 
   async function load() {
     try {
-      const res = await fetch('/api/_admin/auth-providers')
+      const res = await fetch('/api/_admin/auth-providers', {
+        credentials: 'include'
+      })
       const j = await res.json()
       setStatus(j)
     } catch (e) {
@@ -37,6 +39,7 @@ export default function AdminAuthDiagnostics() {
           ...(adminKey ? { 'x-admin-key': adminKey } : {}),
         },
         body: JSON.stringify({ emailEnabled: v }),
+        credentials: 'include'
       })
       await load()
     } finally { setLoading(false) }
