@@ -14,6 +14,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebhookEventType, WEBHOOK_EVENT_TYPES, WebhookRetryPolicy } from '@/types/tier1-features'
 import crypto from 'crypto'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
     
     if (fetchError) {
-      console.error('[webhooks GET] Error:', fetchError)
+      logger.error('[webhooks GET] Error', fetchError, { organizationId: member.organization_id })
       return NextResponse.json(
         { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch subscriptions' } },
         { status: 500 }
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
       subscriptions: maskedSubscriptions || []
     })
   } catch (error: any) {
-    console.error('[webhooks GET] Error:', error)
+    logger.error('[webhooks GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      console.error('[webhooks POST] Insert error:', insertError)
+      logger.error('[webhooks POST] Insert error', insertError, { organizationId: member.organization_id })
       return NextResponse.json(
         { success: false, error: { code: 'CREATE_FAILED', message: 'Failed to create webhook' } },
         { status: 500 }
@@ -270,7 +271,7 @@ export async function POST(request: NextRequest) {
           after: { name, url, events }
         })
       } catch (err) {
-        console.error('[webhooks POST] Audit log error:', err)
+        logger.error('[webhooks POST] Audit log error', err, { subscriptionId: subscription.id })
       }
     })()
     
@@ -284,7 +285,7 @@ export async function POST(request: NextRequest) {
       message: 'Webhook created. Save the secret - it will not be shown again.'
     }, { status: 201 })
   } catch (error: any) {
-    console.error('[webhooks POST] Error:', error)
+    logger.error('[webhooks POST] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

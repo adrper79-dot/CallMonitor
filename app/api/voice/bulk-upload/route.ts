@@ -3,6 +3,7 @@ import { parse } from 'csv-parse/sync'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { logger } from '@/lib/logger'
 import { requireRole } from '@/lib/api/utils'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const organizationId = ctx.orgId
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return ApiErrors.badRequest('No file provided')
     }
 
     // Read CSV file
@@ -122,10 +123,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     logger.error('Bulk upload error', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to process bulk upload' },
-      { status: 500 }
-    )
+    return ApiErrors.internal(error.message || 'Failed to process bulk upload')
   }
 }
 

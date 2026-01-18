@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { CallDisposition } from '@/types/tier1-features'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,7 +102,7 @@ export async function GET(
       }
     })
   } catch (error: any) {
-    console.error('[disposition GET] Error:', error)
+    logger.error('[disposition GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -216,7 +217,7 @@ export async function PUT(
       .single()
     
     if (updateError) {
-      console.error('[disposition PUT] Update error:', updateError)
+      logger.error('[disposition PUT] Update error', updateError, { callId })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update disposition' } },
         { status: 500 }
@@ -237,7 +238,7 @@ export async function PUT(
           after: { disposition, disposition_notes }
         })
       } catch (err) {
-        console.error('[disposition PUT] Audit log error:', err)
+        logger.error('[disposition PUT] Audit log error', err, { callId })
       }
     })()
     
@@ -254,7 +255,7 @@ export async function PUT(
       }
     })
   } catch (error: any) {
-    console.error('[disposition PUT] Error:', error)
+    logger.error('[disposition PUT] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

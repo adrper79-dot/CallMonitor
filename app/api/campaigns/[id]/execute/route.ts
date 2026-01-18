@@ -13,6 +13,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac'
+import { logger } from '@/lib/logger'
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +29,7 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -41,7 +43,7 @@ export async function POST(
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Role check - must be owner or admin
@@ -56,27 +58,21 @@ export async function POST(
       .single()
 
     if (campaignError || !campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return ApiErrors.notFound('Campaign')
     }
 
     // Validate campaign can be executed
     if (!['draft', 'scheduled', 'paused'].includes(campaign.status)) {
-      return NextResponse.json({ 
-        error: `Cannot execute campaign with status: ${campaign.status}` 
-      }, { status: 400 })
+      return ApiErrors.badRequest(`Cannot execute campaign with status: ${campaign.status}`)
     }
 
     // Validate required fields
     if (!campaign.caller_id) {
-      return NextResponse.json({ 
-        error: 'Campaign must have a caller ID before execution' 
-      }, { status: 400 })
+      return ApiErrors.badRequest('Campaign must have a caller ID before execution')
     }
 
     if (campaign.target_list.length === 0) {
-      return NextResponse.json({ 
-        error: 'Campaign must have at least one target' 
-      }, { status: 400 })
+      return ApiErrors.badRequest('Campaign must have at least one target')
     }
 
     // Update campaign status to active
@@ -91,8 +87,8 @@ export async function POST(
       .single()
 
     if (updateError) {
-      console.error('Error updating campaign status:', updateError)
-      return NextResponse.json({ error: 'Failed to start campaign' }, { status: 500 })
+      logger.error('Error updating campaign status', updateError, { campaignId })
+      return ApiErrors.dbError('Failed to start campaign')
     }
 
     // Get pending calls
@@ -104,8 +100,8 @@ export async function POST(
       .limit(100) // Process first 100 calls
 
     if (callsError) {
-      console.error('Error fetching pending calls:', callsError)
-      return NextResponse.json({ error: 'Failed to fetch pending calls' }, { status: 500 })
+      logger.error('Error fetching pending calls', callsError, { campaignId })
+      return ApiErrors.dbError('Failed to fetch pending calls')
     }
 
     // Log audit event
@@ -122,7 +118,7 @@ export async function POST(
     
     // Queue the campaign (non-blocking - runs in background)
     queueCampaignExecution(campaignId).catch(error => {
-      console.error('Campaign execution error:', error)
+      logger.error('Campaign execution error', error, { campaignId })
       // Log to audit but don't fail the API response
       void supabaseAdmin.from('campaign_audit_log').insert({
         campaign_id: campaignId,
@@ -144,7 +140,7 @@ export async function POST(
       }
     })
   } catch (error) {
-    console.error('Error in POST /api/campaigns/[id]/execute:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('Error in POST /api/campaigns/[id]/execute', error)
+    return ApiErrors.internal('Internal server error')
   }
 }

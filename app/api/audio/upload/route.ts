@@ -3,6 +3,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/api/utils'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,16 +21,16 @@ export async function POST(request: NextRequest) {
     const organizationId = ctx.orgId
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return ApiErrors.badRequest('No file provided')
     }
 
     const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/mp4', 'audio/ogg', 'audio/webm']
     if (!validTypes.some(type => file.type.includes(type.split('/')[1]))) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
+      return ApiErrors.badRequest('Invalid file type')
     }
 
     if (file.size > 50 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 400 })
+      return ApiErrors.badRequest('File too large (max 50MB)')
     }
 
     const fileExt = file.name.split('.').pop()
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       logger.error('Upload error', error)
-      return NextResponse.json({ error: 'Upload failed: ' + error.message }, { status: 500 })
+      return ApiErrors.internal('Upload failed: ' + error.message)
     }
 
     const { data: urlData } = supabaseAdmin.storage.from('recordings').getPublicUrl(filePath)
@@ -53,6 +54,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, url: urlData.publicUrl, path: filePath, filename: fileName })
   } catch (error: any) {
     logger.error('Audio upload error', error)
-    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 })
+    return ApiErrors.internal(error.message || 'Upload failed')
   }
 }

@@ -9,6 +9,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { exportToCSV, exportToJSON } from '@/lib/reports/generator'
+import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +25,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const userId = (session.user as any).id
@@ -39,7 +41,7 @@ export async function GET(
       .single()
 
     if (userError || !user?.organization_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
     // Get report
@@ -51,7 +53,7 @@ export async function GET(
       .single()
 
     if (reportError || !report) {
-      return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+      return ApiErrors.notFound('Report')
     }
 
     // Log access
@@ -89,7 +91,7 @@ export async function GET(
       }
     })
   } catch (error) {
-    console.error('Error in GET /api/reports/[id]/export:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('Error in GET /api/reports/[id]/export', error)
+    return ApiErrors.internal('Internal server error')
   }
 }

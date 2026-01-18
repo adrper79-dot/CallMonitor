@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     if (!(session?.user as any)?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const callId = params.id
@@ -31,7 +32,7 @@ export async function GET(
     }
 
     if (!call) {
-      return NextResponse.json({ error: 'Call not found' }, { status: 404 })
+      return ApiErrors.notFound('Call not found')
     }
 
     // Fetch recording if exists
@@ -77,9 +78,6 @@ export async function GET(
     })
   } catch (err: any) {
     logger.error('GET /api/calls/[id] error', err)
-    return NextResponse.json(
-      { error: err?.message || 'Failed to fetch call details' },
-      { status: 500 }
-    )
+    return ApiErrors.internal(err?.message || 'Failed to fetch call details')
   }
 }

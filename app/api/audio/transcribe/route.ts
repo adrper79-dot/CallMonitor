@@ -3,6 +3,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/api/utils'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,12 +21,12 @@ export async function POST(request: NextRequest) {
     const organization_id = ctx.orgId
 
     if (!audio_url) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return ApiErrors.badRequest('Missing required fields')
     }
 
     const assemblyAIKey = process.env.ASSEMBLYAI_API_KEY
     if (!assemblyAIKey) {
-      return NextResponse.json({ error: 'AssemblyAI not configured' }, { status: 503 })
+      return ApiErrors.serviceUnavailable('AssemblyAI not configured')
     }
 
     const transcriptId = uuidv4()
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       logger.error('Failed to create ai_run record', insertError)
-      return NextResponse.json({ error: 'Failed to create transcript record' }, { status: 500 })
+      return ApiErrors.internal('Failed to create transcript record')
     }
 
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         output: { filename, audio_url, organization_id, error: error.error || 'AssemblyAI submission failed' }
       }).eq('id', transcriptId)
 
-      return NextResponse.json({ error: 'Transcription failed: ' + (error.error || 'Unknown error') }, { status: 500 })
+      return ApiErrors.internal('Transcription failed: ' + (error.error || 'Unknown error'))
     }
 
     const transcriptData = await uploadResponse.json()
@@ -70,6 +71,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, transcript_id: transcriptId, assemblyai_id: transcriptData.id, status: 'processing' })
   } catch (error: any) {
     logger.error('Transcription error', error)
-    return NextResponse.json({ error: error.message || 'Transcription failed' }, { status: 500 })
+    return ApiErrors.internal(error.message || 'Transcription failed')
   }
 }

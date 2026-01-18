@@ -44,7 +44,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
   iceServers: RTCIceServer[]
 } | null> {
   if (!SIGNALWIRE_PROJECT_ID || !SIGNALWIRE_TOKEN || !SIGNALWIRE_SPACE) {
-    console.error('[webrtc] SignalWire credentials not configured')
+    logger.error('[webrtc] SignalWire credentials not configured', null)
     return null
   }
   
@@ -69,7 +69,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     
     if (jwtResponse.ok) {
       const data = await jwtResponse.json()
-      console.log('[webrtc] Got SignalWire JWT token')
+      logger.info('[webrtc] Got SignalWire JWT token')
       
       return {
         token: data.jwt_token,
@@ -87,7 +87,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     
     // Log the error but continue - we can still return a session without pre-fetched token
     const errorText = await jwtResponse.text()
-    console.warn('[webrtc] SignalWire JWT endpoint returned non-OK:', jwtResponse.status, errorText)
+    logger.warn('[webrtc] SignalWire JWT endpoint returned non-OK', { status: jwtResponse.status, errorText })
     
     // Return null token but provide ICE servers for fallback WebRTC
     // The client can authenticate directly with project/token
@@ -100,7 +100,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
       ]
     }
   } catch (error) {
-    console.error('[webrtc] Error getting SignalWire token:', error)
+    logger.error('[webrtc] Error getting SignalWire token', error)
     // Return fallback ICE servers even if token fails
     return {
       token: '',
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
       }
     }, { status: 201 })
   } catch (error: any) {
-    console.error('[webrtc POST] Error:', error)
+    logger.error('[webrtc POST] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -336,7 +336,7 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error: any) {
-    console.error('[webrtc GET] Error:', error)
+    logger.error('[webrtc GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -417,7 +417,7 @@ export async function DELETE(request: NextRequest) {
       message: updatedSession ? 'Session ended' : 'No active session'
     })
   } catch (error: any) {
-    console.error('[webrtc DELETE] Error:', error)
+    logger.error('[webrtc DELETE] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

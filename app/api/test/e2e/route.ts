@@ -244,7 +244,7 @@ export async function POST(req: Request) {
               ? callResult.error 
               : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
             
-            console.error('Execute call failed:', errorMsg, callResult)
+            logger.error('Execute call failed', undefined, { errorMsg, callResult })
             
             results.actions.push({ 
               action: 'execute_call', 
@@ -253,7 +253,7 @@ export async function POST(req: Request) {
             })
           }
         } catch (callErr: any) {
-          console.error('Exception during execute_call:', callErr)
+          logger.error('Exception during execute_call', callErr)
           results.actions.push({
             action: 'execute_call',
             success: false,
@@ -358,7 +358,7 @@ export async function POST(req: Request) {
             actor_id: actorId
           } as any, { supabaseAdmin })
         } catch (callErr: any) {
-          console.error('Exception in startCallHandler:', callErr)
+          logger.error('Exception in startCallHandler', callErr)
           callResult = {
             success: false,
             error: callErr?.message || 'Unexpected error during call execution'
@@ -382,7 +382,7 @@ export async function POST(req: Request) {
             ? callResult.error 
             : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
           
-          console.error('Execute call failed:', errorMsg, callResult)
+          logger.error('Execute call failed', undefined, { errorMsg, callResult })
           
           results.actions.push({
             action: 'execute_call',

@@ -16,6 +16,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
     })
 
   } catch (err: any) {
-    console.error('GET /api/call-capabilities error:', err)
+    logger.error('GET /api/call-capabilities error', err)
     return NextResponse.json({
       success: false,
       error: { code: 'INTERNAL_ERROR', message: 'Failed to check capabilities' }

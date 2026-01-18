@@ -11,6 +11,10 @@ import { createBillingPortalSession } from '@/lib/services/stripeService'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
+
+// Force dynamic rendering - uses session via requireRole
+export const dynamic = 'force-dynamic'
 
 // Rate limiting commented out for build
 // const rateLimiter = rateLimit({
@@ -51,9 +55,9 @@ export async function POST(req: NextRequest) {
     logger.error('POST /api/billing/portal failed', error)
     
     if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.httpStatus })
+      return ApiErrors.internal(error.message)
     }
     
-    return NextResponse.json({ error: 'Failed to create billing portal session' }, { status: 500 })
+    return ApiErrors.internal('Failed to create billing portal session')
   }
 }

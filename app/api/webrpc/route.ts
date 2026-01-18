@@ -464,7 +464,7 @@ export async function POST(request: NextRequest) {
       result
     } as WebRPCResponse)
   } catch (error: any) {
-    console.error('[webrpc POST] Error:', error)
+    logger.error('WebRPC POST error', error)
     return NextResponse.json({
       id: 'unknown',
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }

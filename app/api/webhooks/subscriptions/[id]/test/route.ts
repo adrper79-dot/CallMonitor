@@ -11,6 +11,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import crypto from 'crypto'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,7 +109,7 @@ export async function POST(
       .single()
     
     if (insertError) {
-      console.error('[webhook test] Insert error:', insertError)
+      logger.error('[webhook test] Insert error', insertError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'QUEUE_FAILED', message: 'Failed to queue test webhook' } },
         { status: 500 }
@@ -124,7 +125,7 @@ export async function POST(
       }
     })
   } catch (error: any) {
-    console.error('[webhook test] Error:', error)
+    logger.error('[webhook test] Error', error, { webhookId: params.id })
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

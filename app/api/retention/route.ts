@@ -15,6 +15,9 @@ import { Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
+// Force dynamic rendering - uses session via requireRole
+export const dynamic = 'force-dynamic'
+
 // Validation schema
 const updatePolicySchema = z.object({
   default_retention_class: z.enum(['default', 'regulated', 'legal_hold']).optional(),

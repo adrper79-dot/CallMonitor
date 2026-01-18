@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
-      return NextResponse.json({ error: 'Auth required' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     // Get user's org
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const orgId = userRows?.[0]?.organization_id
     if (!orgId) {
-      return NextResponse.json({ error: 'No org found' }, { status: 404 })
+      return ApiErrors.notFound('Organization not found')
     }
 
     // Check org plan
@@ -156,6 +157,6 @@ export async function GET(req: NextRequest) {
       ] : []
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message }, { status: 500 })
+    return ApiErrors.internal(err?.message || 'Translation check failed')
   }
 }

@@ -342,7 +342,7 @@ async function testVoiceEndpoints() {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
     
     // Test capabilities endpoint
-    const res = await fetch(`${baseUrl}/api/call-capabilities`)
+    const res = await fetch(`${baseUrl}/api/call-capabilities`, { credentials: 'include' })
 
     // Should return 401 (need auth) or 200, but not 404
     const passed = res.status !== 404
@@ -364,7 +364,7 @@ async function testVoiceEndpoints() {
 async function testCapabilitiesEndpoint() {
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/call-capabilities`)
+    const res = await fetch(`${baseUrl}/api/call-capabilities`, { credentials: 'include' })
 
     const passed = res.status !== 404
 

@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { generateCallVolumeReport, generateCampaignPerformanceReport } from '@/lib/reports/generator'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       logger.warn('scheduled-reports cron: unauthorized access attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     logger.info('scheduled-reports cron: starting')
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     if (queryError) {
       logger.error('scheduled-reports cron: query error', queryError)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+      return ApiErrors.internal('Database error')
     }
 
     if (!dueReports || dueReports.length === 0) {

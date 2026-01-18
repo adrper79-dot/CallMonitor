@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     if (cronSecret) {
       if (authHeader !== `Bearer ${cronSecret}`) {
         logger.warn('Webhook retry cron: Unauthorized access attempt')
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+        return ApiErrors.unauthorized()
       }
     } else if (process.env.NODE_ENV === 'production') {
       logger.error('Webhook retry cron: CRON_SECRET not configured')
@@ -201,7 +202,7 @@ async function replayWebhook(failure: {
 // Also support GET for manual trigger in development
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Use POST in production' }, { status: 405 })
+    return new Response(JSON.stringify({ error: 'Use POST in production' }), { status: 405, headers: { 'Content-Type': 'application/json' } })
   }
   return POST(req)
 }

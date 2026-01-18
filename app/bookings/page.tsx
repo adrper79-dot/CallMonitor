@@ -39,7 +39,7 @@ export default function BookingsPage() {
       const url = filter === 'all' 
         ? '/api/bookings?limit=50'
         : `/api/bookings?limit=50&status=${filter}`
-      const response = await fetch(url)
+      const response = await fetch(url, { credentials: 'include' })
       const data = await response.json()
       
       if (data.success) {

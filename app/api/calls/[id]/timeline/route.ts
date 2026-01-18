@@ -12,6 +12,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { TimelineEvent, TimelineEventType, CallTimeline } from '@/types/tier1-features'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -335,7 +336,7 @@ export async function GET(
       timeline
     })
   } catch (error: any) {
-    console.error('[timeline GET] Error:', error)
+    logger.error('[timeline GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

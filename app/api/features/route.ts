@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { FeatureFlag, FEATURE_FLAGS, FeatureStatus } from '@/types/tier1-features'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
       organization_id: member.organization_id
     })
   } catch (error: any) {
-    console.error('[features GET] Error:', error)
+    logger.error('[features GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -211,7 +212,7 @@ export async function PUT(request: NextRequest) {
       .single()
     
     if (upsertError) {
-      console.error('[features PUT] Upsert error:', upsertError)
+      logger.error('[features PUT] Upsert error', upsertError, { feature })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update feature flag' } },
         { status: 500 }
@@ -231,7 +232,7 @@ export async function PUT(request: NextRequest) {
           after: { feature, enabled, disabled_reason, daily_limit, monthly_limit }
         })
       } catch (err) {
-        console.error('[features PUT] Audit log error:', err)
+        logger.error('[features PUT] Audit log error', err, { featureId: updatedFlag.id })
       }
     })()
     
@@ -250,7 +251,7 @@ export async function PUT(request: NextRequest) {
       }
     })
   } catch (error: any) {
-    console.error('[features PUT] Error:', error)
+    logger.error('[features PUT] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

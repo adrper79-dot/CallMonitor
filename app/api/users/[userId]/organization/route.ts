@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export async function GET(req: Request, { params }: { params: { userId: string }
     const session = await getServerSession(authOptions as any)
     
     if (!session?.user?.id || session.user.id !== params.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const supabase = createClient(
@@ -51,12 +52,12 @@ export async function GET(req: Request, { params }: { params: { userId: string }
     }
 
     if (!organizationId) {
-      return NextResponse.json({ error: 'No organization found' }, { status: 404 })
+      return ApiErrors.notFound('Organization')
     }
 
-    return NextResponse.json({ organization_id: organizationId })
+    return apiSuccess({ organization_id: organizationId })
   } catch (err: any) {
     logger.error('Failed to fetch user organization', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return ApiErrors.internal('Internal server error')
   }
 }

@@ -4,6 +4,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/api/utils'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,15 +22,15 @@ export async function POST(request: NextRequest) {
     const organization_id = ctx.orgId
 
     if (!text) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return ApiErrors.badRequest('Missing required fields')
     }
 
     if (!process.env.ELEVENLABS_API_KEY) {
-      return NextResponse.json({ error: 'ElevenLabs not configured' }, { status: 503 })
+      return ApiErrors.serviceUnavailable('ElevenLabs')
     }
 
     if (text.length > 5000) {
-      return NextResponse.json({ error: 'Text too long (max 5000 characters)' }, { status: 400 })
+      return ApiErrors.badRequest('Text too long (max 5000 characters)')
     }
 
     const audioStream = await generateSpeech(text, language, voice_id)
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
       const errorMessage = uploadError.message?.includes('bucket')
         ? 'Storage bucket not configured. Please create a "recordings" bucket in Supabase Storage.'
         : `Failed to save audio: ${uploadError.message || 'Unknown storage error'}`
-      return NextResponse.json({ error: errorMessage, details: uploadError.message }, { status: 500 })
+      return ApiErrors.internal(errorMessage)
     }
 
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
@@ -82,6 +83,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, audio_url: audioUrl, storage_path: filePath, expires_in: 3600, character_count: text.length })
   } catch (error: any) {
     logger.error('TTS generation error', error)
-    return NextResponse.json({ error: error.message || 'Generation failed' }, { status: 500 })
+    return ApiErrors.internal(error.message || 'Generation failed')
   }
 }

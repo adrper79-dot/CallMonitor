@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,7 +98,7 @@ export async function GET(
     const { data: deliveries, error: deliveriesError, count } = await query
     
     if (deliveriesError) {
-      console.error('[deliveries GET] Error:', deliveriesError)
+      logger.error('[deliveries GET] Error', deliveriesError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch deliveries' } },
         { status: 500 }
@@ -115,7 +116,7 @@ export async function GET(
       }
     })
   } catch (error: any) {
-    console.error('[deliveries GET] Error:', error)
+    logger.error('[deliveries GET] Error', error, { webhookId: params.id })
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

@@ -18,6 +18,7 @@ import Stripe from 'stripe'
 import { stripe } from '@/lib/services/stripeService'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 import { 
   writeAudit, 
   writeAuditLegacy, 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err: any) {
     logger.error('Stripe webhook signature verification failed', err)
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    return ApiErrors.badRequest('Invalid signature')
   }
 
   try {
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('stripe_event_id', event.id)
 
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+    return ApiErrors.internal('Webhook processing failed')
   }
 }
 

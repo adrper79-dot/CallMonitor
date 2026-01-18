@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ async function handleGET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!(session?.user as any)?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const searchParams = req.nextUrl.searchParams
@@ -23,7 +24,7 @@ async function handleGET(req: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!orgId) {
-      return NextResponse.json({ error: 'orgId is required' }, { status: 400 })
+      return ApiErrors.badRequest('orgId is required')
     }
 
     let query = (supabaseAdmin as any)
@@ -68,10 +69,7 @@ async function handleGET(req: NextRequest) {
     })
   } catch (err: any) {
     logger.error('GET /api/calls error', err)
-    return NextResponse.json(
-      { error: err?.message || 'Failed to fetch calls' },
-      { status: 500 }
-    )
+    return ApiErrors.internal(err?.message || 'Failed to fetch calls')
   }
 }
 

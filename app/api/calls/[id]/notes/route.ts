@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { CallNoteTag, CALL_NOTE_TAGS } from '@/types/tier1-features'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,7 +100,7 @@ export async function GET(
       .order('created_at', { ascending: false })
     
     if (notesError) {
-      console.error('[notes GET] Error fetching notes:', notesError)
+      logger.error('[notes GET] Error fetching notes', notesError, { callId })
       return NextResponse.json(
         { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch notes' } },
         { status: 500 }
@@ -111,7 +112,7 @@ export async function GET(
       notes: notes || []
     })
   } catch (error: any) {
-    console.error('[notes GET] Error:', error)
+    logger.error('[notes GET] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -235,7 +236,7 @@ export async function POST(
       .single()
     
     if (insertError) {
-      console.error('[notes POST] Insert error:', insertError)
+      logger.error('[notes POST] Insert error', insertError, { callId })
       return NextResponse.json(
         { success: false, error: { code: 'INSERT_FAILED', message: 'Failed to create note' } },
         { status: 500 }
@@ -255,7 +256,7 @@ export async function POST(
           after: { tags, note }
         })
       } catch (err) {
-        console.error('[notes POST] Audit log error:', err)
+        logger.error('[notes POST] Audit log error', err, { noteId: newNote.id })
       }
     })()
     
@@ -264,7 +265,7 @@ export async function POST(
       note: newNote
     }, { status: 201 })
   } catch (error: any) {
-    console.error('[notes POST] Error:', error)
+    logger.error('[notes POST] Error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

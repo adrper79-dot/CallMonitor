@@ -13,6 +13,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebhookEventType, WEBHOOK_EVENT_TYPES, WebhookRetryPolicy } from '@/types/tier1-features'
 import crypto from 'crypto'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -227,7 +228,7 @@ export async function PATCH(
       .single()
     
     if (updateError) {
-      console.error('[webhooks PATCH] Update error:', updateError)
+      logger.error('Webhook PATCH update error', updateError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update webhook' } },
         { status: 500 }
@@ -248,7 +249,7 @@ export async function PATCH(
           after: updatedWebhook
         })
       } catch (err) {
-        console.error('[webhooks PATCH] Audit log error:', err)
+        logger.error('Webhook PATCH audit log error', err, { webhookId })
       }
     })()
     
@@ -263,7 +264,7 @@ export async function PATCH(
       subscription: responseWebhook
     })
   } catch (error: any) {
-    console.error('[webhooks PATCH] Error:', error)
+    logger.error('Webhook PATCH error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }
@@ -337,7 +338,7 @@ export async function DELETE(
       .eq('id', webhookId)
     
     if (deleteError) {
-      console.error('[webhooks DELETE] Delete error:', deleteError)
+      logger.error('Webhook DELETE error', deleteError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete webhook' } },
         { status: 500 }
@@ -357,7 +358,7 @@ export async function DELETE(
           before: existingWebhook
         })
       } catch (err) {
-        console.error('[webhooks DELETE] Audit log error:', err)
+        logger.error('Webhook DELETE audit log error', err, { webhookId })
       }
     })()
     
@@ -366,7 +367,7 @@ export async function DELETE(
       message: 'Webhook deleted successfully'
     })
   } catch (error: any) {
-    console.error('[webhooks DELETE] Error:', error)
+    logger.error('Webhook DELETE error', error)
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       { status: 500 }

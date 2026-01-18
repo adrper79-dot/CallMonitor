@@ -11,7 +11,11 @@ import { requireRole } from '@/lib/rbac'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 import { writeAuditLegacy as writeAudit } from '@/lib/audit/auditLogger'
+
+// Force dynamic rendering - uses session via requireRole
+export const dynamic = 'force-dynamic'
 
 // Rate limiting commented out for build - implement if needed
 // const rateLimiter = rateLimit({
@@ -86,10 +90,10 @@ export async function GET(req: NextRequest) {
     logger.error('GET /api/ai-config failed', error)
 
     if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.httpStatus })
+      return ApiErrors.internal(error.message)
     }
 
-    return NextResponse.json({ error: 'Failed to fetch AI config' }, { status: 500 })
+    return ApiErrors.internal('Failed to fetch AI config')
   }
 }
 
@@ -223,9 +227,9 @@ export async function PUT(req: NextRequest) {
     logger.error('PUT /api/ai-config failed', error)
 
     if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.httpStatus })
+      return ApiErrors.internal(error.message)
     }
 
-    return NextResponse.json({ error: 'Failed to update AI config' }, { status: 500 })
+    return ApiErrors.internal('Failed to update AI config')
   }
 }
