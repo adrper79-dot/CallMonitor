@@ -108,10 +108,21 @@ begin
     raise exception 'ai_post_prompt_url must be a valid HTTP(S) URL';
   end if;
 
-  -- If live translation is enabled, require language configuration
-  if new.live_translate = true then
-    if new.translate_from is null or new.translate_to is null then
-      raise exception 'translate_from and translate_to are required when live_translate is enabled';
+  -- If live translation is being NEWLY enabled, require language configuration
+  -- Only validate on INSERT or when enabling (allows partial updates)
+  if tg_op = 'INSERT' then
+    if coalesce(new.live_translate, new.translate, false) = true then
+      if new.translate_from is null or new.translate_to is null then
+        raise exception 'translate_from and translate_to are required when translation is enabled';
+      end if;
+    end if;
+  elsif tg_op = 'UPDATE' then
+    -- Only validate when NEWLY enabling translation
+    if (coalesce(new.live_translate, new.translate, false) = true) and 
+       (coalesce(old.live_translate, old.translate, false) = false) then
+      if new.translate_from is null or new.translate_to is null then
+        raise exception 'translate_from and translate_to are required when enabling translation';
+      end if;
     end if;
   end if;
 

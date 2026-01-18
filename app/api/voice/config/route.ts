@@ -172,14 +172,13 @@ async function handlePUT(req: Request) {
     }
     
     // MASTER_ARCHITECTURE compliance: When enabling translation, language codes are required
-    // Check if translate or live_translate is being enabled (either explicitly or will remain true)
-    const willTranslateBeEnabled = 
-      updatePayload.translate === true || 
-      updatePayload.live_translate === true ||
-      (updatePayload.translate === undefined && updatePayload.live_translate === undefined && 
-       (existing?.translate === true || existing?.live_translate === true))
+    // Check if translate or live_translate is being NEWLY enabled (not already enabled)
+    // Allow partial updates to language fields even when translation is already on
+    const isNewlyEnablingTranslation = 
+      (updatePayload.translate === true && existing?.translate !== true) || 
+      (updatePayload.live_translate === true && existing?.live_translate !== true)
     
-    if (willTranslateBeEnabled) {
+    if (isNewlyEnablingTranslation) {
       // Determine effective language codes after this update
       const effectiveFrom = updatePayload.translate_from ?? existing?.translate_from
       const effectiveTo = updatePayload.translate_to ?? existing?.translate_to

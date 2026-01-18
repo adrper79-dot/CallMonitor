@@ -42,11 +42,22 @@ BEGIN
     RAISE EXCEPTION 'ai_post_prompt_url must be a valid HTTP(S) URL';
   END IF;
 
-  -- If live translation is enabled, require language configuration
-  -- Check both live_translate and translate columns for compatibility
-  IF COALESCE(NEW.live_translate, NEW.translate, false) = true THEN
-    IF NEW.translate_from IS NULL OR NEW.translate_to IS NULL THEN
-      RAISE EXCEPTION 'translate_from and translate_to are required when translation is enabled';
+  -- If live translation is being NEWLY enabled, require language configuration
+  -- Only check on INSERT or when enabling (not on partial updates)
+  -- This allows users to update language fields one at a time
+  IF TG_OP = 'INSERT' THEN
+    IF COALESCE(NEW.live_translate, NEW.translate, false) = true THEN
+      IF NEW.translate_from IS NULL OR NEW.translate_to IS NULL THEN
+        RAISE EXCEPTION 'translate_from and translate_to are required when translation is enabled';
+      END IF;
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    -- Only validate when NEWLY enabling translation
+    IF (COALESCE(NEW.live_translate, NEW.translate, false) = true) AND 
+       (COALESCE(OLD.live_translate, OLD.translate, false) = false) THEN
+      IF NEW.translate_from IS NULL OR NEW.translate_to IS NULL THEN
+        RAISE EXCEPTION 'translate_from and translate_to are required when enabling translation';
+      END IF;
     END IF;
   END IF;
 
