@@ -70,7 +70,7 @@ export function CampaignProgress({ campaignId, initialStats }: CampaignProgressP
           filter: `campaign_id=eq.${campaignId}`,
         },
         (payload) => {
-          console.log('Campaign call updated:', payload)
+          logger.debug('Campaign call updated', { campaignId, payload })
           setIsLive(true)
           fetchStats()
         }

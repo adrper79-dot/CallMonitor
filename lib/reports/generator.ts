@@ -8,6 +8,7 @@
  */
 
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { logger } from '@/lib/logger'
 
 export interface ReportFilters {
   date_range?: {
@@ -65,7 +66,7 @@ export async function generateCallVolumeReport(
   const { data: calls, error } = await query
 
   if (error) {
-    console.error('Error fetching calls for report:', error)
+    logger.error('Error fetching calls for report', error, { organizationId, dateRange: date_range })
     throw new Error('Failed to generate call volume report')
   }
 
@@ -134,7 +135,7 @@ export async function generateCampaignPerformanceReport(
   const { data: campaigns, error } = await query
 
   if (error) {
-    console.error('Error fetching campaigns for report:', error)
+    logger.error('Error fetching campaigns for report', error, { organizationId, dateRange: date_range, campaignIds: campaign_ids })
     throw new Error('Failed to generate campaign performance report')
   }
 
