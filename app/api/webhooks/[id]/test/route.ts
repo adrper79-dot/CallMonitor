@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/rbac'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 import { createHmac } from 'crypto'
@@ -24,7 +24,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
+    const session = await requireRole(['owner', 'admin'])
+    const { id: userId, organizationId, role } = session.user
     const webhookId = params.id
 
     // Get webhook

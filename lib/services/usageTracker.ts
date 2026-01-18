@@ -233,23 +233,59 @@ export async function checkUsageLimits(
 
 /**
  * Get plan limits for display in UI
+ * Per ARCH_DOCS: usage_limits is per-organization
  */
-export async function getPlanLimits(plan: string): Promise<UsageLimits | null> {
+export async function getPlanLimits(organizationId: string): Promise<UsageLimits | null> {
   try {
     const { data: limits, error } = await supabaseAdmin
       .from('usage_limits')
       .select('*')
-      .eq('plan', plan.toLowerCase())
-      .single()
+      .eq('organization_id', organizationId)
 
-    if (error || !limits) {
-      return null
+    if (error || !limits || limits.length === 0) {
+      // Return default limits for free tier if no custom limits set
+      return {
+        calls_per_month: 100,
+        minutes_per_month: 500,
+        transcriptions_per_month: 50,
+        translations_per_month: 0,
+        can_record: true,
+        can_transcribe: true,
+        can_translate: false,
+        can_use_secret_shopper: false,
+        allow_overage: false
+      }
     }
 
-    return limits as UsageLimits
+    // Convert array of metric-specific limits to single object
+    const usageLimits: UsageLimits = {
+      calls_per_month: 100,
+      minutes_per_month: 500,
+      transcriptions_per_month: 50,
+      translations_per_month: 0,
+      can_record: true,
+      can_transcribe: true,
+      can_translate: false,
+      can_use_secret_shopper: false,
+      allow_overage: false
+    }
+
+    limits.forEach((limit: any) => {
+      if (limit.billing_period === 'month') {
+        if (limit.metric === 'call') usageLimits.calls_per_month = limit.limit_value
+        if (limit.metric === 'minute') usageLimits.minutes_per_month = limit.limit_value
+        if (limit.metric === 'transcription') usageLimits.transcriptions_per_month = limit.limit_value
+        if (limit.metric === 'translation') usageLimits.translations_per_month = limit.limit_value
+      }
+    })
+
+    // Set feature flags based on limits
+    usageLimits.can_translate = usageLimits.translations_per_month > 0
+
+    return usageLimits
 
   } catch (err: any) {
-    logger.error('Error fetching plan limits', err, { plan })
+    logger.error('Error fetching plan limits', err, { organizationId })
     return null
   }
 }

@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/rbac'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -21,7 +21,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId, organizationId } = await requireRole('viewer')
+    const session = await requireRole('viewer')
+    const { id: userId, organizationId } = session.user
 
     // Get org from query - use session org if not provided
     const searchParams = req.nextUrl.searchParams
@@ -65,7 +66,8 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
+    const session = await requireRole(['owner', 'admin'])
+    const { id: userId, organizationId, role } = session.user
 
     const body = await req.json()
     const { templateId, cronPattern, deliveryConfig } = body

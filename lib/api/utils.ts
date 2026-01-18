@@ -131,12 +131,13 @@ export async function getAuthUser(): Promise<{ id: string; email?: string } | nu
 
 /**
  * Get user's organization ID
+ * Per ARCH_DOCS: org_members is the source of truth for user-org relationships
  */
 export async function getUserOrg(userId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
-    .from('users')
+    .from('org_members')
     .select('organization_id')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .limit(1)
   
   return data?.[0]?.organization_id || null

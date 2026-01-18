@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/rbac'
+import { requireRole } from '@/lib/rbac-server'
 import { createBillingPortalSession } from '@/lib/services/stripeService'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { AppError } from '@/types/app-error'

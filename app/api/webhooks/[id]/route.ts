@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/rbac'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
@@ -24,7 +24,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
+    const session = await requireRole(['owner', 'admin'])
+    const { id: userId, organizationId, role } = session.user
     const webhookId = params.id
 
     const body = await req.json()
@@ -85,7 +86,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId, organizationId, role } = await requireRole(['owner', 'admin'])
+    const session = await requireRole(['owner', 'admin'])
+    const { id: userId, organizationId, role } = session.user
     const webhookId = params.id
 
     // Get webhook to verify ownership

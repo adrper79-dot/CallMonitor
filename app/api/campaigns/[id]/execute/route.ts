@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireRole } from '@/lib/rbac'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 
