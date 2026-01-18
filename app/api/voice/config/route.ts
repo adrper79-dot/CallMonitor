@@ -17,6 +17,7 @@ type VoiceConfigRow = {
   record?: boolean
   transcribe?: boolean
   translate?: boolean
+  live_translate?: boolean
   translate_from?: string | null
   translate_to?: string | null
   survey?: boolean
@@ -118,7 +119,7 @@ async function handlePUT(req: Request) {
     // Per TOOL_TABLE_ALIGNMENT: voice_configs PUT allows all modulation columns
     // NOTE: target_id and campaign_id are NOT in the database schema - they are transient/session fields
     const allowedKeys = [
-      'record', 'transcribe', 'translate', 'translate_from', 'translate_to', 
+      'record', 'transcribe', 'translate', 'live_translate', 'translate_from', 'translate_to', 
       'survey', 'synthetic_caller', 'use_voice_cloning', 'cloned_voice_id',
       // AI Survey Bot fields
       'survey_prompts', 'survey_question_types', 'survey_prompts_locales', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number',
@@ -126,7 +127,7 @@ async function handlePUT(req: Request) {
       'caller_id_mask', 'caller_id_verified'
     ]
     const stringKeys = ['translate_from', 'translate_to', 'cloned_voice_id', 'survey_voice', 'survey_webhook_email', 'survey_inbound_number', 'caller_id_mask']
-    const booleanKeys = ['record', 'transcribe', 'translate', 'survey', 'synthetic_caller', 'use_voice_cloning', 'caller_id_verified']
+    const booleanKeys = ['record', 'transcribe', 'translate', 'live_translate', 'survey', 'synthetic_caller', 'use_voice_cloning', 'caller_id_verified']
     const jsonArrayKeys = ['survey_prompts', 'survey_question_types'] // Array fields stored as JSONB
     const jsonObjectKeys = ['survey_prompts_locales'] // JSON objects stored as JSONB
     // Do NOT include `organization_id` in the update payload — PUT must not write org id per TOOL_TABLE_ALIGNMENT.
@@ -171,9 +172,12 @@ async function handlePUT(req: Request) {
     }
     
     // MASTER_ARCHITECTURE compliance: When enabling translation, language codes are required
-    // Check if translate is being enabled (either explicitly or will remain true)
-    const willTranslateBeEnabled = updatePayload.translate === true || 
-      (updatePayload.translate === undefined && existing?.translate === true)
+    // Check if translate or live_translate is being enabled (either explicitly or will remain true)
+    const willTranslateBeEnabled = 
+      updatePayload.translate === true || 
+      updatePayload.live_translate === true ||
+      (updatePayload.translate === undefined && updatePayload.live_translate === undefined && 
+       (existing?.translate === true || existing?.live_translate === true))
     
     if (willTranslateBeEnabled) {
       // Determine effective language codes after this update
@@ -189,6 +193,13 @@ async function handlePUT(req: Request) {
         })
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
       }
+    }
+    
+    // Sync translate and live_translate columns
+    if (updatePayload.translate !== undefined && updatePayload.live_translate === undefined) {
+      updatePayload.live_translate = updatePayload.translate
+    } else if (updatePayload.live_translate !== undefined && updatePayload.translate === undefined) {
+      updatePayload.translate = updatePayload.live_translate
     }
 
     // upsert: insert if none, otherwise update permitted columns per TOOL_TABLE_ALIGNMENT
