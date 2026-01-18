@@ -1,6 +1,6 @@
 # Quick Reference - Word Is Bond
 
-**Version:** 1.2.0 | **Date:** January 14, 2026 | **Status:** ✅ Production Ready
+**Version:** 1.3.0 | **Date:** January 18, 2026 | **Status:** ✅ Production Ready
 
 ---
 
@@ -87,7 +87,10 @@ npx tsc --noEmit      # TypeScript check
 - `app/services/elevenlabs.ts` - TTS service
 - `app/services/translation.ts` - Translation service
 - `lib/supabaseAdmin.ts` - Database client
-- `lib/auth.ts` - Authentication
+- `lib/auth.ts` - Authentication (NextAuth)
+- `lib/rbac.ts` - Client-safe RBAC (planSupportsFeature)
+- `lib/rbac-server.ts` - Server-only RBAC (requireRole)
+- `lib/api/utils.ts` - API helpers (requireAuth, requireRole)
 
 ---
 
@@ -205,6 +208,18 @@ npm run build
 - Rate limiting still protects against abuse
 - Alternative: Configure IP allowlist for SignalWire IPs
 
+### **API route 500 errors (RBAC/Auth):**
+- Ensure API routes import `requireRole` from `@/lib/rbac-server` (NOT `@/lib/rbac`)
+- Use `session.user.id` and `session.user.organizationId` from RBACSession
+- `org_members` is the source of truth for user-org relationships (not `users` table)
+- Always use NextAuth `getServerSession(authOptions)`, not Supabase Auth
+
+### **Client component importing server code:**
+- If build fails with "Module not found: nodemailer":
+- Check that client components only import from `lib/rbac.ts` (not `lib/rbac-server.ts`)
+- `lib/rbac.ts` is client-safe (planSupportsFeature, canAccessFeature)
+- `lib/rbac-server.ts` is server-only (requireRole)
+
 ---
 
 ## 📊 **API Endpoints Quick Reference**
@@ -217,6 +232,10 @@ npm run build
 | `/api/calls` | GET | List calls |
 | `/api/health` | GET | System health |
 | `/api/call-capabilities` | GET | Check org capabilities |
+| `/api/organizations/current` | GET | Current org + subscription |
+| `/api/billing/subscription` | GET | Subscription status |
+| `/api/billing/invoices` | GET | Invoice history |
+| `/api/billing/payment-methods` | GET | Payment methods |
 
 ### **Webhooks:**
 | Endpoint | Source | Purpose |

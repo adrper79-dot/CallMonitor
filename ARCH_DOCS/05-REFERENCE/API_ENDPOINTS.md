@@ -1,6 +1,6 @@
 # API Endpoints Reference
 
-**Last Updated:** January 27, 2026  
+**Last Updated:** January 18, 2026  
 **Status:** Complete
 
 > Comprehensive reference for all API endpoints in Wordis Bond
@@ -692,6 +692,100 @@ This document provides a complete reference for all API endpoints available in t
 **Auth:** Required  
 **Role:** Owner  
 **Plan:** N/A
+
+---
+
+### GET /api/billing/invoices
+**Description:** Get paginated invoice history  
+**Auth:** Required  
+**Role:** Owner, Admin  
+**Plan:** N/A
+
+**Query Parameters:**
+- `limit`: Number of results (default: 10, max: 100)
+- `offset`: Pagination offset
+
+**Response:**
+```json
+{
+  "invoices": [
+    {
+      "id": "in_...",
+      "stripe_invoice_id": "in_...",
+      "amount": 4900,
+      "currency": "usd",
+      "status": "paid",
+      "invoice_date": "2026-01-15T00:00:00Z",
+      "paid_at": "2026-01-15T10:30:00Z",
+      "invoice_pdf": "https://...",
+      "hosted_invoice_url": "https://..."
+    }
+  ],
+  "total": 12,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+---
+
+### GET /api/billing/payment-methods
+**Description:** Get organization payment methods  
+**Auth:** Required  
+**Role:** Owner, Admin  
+**Plan:** N/A
+
+**Response:**
+```json
+{
+  "paymentMethods": [
+    {
+      "id": "pm_...",
+      "type": "card",
+      "card": {
+        "brand": "visa",
+        "last4": "4242",
+        "exp_month": 12,
+        "exp_year": 2027
+      },
+      "is_default": true,
+      "created_at": "2026-01-10T00:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 🏢 Organizations
+
+### GET /api/organizations/current
+**Description:** Get current user's organization with subscription details  
+**Auth:** Required  
+**Role:** All  
+**Plan:** N/A
+
+**Response:**
+```json
+{
+  "organization": {
+    "id": "uuid",
+    "name": "Acme Corp",
+    "slug": "acme-corp",
+    "plan": "pro",
+    "created_at": "2026-01-01T00:00:00Z"
+  },
+  "membership": {
+    "role": "owner",
+    "joined_at": "2026-01-01T00:00:00Z"
+  },
+  "subscription": {
+    "status": "active",
+    "current_period_end": "2026-02-01T00:00:00Z"
+  },
+  "memberCount": 5
+}
+```
 
 ---
 

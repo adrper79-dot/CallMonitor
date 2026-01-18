@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** January 27, 2026  
-**Version:** 3.0  
+**Last Updated:** January 18, 2026  
+**Version:** 3.1  
 **Status:** Production Ready (99% Complete) ⭐ ALL 5 AI ROLE PHASES COMPLETE
 
 > **"The System of Record for Business Conversations"**
@@ -214,6 +214,9 @@ Revenue Infrastructure Implementation (v1.6.0):** ⭐
    - File: `/app/api/billing/portal/route.ts` (64 lines)
    - File: `/app/api/billing/subscription/route.ts` (134 lines)
    - File: `/app/api/billing/cancel/route.ts` (95 lines)
+   - File: `/app/api/billing/invoices/route.ts` ⭐ NEW (100 lines)
+   - File: `/app/api/billing/payment-methods/route.ts` ⭐ NEW (115 lines)
+   - File: `/app/api/organizations/current/route.ts` ⭐ NEW (100 lines)
    - **Gap:** Frontend self-service UI incomplete (checkout, payment methods, invoices)
 
 **3. AI Agent Configuration (92% Complete)**
@@ -530,13 +533,18 @@ gemini-project/
 - `PATCH /api/reports/schedules/[id]` - Update schedule
 - `DELETE /api/reports/schedules/[id]` - Delete schedule
 
-### **Billing & Usage (5 routes):** ⭐
+### **Billing & Usage (8 routes):** ⭐
 - `GET /api/usage` - Get organization usage metrics
 - `POST /api/billing/checkout` - Create Stripe checkout session
 - `POST /api/billing/portal` - Create Stripe portal session
 - `GET /api/billing/subscription` - Get subscription status
 - `POST /api/billing/cancel` - Cancel subscription
+- `GET /api/billing/invoices` - Get invoice history ⭐ NEW
+- `GET /api/billing/payment-methods` - Get payment methods ⭐ NEW
 - `POST /api/webhooks/stripe` - Stripe webhook handler
+
+### **Organizations (1 route):** ⭐ NEW
+- `GET /api/organizations/current` - Get current user's organization
 
 ---
 
