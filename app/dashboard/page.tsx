@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   
   if (!session?.user) {
-    redirect('/api/auth/signin')
+    redirect('/signin?callbackUrl=/dashboard')
   }
 
   const userId = (session.user as any).id

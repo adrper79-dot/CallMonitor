@@ -240,7 +240,7 @@ export default function VoiceOperationsClient({
               )}
 
               {/* Target & Campaign Selector with Recent Targets */}
-              <div className="space-y-4">
+              <div className="space-y-4" data-tour="target-selector">
                 <TargetCampaignSelector organizationId={organizationId} />
                 
                 {/* Recent Targets - Quick Access */}
@@ -296,12 +296,14 @@ export default function VoiceOperationsClient({
               </section>
 
               {/* Execution Controls - Primary Action */}
-              {!activeCallId && (
-                <ExecutionControls 
-                  organizationId={organizationId} 
-                  onCallPlaced={handleCallPlaced}
-                />
-              )}
+              <div data-tour="place-call">
+                {!activeCallId && (
+                  <ExecutionControls 
+                    organizationId={organizationId} 
+                    onCallPlaced={handleCallPlaced}
+                  />
+                )}
+              </div>
 
               {/* Call Detail View */}
               <div id="call-detail-container">
@@ -315,7 +317,7 @@ export default function VoiceOperationsClient({
           </main>
 
           {/* Right Rail - Activity Feed (280px) */}
-          <aside className="w-72 border-l border-gray-200 overflow-y-auto p-4 bg-white">
+          <aside className="w-72 border-l border-gray-200 overflow-y-auto p-4 bg-white" data-tour="activity-feed">
             <ActivityFeedEmbed organizationId={organizationId} limit={20} />
           </aside>
         </div>

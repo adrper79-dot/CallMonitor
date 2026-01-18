@@ -42,10 +42,10 @@ export default function HomePage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-10">
             <Link 
-              href="/dashboard"
+              href="/signup"
               className="inline-flex items-center justify-center px-8 py-4 text-base font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600"
             >
-              Request Access
+              Get Started Free
             </Link>
             <Link 
               href="#how-it-works"
@@ -484,10 +484,10 @@ export default function HomePage() {
             Wordis Bond
           </h2>
           <Link 
-            href="/voice"
+            href="/signup"
             className="inline-flex items-center justify-center px-10 py-4 text-lg font-medium text-primary-600 bg-white hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
           >
-            Request Access
+            Get Started Free
           </Link>
         </div>
       </section>
@@ -509,7 +509,7 @@ export default function HomePage() {
             <Link href="/compare" className="hover:text-gray-700">Compare</Link>
             <Link href="/case-studies" className="hover:text-gray-700">Case Studies</Link>
             <Link href="/pricing" className="hover:text-gray-700">Pricing</Link>
-            <Link href="/api/auth/signin" className="hover:text-gray-700">Sign In</Link>
+            <Link href="/signin" className="hover:text-gray-700">Sign In</Link>
           </div>
           <p className="text-sm text-gray-500">
             © {new Date().getFullYear()} Latimer + Woods Tech LLC

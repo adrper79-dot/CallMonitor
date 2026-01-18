@@ -54,15 +54,26 @@ export function TourStep({
   useEffect(() => {
     setMounted(true)
     
-    // Find target element
-    const target = document.querySelector(targetSelector)
-    if (target) {
-      const rect = target.getBoundingClientRect()
-      setTargetRect(rect)
-      
-      // Scroll into view if needed
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Find target element with retry logic for dynamic content
+    const findTarget = (attempt = 0) => {
+      const target = document.querySelector(targetSelector)
+      if (target) {
+        const rect = target.getBoundingClientRect()
+        setTargetRect(rect)
+        
+        // Scroll into view if needed
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else if (attempt < 3) {
+        // Retry after short delay for dynamic content
+        setTimeout(() => findTarget(attempt + 1), 200)
+      } else {
+        // Target not found after retries - skip to next step
+        console.warn(`[Tour] Target not found: ${targetSelector}, skipping step`)
+        onNext()
+      }
     }
+    
+    findTarget()
 
     // Handle keyboard navigation
     const handleKeyDown = (e: KeyboardEvent) => {

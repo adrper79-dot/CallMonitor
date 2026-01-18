@@ -28,13 +28,20 @@ export default async function VoiceOperationsPage(_props: PageProps) {
   
   if (!session?.user || !userId) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <div className="text-center">
-          <h2 className="text-xl">Authentication required</h2>
-          <p className="mt-2 text-slate-400">Please sign in to view Voice Operations.</p>
-          <a href="/admin/auth" className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white">
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-center max-w-md px-6">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Sign in required</h2>
+          <p className="text-gray-600 mb-6">Please sign in to access Voice Operations and manage your calls.</p>
+          <a 
+            href="/signin?callbackUrl=/voice" 
+            className="inline-flex items-center justify-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+          >
             Sign In
           </a>
+          <p className="mt-4 text-sm text-gray-500">
+            Don't have an account?{' '}
+            <a href="/signup" className="text-primary-600 hover:text-primary-700">Create one</a>
+          </p>
         </div>
       </div>
     )

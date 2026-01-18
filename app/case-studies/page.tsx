@@ -30,11 +30,11 @@ export default function CaseStudiesPage() {
             <Link href="/trust" className="text-sm text-gray-600 hover:text-gray-900">Trust Pack</Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/api/auth/signin" className="text-sm text-gray-600 hover:text-gray-900">
+            <Link href="/signin" className="text-sm text-gray-600 hover:text-gray-900">
               Sign In
             </Link>
             <Link 
-              href="/api/auth/signin"
+              href="/signin"
               className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Start Free Trial
@@ -359,7 +359,7 @@ export default function CaseStudiesPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link 
-              href="/api/auth/signin"
+              href="/signin"
               className="w-full sm:w-auto px-8 py-4 bg-primary-600 text-white text-lg font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Start Free Trial

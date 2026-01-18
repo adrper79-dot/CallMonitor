@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
       try {
         const session = await getSession()
         if (!session) {
-          router.push('/api/auth/signin')
+          router.push('/signin?callbackUrl=/analytics')
           return
         }
         

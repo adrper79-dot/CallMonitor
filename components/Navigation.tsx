@@ -110,7 +110,7 @@ export default function Navigation() {
 
             {/* Auth Link */}
             <Link
-              href="/admin/auth"
+              href="/signin"
               className="btn-jetsons btn-ghost px-4 py-2 text-sm"
             >
               <span className="mr-2">👤</span>
