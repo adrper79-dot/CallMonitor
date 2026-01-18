@@ -10,7 +10,7 @@
  * - Queries scheduled_reports for due reports
  * - Generates reports using report generator
  * - Sends via email if configured
- * - Updates next_run timestamp
+ * - Updates next_run_at timestamp
  * 
  * @module api/cron/scheduled-reports
  */
@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
         )
       `)
       .eq('is_active', true)
-      .lte('next_run', now)
-      .order('next_run', { ascending: true })
+      .lte('next_run_at', now)
+      .order('next_run_at', { ascending: true })
 
     if (queryError) {
       logger.error('scheduled-reports cron: query error', queryError)
@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
  * Process a single scheduled report
  */
 async function processScheduledReport(scheduledReport: any): Promise<void> {
-  const { id, organization_id, template_id, report_templates, delivery_config, cron_pattern } = scheduledReport
+  const { id, organization_id, template_id, report_templates, delivery_config, schedule_pattern } = scheduledReport
 
   logger.info('processScheduledReport: starting', { scheduledReportId: id })
 
@@ -173,14 +173,14 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     }
 
     // Calculate next run time based on cron pattern
-    const nextRun = calculateNextRun(cron_pattern)
+    const nextRun = calculateNextRun(schedule_pattern)
 
     // Update scheduled report
     await supabaseAdmin
       .from('scheduled_reports')
       .update({
-        last_run: new Date().toISOString(),
-        next_run: nextRun,
+        last_run_at: new Date().toISOString(),
+        next_run_at: nextRun,
         last_report_id: generatedReport.id,
       })
       .eq('id', id)
@@ -197,7 +197,7 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     await supabaseAdmin
       .from('scheduled_reports')
       .update({
-        last_run: new Date().toISOString(),
+        last_run_at: new Date().toISOString(),
         last_error: error.message,
       })
       .eq('id', id)
@@ -216,7 +216,7 @@ function getDateRangeForScheduledReport(scheduledReport: any): { start_date: str
 
   // Parse cron pattern to determine frequency
   // Simple detection: daily, weekly, monthly
-  const pattern = scheduledReport.cron_pattern || ''
+  const pattern = scheduledReport.schedule_pattern || ''
 
   if (pattern.includes('0 0 * * *')) {
     // Daily - last 24 hours
