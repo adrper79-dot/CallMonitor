@@ -16,7 +16,7 @@ import { apiPost, apiDelete, apiGet } from '@/lib/apiClient'
 // SignalWire Client type (loaded dynamically to avoid SSR issues)
 type SignalWireClient = any
 
-export type WebRTCStatus = 
+export type WebRTCStatus =
   | 'disconnected'
   | 'initializing'
   | 'connecting'
@@ -24,7 +24,7 @@ export type WebRTCStatus =
   | 'on_call'
   | 'error'
 
-export type CallState = 
+export type CallState =
   | 'idle'
   | 'dialing'
   | 'ringing'
@@ -53,21 +53,21 @@ export interface UseWebRTCResult {
   disconnect: () => Promise<void>
   status: WebRTCStatus
   error: string | null
-  
+
   // Calling
   makeCall: (phoneNumber: string, options?: CallOptions) => Promise<void>
   hangUp: () => Promise<void>
   callState: CallState
   currentCall: CurrentCall | null
-  
+
   // Controls
   mute: () => void
   unmute: () => void
   isMuted: boolean
-  
+
   // Quality
   quality: CallQuality | null
-  
+
   // Session info
   sessionId: string | null
 }
@@ -93,13 +93,13 @@ let signalWirePromise: Promise<any> | null = null
 
 async function loadSignalWire(): Promise<any> {
   if (signalWirePromise) return signalWirePromise
-  
+
   signalWirePromise = (async () => {
     // Dynamic import to avoid SSR issues
     const { SignalWire } = await import('@signalwire/js')
     return SignalWire
   })()
-  
+
   return signalWirePromise
 }
 
@@ -112,7 +112,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [isMuted, setIsMuted] = useState(false)
   const [quality, setQuality] = useState<CallQuality | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  
+
   // Refs
   const clientRef = useRef<SignalWireClient | null>(null)
   const callRef = useRef<any>(null)
@@ -176,11 +176,20 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('connecting')
 
       // Create SignalWire client
-      const client = await SignalWire({
+      // NOTE: When using JWT (signalwire_token), do NOT pass project ID, 
+      // otherwise SDK treats it as a Project Token and auth fails.
+      const clientOptions: any = {
         host: session.signalwire_space,
-        project: session.signalwire_project,
-        token: session.signalwire_token || session.token,
-      })
+      }
+
+      if (session.signalwire_token) {
+        clientOptions.token = session.signalwire_token
+      } else {
+        clientOptions.project = session.signalwire_project
+        clientOptions.token = session.token
+      }
+
+      const client = await SignalWire(clientOptions)
 
       clientRef.current = client
       signalWireClient = client
@@ -295,8 +304,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setError(null)
 
       // Normalize phone number
-      const formattedNumber = phoneNumber.startsWith('+') 
-        ? phoneNumber 
+      const formattedNumber = phoneNumber.startsWith('+')
+        ? phoneNumber
         : `+1${phoneNumber.replace(/\D/g, '')}`
 
       // Create call via SignalWire client

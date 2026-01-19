@@ -32,6 +32,21 @@ function generateSessionToken(): string {
 }
 
 /**
+ * Normalize SIGNALWIRE_SPACE to get the correct domain
+ */
+function getSignalWireDomain(): string | null {
+  if (!SIGNALWIRE_SPACE) return null
+
+  const rawSpace = String(SIGNALWIRE_SPACE)
+  const spaceName = rawSpace
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+    .replace(/\.signalwire\.com$/i, '')
+    .trim()
+  return `${spaceName}.signalwire.com`
+}
+
+/**
  * Get SignalWire WebRTC token
  * 
  * Creates a JWT token for browser-based WebRTC calls.
@@ -48,15 +63,8 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     return null
   }
 
-  // Normalize SIGNALWIRE_SPACE - extract space name and construct full domain
-  // Handles: 'blackkryptonians', 'blackkryptonians.signalwire.com', 'https://blackkryptonians.signalwire.com/'
-  const rawSpace = String(SIGNALWIRE_SPACE)
-  const spaceName = rawSpace
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '')
-    .replace(/\.signalwire\.com$/i, '')
-    .trim()
-  const signalwireDomain = `${spaceName}.signalwire.com`
+  const signalwireDomain = getSignalWireDomain()
+  if (!signalwireDomain) return null
 
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
 
@@ -325,7 +333,7 @@ export async function POST(request: NextRequest) {
         token: sessionToken,
         ice_servers: signalWireCredentials?.iceServers || [],
         signalwire_project: SIGNALWIRE_PROJECT_ID,
-        signalwire_space: SIGNALWIRE_SPACE,
+        signalwire_space: getSignalWireDomain(),
         signalwire_token: signalWireCredentials?.token || null
       }
     }, { status: 201 })
