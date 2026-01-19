@@ -176,8 +176,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('connecting')
 
       // Create SignalWire client
-      // NOTE: When using JWT (signalwire_token), do NOT pass project ID, 
-      // otherwise SDK treats it as a Project Token and auth fails.
       const clientOptions: any = {
         host: session.signalwire_space,
       }
@@ -188,6 +186,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         clientOptions.project = session.signalwire_project
         clientOptions.token = session.token
       }
+
+      console.log('[WebRTC] Initializing SignalWire client with:', {
+        ...clientOptions,
+        token: clientOptions.token ? `${clientOptions.token.substring(0, 10)}...` : 'MISSING'
+      })
 
       const client = await SignalWire(clientOptions)
 
