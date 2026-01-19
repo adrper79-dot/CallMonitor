@@ -125,13 +125,13 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
           onKeyDown={onKeyDown}
           aria-pressed={playing}
           aria-label={playing ? 'Pause audio' : 'Play audio'}
-          className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+          className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-[#1E3A5F] text-white hover:bg-[#15294A] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F] focus:ring-offset-2"
         >
           <span aria-hidden>{playing ? '▮▮' : '▶'}</span>
         </button>
 
         <div className="flex-1">
-          <div className="text-sm text-slate-100 mb-1">Recording</div>
+          <div className="text-sm text-gray-800 mb-1">Recording</div>
           <div className="flex items-center gap-2">
             <input
               type="range"
@@ -139,17 +139,17 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
               max={duration || 0}
               value={time}
               onChange={handleSeekBarChange}
-              className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1E3A5F]"
               aria-label="Seek position"
             />
-            <span className="text-xs text-slate-400 font-mono min-w-[4rem] text-right">
+            <span className="text-xs text-gray-500 font-mono min-w-[4rem] text-right">
               {formatTime(time)} / {formatTime(duration)}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-400" htmlFor="volume-control">
+          <label className="text-xs text-gray-500" htmlFor="volume-control">
             Volume
           </label>
           <input
@@ -160,7 +160,7 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
             step="0.1"
             value={volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-20 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+            className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1E3A5F]"
             aria-label="Volume control"
           />
         </div>
@@ -198,7 +198,7 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
         {transcriptPreview && (
           <a
             href="#transcript"
-            className="text-xs text-indigo-400 hover:underline ml-auto"
+            className="text-xs text-[#1E3A5F] hover:underline ml-auto"
             onClick={(e) => {
               e.preventDefault()
               document.getElementById('artifact-transcript')?.scrollIntoView({ behavior: 'smooth' })
@@ -210,9 +210,9 @@ export default function RecordingPlayer({ recordingUrl, transcriptPreview, onPla
       </div>
 
       {transcriptPreview && (
-        <div className="p-3 bg-slate-900 rounded-md border border-slate-800">
-          <div className="text-xs text-slate-400 mb-1">Transcript Preview</div>
-          <div className="text-sm text-slate-200 line-clamp-3">{transcriptPreview}</div>
+        <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+          <div className="text-xs text-gray-500 mb-1">Transcript Preview</div>
+          <div className="text-sm text-gray-700 line-clamp-3">{transcriptPreview}</div>
         </div>
       )}
     </section>

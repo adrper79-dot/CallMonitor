@@ -262,7 +262,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       data-tour="target-selector"
     >
       <h3 id="target-campaign-selector" className="text-base font-semibold text-[#333333] mb-1">
-        📞 Who are you calling?
+                Who are you calling?
       </h3>
       <p className="text-xs text-[#666666] mb-4">
         Enter a phone number or select from recent targets
@@ -275,7 +275,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
             Phone Number to Call <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">📞</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400">+</span>
             <input
               ref={inputRef}
               type="tel"

@@ -18,12 +18,13 @@ export default function Navigation() {
   const isAuthenticated = status === 'authenticated'
 
   // Protected nav items - only shown when authenticated
+  // Per ARCH_DOCS UX_DESIGN_PRINCIPLES: No emojis in professional UI
   const protectedNavItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: '🎛️' },
-    { href: '/voice', label: 'Calls', icon: '📞' },
-    { href: '/analytics', label: 'Analytics', icon: '📊' },
-    { href: '/bookings', label: 'Schedule', icon: '📅' },
-    { href: '/settings', label: 'Settings', icon: '⚙️' },
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/voice', label: 'Calls' },
+    { href: '/analytics', label: 'Analytics' },
+    { href: '/bookings', label: 'Schedule' },
+    { href: '/settings', label: 'Settings' },
   ]
 
   // Public pages where we show minimal nav
@@ -84,8 +85,8 @@ export default function Navigation() {
                       }
                     `}
                     style={isActive ? {
-                      background: 'linear-gradient(135deg, #00CED1 0%, #40E0D0 100%)',
-                      boxShadow: '0 0 20px rgba(0, 206, 209, 0.4)',
+                      background: '#1E3A5F',
+                      boxShadow: '0 0 20px rgba(30, 58, 95, 0.4)',
                     } : {}}
                   >
                     {/* Hover glow effect for inactive items */}
@@ -93,12 +94,11 @@ export default function Navigation() {
                       <span 
                         className="absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity"
                         style={{
-                          background: 'rgba(0, 206, 209, 0.1)',
+                          background: 'rgba(30, 58, 95, 0.1)',
                         }}
                       />
                     )}
-                    <span className="relative z-10">{item.icon}</span>
-                    <span className="relative z-10 hidden md:inline">{item.label}</span>
+                    <span className="relative z-10">{item.label}</span>
                   </Link>
                 )
               })}
@@ -111,10 +111,10 @@ export default function Navigation() {
             {isAuthenticated && (
               <div className="hidden sm:flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00CED1] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00CED1]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1E3A5F] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1E3A5F]"></span>
                 </span>
-                <span className="text-xs text-[#C0C0C0]/60 tracking-wider">ONLINE</span>
+                <span className="text-xs text-[#6B7280] tracking-wider">ONLINE</span>
               </div>
             )}
 
@@ -124,7 +124,6 @@ export default function Navigation() {
                 href="/settings"
                 className="btn-jetsons btn-ghost px-4 py-2 text-sm"
               >
-                <span className="mr-2">👤</span>
                 <span className="hidden sm:inline">Account</span>
               </Link>
             ) : (
@@ -132,9 +131,9 @@ export default function Navigation() {
                 href="/signin"
                 className="px-5 py-2 rounded-full text-sm font-medium transition-all duration-300"
                 style={{
-                  background: 'linear-gradient(135deg, #00CED1 0%, #40E0D0 100%)',
-                  color: '#0A0A1A',
-                  boxShadow: '0 0 20px rgba(0, 206, 209, 0.3)',
+                  background: '#1E3A5F',
+                  color: '#FFFFFF',
+                  boxShadow: '0 0 20px rgba(30, 58, 95, 0.3)',
                 }}
               >
                 Sign In

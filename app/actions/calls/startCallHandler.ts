@@ -401,6 +401,21 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw err
     }
 
+    // RBAC enforcement per ARCH_DOCS RBAC Matrix: Only Owner/Admin/Operator can execute calls
+    const userRole = membershipRows[0].role?.toLowerCase() || 'viewer'
+    const allowedCallRoles = ['owner', 'admin', 'operator']
+    if (!allowedCallRoles.includes(userRole)) {
+      const err = new AppError({ 
+        code: 'CALL_EXECUTE_FORBIDDEN', 
+        message: 'Insufficient permissions to execute calls', 
+        user_message: 'You do not have permission to place calls. Only Owners, Admins, and Operators can place calls.', 
+        severity: 'HIGH', 
+        retriable: false 
+      })
+      await writeAuditError('org_members', null, { ...err.toJSON(), role: userRole, required_roles: allowedCallRoles })
+      throw err
+    }
+
     // phone validation
     if (!E164_REGEX.test(phone_number)) {
       const err = new AppError({ code: 'CALL_START_INVALID_PHONE', message: 'Invalid phone number format', user_message: 'The phone number provided is invalid. Please verify and try again.', severity: 'MEDIUM', retriable: false })

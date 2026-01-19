@@ -120,7 +120,7 @@ export default function CallTimeline({ callId, organizationId }: CallTimelinePro
       {/* Header */}
       <div className="px-4 py-3 bg-[#FAFAFA] border-b border-[#E5E5E5]">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[#333333]">📅 Call Timeline</h3>
+          <h3 className="text-sm font-semibold text-[#333333]">Call Timeline</h3>
           <div className="flex items-center space-x-2">
             {timeline.summary.has_recording && (
               <Badge variant="secondary" className="text-xs">🎙️ Recorded</Badge>

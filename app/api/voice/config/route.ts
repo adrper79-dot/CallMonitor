@@ -115,6 +115,29 @@ async function handlePUT(req: Request) {
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
     }
 
+    // RBAC enforcement per ARCH_DOCS RBAC Matrix: Only Owner/Admin can PUT voice_configs
+    const userRole = membershipRows[0].role?.toLowerCase() || 'viewer'
+    const allowedRoles = ['owner', 'admin']
+    if (!allowedRoles.includes(userRole)) {
+      // Log permission denial for audit
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id: orgId,
+          user_id: actorId,
+          resource_type: 'voice_configs',
+          action: 'update_denied',
+          actor_type: 'human',
+          actor_label: actorId,
+          before: null,
+          after: { reason: 'insufficient_role', role: userRole },
+          created_at: new Date().toISOString()
+        })
+      } catch (_) {}
+      const err = new AppError({ code: 'FORBIDDEN', message: 'Insufficient permissions', user_message: 'You do not have permission to modify voice configuration. Only Owners and Admins can update settings.', severity: 'HIGH' })
+      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 403 })
+    }
+
     // Map incoming modulation keys to columns allowed by Schema
     // Per TOOL_TABLE_ALIGNMENT: voice_configs PUT allows all modulation columns
     // NOTE: target_id and campaign_id are NOT in the database schema - they are transient/session fields

@@ -59,7 +59,7 @@ export default function AudioPlayer({ recordingUrl, transcriptPreview, onPlay }:
   }
 
   return (
-    <section aria-label="Audio player" role="region" className="w-full p-4 bg-slate-950 rounded-md">
+    <section aria-label="Audio player" role="region" className="w-full p-4 bg-white rounded-md border border-gray-200">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div>
@@ -68,45 +68,45 @@ export default function AudioPlayer({ recordingUrl, transcriptPreview, onPlay }:
               onKeyDown={onKeyDown}
               aria-pressed={playing}
               aria-label={playing ? 'Pause audio' : 'Play audio'}
-              className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-indigo-600 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-[#1E3A5F] text-white focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]"
             >
               <span aria-hidden>{playing ? '▮▮' : '▶'}</span>
             </button>
           </div>
 
           <div className="flex flex-col">
-            <div className="text-sm text-slate-100">Audio</div>
-            <div className="text-xs text-slate-400">{recordingUrl ? 'Ready to play' : 'No recording available'}</div>
+            <div className="text-sm text-gray-800">Audio</div>
+            <div className="text-xs text-gray-500">{recordingUrl ? 'Ready to play' : 'No recording available'}</div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="text-xs text-slate-400">{Math.floor(time)}s {duration ? ` / ${Math.floor(duration)}s` : ''}</div>
+          <div className="text-xs text-gray-500">{Math.floor(time)}s {duration ? ` / ${Math.floor(duration)}s` : ''}</div>
           <div className="text-xs">
-            <button onClick={() => seek(-5)} className="text-slate-200 px-2 py-1 rounded hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">-5s</button>
-            <button onClick={() => seek(5)} className="ml-2 text-slate-200 px-2 py-1 rounded hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400">+5s</button>
+            <button onClick={() => seek(-5)} className="text-gray-700 px-2 py-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]">-5s</button>
+            <button onClick={() => seek(5)} className="ml-2 text-gray-700 px-2 py-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]">+5s</button>
           </div>
         </div>
       </div>
 
       <div className="mt-4">
-        <audio ref={audioRef} src={recordingUrl || undefined} controls className="w-full rounded bg-black" />
+        <audio ref={audioRef} src={recordingUrl || undefined} controls className="w-full rounded" />
       </div>
 
       <div className="mt-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-slate-100">Transcript</h4>
+          <h4 className="text-sm font-medium text-gray-800">Transcript</h4>
           <div className="flex items-center gap-2">
-            <a href="#transcript" className="text-xs text-indigo-400 hover:underline">Captions</a>
-            <button onClick={() => setExpanded(x => !x)} aria-expanded={expanded} className="text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">{expanded ? 'Collapse' : 'Expand'}</button>
+            <a href="#transcript" className="text-xs text-[#1E3A5F] hover:underline">Captions</a>
+            <button onClick={() => setExpanded(x => !x)} aria-expanded={expanded} className="text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]">{expanded ? 'Collapse' : 'Expand'}</button>
           </div>
         </div>
 
-        <div id="transcript" tabIndex={-1} className={`mt-2 p-3 rounded bg-slate-800 ${expanded ? 'max-h-[40vh] overflow-auto' : 'max-h-16 overflow-hidden'}`}>
+        <div id="transcript" tabIndex={-1} className={`mt-2 p-3 rounded bg-gray-50 border border-gray-200 ${expanded ? 'max-h-[40vh] overflow-auto' : 'max-h-16 overflow-hidden'}`}>
           {transcriptPreview ? (
-            <pre className="text-xs text-slate-200 whitespace-pre-wrap">{transcriptPreview}</pre>
+            <pre className="text-xs text-gray-700 whitespace-pre-wrap">{transcriptPreview}</pre>
           ) : (
-            <div className="text-xs text-slate-500">No transcript available</div>
+            <div className="text-xs text-gray-400">No transcript available</div>
           )}
         </div>
       </div>

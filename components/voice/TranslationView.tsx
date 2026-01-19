@@ -9,6 +9,10 @@ export interface TranslationViewProps {
   originalTranscript?: any | null
 }
 
+/**
+ * TranslationView - Professional Design System v3.0
+ * Per ARCH_DOCS UX_DESIGN_PRINCIPLES: Light theme, Navy Blue primary (#1E3A5F)
+ */
 export default function TranslationView({ translation, originalTranscript }: TranslationViewProps) {
   const [viewMode, setViewMode] = useState<'side-by-side' | 'toggle'>('side-by-side')
   const [showOriginal, setShowOriginal] = useState(true)
@@ -34,7 +38,7 @@ export default function TranslationView({ translation, originalTranscript }: Tra
   return (
     <section aria-labelledby="translation-view" className="w-full space-y-4">
       <div className="flex items-center justify-between">
-        <h4 id="translation-view" className="text-lg font-medium text-slate-100">
+        <h4 id="translation-view" className="text-lg font-medium text-gray-800">
           Translation
         </h4>
         <div className="flex items-center gap-2">
@@ -60,15 +64,15 @@ export default function TranslationView({ translation, originalTranscript }: Tra
 
       {viewMode === 'side-by-side' ? (
         <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
+          <div className="p-4 bg-white rounded-md border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <Badge variant="default">{fromLang}</Badge>
             </div>
-            <div className="text-sm text-slate-100 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
+            <div className="text-sm text-gray-800 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
               {originalText}
             </div>
           </div>
-          <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
+          <div className="p-4 bg-white rounded-md border border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <Badge variant="info">{toLang}</Badge>
             </div>
@@ -85,7 +89,7 @@ export default function TranslationView({ translation, originalTranscript }: Tra
                 </audio>
               </div>
             )}
-            <div className="text-sm text-slate-100 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
+            <div className="text-sm text-gray-800 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
               {translatedText}
             </div>
           </div>
@@ -108,7 +112,7 @@ export default function TranslationView({ translation, originalTranscript }: Tra
               Translation ({toLang})
             </Button>
           </div>
-          <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
+          <div className="p-4 bg-white rounded-md border border-gray-200">
             {!showOriginal && audioUrl && (
               <div className="mb-3">
                 <audio 
@@ -122,7 +126,7 @@ export default function TranslationView({ translation, originalTranscript }: Tra
                 </audio>
               </div>
             )}
-            <div className="text-sm text-slate-100 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
+            <div className="text-sm text-gray-800 whitespace-pre-wrap max-h-[50vh] overflow-y-auto">
               {showOriginal ? originalText : translatedText}
             </div>
           </div>

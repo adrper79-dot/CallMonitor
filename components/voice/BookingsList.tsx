@@ -111,7 +111,7 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
     <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between px-2">
-        <h3 className="text-sm font-medium text-slate-300">📅 Scheduled Calls</h3>
+        <h3 className="text-sm font-medium text-slate-300">Scheduled Calls</h3>
         {onNewBooking && (
           <Button
             size="sm"

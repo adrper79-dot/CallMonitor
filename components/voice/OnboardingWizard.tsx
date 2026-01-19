@@ -291,7 +291,7 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
           >
             {step === 'ready' ? (
               <span className="flex items-center justify-center gap-2">
-                <span>📞</span> Place Call
+                <span></span> Place Call
               </span>
             ) : 'Continue'}
           </Button>

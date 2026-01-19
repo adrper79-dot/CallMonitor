@@ -104,9 +104,9 @@ export default function ArtifactViewer({
   const defaultTab = hasRecording ? 'recording' : hasTranscript ? 'transcript' : hasManifest ? 'manifest' : 'recording'
 
   return (
-    <section aria-labelledby="artifact-viewer" className="w-full bg-slate-950 rounded-md border border-slate-800">
-      <div className="flex items-center justify-between p-4 border-b border-slate-800">
-        <h3 id="artifact-viewer" className="text-lg font-medium text-slate-100">
+    <section aria-labelledby="artifact-viewer" className="w-full bg-white rounded-md border border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <h3 id="artifact-viewer" className="text-lg font-medium text-gray-800">
           Artifacts
         </h3>
         {hasAnyArtifact && (
@@ -116,15 +116,15 @@ export default function ArtifactViewer({
             onClick={() => setShowEmailForm(!showEmailForm)}
             className="text-sm"
           >
-            📧 Email Artifacts
+            Email Artifacts
           </Button>
         )}
       </div>
 
       {/* Email Form */}
       {showEmailForm && (
-        <div className="p-4 bg-slate-900 border-b border-slate-800">
-          <p className="text-sm text-slate-300 mb-2">
+        <div className="p-4 bg-gray-50 border-b border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">
             Send all artifacts as email attachments (files, not links):
           </p>
           <div className="flex gap-2">
@@ -145,11 +145,11 @@ export default function ArtifactViewer({
             </Button>
           </div>
           {emailStatus && (
-            <p className={`text-sm mt-2 ${emailStatus.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+            <p className={`text-sm mt-2 ${emailStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
               {emailStatus.message}
             </p>
           )}
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-gray-500 mt-2">
             Includes: {[
               hasRecording && 'Recording',
               hasTranscript && 'Transcript',
@@ -160,7 +160,7 @@ export default function ArtifactViewer({
       )}
 
       <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="w-full border-b border-slate-800">
+        <TabsList className="w-full border-b border-gray-200">
           {hasRecording && (
             <TabsTrigger value="recording">
               Recording

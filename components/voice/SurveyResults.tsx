@@ -23,7 +23,7 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
   return (
     <section aria-labelledby="survey-results" className="w-full space-y-4">
       <div className="flex items-center justify-between">
-        <h4 id="survey-results" className="text-lg font-medium text-slate-100">
+        <h4 id="survey-results" className="text-lg font-medium text-gray-800">
           Survey Results
         </h4>
         {overallScore !== undefined && (
@@ -34,14 +34,14 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
       </div>
 
       {sentiment && (
-        <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
-          <div className="text-sm font-medium text-slate-100 mb-2">Sentiment Analysis</div>
+        <div className="p-4 bg-white rounded-md border border-gray-200">
+          <div className="text-sm font-medium text-gray-800 mb-2">Sentiment Analysis</div>
           <div className="flex items-center gap-2">
             <Badge variant={sentiment === 'positive' ? 'success' : sentiment === 'negative' ? 'error' : 'warning'}>
               {sentiment}
             </Badge>
             {survey?.sentiment_score && (
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-gray-500">
                 Confidence: {(survey.sentiment_score * 100).toFixed(1)}%
               </span>
             )}
@@ -52,12 +52,12 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
       {isDtmfSurvey ? (
         <div className="space-y-4">
           {dtmfResponses.map((r: any) => (
-            <div key={`${r.question_index}-${r.digit || r.value}`} className="p-4 bg-slate-900 rounded-md border border-slate-800">
-              <div className="text-sm font-medium text-slate-100 mb-2">
+            <div key={`${r.question_index}-${r.digit || r.value}`} className="p-4 bg-white rounded-md border border-gray-200">
+              <div className="text-sm font-medium text-gray-800 mb-2">
                 Q{r.question_index}: {r.question || 'Question'}
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">{r.value || r.digit || 'No response'}</span>
+                <span className="text-sm text-gray-600">{r.value || r.digit || 'No response'}</span>
                 {r.digit && (
                   <Badge variant="info">DTMF: {r.digit}</Badge>
                 )}
@@ -68,14 +68,14 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
       ) : questions.length > 0 ? (
         <div className="space-y-4">
           {questions.map((q: any, idx: number) => (
-            <div key={idx} className="p-4 bg-slate-900 rounded-md border border-slate-800">
-              <div className="text-sm font-medium text-slate-100 mb-2">{q.question || q.text}</div>
-              <div className="text-sm text-slate-300 mb-2">
+            <div key={idx} className="p-4 bg-white rounded-md border border-gray-200">
+              <div className="text-sm font-medium text-gray-800 mb-2">{q.question || q.text}</div>
+              <div className="text-sm text-gray-600 mb-2">
                 Response: {q.response || q.answer || 'No response'}
               </div>
               {q.score !== undefined && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Score:</span>
+                  <span className="text-xs text-gray-500">Score:</span>
                   <Badge variant={q.score >= 4 ? 'success' : q.score >= 3 ? 'warning' : 'error'}>
                     {q.score}/5
                   </Badge>
@@ -85,17 +85,17 @@ export default function SurveyResults({ survey }: SurveyResultsProps) {
           ))}
         </div>
       ) : (
-        <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
-          <div className="text-sm text-slate-400 mb-2">Survey Responses:</div>
-          <pre className="text-xs text-slate-200 whitespace-pre-wrap font-mono">
+        <div className="p-4 bg-white rounded-md border border-gray-200">
+          <div className="text-sm text-gray-500 mb-2">Survey Responses:</div>
+          <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">
             {JSON.stringify(results, null, 2)}
           </pre>
         </div>
       )}
 
       {survey?.breakdown && (
-        <div className="p-4 bg-slate-900 rounded-md border border-slate-800">
-          <div className="text-sm font-medium text-slate-100 mb-2">Score Breakdown</div>
+        <div className="p-4 bg-white rounded-md border border-gray-200">
+          <div className="text-sm font-medium text-gray-800 mb-2">Score Breakdown</div>
           <div className="space-y-2">
             {Object.entries(survey.breakdown).map(([key, value]: [string, any]) => (
               <div key={key} className="flex items-center justify-between">
