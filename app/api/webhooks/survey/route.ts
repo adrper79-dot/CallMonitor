@@ -210,11 +210,12 @@ async function processSurveyResponseAsync(
             resource_id: existingRun.id,
             actor_type: 'vendor',
             actor_label: 'signalwire-survey-ai',
-            details: { 
+            after: { 
               call_id: call.id, 
               responses_count: responses.length,
               total_questions: totalQuestions
-            }
+            },
+            created_at: new Date().toISOString()
           })
         } catch (auditErr) {
           logger.warn('survey webhook: audit log failed', { error: auditErr })
@@ -307,11 +308,12 @@ async function processSurveyResponseAsync(
             resource_id: surveyRunId,
             actor_type: 'vendor',
             actor_label: 'signalwire-survey-ai',
-            details: { 
+            after: { 
               call_id: call.id, 
               responses_count: 1,
               total_questions: totalQuestions
-            }
+            },
+            created_at: new Date().toISOString()
           })
         } catch (auditErr) {
           logger.warn('survey webhook: audit log failed', { error: auditErr })

@@ -96,7 +96,8 @@ export async function POST(req: NextRequest) {
         resource_id: resultId,
         actor_type: 'vendor',
         actor_label: 'signalwire-shopper-ai',
-        details: { call_id: callId, script_id: scriptId, overall_score: scoringResult?.score, has_recording: !!recordingId }
+        after: { call_id: callId, script_id: scriptId, overall_score: scoringResult?.score, has_recording: !!recordingId },
+        created_at: new Date().toISOString()
       })
     } catch { /* Best effort */ }
 

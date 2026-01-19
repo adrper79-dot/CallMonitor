@@ -319,20 +319,16 @@ export async function GET(request: NextRequest) {
       })
     }
     
+    // Return only columns that exist in production schema:
+    // id, organization_id, user_id, session_token, status, created_at
     return NextResponse.json({
       success: true,
       session: {
         id: webrtcSession.id,
         status: webrtcSession.status,
-        call_id: webrtcSession.call_id,
-        created_at: webrtcSession.created_at,
-        connected_at: webrtcSession.connected_at,
-        quality: webrtcSession.audio_bitrate ? {
-          audio_bitrate: webrtcSession.audio_bitrate,
-          packet_loss_percent: webrtcSession.packet_loss_percent,
-          jitter_ms: webrtcSession.jitter_ms,
-          round_trip_time_ms: webrtcSession.round_trip_time_ms
-        } : null
+        created_at: webrtcSession.created_at
+        // NOTE: call_id, connected_at, audio_bitrate, packet_loss_percent, 
+        // jitter_ms, round_trip_time_ms are NOT in production schema
       }
     })
   } catch (error: any) {
@@ -372,11 +368,11 @@ export async function DELETE(request: NextRequest) {
       .single()
     
     // Find and update active session
+    // NOTE: disconnected_at is NOT in production schema - only update status
     const { data: updatedSession, error: updateError } = await supabaseAdmin
       .from('webrtc_sessions')
       .update({
-        status: 'disconnected',
-        disconnected_at: new Date().toISOString()
+        status: 'disconnected'
       })
       .eq('user_id', userId)
       .in('status', ['initializing', 'connecting', 'connected', 'on_call'])

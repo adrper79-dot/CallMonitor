@@ -339,22 +339,20 @@ export type WebRTCSessionStatus =
   | 'disconnected'
   | 'failed'
 
+/**
+ * WebRTCSession - matches production schema (Schema.txt)
+ * Production columns: id, organization_id, user_id, session_token, status, created_at
+ * 
+ * NOTE: The migration file includes additional columns (call_id, signalwire_resource_id,
+ * ice_servers, audio_bitrate, etc.) but these are NOT in the production schema.
+ */
 export interface WebRTCSession {
   id: string
   organization_id: string
   user_id: string
-  call_id: string | null
   session_token: string
-  signalwire_resource_id: string | null
   status: WebRTCSessionStatus
-  ice_servers: RTCIceServer[] | null
-  audio_bitrate: number | null
-  packet_loss_percent: number | null
-  jitter_ms: number | null
-  round_trip_time_ms: number | null
   created_at: string
-  connected_at: string | null
-  disconnected_at: string | null
 }
 
 export interface WebRTCCredentials {
