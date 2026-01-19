@@ -694,7 +694,17 @@ CREATE TABLE public.org_feature_flags (
   feature text NOT NULL,
   enabled boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT org_feature_flags_pkey PRIMARY KEY (id)
+  disabled_reason text,
+  disabled_at timestamp with time zone,
+  disabled_by uuid,
+  daily_limit integer,
+  monthly_limit integer,
+  current_daily_usage integer DEFAULT 0,
+  current_monthly_usage integer DEFAULT 0,
+  usage_reset_at timestamp with time zone,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT org_feature_flags_pkey PRIMARY KEY (id),
+  CONSTRAINT org_feature_flags_disabled_by_fkey FOREIGN KEY (disabled_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.org_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
