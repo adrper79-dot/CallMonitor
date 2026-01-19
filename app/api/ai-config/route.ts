@@ -58,8 +58,8 @@ export async function GET(req: NextRequest) {
         ai_agent_model,
         ai_post_prompt_url,
         ai_features_enabled,
-        translate_from,
-        translate_to,
+        translation_from,
+        translation_to,
         live_translate,
         use_voice_cloning,
         cloned_voice_id
@@ -191,8 +191,8 @@ export async function PUT(req: NextRequest) {
     if (ai_agent_model !== undefined) updateData.ai_agent_model = ai_agent_model
     if (ai_post_prompt_url !== undefined) updateData.ai_post_prompt_url = ai_post_prompt_url
     if (ai_features_enabled !== undefined) updateData.ai_features_enabled = ai_features_enabled
-    if (translate_from !== undefined) updateData.translate_from = translate_from
-    if (translate_to !== undefined) updateData.translate_to = translate_to
+    if (translate_from !== undefined) updateData.translation_from = translate_from
+    if (translate_to !== undefined) updateData.translation_to = translate_to
     if (live_translate !== undefined) updateData.live_translate = live_translate
     if (use_voice_cloning !== undefined) updateData.use_voice_cloning = use_voice_cloning
     if (cloned_voice_id !== undefined) updateData.cloned_voice_id = cloned_voice_id

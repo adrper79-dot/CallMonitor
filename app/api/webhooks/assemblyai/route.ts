@@ -30,17 +30,17 @@ async function handleWebhook(req: Request) {
   // Validate webhook signature if API key is configured
   const apiKey = process.env.ASSEMBLYAI_API_KEY
   if (apiKey) {
-    const signature = req.headers.get('X-AssemblyAI-Signature') || 
-                     req.headers.get('X-Signature') ||
-                     req.headers.get('Signature')
-    
+    const signature = req.headers.get('X-AssemblyAI-Signature') ||
+      req.headers.get('X-Signature') ||
+      req.headers.get('Signature')
+
     if (signature) {
       // Get raw body for signature verification
       const rawBody = await req.text()
       const isValid = verifyAssemblyAISignature(rawBody, signature, apiKey)
-      
+
       if (!isValid) {
-        logger.error('AssemblyAI webhook: Invalid signature - potential spoofing attempt', undefined, { 
+        logger.error('AssemblyAI webhook: Invalid signature - potential spoofing attempt', undefined, {
           signaturePrefix: signature.substring(0, 10),
           source: 'assemblyai-webhook'
         })
@@ -49,7 +49,7 @@ async function handleWebhook(req: Request) {
           { status: 401 }
         )
       }
-      
+
       // Reconstruct request with body for processing
       req = new Request(req.url, {
         method: req.method,
@@ -74,7 +74,7 @@ async function handleWebhook(req: Request) {
   // Return 200 OK immediately - AssemblyAI requires quick response
   // Process webhook asynchronously per architecture: AssemblyAI is intelligence plane
   void processWebhookAsync(req).catch((err) => {
-    logger.error('AssemblyAI webhook async processing failed', err, { 
+    logger.error('AssemblyAI webhook async processing failed', err, {
       source: 'assemblyai-webhook',
       phase: 'async-processing'
     })
@@ -95,7 +95,7 @@ async function processWebhookAsync(req: Request) {
     const confidence = payload.confidence // Overall confidence score
     const audioUrl = payload.audio_url // Original audio URL
     const languageCode = payload.language_code || payload.language_detection?.language_code
-    
+
     // Analytics features (enabled in transcription request)
     const sentimentAnalysis = payload.sentiment_analysis_results // Array of {text, start, end, sentiment, confidence}
     const entities = payload.entities // Array of {entity_type, text, start, end}
@@ -104,8 +104,8 @@ async function processWebhookAsync(req: Request) {
     const iabCategories = payload.iab_categories_result // {status, results, summary}
     const utterances = payload.utterances // Speaker-labeled segments
 
-    logger.info('AssemblyAI webhook received', { 
-      transcriptId: transcriptId ? '[REDACTED]' : null, 
+    logger.info('AssemblyAI webhook received', {
+      transcriptId: transcriptId ? '[REDACTED]' : null,
       status,
       hasText: !!text,
       source: 'assemblyai-webhook',
@@ -121,12 +121,12 @@ async function processWebhookAsync(req: Request) {
 
     if (status !== 'completed') {
       if (status === 'error') {
-        logger.error('AssemblyAI webhook: Transcription failed', undefined, { 
-          transcriptId: '[REDACTED]', 
+        logger.error('AssemblyAI webhook: Transcription failed', undefined, {
+          transcriptId: '[REDACTED]',
           error: payload.error,
           source: 'assemblyai-webhook'
         })
-        
+
         // Find and update ai_run to failed status (check both models)
         const { data: aiRows } = await supabaseAdmin
           .from('ai_runs')
@@ -159,7 +159,7 @@ async function processWebhookAsync(req: Request) {
       .limit(1)
 
     if (aiErr) {
-      logger.error('AssemblyAI webhook: Failed to find ai_run', aiErr, { 
+      logger.error('AssemblyAI webhook: Failed to find ai_run', aiErr, {
         transcriptId: '[REDACTED]',
         source: 'assemblyai-webhook'
       })
@@ -168,7 +168,7 @@ async function processWebhookAsync(req: Request) {
 
     const aiRun = aiRows?.[0]
     if (!aiRun) {
-      logger.warn('AssemblyAI webhook: ai_run not found', { 
+      logger.warn('AssemblyAI webhook: ai_run not found', {
         transcriptId: '[REDACTED]',
         source: 'assemblyai-webhook'
       })
@@ -181,14 +181,14 @@ async function processWebhookAsync(req: Request) {
     // Find the recording for this call - try call_id first (per migration), fallback to call_sid
     let recordingId: string | undefined
     let organizationId: string | undefined
-    
+
     // First try by call_id (the FK relationship per 20260118_schema_alignment.sql)
     const { data: recByCallId } = await supabaseAdmin
       .from('recordings')
       .select('id, organization_id')
       .eq('call_id', callId)
       .limit(1)
-    
+
     if (recByCallId && recByCallId.length > 0) {
       recordingId = recByCallId[0].id
       organizationId = recByCallId[0].organization_id
@@ -201,14 +201,14 @@ async function processWebhookAsync(req: Request) {
           .select('id, organization_id')
           .eq('call_sid', callSid)
           .limit(1)
-        
+
         if (recByCallSid && recByCallSid.length > 0) {
           recordingId = recByCallSid[0].id
           organizationId = recByCallSid[0].organization_id
         }
       }
     }
-    
+
     // If still no organization_id, get it from the call directly
     if (!organizationId && callId) {
       const { data: callRows } = await supabaseAdmin
@@ -241,7 +241,7 @@ async function processWebhookAsync(req: Request) {
       iab_categories: iabCategories || null,
       utterances: utterances || null  // Speaker-labeled segments
     }
-    
+
     // Compute overall sentiment summary
     if (sentimentAnalysis && Array.isArray(sentimentAnalysis) && sentimentAnalysis.length > 0) {
       const sentiments = sentimentAnalysis.map((s: any) => s.sentiment)
@@ -249,7 +249,7 @@ async function processWebhookAsync(req: Request) {
       const negative = sentiments.filter((s: string) => s === 'NEGATIVE').length
       const neutral = sentiments.filter((s: string) => s === 'NEUTRAL').length
       const total = sentiments.length
-      
+
       transcriptJson.sentiment_summary = {
         overall: positive > negative ? 'POSITIVE' : negative > positive ? 'NEGATIVE' : 'NEUTRAL',
         positive_percent: Math.round((positive / total) * 100),
@@ -277,13 +277,13 @@ async function processWebhookAsync(req: Request) {
     if (updateAiErr) {
       logger.error('AssemblyAI webhook: Failed to update ai_run', updateAiErr, { aiRunId })
     } else {
-      logger.info('AssemblyAI webhook: Updated ai_run with transcript', { 
-        aiRunId, 
+      logger.info('AssemblyAI webhook: Updated ai_run with transcript', {
+        aiRunId,
         callId,
         source: 'assemblyai-webhook',
         artifactType: 'transcript'
       })
-      
+
       // Audit log: transcription completed
       try {
         await supabaseAdmin.from('audit_logs').insert({
@@ -318,7 +318,7 @@ async function processWebhookAsync(req: Request) {
       if (updateRecErr) {
         logger.error('AssemblyAI webhook: Failed to update recording', updateRecErr, { recordingId })
       } else {
-        logger.info('AssemblyAI webhook: Updated recording with transcript', { 
+        logger.info('AssemblyAI webhook: Updated recording with transcript', {
           recordingId,
           source: 'assemblyai-webhook',
           artifactType: 'recording-transcript'
@@ -334,7 +334,7 @@ async function processWebhookAsync(req: Request) {
           .eq('id', recordingId)
           .limit(1)
         const recordingUrl = recUrlRows?.[0]?.recording_url || undefined
-        
+
         await checkAndTriggerTranslation(callId, organizationId, text, languageCode, recordingUrl)
       }
 
@@ -348,7 +348,7 @@ async function processWebhookAsync(req: Request) {
         const { checkAndGenerateManifest } = await import('@/app/services/evidenceManifest')
         await checkAndGenerateManifest(callId, recordingId, organizationId)
       }
-      
+
       // Auto-email artifacts to user when transcription completes
       if (organizationId && callId) {
         await sendArtifactsToUserEmail(callId, organizationId)
@@ -356,7 +356,7 @@ async function processWebhookAsync(req: Request) {
     }
 
   } catch (err: any) {
-    logger.error('AssemblyAI webhook processing error', err, { 
+    logger.error('AssemblyAI webhook processing error', err, {
       source: 'assemblyai-webhook'
     })
   }
@@ -390,11 +390,11 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       .select('plan')
       .eq('id', organizationId)
       .limit(1)
-    
+
     const orgPlan = orgRows?.[0]?.plan?.toLowerCase() || 'free'
     const translationPlans = ['global', 'business', 'enterprise']
     if (!translationPlans.includes(orgPlan)) {
-      logger.debug('AssemblyAI webhook: Translation skipped - plan does not support translation', { 
+      logger.debug('AssemblyAI webhook: Translation skipped - plan does not support translation', {
         callId, organizationId, plan: orgPlan, requiredPlans: translationPlans
       })
       return
@@ -402,12 +402,12 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
 
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('translate, translate_from, translate_to, use_voice_cloning')
+      .select('live_translate, translation_from, translation_to, use_voice_cloning')
       .eq('organization_id', organizationId)
       .limit(1)
 
     const config = vcRows?.[0]
-    if (!config?.translate) {
+    if (!config?.live_translate) {
       logger.debug('AssemblyAI webhook: Translation not enabled in voice_configs', { callId, organizationId })
       return
     }
@@ -423,8 +423,8 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     }
 
     // Handle auto-detection: if translate_from or translate_to is 'auto', use detected language
-    let fromLanguage = config.translate_from
-    let toLanguage = config.translate_to
+    let fromLanguage = config.translation_from
+    let toLanguage = config.translation_to
 
     // For bridge calls, we need to handle bidirectional translation
     const { data: callRows } = await supabaseAdmin
@@ -463,26 +463,26 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       if (fromLanguage === 'auto' && detectedLanguage) {
         fromLanguage = detectedLanguage
       } else if (fromLanguage === 'auto' && !detectedLanguage) {
-        logger.warn('AssemblyAI webhook: translate_from is auto but no language detected', { 
+        logger.warn('AssemblyAI webhook: translate_from is auto but no language detected', {
           callId,
           hint: 'AssemblyAI should detect language automatically - check transcript payload'
         })
         // Default to English if we can't detect
         fromLanguage = 'en'
       }
-      
+
       // Auto-detect target language for single-leg calls
       if (toLanguage === 'auto') {
         // Infer target language: if source is English, translate to Spanish (most common)
         // If source is non-English, translate to English
         if (fromLanguage?.startsWith('en')) {
           toLanguage = 'es'  // English → Spanish
-          logger.info('AssemblyAI webhook: Auto-detected target language', { 
+          logger.info('AssemblyAI webhook: Auto-detected target language', {
             callId, fromLanguage, toLanguage, reason: 'en→es default'
           })
         } else {
           toLanguage = 'en'  // Non-English → English
-          logger.info('AssemblyAI webhook: Auto-detected target language', { 
+          logger.info('AssemblyAI webhook: Auto-detected target language', {
             callId, fromLanguage, toLanguage, reason: 'non-en→en default'
           })
         }
@@ -490,16 +490,16 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     }
 
     if (!fromLanguage || !toLanguage || fromLanguage === 'auto' || toLanguage === 'auto') {
-      logger.error('POST_CALL_TRANSLATION_FAILED: Language configuration incomplete', undefined, { 
-        callId, 
-        fromLanguage: fromLanguage || 'NOT_SET', 
-        toLanguage: toLanguage || 'NOT_SET', 
+      logger.error('POST_CALL_TRANSLATION_FAILED: Language configuration incomplete', undefined, {
+        callId,
+        fromLanguage: fromLanguage || 'NOT_SET',
+        toLanguage: toLanguage || 'NOT_SET',
         detectedLanguage: detectedLanguage || 'NOT_DETECTED',
         resolution: 'Configure translate_from and translate_to in voice_configs or ensure language detection works'
       })
       return
     }
-    
+
     // Skip if source and target are the same
     if (fromLanguage === toLanguage) {
       logger.info('AssemblyAI webhook: Skipping translation - source and target languages are the same', {
@@ -544,7 +544,7 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
         },
         created_at: new Date().toISOString()
       })
-    } catch (__) {}
+    } catch (__) { }
 
     // Create translation ai_run entry
     await supabaseAdmin
@@ -606,11 +606,11 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
       .select('plan')
       .eq('id', organizationId)
       .limit(1)
-    
+
     const orgPlan = orgRows?.[0]?.plan?.toLowerCase() || 'free'
     const surveyPlans = ['insights', 'global', 'business', 'enterprise']
     if (!surveyPlans.includes(orgPlan)) {
-      logger.debug('AssemblyAI webhook: Survey skipped - plan does not support survey', { 
+      logger.debug('AssemblyAI webhook: Survey skipped - plan does not support survey', {
         callId, organizationId, plan: orgPlan, requiredPlans: surveyPlans
       })
       return
@@ -659,9 +659,9 @@ async function checkAndProcessSurvey(callId: string, organizationId: string, tra
         }
       }).eq('id', surveyRun.id)
 
-    logger.info('AssemblyAI webhook: Survey processed', { 
-      surveyRunId: surveyRun.id, 
-      callId, 
+    logger.info('AssemblyAI webhook: Survey processed', {
+      surveyRunId: surveyRun.id,
+      callId,
       recordingId,
       source: 'assemblyai-webhook'
     })
@@ -696,7 +696,7 @@ async function processSurveyWithNLP(transcriptText: string, surveyData: any): Pr
 
   // Extract additional answers from transcript using keyword matching
   const lowerText = transcriptText.toLowerCase()
-  
+
   if (lowerText.includes('very satisfied') || lowerText.includes('extremely happy')) {
     results.sentiment = 'very_positive'
   } else if (lowerText.includes('satisfied') || lowerText.includes('happy')) {
@@ -815,14 +815,14 @@ async function sendArtifactsToUserEmail(callId: string, organizationId: string) 
     })
 
     if (result.success) {
-      logger.info('AssemblyAI webhook: Auto-emailed artifacts to user', { 
-        callId, 
+      logger.info('AssemblyAI webhook: Auto-emailed artifacts to user', {
+        callId,
         email: userEmail.substring(0, 3) + '***',
         source: 'assemblyai-webhook'
       })
     } else {
-      logger.error('AssemblyAI webhook: Auto-email failed', undefined, { 
-        callId, 
+      logger.error('AssemblyAI webhook: Auto-email failed', undefined, {
+        callId,
         error: result.error,
         source: 'assemblyai-webhook'
       })

@@ -92,9 +92,9 @@ async function handleSignup(req: Request) {
         )
       }
 
-      logger.warn('Signup: Auth user creation failed', { 
-        status: res.status, 
-        email: '[REDACTED]' 
+      logger.warn('Signup: Auth user creation failed', {
+        status: res.status,
+        email: '[REDACTED]'
       })
       return NextResponse.json(
         { success: false, error: { code: 'SIGNUP_FAILED', message: data?.message || 'Failed to create account' } },
@@ -104,25 +104,25 @@ async function handleSignup(req: Request) {
 
     // Create user in public.users and organization
     const supabase = createClient(supabaseUrl, serviceKey)
-    
+
     // Check if user already exists in public.users
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
       .eq('id', data.id)
       .single()
-    
+
     if (!existingUser) {
       // Get or create default organization
       let orgId: string | null = null
-      
+
       // Try to find existing organizations
       const { data: orgs } = await supabase
         .from('organizations')
         .select('id, name')
         .order('created_at', { ascending: false })
         .limit(1)
-      
+
       if (orgs && orgs.length > 0) {
         // Use existing organization
         orgId = orgs[0].id
@@ -139,7 +139,7 @@ async function handleSignup(req: Request) {
           })
           .select()
           .single()
-        
+
         if (orgError) {
           logger.error('Signup: Failed to create organization', orgError, { email: '[REDACTED]' })
           return NextResponse.json(
@@ -147,10 +147,10 @@ async function handleSignup(req: Request) {
             { status: 500 }
           )
         }
-        
+
         orgId = newOrg.id
         logger.info('Signup: Created organization', { orgId, email: '[REDACTED]' })
-        
+
         // Create default tool for this organization
         const { data: tool, error: toolError } = await supabase
           .from('tools')
@@ -160,7 +160,7 @@ async function handleSignup(req: Request) {
           })
           .select('id')
           .single()
-        
+
         if (toolError) {
           logger.warn('Signup: Failed to create tool', { error: toolError.message, orgId })
           // Continue without tool - organization will still work but recording might fail
@@ -170,7 +170,7 @@ async function handleSignup(req: Request) {
             .from('organizations')
             .update({ tool_id: tool.id })
             .eq('id', orgId)
-          
+
           if (updateError) {
             logger.warn('Signup: Failed to link tool to organization', { error: updateError.message, orgId })
           } else {
@@ -178,7 +178,7 @@ async function handleSignup(req: Request) {
           }
         }
       }
-      
+
       // CRITICAL: Always create user in public.users (orgId is now guaranteed to exist)
       if (!orgId) {
         return NextResponse.json(
@@ -186,7 +186,7 @@ async function handleSignup(req: Request) {
           { status: 500 }
         )
       }
-      
+
       const { error: userError } = await supabase
         .from('users')
         .insert({
@@ -196,7 +196,7 @@ async function handleSignup(req: Request) {
           role: 'member',
           is_admin: false
         })
-      
+
       if (userError) {
         logger.error('Signup: Failed to create user in public.users', userError, { email: '[REDACTED]' })
         return NextResponse.json(
@@ -204,9 +204,9 @@ async function handleSignup(req: Request) {
           { status: 500 }
         )
       }
-      
+
       logger.info('Signup: Created user in public.users', { userId: data.id, orgId })
-      
+
       // Create org membership (first user becomes owner, others are members)
       const isFirstUser = !orgs || orgs.length === 0
       const { error: memberError } = await supabase
@@ -216,7 +216,7 @@ async function handleSignup(req: Request) {
           user_id: data.id,
           role: isFirstUser ? 'owner' : 'member'
         })
-      
+
       if (memberError) {
         logger.error('Signup: Failed to create org membership', memberError, { email: '[REDACTED]' })
         return NextResponse.json(
@@ -224,12 +224,12 @@ async function handleSignup(req: Request) {
           { status: 500 }
         )
       }
-      
-      logger.info('Signup: Created org_members record', { 
-        userId: data.id, 
-        role: isFirstUser ? 'owner' : 'member' 
+
+      logger.info('Signup: Created org_members record', {
+        userId: data.id,
+        role: isFirstUser ? 'owner' : 'member'
       })
-      
+
       // Create default voice_configs for new organization
       const { error: voiceConfigError } = await supabase
         .from('voice_configs')
@@ -238,12 +238,12 @@ async function handleSignup(req: Request) {
           record: true,
           transcribe: true,
           translate: false,
-          translate_from: 'en-US',
+          translation_from: 'en-US',
           translate_to: 'es-ES',
           survey: false,
           synthetic_caller: false
         })
-      
+
       if (voiceConfigError) {
         logger.warn('Signup: Failed to create voice_configs', { error: voiceConfigError.message, orgId })
         // Don't fail signup, but log the error

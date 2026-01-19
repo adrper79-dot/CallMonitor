@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     // Get voice_configs for this organization
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller, shopper_script')
+      .select('record, transcribe, live_translate, translation_from, translation_to, survey, synthetic_caller, shopper_script')
       .eq('organization_id', organizationId)
       .limit(1)
 
@@ -59,11 +59,11 @@ export async function GET(req: Request) {
 
     // Secret Shopper script
     if (voiceConfig?.synthetic_caller) {
-      const script = voiceConfig.shopper_script || 
-                    'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
-      
+      const script = voiceConfig.shopper_script ||
+        'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
+
       const scriptLines = (script || '').split(/\n|\|/).filter((line: string) => line.trim())
-      
+
       for (let i = 0; i < scriptLines.length; i++) {
         const line = scriptLines[i].trim()
         if (line) {
@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     if (toNumber) {
       const recordingEnabled = voiceConfig?.record === true
       const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
-      
+
       if (recordingEnabled) {
         elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
         elements.push(`<Number>${escapeXml(toNumber)}</Number>`)

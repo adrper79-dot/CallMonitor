@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const from = payload.From ?? payload.from
     const to = payload.To ?? payload.to
     const callSid = payload.CallSid ?? payload.call_sid
-    
+
     const url = new URL(req.url)
     const callId = url.searchParams.get('callId')
 
@@ -60,13 +60,13 @@ export async function POST(req: Request) {
 
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, translate, translate_from, translate_to')
+      .select('record, live_translate, translation_from, translation_to')
       .eq('organization_id', organizationId)
       .limit(1)
 
     voiceConfig = vcRows?.[0] || null
 
-    if (!voiceConfig?.translate || !voiceConfig?.translate_from || !voiceConfig?.translate_to) {
+    if (!voiceConfig?.live_translate || !voiceConfig?.translation_from || !voiceConfig?.translation_to) {
       logger.warn('SWML outbound: translation not enabled', { organizationId })
       return swmlResponse(FALLBACK_SWML)
     }
@@ -97,8 +97,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    ok: true, route: '/api/voice/swml/outbound', 
+  return NextResponse.json({
+    ok: true, route: '/api/voice/swml/outbound',
     method: 'Use POST for SWML generation',
     description: 'SWML endpoint for live translation calls'
   })

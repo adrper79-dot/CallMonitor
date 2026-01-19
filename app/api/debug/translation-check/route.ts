@@ -84,26 +84,26 @@ export async function GET(req: NextRequest) {
     // Translation status
     const translationStatus = {
       enabled: voiceConfig?.translate === true ? '✅ ENABLED' : '❌ DISABLED',
-      from_language: voiceConfig?.translate_from || '❌ NOT SET',
-      to_language: voiceConfig?.translate_to || '❌ NOT SET',
-      plan_supports: ['global', 'enterprise', 'business', 'pro', 'standard', 'active'].includes(org?.plan?.toLowerCase() || '') 
-        ? '✅ SUPPORTED' 
+      from_language: voiceConfig?.translation_from || '❌ NOT SET',
+      to_language: voiceConfig?.translation_to || '❌ NOT SET',
+      plan_supports: ['global', 'enterprise', 'business', 'pro', 'standard', 'active'].includes(org?.plan?.toLowerCase() || '')
+        ? '✅ SUPPORTED'
         : `❌ Plan "${org?.plan}" not supported`
     }
 
     // Issue diagnosis
     const issues: string[] = []
-    
+
     if (!process.env.OPENAI_API_KEY) {
       issues.push('❌ OPENAI_API_KEY not set in Vercel env vars - translation cannot work')
     }
     if (voiceConfig?.translate !== true) {
       issues.push('❌ Translation not enabled in voice_configs')
     }
-    if (!voiceConfig?.translate_from) {
+    if (!voiceConfig?.translation_from) {
       issues.push('❌ translate_from language not set')
     }
-    if (!voiceConfig?.translate_to) {
+    if (!voiceConfig?.translation_to) {
       issues.push('❌ translate_to language not set')
     }
     if (!['global', 'enterprise', 'business', 'pro', 'standard', 'active'].includes(org?.plan?.toLowerCase() || '')) {
@@ -127,8 +127,8 @@ export async function GET(req: NextRequest) {
         record: voiceConfig.record,
         transcribe: voiceConfig.transcribe,
         translate: voiceConfig.translate,
-        translate_from: voiceConfig.translate_from,
-        translate_to: voiceConfig.translate_to,
+        translate_from: voiceConfig.translation_from,
+        translate_to: voiceConfig.translation_to,
         survey: voiceConfig.survey
       } : null,
       environment: envCheck,

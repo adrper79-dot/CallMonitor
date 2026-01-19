@@ -70,19 +70,19 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
   // helper to place a single SignalWire call (returns sid)
   const placeSignalWireCall = async (
-    toNumber: string, 
-    useLiveTranslation: boolean = false, 
+    toNumber: string,
+    useLiveTranslation: boolean = false,
     conference?: string,
     leg?: string
   ) => {
-    logger.info('placeSignalWireCall: ENTERED function', { 
-      toNumber: toNumber ? '[REDACTED]' : null, 
-      useLiveTranslation, 
+    logger.info('placeSignalWireCall: ENTERED function', {
+      toNumber: toNumber ? '[REDACTED]' : null,
+      useLiveTranslation,
       callId,
       conference: conference || 'none',
       leg: leg || 'single'
     })
-    
+
     // Use centralized config per architecture (with fallback to env for testing)
     const { config: appConfig } = env.SIGNALWIRE_PROJECT_ID ? { config: null } : await import('@/lib/config')
     const swProject = env.SIGNALWIRE_PROJECT_ID || appConfig?.signalwire.projectId
@@ -91,10 +91,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const rawSpace = String(env.SIGNALWIRE_SPACE || appConfig?.signalwire.space || '')
     const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
 
-    logger.debug('placeSignalWireCall: extracted config', { 
-      hasProject: !!swProject, 
-      hasToken: !!swToken, 
-      hasSpace: !!swSpace, 
+    logger.debug('placeSignalWireCall: extracted config', {
+      hasProject: !!swProject,
+      hasToken: !!swToken,
+      hasSpace: !!swSpace,
       hasNumber: !!swNumber,
       rawSpace: rawSpace ? rawSpace.substring(0, 20) + '...' : null,
       extractedSpace: swSpace || null
@@ -107,14 +107,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       if (!swToken) missing.push('SIGNALWIRE_TOKEN')
       if (!swSpace) missing.push('SIGNALWIRE_SPACE')
       if (!swNumber) missing.push('SIGNALWIRE_NUMBER')
-      
+
       if (env.NODE_ENV === 'production') {
-        const e = new AppError({ 
-          code: 'SIGNALWIRE_CONFIG_MISSING', 
-          message: `SignalWire credentials missing: ${missing.join(', ')}`, 
-          user_message: 'System configuration error - please contact support', 
-          severity: 'CRITICAL', 
-          retriable: false 
+        const e = new AppError({
+          code: 'SIGNALWIRE_CONFIG_MISSING',
+          message: `SignalWire credentials missing: ${missing.join(', ')}`,
+          user_message: 'System configuration error - please contact support',
+          severity: 'CRITICAL',
+          retriable: false
         })
         await writeAuditError('systems', null, e.toJSON())
         logger.error('CRITICAL: SignalWire config missing', undefined, { missing: missing.join(', ') })
@@ -134,7 +134,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
     const params = new URLSearchParams()
-    
+
     // Check for caller ID mask (custom display number)
     let fromNumber = swNumber
     try {
@@ -143,25 +143,25 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         .select('caller_id_mask, caller_id_verified')
         .eq('organization_id', organization_id)
         .limit(1)
-      
+
       const callerIdMask = vcRows?.[0]?.caller_id_mask
       const isVerified = vcRows?.[0]?.caller_id_verified
-      
+
       // Only use mask if it's set and verified (or if it's a SignalWire number)
       if (callerIdMask && (isVerified || callerIdMask.startsWith('+1'))) {
         fromNumber = callerIdMask
-        logger.info('placeSignalWireCall: using caller ID mask', { 
-          masked: true, 
-          verified: isVerified 
+        logger.info('placeSignalWireCall: using caller ID mask', {
+          masked: true,
+          verified: isVerified
         })
       }
     } catch (e) {
       // Best effort - continue with default number
     }
-    
+
     params.append('From', fromNumber)
     params.append('To', toNumber)
-    
+
     // Route to SWML endpoint for live translation, LaML for regular calls
     if (useLiveTranslation && callId) {
       // Get translation language settings from voice_configs
@@ -172,41 +172,41 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       try {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
-          .select('translate_from, translate_to')
+          .select('translation_from, translation_to')
           .eq('organization_id', organization_id)
           .limit(1)
         if (vcRows?.[0]) {
-          translateFrom = vcRows[0].translate_from || null
-          translateTo = vcRows[0].translate_to || null
+          translateFrom = vcRows[0].translation_from || null
+          translateTo = vcRows[0].translation_to || null
         }
       } catch (e) {
         logger.warn('Failed to fetch translation languages', e as Error)
       }
-      
+
       // Fail if language codes are not configured (per MASTER_ARCHITECTURE - no inference)
       if (!translateFrom || !translateTo) {
-        const e = new AppError({ 
-          code: 'TRANSLATION_LANGUAGES_REQUIRED', 
-          message: 'Translation requires source and target languages to be configured', 
-          user_message: 'Please configure translation languages before placing a translated call', 
-          severity: 'HIGH' 
+        const e = new AppError({
+          code: 'TRANSLATION_LANGUAGES_REQUIRED',
+          message: 'Translation requires source and target languages to be configured',
+          user_message: 'Please configure translation languages before placing a translated call',
+          severity: 'HIGH'
         })
         await writeAuditError('calls', callId, e.toJSON())
         return { success: false, error: e.toJSON() }
       }
-      
+
       const swmlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organization_id)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
       params.append('Url', swmlUrl)
-      logger.info('startCallHandler: routing to SWML endpoint for live translation', { 
-        callId, 
-        translateFrom, 
-        translateTo 
+      logger.info('startCallHandler: routing to SWML endpoint for live translation', {
+        callId,
+        translateFrom,
+        translateTo
       })
     } else {
       // Build LaML URL with parameters (use empty string if callId not yet set)
       const callIdParam = callId || ''
       let lamlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound?callId=${encodeURIComponent(callIdParam)}`
-      
+
       // Add conference parameters for bridge calls
       if (conference) {
         lamlUrl += `&conference=${encodeURIComponent(conference)}`
@@ -214,14 +214,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           lamlUrl += `&leg=${encodeURIComponent(leg)}`
         }
       }
-      
+
       params.append('Url', lamlUrl)
     }
     // Pass callId in callback URLs so webhooks can definitively identify the call
     // This solves the race condition when multiple calls happen simultaneously
     const callIdParam = callId ? `?callId=${encodeURIComponent(callId)}` : ''
     params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callIdParam}`)
-    
+
     // Enable recording at REST API level for ALL calls
     // CRITICAL: Must use Record=true at REST API level for BOTH single-leg AND conference calls
     // The <Conference record="..."> attribute alone is NOT sufficient - SignalWire ignores it
@@ -236,11 +236,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     })
 
     const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
-    
+
     // Log ALL parameters being sent to SignalWire (for debugging)
     const paramsForLog = Object.fromEntries(params.entries())
-    logger.debug('placeSignalWireCall: FULL REST API REQUEST', { 
-      endpoint: swEndpoint, 
+    logger.debug('placeSignalWireCall: FULL REST API REQUEST', {
+      endpoint: swEndpoint,
       to: toNumber ? '[REDACTED]' : null,
       from: swNumber ? '[REDACTED]' : null,
       hasRecord: params.has('Record'),
@@ -268,7 +268,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('calls', callId, fetchErr.toJSON())
         throw fetchErr
       }
-      
+
       logger.error('startCallHandler: SignalWire fetch error', fetchErr, { error: fetchErr?.message ?? String(fetchErr) })
       const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
       await writeAuditError('calls', callId, e.toJSON())
@@ -291,7 +291,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   try {
     let { from_number, phone_number, flow_type, modulations } = input
     organization_id = input.organization_id
-    
+
     // lightweight tracing for debugging call placement (avoid logging secrets)
     // Logs: organization and phone to help trace attempts in runtime logs
     // DO NOT log credentials or provider tokens
@@ -380,16 +380,16 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // default to conservative (all false) when no config present
     let effectiveModulations: Modulations & { translate_from?: string | null; translate_to?: string | null } = { record: false, transcribe: false, translate: false }
     try {
-      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,translate,translate_from,translate_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
+      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,live_translate,translation_from,translation_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
       if (!vcErr && vcRows && vcRows[0]) {
         const cfg: any = vcRows[0]
         effectiveModulations.record = !!cfg.record
         effectiveModulations.transcribe = !!cfg.transcribe
-        effectiveModulations.translate = !!cfg.translate
+        effectiveModulations.translate = !!cfg.live_translate
         effectiveModulations.survey = !!cfg.survey
         effectiveModulations.synthetic_caller = !!cfg.synthetic_caller
-        if (typeof cfg.translate_from === 'string') effectiveModulations.translate_from = cfg.translate_from
-        if (typeof cfg.translate_to === 'string') effectiveModulations.translate_to = cfg.translate_to
+        if (typeof cfg.translation_from === 'string') effectiveModulations.translate_from = cfg.translation_from
+        if (typeof cfg.translation_to === 'string') effectiveModulations.translate_to = cfg.translation_to
       }
     } catch (e) {
       // best-effort: if voice_configs absent or lookup fails, keep conservative defaults
@@ -405,12 +405,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const userRole = membershipRows[0].role?.toLowerCase() || 'viewer'
     const allowedCallRoles = ['owner', 'admin', 'operator']
     if (!allowedCallRoles.includes(userRole)) {
-      const err = new AppError({ 
-        code: 'CALL_EXECUTE_FORBIDDEN', 
-        message: 'Insufficient permissions to execute calls', 
-        user_message: 'You do not have permission to place calls. Only Owners, Admins, and Operators can place calls.', 
-        severity: 'HIGH', 
-        retriable: false 
+      const err = new AppError({
+        code: 'CALL_EXECUTE_FORBIDDEN',
+        message: 'Insufficient permissions to execute calls',
+        user_message: 'You do not have permission to place calls. Only Owners, Admins, and Operators can place calls.',
+        severity: 'HIGH',
+        retriable: false
       })
       await writeAuditError('org_members', null, { ...err.toJSON(), role: userRole, required_roles: allowedCallRoles })
       throw err
@@ -436,12 +436,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
 
     const systemMap: Record<string, string> = {}
-    ;(systemsRows || []).forEach((s: any) => { systemMap[s.key] = s.id })
+      ; (systemsRows || []).forEach((s: any) => { systemMap[s.key] = s.id })
     const systemCpidId = systemMap['system-cpid'] ?? null
     const systemAiId = systemMap['system-ai'] ?? null
     capturedSystemCpidId = systemCpidId
     if (!systemCpidId) {
-      const e = new AppError({ code: 'CALL_START_SYS_MISSING', message: 'Control system not registered', user_message:'Service misconfiguration', severity:'HIGH', retriable:false })
+      const e = new AppError({ code: 'CALL_START_SYS_MISSING', message: 'Control system not registered', user_message: 'Service misconfiguration', severity: 'HIGH', retriable: false })
       await writeAuditError('systems', null, e.toJSON())
       throw e
     }
@@ -510,34 +510,35 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       // no injected caller: use shared helper which handles config and mocks
       // Check if live translation should be enabled (Business plan + feature flag + translate enabled)
       const plan = String(org.plan ?? '').toLowerCase()
-      const isBusinessPlan = ['business', 'enterprise'].includes(plan)
       const isFeatureFlagEnabled = isLiveTranslationPreviewEnabled()
+      // Allow translation in dev/preview even for non-business plans if feature flag is on
+      const isBusinessPlan = ['business', 'enterprise'].includes(plan) || (env.NODE_ENV !== 'production' && isFeatureFlagEnabled)
       const shouldUseLiveTranslation = isBusinessPlan && isFeatureFlagEnabled && effectiveModulations.translate === true && !!effectiveModulations.translate_from && !!effectiveModulations.translate_to
-      
-      logger.info('startCallHandler: about to place SignalWire call', { 
-        flow_type, 
-        has_from_number: !!from_number, 
+
+      logger.info('startCallHandler: about to place SignalWire call', {
+        flow_type,
+        has_from_number: !!from_number,
         from_number_valid: from_number ? E164_REGEX.test(from_number) : false,
         shouldUseLiveTranslation,
         plan,
         isBusinessPlan,
         isFeatureFlagEnabled
       })
-      
+
       if (flow_type === 'bridge' && from_number && E164_REGEX.test(from_number)) {
         // Bridge calls: Connect two parties via conference room
         // Create unique conference name for this call
         const conferenceName = `bridge-${callId}`
-        
+
         // Call leg A (your agent/number) - joins conference
         const sidA = await placeSignalWireCall(from_number, false, conferenceName, '1')
         // Call leg B (destination) - joins same conference
         const sidB = await placeSignalWireCall(phone_number, false, conferenceName, '2')
         call_sid = sidB
-        logger.info('startCallHandler: signalwire bridge created', { 
+        logger.info('startCallHandler: signalwire bridge created', {
           conference: conferenceName,
-          legA: sidA ? '[REDACTED]' : null, 
-          legB: sidB ? '[REDACTED]' : null 
+          legA: sidA ? '[REDACTED]' : null,
+          legB: sidB ? '[REDACTED]' : null
         })
       } else {
         call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
@@ -553,7 +554,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     if (call_sid) {
       updateData.call_sid = call_sid
     }
-    
+
     const { error: updateErr } = await supabaseAdmin.from('calls').update(updateData).eq('id', callId)
     if (updateErr) {
       logger.error('startCallHandler: failed to update call', undefined, { callId, error: updateErr?.message })
@@ -566,11 +567,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           callId,
           metric: 'call',
           quantity: 1,
-          metadata: { 
-            phone_number, 
-            flow_type, 
-            plan: org.plan, 
-            call_sid: call_sid || null 
+          metadata: {
+            phone_number,
+            flow_type,
+            plan: org.plan,
+            call_sid: call_sid || null
           }
         })
       } catch (usageErr: any) {
@@ -585,11 +586,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Transcription unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        const aiRow = { 
-          id: aiId, 
-          call_id: callId, 
-          system_id: systemAiId, 
-          model: 'assemblyai-v1', 
+        const aiRow = {
+          id: aiId,
+          call_id: callId,
+          system_id: systemAiId,
+          model: 'assemblyai-v1',
           status: 'queued',
           produced_by: 'model',
           is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
@@ -617,11 +618,11 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       } else {
         const aiId = uuidv4()
         // Note: Using 'output' column for metadata since 'meta' doesn't exist in schema
-        const aiRow = { 
-          id: aiId, 
-          call_id: callId, 
-          system_id: systemAiId, 
-          model: 'assemblyai-translation-v1', 
+        const aiRow = {
+          id: aiId,
+          call_id: callId,
+          system_id: systemAiId,
+          model: 'assemblyai-translation-v1',
           status: 'queued',
           produced_by: 'model',
           is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS

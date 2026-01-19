@@ -23,38 +23,38 @@ export const dynamic = 'force-dynamic'
 async function handleWebhook(req: Request) {
   // Log ALL incoming webhook requests for debugging
   const incomingUrl = new URL(req.url)
-  logger.info('SignalWire webhook: incoming request', { 
+  logger.info('SignalWire webhook: incoming request', {
     path: incomingUrl.pathname,
     hasQueryParams: incomingUrl.search.length > 0,
     queryParams: incomingUrl.search || 'none'
   })
-  
+
   const skipValidation = process.env.SIGNALWIRE_SKIP_SIGNATURE_VALIDATION === 'true'
   const authToken = process.env.SIGNALWIRE_TOKEN || process.env.SIGNALWIRE_API_TOKEN
-  
+
   if (authToken && !skipValidation) {
-    const signature = req.headers.get('X-SignalWire-Signature') || 
-                     req.headers.get('X-Twilio-Signature') ||
-                     req.headers.get('X-Signature') ||
-                     req.headers.get('Signature')
-    
+    const signature = req.headers.get('X-SignalWire-Signature') ||
+      req.headers.get('X-Twilio-Signature') ||
+      req.headers.get('X-Signature') ||
+      req.headers.get('Signature')
+
     if (signature) {
       const rawBody = await req.text()
       // Use the FULL URL including query params for signature validation
       // This is critical because SignalWire signs the exact URL it sends to
-      const webhookUrl = process.env.NEXT_PUBLIC_APP_URL 
+      const webhookUrl = process.env.NEXT_PUBLIC_APP_URL
         ? `${process.env.NEXT_PUBLIC_APP_URL}${incomingUrl.pathname}${incomingUrl.search}`
         : req.url
-      
-      logger.debug('SignalWire webhook: validating signature', { 
+
+      logger.debug('SignalWire webhook: validating signature', {
         webhookUrl: webhookUrl.substring(0, 60) + '...',
         hasSignature: !!signature
       })
-      
+
       const isValid = verifySignalWireSignature(rawBody, signature, authToken, webhookUrl)
-      
+
       if (!isValid) {
-        logger.error('SignalWire webhook: Invalid signature', undefined, { 
+        logger.error('SignalWire webhook: Invalid signature', undefined, {
           signaturePrefix: signature.substring(0, 10),
           source: 'signalwire-webhook'
         })
@@ -63,7 +63,7 @@ async function handleWebhook(req: Request) {
           { status: 401 }
         )
       }
-      
+
       req = new Request(req.url, { method: req.method, headers: req.headers, body: rawBody })
     } else if (process.env.NODE_ENV === 'production') {
       logger.warn('SignalWire webhook: Signature header missing in production')
@@ -95,16 +95,16 @@ async function processWebhookAsync(req: Request) {
     const recordingStatus = payload.RecordingStatus || payload.recording_status
 
     const isRecordingCallback = !!recordingSid || !!recordingUrl || recordingStatus
-    
-    logger.info('SignalWire webhook received', { 
-      callSid: callSid ? '[REDACTED]' : null, 
-      callStatus, 
+
+    logger.info('SignalWire webhook received', {
+      callSid: callSid ? '[REDACTED]' : null,
+      callStatus,
       eventType,
       isRecordingCallback,
       hasRecording: !!recordingSid,
       recordingStatus: recordingStatus || 'not-present'
     })
-    
+
     if (recordingSid || recordingUrl || recordingStatus) {
       logger.info('SignalWire webhook: Recording artifact detected', {
         recordingSid: recordingSid ? '[REDACTED]' : 'MISSING',
@@ -124,16 +124,16 @@ async function processWebhookAsync(req: Request) {
 
     const webhookUrl = new URL(req.url)
     const callIdFromUrl = webhookUrl.searchParams.get('callId')
-    
+
     let call: any = null
-    
+
     if (callIdFromUrl) {
       const { data: callRows, error: callErr } = await supabaseAdmin
         .from('calls')
         .select('id, organization_id, status, started_at, ended_at, call_sid')
         .eq('id', callIdFromUrl)
         .limit(1)
-      
+
       if (!callErr && callRows?.[0]) {
         call = callRows[0]
         if (!call.call_sid && callSid) {
@@ -142,7 +142,7 @@ async function processWebhookAsync(req: Request) {
         }
       }
     }
-    
+
     if (!call) {
       const { data: callRows, error: callErr } = await supabaseAdmin
         .from('calls')
@@ -154,7 +154,7 @@ async function processWebhookAsync(req: Request) {
         call = callRows[0]
       }
     }
-    
+
     if (!call) {
       logger.warn('SignalWire webhook: call not found', { callIdFromUrl: callIdFromUrl || 'not-provided' })
       return
@@ -178,12 +178,12 @@ async function processWebhookAsync(req: Request) {
       if (isBusinessPlan && isFeatureFlagEnabled) {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
-          .select('translate, translate_from, translate_to')
+          .select('live_translate, translation_from, translation_to')
           .eq('organization_id', organizationId)
           .limit(1)
 
         const voiceConfig = vcRows?.[0]
-        if (voiceConfig?.translate === true && voiceConfig?.translate_from && voiceConfig?.translate_to) {
+        if (voiceConfig?.live_translate === true && voiceConfig?.translation_from && voiceConfig?.translation_to) {
           hasLiveTranslation = true
         }
       }
@@ -236,14 +236,14 @@ async function processWebhookAsync(req: Request) {
       // If organization has no tool_id, get or create the voice tool
       if (!orgToolId) {
         logger.warn('SignalWire webhook: organization has no tool_id, attempting to assign', { organizationId })
-        
+
         // Get or create voice tool
         const { data: toolRows } = await supabaseAdmin
           .from('tools')
           .select('id')
           .eq('name', 'voice')
           .limit(1)
-        
+
         if (toolRows?.[0]?.id) {
           orgToolId = toolRows[0].id
           // Update org with tool_id for future calls
@@ -258,7 +258,7 @@ async function processWebhookAsync(req: Request) {
           const { error: toolErr } = await supabaseAdmin
             .from('tools')
             .insert({ id: newToolId, name: 'voice', description: 'Voice operations tool' })
-          
+
           if (!toolErr) {
             orgToolId = newToolId
             await supabaseAdmin
@@ -271,8 +271,8 @@ async function processWebhookAsync(req: Request) {
       }
 
       if (orgToolId) {
-        const durationSeconds = recordingDuration 
-          ? Math.round(parseInt(String(recordingDuration), 10) / 1000) 
+        const durationSeconds = recordingDuration
+          ? Math.round(parseInt(String(recordingDuration), 10) / 1000)
           : callDuration ? Math.round(parseInt(String(callDuration), 10)) : null
 
         if (existingRec) {
@@ -314,7 +314,7 @@ async function processWebhookAsync(req: Request) {
             logger.error('SignalWire webhook: failed to create recording', insertRecErr, { callId })
           } else {
             logger.info('SignalWire webhook: created recording', { recordingId, callId })
-            
+
             try {
               await supabaseAdmin.from('audit_logs').insert({
                 id: uuidv4(), organization_id: organizationId, user_id: null, system_id: null,
@@ -325,7 +325,7 @@ async function processWebhookAsync(req: Request) {
                 created_at: new Date().toISOString()
               })
             } catch { /* Best-effort */ }
-            
+
             void (async () => {
               try {
                 const { storeRecording, ensureRecordingsBucket } = await import('@/app/services/recordingStorage')
@@ -335,13 +335,13 @@ async function processWebhookAsync(req: Request) {
                 logger.error('SignalWire webhook: failed to store recording', err, { recordingId })
               }
             })()
-            
+
             await triggerTranscriptionIfEnabled(callId, recordingId, organizationId)
           }
         }
       } else {
-        logger.error('SignalWire webhook: could not assign tool_id, recording not saved', { 
-          organizationId, 
+        logger.error('SignalWire webhook: could not assign tool_id, recording not saved', {
+          organizationId,
           recordingSid,
           recordingUrl: recordingUrl ? '[PRESENT]' : '[MISSING]'
         })
@@ -411,11 +411,11 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     const aiRunId = uuidv4()
     const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
-      id: aiRunId, 
-      call_id: callId, 
+      id: aiRunId,
+      call_id: callId,
       system_id: systemAiId,
-      model: 'assemblyai-v1', 
-      status: 'queued', 
+      model: 'assemblyai-v1',
+      status: 'queued',
       started_at: new Date().toISOString(),
       produced_by: 'model',
       is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
@@ -440,7 +440,7 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
     if (aaiRes.ok) {
       const aaiData = await aaiRes.json()
       await supabaseAdmin.from('ai_runs').update({
-        status: 'processing', 
+        status: 'processing',
         produced_by: 'model',
         is_authoritative: true,
         output: { job_id: aaiData.id, status: 'queued' }
@@ -449,8 +449,8 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
     } else {
       const errText = await aaiRes.text()
       logger.error('SignalWire webhook: AssemblyAI API error', undefined, { status: aaiRes.status, error: errText })
-      await supabaseAdmin.from('ai_runs').update({ 
-        status: 'failed', 
+      await supabaseAdmin.from('ai_runs').update({
+        status: 'failed',
         produced_by: 'model',
         is_authoritative: true,
         output: { error: errText, status_code: aaiRes.status }

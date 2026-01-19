@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   logger.info('LaML outbound webhook', { from: from ? '[REDACTED]' : null, to: to ? '[REDACTED]' : null, callId })
 
   const xml = await generateLaML(callSid, to, callId)
-  
+
   logger.debug('LaML outbound: generated XML', { length: xml.length, callId })
 
   return xmlResponse(xml)
@@ -62,13 +62,13 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   if (organizationId) {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
+      .select('record, transcribe, live_translate, translation_from, translation_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
       .eq('organization_id', organizationId)
       .limit(1)
 
     voiceConfig = vcRows?.[0] || null
-    logger.debug('LaML outbound: voice_configs loaded', { 
-      record: voiceConfig?.record, 
+    logger.debug('LaML outbound: voice_configs loaded', {
+      record: voiceConfig?.record,
       transcribe: voiceConfig?.transcribe,
       translate: voiceConfig?.translate,
       survey: voiceConfig?.survey,
@@ -96,7 +96,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   //
   // Secret Shopper mode IS supported - the system speaks a script TO the callee
   // ============================================================================
-  
+
   // PHASE 1: RECORDING DISCLOSURE (AI Role Compliance)
   if (voiceConfig?.record === true) {
     // Recording disclosure - callee hears this when they answer
@@ -116,7 +116,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   if (voiceConfig?.synthetic_caller) {
     const script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
     const scriptLines = script.split(/\n|\|/).filter(line => line.trim())
-    
+
     for (let i = 0; i < scriptLines.length; i++) {
       const line = scriptLines[i].trim()
       if (line) {
@@ -133,47 +133,47 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       const resolvedPrompts = surveyPrompts.length > 0
         ? surveyPrompts
         : ['On a scale of 1 to 5, how satisfied were you with this interaction?']
-      
+
       const totalQuestions = resolvedPrompts.length
-      logger.info('LaML outbound: generating survey for secret shopper', { 
-        callId, 
-        organizationId, 
+      logger.info('LaML outbound: generating survey for secret shopper', {
+        callId,
+        organizationId,
         totalQuestions,
         promptLocale
       })
-      
+
       elements.push('<Pause length="1"/>')
       elements.push(`<Say voice="alice">Before you go, I have ${totalQuestions > 1 ? totalQuestions + ' quick questions' : 'a quick question'} for you.</Say>`)
       elements.push('<Pause length="1"/>')
-      
+
       const surveyBaseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/survey`
       const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
       const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
-      
+
       for (let i = 0; i < resolvedPrompts.length; i++) {
         const prompt = resolvedPrompts[i]
         const questionIdx = i + 1
-        
+
         if (totalQuestions > 1) {
           elements.push(`<Say voice="alice">Question ${questionIdx} of ${totalQuestions}:</Say>`)
           elements.push('<Pause length="0.5"/>')
         }
-        
+
         elements.push(`<Say voice="alice">${escapeXml(prompt)}</Say>`)
-        
+
         const actionParams = [callParam, orgParam, `q=${questionIdx}`, `total=${totalQuestions}`].filter(Boolean).join('&')
         const actionUrl = surveyBaseUrl + (actionParams ? `?${actionParams}` : '')
-        
+
         elements.push(`<Gather numDigits="1" action="${escapeXml(actionUrl)}" method="POST" timeout="10" finishOnKey="#">`)
         elements.push('  <Say voice="alice">Please press a number from 1 to 5.</Say>')
         elements.push('</Gather>')
-        
+
         if (i < resolvedPrompts.length - 1) {
           elements.push('<Say voice="alice">Let me move to the next question.</Say>')
           elements.push('<Pause length="0.5"/>')
         }
       }
-      
+
       elements.push('<Say voice="alice">Thank you for completing our survey. Your feedback is valuable to us.</Say>')
     }
     elements.push('<Hangup/>')
@@ -181,14 +181,14 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     // Survey enabled but NOT secret shopper - log warning
     // Surveys don't work for regular outbound calls because the callee
     // doesn't stay on the line after the caller hangs up
-    logger.warn('LaML outbound: Survey enabled but surveys only work with secret_shopper or bridge mode', { 
-      callId, 
+    logger.warn('LaML outbound: Survey enabled but surveys only work with secret_shopper or bridge mode', {
+      callId,
       organizationId,
       hint: 'Enable synthetic_caller for automated surveys, or use bridge mode'
     })
     // Fall through to normal pause behavior
   }
-  
+
   // For non-secret-shopper calls, just pause to allow conversation
   if (!voiceConfig?.synthetic_caller) {
     elements.push('<Pause length="3600"/>')
@@ -234,13 +234,13 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
 
   const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
   const elements: string[] = ['<Dial>']
-  
+
   if (recordEnabled) {
     elements.push(`  <Conference record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
   } else {
     elements.push(`  <Conference>${escapeXml(conferenceName)}</Conference>`)
   }
-  
+
   elements.push('</Dial>')
 
   return `<?xml version="1.0" encoding="UTF-8"?>
