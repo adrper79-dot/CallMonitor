@@ -178,20 +178,51 @@ async function processWebhookAsync(req: Request) {
     const aiRunId = aiRun.id
     const callId = aiRun.call_id
 
-    // Find the recording for this call
-    const { data: recRows, error: recErr } = await supabaseAdmin
+    // Find the recording for this call - try call_id first (per migration), fallback to call_sid
+    let recordingId: string | undefined
+    let organizationId: string | undefined
+    
+    // First try by call_id (the FK relationship per 20260118_schema_alignment.sql)
+    const { data: recByCallId } = await supabaseAdmin
       .from('recordings')
-      .select('id, organization_id, call_sid')
-      .eq('call_sid', (await getCallSidFromCallId(callId)) || '')
+      .select('id, organization_id')
+      .eq('call_id', callId)
       .limit(1)
+    
+    if (recByCallId && recByCallId.length > 0) {
+      recordingId = recByCallId[0].id
+      organizationId = recByCallId[0].organization_id
+    } else {
+      // Fallback to call_sid for older recordings
+      const callSid = await getCallSidFromCallId(callId)
+      if (callSid) {
+        const { data: recByCallSid } = await supabaseAdmin
+          .from('recordings')
+          .select('id, organization_id')
+          .eq('call_sid', callSid)
+          .limit(1)
+        
+        if (recByCallSid && recByCallSid.length > 0) {
+          recordingId = recByCallSid[0].id
+          organizationId = recByCallSid[0].organization_id
+        }
+      }
+    }
+    
+    // If still no organization_id, get it from the call directly
+    if (!organizationId && callId) {
+      const { data: callRows } = await supabaseAdmin
+        .from('calls')
+        .select('organization_id')
+        .eq('id', callId)
+        .limit(1)
+      organizationId = callRows?.[0]?.organization_id
+    }
 
-    if (recErr || !recRows || recRows.length === 0) {
+    if (!recordingId) {
       logger.warn('AssemblyAI webhook: Recording not found for call', { callId })
       // Continue anyway - we can still update ai_run
     }
-
-    const recordingId = recRows?.[0]?.id
-    const organizationId = recRows?.[0]?.organization_id
 
     // Build transcript JSON structure (first-class artifact per architecture)
     // Includes full analytics from AssemblyAI

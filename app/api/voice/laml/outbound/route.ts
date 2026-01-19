@@ -82,14 +82,24 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   const recordingCallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callId ? `?callId=${callId}` : ''}`
 
   // ============================================================================
-  // PHASE 1: RECORDING DISCLOSURE (AI Role Compliance)
-  // Per WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md:
-  // - System speaks disclosure (procedural, not contractual)
-  // - Disclosure must be given BEFORE recording begins
-  // - This is infrastructure, not an actor making commitments
+  // OUTBOUND CALL LaML STRUCTURE
+  // 
+  // This LaML is executed when the CALLEE answers. The flow is:
+  // 1. Recording disclosure (if enabled) - callee hears this
+  // 2. <Pause> to allow conversation - caller speaks via REST API connection
+  // 3. When caller hangs up, recording callback fires
+  //
+  // NOTE: Surveys are NOT supported in this flow because there's no way to
+  // keep the callee on the line after the caller hangs up. For surveys:
+  // - Use BRIDGE mode which connects both parties to a conference
+  // - Or use inbound IVR where caller calls in
+  //
+  // Secret Shopper mode IS supported - the system speaks a script TO the callee
   // ============================================================================
+  
+  // PHASE 1: RECORDING DISCLOSURE (AI Role Compliance)
   if (voiceConfig?.record === true) {
-    // Recording disclosure - system speaks this before recording starts
+    // Recording disclosure - callee hears this when they answer
     elements.push('<Say voice="alice">This call may be recorded for quality assurance and compliance purposes. By continuing, you consent to recording.</Say>')
     elements.push('<Pause length="1"/>')
   }
@@ -102,7 +112,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
     elements.push(`<Record maxLength="3600" recordingStatusCallback="${escapeXml(recordingCallbackUrl)}" recordingStatusCallbackEvent="completed" playBeep="false" trim="trim-silence"/>`)
   }
 
-  // Secret Shopper script
+  // Secret Shopper script - System speaks TO the callee
   if (voiceConfig?.synthetic_caller) {
     const script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
     const scriptLines = script.split(/\n|\|/).filter(line => line.trim())
@@ -117,65 +127,73 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
       }
     }
     elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
-  }
-  
-  // Survey prompts - use localized prompts when available
-  if (voiceConfig?.survey) {
-    const { prompts: surveyPrompts, locale: promptLocale } = resolveSurveyPrompts(voiceConfig)
-    const resolvedPrompts = surveyPrompts.length > 0
-      ? surveyPrompts
-      : ['On a scale of 1 to 5, how satisfied were you with this call?']
-    
-    const totalQuestions = resolvedPrompts.length
-    logger.info('LaML outbound: generating survey with prompts', { 
-      callId, 
-      organizationId, 
-      totalQuestions,
-      promptLocale,
-      hasWebhookEmail: !!voiceConfig.survey_webhook_email 
-    })
-    
-    elements.push(`<Say voice="alice">Thank you for your time. I have ${totalQuestions > 1 ? totalQuestions + ' quick questions' : 'a quick question'} for you.</Say>`)
-    elements.push('<Pause length="1"/>')
-    
-    // Build survey webhook URL with callId and orgId for context
-    const surveyBaseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/survey`
-    const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
-    const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
-    
-    for (let i = 0; i < resolvedPrompts.length; i++) {
-      const prompt = resolvedPrompts[i]
-      const questionIdx = i + 1
+    // For secret shopper, we can add survey since it's automated end-to-end
+    if (voiceConfig?.survey) {
+      const { prompts: surveyPrompts, locale: promptLocale } = resolveSurveyPrompts(voiceConfig)
+      const resolvedPrompts = surveyPrompts.length > 0
+        ? surveyPrompts
+        : ['On a scale of 1 to 5, how satisfied were you with this interaction?']
       
-      // Add question number for multi-question surveys
-      if (totalQuestions > 1) {
-        elements.push(`<Say voice="alice">Question ${questionIdx} of ${totalQuestions}:</Say>`)
-        elements.push('<Pause length="0.5"/>')
+      const totalQuestions = resolvedPrompts.length
+      logger.info('LaML outbound: generating survey for secret shopper', { 
+        callId, 
+        organizationId, 
+        totalQuestions,
+        promptLocale
+      })
+      
+      elements.push('<Pause length="1"/>')
+      elements.push(`<Say voice="alice">Before you go, I have ${totalQuestions > 1 ? totalQuestions + ' quick questions' : 'a quick question'} for you.</Say>`)
+      elements.push('<Pause length="1"/>')
+      
+      const surveyBaseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/survey`
+      const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
+      const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
+      
+      for (let i = 0; i < resolvedPrompts.length; i++) {
+        const prompt = resolvedPrompts[i]
+        const questionIdx = i + 1
+        
+        if (totalQuestions > 1) {
+          elements.push(`<Say voice="alice">Question ${questionIdx} of ${totalQuestions}:</Say>`)
+          elements.push('<Pause length="0.5"/>')
+        }
+        
+        elements.push(`<Say voice="alice">${escapeXml(prompt)}</Say>`)
+        
+        const actionParams = [callParam, orgParam, `q=${questionIdx}`, `total=${totalQuestions}`].filter(Boolean).join('&')
+        const actionUrl = surveyBaseUrl + (actionParams ? `?${actionParams}` : '')
+        
+        elements.push(`<Gather numDigits="1" action="${escapeXml(actionUrl)}" method="POST" timeout="10" finishOnKey="#">`)
+        elements.push('  <Say voice="alice">Please press a number from 1 to 5.</Say>')
+        elements.push('</Gather>')
+        
+        if (i < resolvedPrompts.length - 1) {
+          elements.push('<Say voice="alice">Let me move to the next question.</Say>')
+          elements.push('<Pause length="0.5"/>')
+        }
       }
       
-      elements.push(`<Say voice="alice">${escapeXml(prompt)}</Say>`)
-      
-      // Build action URL with question index and total for tracking
-      const actionParams = [callParam, orgParam, `q=${questionIdx}`, `total=${totalQuestions}`].filter(Boolean).join('&')
-      const actionUrl = surveyBaseUrl + (actionParams ? `?${actionParams}` : '')
-      
-      // Gather DTMF response (timeout 10s, allow 1-5 or longer responses)
-      elements.push(`<Gather numDigits="1" action="${escapeXml(actionUrl)}" method="POST" timeout="10" finishOnKey="#">`)
-      elements.push('  <Say voice="alice">Please press a number from 1 to 5.</Say>')
-      elements.push('</Gather>')
-      
-      // No input fallback - move to next question
-      if (i < resolvedPrompts.length - 1) {
-        elements.push('<Say voice="alice">Let me move to the next question.</Say>')
-        elements.push('<Pause length="0.5"/>')
-      }
+      elements.push('<Say voice="alice">Thank you for completing our survey. Your feedback is valuable to us.</Say>')
     }
-    
-    elements.push('<Say voice="alice">Thank you for completing our survey. Your feedback is valuable to us.</Say>')
+    elements.push('<Hangup/>')
+  } else if (voiceConfig?.survey && !voiceConfig?.synthetic_caller) {
+    // Survey enabled but NOT secret shopper - log warning
+    // Surveys don't work for regular outbound calls because the callee
+    // doesn't stay on the line after the caller hangs up
+    logger.warn('LaML outbound: Survey enabled but surveys only work with secret_shopper or bridge mode', { 
+      callId, 
+      organizationId,
+      hint: 'Enable synthetic_caller for automated surveys, or use bridge mode'
+    })
+    // Fall through to normal pause behavior
   }
   
-  elements.push('<Pause length="3600"/>')
-  elements.push('<Hangup/>')
+  // For non-secret-shopper calls, just pause to allow conversation
+  if (!voiceConfig?.synthetic_caller) {
+    elements.push('<Pause length="3600"/>')
+    elements.push('<Hangup/>')
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

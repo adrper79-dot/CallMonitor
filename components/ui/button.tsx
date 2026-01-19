@@ -60,6 +60,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({
   return (
     <Comp
       ref={ref}
+      type={asChild ? undefined : 'button'}
       className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} 
       disabled={disabled || loading}
       {...rest}

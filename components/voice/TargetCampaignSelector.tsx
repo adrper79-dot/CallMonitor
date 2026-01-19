@@ -279,10 +279,19 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
             <input
               ref={inputRef}
               type="tel"
+              inputMode="tel"
+              autoComplete="off"
               value={targetNumber}
               onChange={(e) => handleTargetChange(e.target.value)}
               onBlur={handleTargetBlur}
               onFocus={() => setShowSuggestions(targetNumber.length > 0 && filteredTargets.length > 0)}
+              onKeyDown={(e) => {
+                // Prevent form submission on Enter - just blur the input instead
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  inputRef.current?.blur()
+                }
+              }}
               placeholder="(202) 555-1234 or +12025551234"
               className={`
                 w-full pl-10 pr-4 py-3 text-lg font-mono rounded-lg border-2 transition-all
@@ -390,8 +399,16 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
               </div>
               <Input
                 type="tel"
+                inputMode="tel"
+                autoComplete="off"
                 value={fromNumber}
                 onChange={(e) => handleFromNumberChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    ;(e.target as HTMLInputElement).blur()
+                  }
+                }}
                 placeholder="+12025551234"
                 className="font-mono"
               />

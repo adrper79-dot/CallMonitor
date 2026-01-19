@@ -226,7 +226,12 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
         
         {/* Primary Call Button */}
         <Button
-          onClick={handlePlaceCall}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            handlePlaceCall()
+          }}
           disabled={placing || !hasDialTarget || activeCallId !== null}
           variant="primary"
           size="lg"

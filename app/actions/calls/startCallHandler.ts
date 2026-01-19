@@ -529,7 +529,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // Update call with call_sid and status
     // NOTE: TOOL_TABLE_ALIGNMENT doesn't list call_sid, but it's required for webhook processing
     // Without call_sid, webhooks cannot find calls to update status/recordings/transcriptions
-    const updateData: any = { status: 'in-progress' }
+    // Use 'in_progress' (underscore) to match database enum and UI components
+    const updateData: any = { status: 'in_progress' }
     if (call_sid) {
       updateData.call_sid = call_sid
     }

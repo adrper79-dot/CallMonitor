@@ -297,6 +297,7 @@ async function processWebhookAsync(req: Request) {
           const recordingId = uuidv4()
           const insertData: any = {
             id: recordingId, organization_id: organizationId, call_sid: callSid,
+            call_id: callId, // FK to calls table per 20260118_schema_alignment.sql
             recording_sid: recordingSid, recording_url: recordingUrl, duration_seconds: durationSeconds,
             status: 'completed', tool_id: orgToolId,
             created_at: new Date().toISOString(), updated_at: new Date().toISOString()

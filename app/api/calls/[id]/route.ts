@@ -35,12 +35,29 @@ export async function GET(
       return ApiErrors.notFound('Call not found')
     }
 
-    // Fetch recording if exists
-    const { data: recording } = await (supabaseAdmin as any)
+    // Fetch recording if exists - try call_id first (per migration), fallback to call_sid
+    let recording = null
+    
+    // First try by call_id (the FK relationship per 20260118_schema_alignment.sql)
+    const { data: recByCallId } = await (supabaseAdmin as any)
       .from('recordings')
       .select('*')
-      .eq('call_sid', call.call_sid)
+      .eq('call_id', callId)
+      .limit(1)
       .single()
+    
+    if (recByCallId) {
+      recording = recByCallId
+    } else if (call.call_sid) {
+      // Fallback to call_sid for older recordings
+      const { data: recByCallSid } = await (supabaseAdmin as any)
+        .from('recordings')
+        .select('*')
+        .eq('call_sid', call.call_sid)
+        .limit(1)
+        .single()
+      recording = recByCallSid
+    }
 
     // Fetch transcript/translation/survey from ai_runs
     const { data: aiRuns } = await (supabaseAdmin as any)
@@ -48,7 +65,12 @@ export async function GET(
       .select('*')
       .eq('call_id', callId)
 
-    const transcript = aiRuns?.find((r: any) => r.model?.includes('transcription') || r.model?.includes('assemblyai-v1'))
+    // Look for AssemblyAI transcription runs - models used are 'assemblyai-v1' or 'assemblyai-upload'
+    const transcript = aiRuns?.find((r: any) => 
+      r.model === 'assemblyai-v1' || 
+      r.model === 'assemblyai-upload' || 
+      r.model?.includes('transcription')
+    )
     const translation = aiRuns?.find((r: any) => r.model?.includes('translation'))
     const survey = aiRuns?.find((r: any) => r.model?.includes('survey'))
 
