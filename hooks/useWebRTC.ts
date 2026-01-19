@@ -312,6 +312,22 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('dialing')
       setError(null)
 
+      // IMPORTANT: Request microphone permission BEFORE dialing
+      // The SignalWire SDK requires getUserMedia() to be called before it can
+      // create device watchers and access audio devices
+      try {
+        console.log('[WebRTC] Requesting microphone permission...')
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        // Stop the stream immediately - we just needed to get permission
+        stream.getTracks().forEach(track => track.stop())
+        console.log('[WebRTC] Microphone permission granted')
+      } catch (mediaErr: any) {
+        console.error('[WebRTC] Microphone permission denied:', mediaErr)
+        setError('Microphone access denied. Please allow microphone access to make calls.')
+        setCallState('idle')
+        return
+      }
+
       // Normalize phone number
       const formattedNumber = phoneNumber.startsWith('+')
         ? phoneNumber
