@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 export interface CallDetails {
   call: {
@@ -30,58 +30,105 @@ export interface CallDetails {
   transcriptionStatus: 'queued' | 'processing' | 'completed' | 'failed' | null
 }
 
+// Terminal states - stop polling when call reaches these
+const TERMINAL_STATES = ['completed', 'failed', 'no-answer', 'busy', 'cancelled']
+
 export function useCallDetails(callId: string | null) {
   const [details, setDetails] = useState<CallDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  const mountedRef = useRef(true)
 
+  const fetchDetails = useCallback(async (isInitial = false) => {
+    if (!callId) return null
+
+    try {
+      if (isInitial) {
+        setLoading(true)
+        setError(null)
+      }
+
+      // Fetch call details - credentials: include ensures cookies are sent
+      const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`, { credentials: 'include' })
+      if (!res.ok) {
+        // Fallback to existing endpoint if new one doesn't exist
+        const fallbackRes = await fetch(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`, { credentials: 'include' })
+        if (!fallbackRes.ok) {
+          throw new Error('Failed to fetch call details')
+        }
+        const fallbackData = await fallbackRes.json()
+        const newDetails = {
+          call: fallbackData.call || null,
+          recording: fallbackData.recording || null,
+          transcript: fallbackData.recording?.transcript_json || null,
+          translation: null,
+          manifest: fallbackData.evidence_manifest || null,
+          score: null,
+          survey: null,
+          transcriptionStatus: null,
+        }
+        if (mountedRef.current) setDetails(newDetails)
+        return newDetails
+      }
+
+      const data = await res.json()
+      if (mountedRef.current) setDetails(data)
+      return data
+    } catch (err: any) {
+      if (mountedRef.current) {
+        setError(err?.message || 'Failed to load call details')
+        setDetails(null)
+      }
+      return null
+    } finally {
+      if (isInitial && mountedRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [callId])
+
+  // Manual refetch function
+  const refetch = useCallback(() => {
+    return fetchDetails(true)
+  }, [fetchDetails])
+
+  // Initial fetch and polling setup
   useEffect(() => {
+    mountedRef.current = true
+
     if (!callId) {
       setDetails(null)
       setLoading(false)
       return
     }
 
-    async function fetchDetails() {
-      if (!callId) return // Guard for TypeScript
-      try {
-        setLoading(true)
-        setError(null)
-        
-        // Fetch call details - credentials: include ensures cookies are sent
-        const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`, { credentials: 'include' })
-        if (!res.ok) {
-          // Fallback to existing endpoint if new one doesn't exist
-          const fallbackRes = await fetch(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`, { credentials: 'include' })
-          if (!fallbackRes.ok) {
-            throw new Error('Failed to fetch call details')
+    // Initial fetch
+    fetchDetails(true).then((data) => {
+      // Start polling if call is not in a terminal state
+      const status = data?.call?.status
+      if (status && !TERMINAL_STATES.includes(status)) {
+        pollingRef.current = setInterval(async () => {
+          const updated = await fetchDetails(false)
+          // Stop polling if call reaches terminal state
+          if (updated?.call?.status && TERMINAL_STATES.includes(updated.call.status)) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current)
+              pollingRef.current = null
+            }
           }
-          const fallbackData = await fallbackRes.json()
-          setDetails({
-            call: fallbackData.call || null,
-            recording: fallbackData.recording || null,
-            transcript: fallbackData.recording?.transcript_json || null,
-            translation: null,
-            manifest: fallbackData.evidence_manifest || null,
-            score: null,
-            survey: null,
-            transcriptionStatus: null,
-          })
-          return
-        }
-        
-        const data = await res.json()
-        setDetails(data)
-      } catch (err: any) {
-        setError(err?.message || 'Failed to load call details')
-        setDetails(null)
-      } finally {
-        setLoading(false)
+        }, 5000) // Poll every 5 seconds
+      }
+    })
+
+    return () => {
+      mountedRef.current = false
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
       }
     }
-
-    fetchDetails()
-  }, [callId])
+  }, [callId, fetchDetails])
 
   return {
     call: details?.call || null,
@@ -94,5 +141,6 @@ export function useCallDetails(callId: string | null) {
     transcriptionStatus: details?.transcriptionStatus || null,
     loading,
     error,
+    refetch, // Manual refresh function
   }
 }
