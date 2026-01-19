@@ -139,6 +139,8 @@ export async function POST(req: Request) {
       resource_type: 'legal_hold',
       resource_id: data.id,
       action: 'retention:legal_hold.create',
+      actor_type: 'human',
+      actor_label: ctx.userId,
       after: {
         hold_name: holdData.hold_name,
         applies_to_all: holdData.applies_to_all,

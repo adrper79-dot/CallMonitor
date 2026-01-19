@@ -75,6 +75,8 @@ async function processResultsAsync(req: NextRequest) {
       model: 'signalwire-ai-survey', status: 'completed',
       started_at: callMetadata.start_time || new Date().toISOString(),
       completed_at: new Date().toISOString(),
+      produced_by: 'model',
+      is_authoritative: true,
       output: {
         type: 'ai_survey', survey_responses: surveyResponses,
         conversation, summary, call_metadata: {
@@ -103,6 +105,8 @@ async function processResultsAsync(req: NextRequest) {
       await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(), organization_id: finalOrgId, user_id: null, system_id: null,
         resource_type: 'ai_runs', resource_id: aiRunId, action: 'create',
+        actor_type: 'vendor',
+        actor_label: 'signalwire-ai-survey',
         before: null, after: { type: 'ai_survey', call_sid: callSid },
         created_at: new Date().toISOString()
       })

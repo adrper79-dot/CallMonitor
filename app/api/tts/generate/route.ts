@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('ai_runs').insert({
       id: uuidv4(), call_id: null, system_id: null, model: 'elevenlabs-tts',
       status: 'completed', started_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+      produced_by: 'model',
+      is_authoritative: true,
       output: { text, voice_id, language, audio_url: audioUrl, storage_path: filePath, character_count: text.length, organization_id }
     })
 

@@ -585,6 +585,8 @@ async function logSSOAuditEvent(
       user_id: userId,
       resource_type: 'sso_config',
       action,
+      actor_type: 'human',
+      actor_label: userId,
       after: details,
       created_at: new Date().toISOString()
     })

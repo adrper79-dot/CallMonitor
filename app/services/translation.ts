@@ -48,6 +48,8 @@ export async function translateText(input: TranslationInput): Promise<void> {
       await supabaseAdmin.from('ai_runs').update({
         status: 'failed',
         completed_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
         output: { error: 'Plan does not support translation', plan: orgPlan }
       }).eq('id', translationRunId)
       return
@@ -194,6 +196,8 @@ export async function translateText(input: TranslationInput): Promise<void> {
       await supabaseAdmin.from('ai_runs').update({
         status: 'completed',
         completed_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
         output: {
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, translated_text: translatedText,
@@ -209,6 +213,8 @@ export async function translateText(input: TranslationInput): Promise<void> {
       await supabaseAdmin.from('ai_runs').update({
         status: 'failed',
         completed_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
         output: {
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, error: translationError || 'Translation failed',
@@ -225,6 +231,8 @@ export async function translateText(input: TranslationInput): Promise<void> {
     await supabaseAdmin.from('ai_runs').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
+      produced_by: 'model',
+      is_authoritative: true,
       output: { error: err?.message || 'Translation service error', failed_at: new Date().toISOString() }
     }).eq('id', translationRunId)
   }

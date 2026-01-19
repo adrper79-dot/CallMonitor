@@ -248,6 +248,8 @@ export async function POST(request: NextRequest) {
       resource_type: 'webrtc_session',
       resource_id: sessionId,
       action: 'webrtc:session.create',
+      actor_type: 'human',
+      actor_label: userId,
       after: {
         session_id: sessionId,
         status: 'initializing',
@@ -400,6 +402,8 @@ export async function DELETE(request: NextRequest) {
         resource_type: 'webrtc_session',
         resource_id: updatedSession.id,
         action: 'webrtc:session.disconnect',
+        actor_type: 'human',
+        actor_label: userId,
         before: { status: 'connected' },
         after: { status: 'disconnected', source: 'webrtc' },
         created_at: new Date().toISOString()

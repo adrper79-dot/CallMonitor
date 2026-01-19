@@ -163,6 +163,8 @@ async function processSurveyResponseAsync(
         .update({
           status: isComplete ? 'completed' : 'in_progress',
           completed_at: isComplete ? now : null,
+          produced_by: 'model',
+          is_authoritative: true,
           output: {
             ...existingOutput,
             responses,
@@ -228,6 +230,8 @@ async function processSurveyResponseAsync(
         status: isComplete ? 'completed' : 'in_progress',
         started_at: now,
         completed_at: isComplete ? now : null,
+        produced_by: 'model',
+        is_authoritative: true,
         output: { 
           type: 'dtmf_survey',
           responses: [{

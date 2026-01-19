@@ -215,7 +215,7 @@ async function handlePUT(req: Request) {
         return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
       }
       try {
-        await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: orgId, user_id: actorId, system_id: null, resource_type: 'voice_configs', resource_id: row.id, action: 'create', before: null, after: row, created_at: new Date().toISOString() })
+        await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: orgId, user_id: actorId, system_id: null, resource_type: 'voice_configs', resource_id: row.id, action: 'create', actor_type: 'human', actor_label: actorId, before: null, after: row, created_at: new Date().toISOString() })
       } catch (_) {}
       return NextResponse.json({ success: true, config: row })
     }
@@ -231,7 +231,7 @@ async function handlePUT(req: Request) {
 
     const after = { ...existing, ...updatePayload }
     try {
-      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: orgId, user_id: actorId, system_id: null, resource_type: 'voice_configs', resource_id: existing.id ?? null, action: 'update', before: existing, after, created_at: new Date().toISOString() })
+      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id: orgId, user_id: actorId, system_id: null, resource_type: 'voice_configs', resource_id: existing.id ?? null, action: 'update', actor_type: 'human', actor_label: actorId, before: existing, after, created_at: new Date().toISOString() })
     } catch (_) {}
 
     return NextResponse.json({ success: true, config: after })

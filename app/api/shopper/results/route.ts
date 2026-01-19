@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
         action: 'shopper_evaluation_complete',
         resource_type: 'shopper_result',
         resource_id: resultId,
+        actor_type: 'vendor',
+        actor_label: 'signalwire-shopper-ai',
         details: { call_id: callId, script_id: scriptId, score: scoringResult?.score, has_recording: !!recordingId }
       })
     } catch { /* Best effort */ }

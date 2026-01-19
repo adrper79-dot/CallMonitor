@@ -245,6 +245,8 @@ export async function PATCH(
           resource_type: 'webhook_subscription',
           resource_id: webhookId,
           action: 'update',
+          actor_type: 'human',
+          actor_label: userId,
           before: existingWebhook,
           after: updatedWebhook
         })
@@ -355,6 +357,8 @@ export async function DELETE(
           resource_type: 'webhook_subscription',
           resource_id: webhookId,
           action: 'delete',
+          actor_type: 'human',
+          actor_label: userId,
           before: existingWebhook
         })
       } catch (err) {

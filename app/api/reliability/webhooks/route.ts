@@ -263,6 +263,8 @@ export async function PUT(req: Request) {
       resource_type: 'webhook_failure',
       resource_id: failure_id,
       action: `reliability:webhook.${action}`,
+      actor_type: 'human',
+      actor_label: ctx.userId,
       before: { status: existing.status },
       after: { status: data.status },
       created_at: new Date().toISOString(),

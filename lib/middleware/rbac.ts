@@ -188,6 +188,8 @@ async function logPermissionDenial(
       resource_type: 'auth',
       resource_id: null,
       action: 'permission_denied',
+      actor_type: 'human',
+      actor_label: userId,
       before: null,
       after: { role, reason },
       created_at: new Date().toISOString()

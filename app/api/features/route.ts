@@ -229,6 +229,8 @@ export async function PUT(request: NextRequest) {
           resource_type: 'feature_flag',
           resource_id: updatedFlag.id,
           action: enabled ? 'enable' : 'disable',
+          actor_type: 'human',
+          actor_label: userId,
           after: { feature, enabled, disabled_reason, daily_limit, monthly_limit }
         })
       } catch (err) {

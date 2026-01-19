@@ -137,6 +137,8 @@ async function handleCallPlace(
       resource_type: 'call',
       resource_id: result.call_id,
       action: 'webrpc:call.place',
+      actor_type: 'human',
+      actor_label: userId,
       after: { 
         method: 'call.place', 
         to_number,
@@ -236,7 +238,9 @@ async function handleCallHangup(
     resource_type: 'call',
     resource_id: session.call_id,
     action: 'webrpc:call.hangup',
-    before: { status: 'in-progress' },
+    actor_type: 'human',
+    actor_label: userId,
+    before: { status: 'in_progress' },
     after: { status: 'completed' },
     created_at: new Date().toISOString()
   })

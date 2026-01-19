@@ -250,7 +250,9 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       system_id: null,
       model: 'assemblyai-v1',
       status: 'queued',
-      job_id: job_id // Persist vendor job ID
+      job_id: job_id, // Persist vendor job ID
+      produced_by: 'model',
+      is_authoritative: true
     }
 
     // Note: Schema defines ai_runs.call_id foreign key to calls.id. If recording has call reference elsewhere, you should populate call_id.
@@ -267,6 +269,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
           resource_type: 'ai_runs',
           resource_id: aiId,
           action: 'error',
+          actor_type: capturedActorId ? 'human' : 'system',
+          actor_label: capturedActorId || 'transcription-trigger',
           before: null,
           after: { error: aiErr.message },
           created_at: new Date().toISOString()
@@ -285,6 +289,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
         resource_type: 'ai_runs',
         resource_id: aiId,
         action: 'create',
+        actor_type: capturedActorId ? 'human' : 'system',
+        actor_label: capturedActorId || 'transcription-trigger',
         before: null,
         after: { requested_at: new Date().toISOString(), model: 'assemblyai-v1', job_id, recording_id },
         created_at: new Date().toISOString()
@@ -308,6 +314,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
         resource_type,
         resource_id,
         action: 'error',
+        actor_type: capturedActorId ? 'human' : 'system',
+        actor_label: capturedActorId || 'transcription-trigger',
         before: null,
         after: { error: errBody },
         created_at: new Date().toISOString()

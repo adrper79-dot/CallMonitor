@@ -74,7 +74,10 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(), organization_id, user_id: ctx.userId,
         resource_type: 'shopper_scripts', resource_id: script.id,
-        action: id ? 'update' : 'create', before: null,
+        action: id ? 'update' : 'create', 
+        actor_type: 'human',
+        actor_label: ctx.userId,
+        before: null,
         after: { name, persona, tts_provider }, created_at: new Date().toISOString()
       })
     } catch { /* Best effort */ }

@@ -268,6 +268,8 @@ export async function POST(request: NextRequest) {
           resource_type: 'webhook_subscription',
           resource_id: subscription.id,
           action: 'create',
+          actor_type: 'human',
+          actor_label: userId,
           after: { name, url, events }
         })
       } catch (err) {

@@ -160,6 +160,8 @@ export async function scoreShopperCall(
         model: 'shopper-scoring',
         status: 'completed',
         completed_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
         output: { score: finalScore, details, expected_outcomes: expectedOutcomes }
       })
     }

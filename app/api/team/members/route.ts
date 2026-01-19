@@ -114,6 +114,8 @@ async function handlePUT(req: Request) {
     resource_type: 'org_member',
     resource_id: member_id,
     action: 'team:role.update',
+    actor_type: 'human',
+    actor_label: ctx.userId,
     before: { role: oldRole },
     after: { role },
     created_at: new Date().toISOString()
@@ -189,6 +191,8 @@ async function handleDELETE(req: Request) {
     resource_type: 'org_member',
     resource_id: memberId,
     action: 'team:member.remove',
+    actor_type: 'human',
+    actor_label: ctx.userId,
     before: { 
       role: target.role,
       user_id: target.user_id

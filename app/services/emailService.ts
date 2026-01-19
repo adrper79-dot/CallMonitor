@@ -245,6 +245,8 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
           organization_id: organizationId,
           user_id: null, system_id: null,
           resource_type: 'calls', resource_id: callId, action: 'email_artifacts',
+          actor_type: 'system',
+          actor_label: 'email-service',
           before: null,
           after: { recipient: recipientEmail, attachments: attachments.map(a => a.filename), messageId: result.messageId },
           created_at: new Date().toISOString()

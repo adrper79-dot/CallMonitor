@@ -516,6 +516,8 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
         resource_type: 'ai_runs',
         resource_id: translationRunId,
         action: 'intent:translation_requested',
+        actor_type: 'vendor',
+        actor_label: 'assemblyai-webhook',
         before: null,
         after: {
           call_id: callId,

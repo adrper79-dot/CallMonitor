@@ -300,6 +300,7 @@ async function processWebhookAsync(req: Request) {
             call_id: callId, // FK to calls table per 20260118_schema_alignment.sql
             recording_sid: recordingSid, recording_url: recordingUrl, duration_seconds: durationSeconds,
             status: 'completed', tool_id: orgToolId,
+            source: 'signalwire', // Per ARCH_DOCS: SignalWire is authoritative for recordings
             created_at: new Date().toISOString(), updated_at: new Date().toISOString()
           }
           if (hasLiveTranslation) {
@@ -318,6 +319,8 @@ async function processWebhookAsync(req: Request) {
               await supabaseAdmin.from('audit_logs').insert({
                 id: uuidv4(), organization_id: organizationId, user_id: null, system_id: null,
                 resource_type: 'recordings', resource_id: recordingId, action: 'create',
+                actor_type: 'vendor',
+                actor_label: 'signalwire-webhook',
                 before: null, after: { call_id: callId, recording_sid: recordingSid },
                 created_at: new Date().toISOString()
               })
@@ -437,14 +440,20 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
     if (aaiRes.ok) {
       const aaiData = await aaiRes.json()
       await supabaseAdmin.from('ai_runs').update({
-        status: 'processing', output: { job_id: aaiData.id, status: 'queued' }
+        status: 'processing', 
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { job_id: aaiData.id, status: 'queued' }
       }).eq('id', aiRunId)
       logger.info('SignalWire webhook: triggered AssemblyAI transcription', { aiRunId, jobId: aaiData.id })
     } else {
       const errText = await aaiRes.text()
       logger.error('SignalWire webhook: AssemblyAI API error', undefined, { status: aaiRes.status, error: errText })
       await supabaseAdmin.from('ai_runs').update({ 
-        status: 'failed', output: { error: errText, status_code: aaiRes.status }
+        status: 'failed', 
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { error: errText, status_code: aaiRes.status }
       }).eq('id', aiRunId)
     }
 

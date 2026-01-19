@@ -117,6 +117,8 @@ export async function PUT(req: Request) {
       resource_type: 'retention_policy',
       resource_id: data.id,
       action: 'retention:policy.update',
+      actor_type: 'human',
+      actor_label: ctx.userId,
       after: updates,
       created_at: new Date().toISOString(),
     })
