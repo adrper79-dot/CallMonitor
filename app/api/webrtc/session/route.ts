@@ -212,12 +212,13 @@ export async function POST(request: NextRequest) {
     // Get SignalWire credentials
     const signalWireCredentials = await getSignalWireWebRTCToken(sessionId)
     
-    // Get user agent from request
+    // Get user agent from request (for logging only - not stored in DB)
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const forwardedFor = request.headers.get('x-forwarded-for')
     const ipAddress = forwardedFor?.split(',')[0] || 'unknown'
     
-    // Create session record (direct DB write acceptable for session management)
+    // Create session record - only columns that exist in production schema
+    // Schema: id, organization_id, user_id, session_token, status, created_at
     const { data: newSession, error: insertError } = await supabaseAdmin
       .from('webrtc_sessions')
       .insert({
@@ -225,10 +226,7 @@ export async function POST(request: NextRequest) {
         organization_id: member.organization_id,
         user_id: userId,
         session_token: sessionToken,
-        status: 'initializing',
-        ice_servers: signalWireCredentials?.iceServers || null,
-        user_agent: userAgent,
-        ip_address: ipAddress
+        status: 'initializing'
       })
       .select()
       .single()
