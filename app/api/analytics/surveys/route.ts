@@ -93,10 +93,19 @@ export async function GET() {
     const ctx = await requireRole(['owner', 'admin', 'analyst'])
     if (ctx instanceof NextResponse) return ctx
 
+    // First get call IDs for this organization, then filter ai_runs
+    const { data: orgCalls } = await supabaseAdmin
+      .from('calls')
+      .select('id')
+      .eq('organization_id', ctx.orgId)
+      .limit(1000)
+
+    const callIds = (orgCalls || []).map(c => c.id)
+
     const { data: surveys, error } = await supabaseAdmin
       .from('ai_runs')
-      .select('output, created_at, status, call_id, calls!inner(organization_id)')
-      .eq('calls.organization_id', ctx.orgId)
+      .select('output, created_at, status, call_id')
+      .in('call_id', callIds.length > 0 ? callIds : ['00000000-0000-0000-0000-000000000000'])
       .in('model', ['laml-dtmf-survey', 'signalwire-ai-survey'])
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
