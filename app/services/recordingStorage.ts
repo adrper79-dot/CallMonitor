@@ -43,9 +43,8 @@ export async function storeRecording(
     })
 
     const audioBuffer = await response.arrayBuffer()
-    const audioBlob = new Blob([audioBuffer])
 
-    // Detect content type - handle octet-stream by inferring from URL or defaulting to audio/mpeg
+    // Detect content type - handle octet-stream by inferring from URL or defaulting to audio/wav
     let contentType = response.headers.get('content-type') || 'audio/mpeg'
     // If octet-stream, infer from URL or default to wav (SignalWire typically returns wav)
     if (contentType === 'application/octet-stream') {
@@ -54,6 +53,9 @@ export async function storeRecording(
       else contentType = 'audio/wav' // Default to wav for SignalWire recordings
     }
     const extension = contentType.includes('wav') ? 'wav' : contentType.includes('mp3') ? 'mp3' : 'mp3'
+
+    // Create Blob WITH the correct content type - important for Supabase Storage
+    const audioBlob = new Blob([audioBuffer], { type: contentType })
 
     const storagePath = `${organizationId}/${callId}/${recordingId}.${extension}`
 

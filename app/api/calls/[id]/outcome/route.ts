@@ -130,6 +130,21 @@ export async function GET(
       .eq('call_id', callId)
       .single()
 
+    // Handle missing table gracefully (PGRST205 = table not found)
+    if (outcomeError && outcomeError.code === 'PGRST205') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          callId,
+          outcome: null,
+          history: [],
+          hasOutcome: false,
+          featureAvailable: false,
+          message: 'Call outcomes feature is not yet configured for this account.'
+        },
+      })
+    }
+
     if (outcomeError && outcomeError.code !== 'PGRST116') {
       // PGRST116 = no rows found, which is valid for new calls
       logger.error('Failed to fetch outcome', { callId, error: outcomeError })
@@ -220,12 +235,12 @@ export async function POST(
     // Validate outcome_status
     if (!outcome_status || !VALID_OUTCOME_STATUSES.includes(outcome_status)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_STATUS', 
-            message: `Invalid outcome status. Must be one of: ${VALID_OUTCOME_STATUSES.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_STATUS',
+            message: `Invalid outcome status. Must be one of: ${VALID_OUTCOME_STATUSES.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -234,12 +249,12 @@ export async function POST(
     // Validate confidence_level
     if (!VALID_CONFIDENCE_LEVELS.includes(confidence_level)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_CONFIDENCE', 
-            message: `Invalid confidence level. Must be one of: ${VALID_CONFIDENCE_LEVELS.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_CONFIDENCE',
+            message: `Invalid confidence level. Must be one of: ${VALID_CONFIDENCE_LEVELS.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -248,12 +263,12 @@ export async function POST(
     // Validate summary_source
     if (!VALID_SUMMARY_SOURCES.includes(summary_source)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_SOURCE', 
-            message: `Invalid summary source. Must be one of: ${VALID_SUMMARY_SOURCES.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_SOURCE',
+            message: `Invalid summary source. Must be one of: ${VALID_SUMMARY_SOURCES.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -324,6 +339,14 @@ export async function POST(
       .select()
       .single()
 
+    // Handle missing table gracefully
+    if (insertError && insertError.code === 'PGRST205') {
+      return NextResponse.json(
+        { success: false, error: { code: 'FEATURE_UNAVAILABLE', message: 'Call outcomes feature is not yet configured. Contact support to enable.' } },
+        { status: 501 }
+      )
+    }
+
     if (insertError) {
       logger.error('Failed to create outcome', { callId, error: insertError })
       return NextResponse.json(
@@ -332,11 +355,11 @@ export async function POST(
       )
     }
 
-    logger.info('Outcome declared', { 
-      callId, 
-      outcomeId: outcome.id, 
+    logger.info('Outcome declared', {
+      callId,
+      outcomeId: outcome.id,
       status: outcome_status,
-      declaredBy: userId 
+      declaredBy: userId
     })
 
     return NextResponse.json({
@@ -405,12 +428,12 @@ export async function PUT(
     // Validate outcome_status if provided
     if (outcome_status && !VALID_OUTCOME_STATUSES.includes(outcome_status)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_STATUS', 
-            message: `Invalid outcome status. Must be one of: ${VALID_OUTCOME_STATUSES.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_STATUS',
+            message: `Invalid outcome status. Must be one of: ${VALID_OUTCOME_STATUSES.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -419,12 +442,12 @@ export async function PUT(
     // Validate confidence_level if provided
     if (confidence_level && !VALID_CONFIDENCE_LEVELS.includes(confidence_level)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_CONFIDENCE', 
-            message: `Invalid confidence level. Must be one of: ${VALID_CONFIDENCE_LEVELS.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_CONFIDENCE',
+            message: `Invalid confidence level. Must be one of: ${VALID_CONFIDENCE_LEVELS.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -433,12 +456,12 @@ export async function PUT(
     // Validate summary_source if provided
     if (summary_source && !VALID_SUMMARY_SOURCES.includes(summary_source)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_SOURCE', 
-            message: `Invalid summary source. Must be one of: ${VALID_SUMMARY_SOURCES.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_SOURCE',
+            message: `Invalid summary source. Must be one of: ${VALID_SUMMARY_SOURCES.join(', ')}`
+          }
         },
         { status: 400 }
       )
@@ -524,11 +547,11 @@ export async function PUT(
       )
     }
 
-    logger.info('Outcome updated', { 
-      callId, 
-      outcomeId: outcome.id, 
+    logger.info('Outcome updated', {
+      callId,
+      outcomeId: outcome.id,
       revision: outcome.revision_number,
-      updatedBy: userId 
+      updatedBy: userId
     })
 
     return NextResponse.json({
