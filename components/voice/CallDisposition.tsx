@@ -33,14 +33,14 @@ interface CallDispositionProps {
 }
 
 const DISPOSITIONS: { value: DispositionType; label: string; icon: string; color: string }[] = [
-  { value: 'sale', label: 'Sale', icon: '💰', color: 'bg-green-100 text-green-800 border-green-200' },
-  { value: 'no_answer', label: 'No Answer', icon: '📵', color: 'bg-gray-100 text-gray-800 border-gray-200' },
-  { value: 'voicemail', label: 'Voicemail', icon: '📞', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { value: 'not_interested', label: 'Not Interested', icon: '👎', color: 'bg-red-100 text-red-800 border-red-200' },
-  { value: 'follow_up', label: 'Follow-up', icon: '🔄', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-  { value: 'wrong_number', label: 'Wrong Number', icon: '❌', color: 'bg-orange-100 text-orange-800 border-orange-200' },
-  { value: 'callback_scheduled', label: 'Callback Scheduled', icon: '📅', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-  { value: 'other', label: 'Other', icon: '📋', color: 'bg-slate-100 text-slate-800 border-slate-200' }
+  { value: 'sale', label: 'Sale', icon: '●', color: 'bg-green-100 text-green-800 border-green-200' },
+  { value: 'no_answer', label: 'No Answer', icon: '○', color: 'bg-gray-100 text-gray-800 border-gray-200' },
+  { value: 'voicemail', label: 'Voicemail', icon: '▶', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { value: 'not_interested', label: 'Not Interested', icon: '–', color: 'bg-red-100 text-red-800 border-red-200' },
+  { value: 'follow_up', label: 'Follow-up', icon: '↻', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  { value: 'wrong_number', label: 'Wrong Number', icon: '✕', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+  // Note: callback_scheduled removed - not in DB CHECK constraint, use follow_up instead
+  { value: 'other', label: 'Other', icon: '◇', color: 'bg-slate-100 text-slate-800 border-slate-200' }
 ]
 
 export default function CallDisposition({

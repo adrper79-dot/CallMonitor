@@ -93,13 +93,13 @@ export async function POST(req: NextRequest) {
     if (callSid && organizationId) {
       try {
         const { v4: uuidv4 } = await import('uuid')
+        // Note: shopper_results table links call to script_id after evaluation
         await supabaseAdmin.from('calls').insert({
           id: uuidv4(),
           organization_id: organizationId,
           call_sid: callSid,
           status: 'ringing',
-          started_at: new Date().toISOString(),
-          metadata: { type: 'secret_shopper', script_id: scriptId }
+          started_at: new Date().toISOString()
         })
       } catch (insertErr) {
         logger.warn('SWML shopper: could not create call record', { error: (insertErr as any)?.message })

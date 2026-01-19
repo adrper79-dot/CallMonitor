@@ -6,6 +6,7 @@ import { sendEmail } from '@/app/services/emailService'
 import { emitWebhookEvent } from '@/lib/webhookDelivery'
 import type { SurveyQuestionConfig, SurveyQuestionType } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * - Marks results as 'completed' (not 'queued')
  * - Sends email to survey_webhook_email if configured
  */
-export async function POST(req: Request) {
+async function handleSurveyWebhook(req: Request) {
   // Parse URL params for question tracking
   const url = new URL(req.url)
   const callIdParam = url.searchParams.get('callId')
@@ -484,3 +485,8 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
 }
+// Export with rate limiting per ARCH_DOCS webhook security requirements
+export const POST = withRateLimit(handleSurveyWebhook, {
+  identifier: (req) => `webhook-survey-${getClientIP(req)}`,
+  config: { maxAttempts: 1000, windowMs: 60 * 1000, blockMs: 5 * 60 * 1000 }
+})

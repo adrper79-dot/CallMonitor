@@ -30,22 +30,22 @@ const EVENT_CONFIG: Record<TimelineEventType, {
   label: string
   color: string
 }> = {
-  call_started: { icon: '📞', label: 'Call Started', color: 'bg-blue-100 text-blue-800' },
-  call_answered: { icon: '✅', label: 'Call Answered', color: 'bg-green-100 text-green-800' },
-  call_completed: { icon: '🏁', label: 'Call Completed', color: 'bg-gray-100 text-gray-800' },
-  recording_started: { icon: '🔴', label: 'Recording Started', color: 'bg-red-100 text-red-800' },
-  recording_completed: { icon: '⏹️', label: 'Recording Completed', color: 'bg-red-100 text-red-800' },
-  transcript_started: { icon: '📝', label: 'Transcription Started', color: 'bg-purple-100 text-purple-800' },
-  transcript_completed: { icon: '✍️', label: 'Transcript Ready', color: 'bg-purple-100 text-purple-800' },
-  translation_completed: { icon: '🌐', label: 'Translation Ready', color: 'bg-cyan-100 text-cyan-800' },
-  survey_started: { icon: '📋', label: 'Survey Started', color: 'bg-orange-100 text-orange-800' },
-  survey_completed: { icon: '📊', label: 'Survey Completed', color: 'bg-orange-100 text-orange-800' },
-  scorecard_generated: { icon: '⭐', label: 'Scorecard Generated', color: 'bg-yellow-100 text-yellow-800' },
-  note_added: { icon: '📌', label: 'Note Added', color: 'bg-indigo-100 text-indigo-800' },
-  disposition_set: { icon: '🏷️', label: 'Disposition Set', color: 'bg-teal-100 text-teal-800' },
-  evidence_exported: { icon: '📤', label: 'Evidence Exported', color: 'bg-emerald-100 text-emerald-800' },
-  consent_captured: { icon: '🔒', label: 'Consent Captured', color: 'bg-lime-100 text-lime-800' },
-  disclosure_given: { icon: '📢', label: 'Disclosure Given', color: 'bg-amber-100 text-amber-800' }  // AI Role Compliance
+  call_started: { icon: '•', label: 'Call Started', color: 'bg-blue-100 text-blue-800' },
+  call_answered: { icon: '✓', label: 'Call Answered', color: 'bg-green-100 text-green-800' },
+  call_completed: { icon: '■', label: 'Call Completed', color: 'bg-gray-100 text-gray-800' },
+  recording_started: { icon: '●', label: 'Recording Started', color: 'bg-red-100 text-red-800' },
+  recording_completed: { icon: '■', label: 'Recording Completed', color: 'bg-red-100 text-red-800' },
+  transcript_started: { icon: '◎', label: 'Transcription Started', color: 'bg-purple-100 text-purple-800' },
+  transcript_completed: { icon: '✓', label: 'Transcript Ready', color: 'bg-purple-100 text-purple-800' },
+  translation_completed: { icon: '◉', label: 'Translation Ready', color: 'bg-cyan-100 text-cyan-800' },
+  survey_started: { icon: '▸', label: 'Survey Started', color: 'bg-orange-100 text-orange-800' },
+  survey_completed: { icon: '✓', label: 'Survey Completed', color: 'bg-orange-100 text-orange-800' },
+  scorecard_generated: { icon: '★', label: 'Scorecard Generated', color: 'bg-yellow-100 text-yellow-800' },
+  note_added: { icon: '+', label: 'Note Added', color: 'bg-indigo-100 text-indigo-800' },
+  disposition_set: { icon: '◆', label: 'Disposition Set', color: 'bg-teal-100 text-teal-800' },
+  evidence_exported: { icon: '↗', label: 'Evidence Exported', color: 'bg-emerald-100 text-emerald-800' },
+  consent_captured: { icon: '◈', label: 'Consent Captured', color: 'bg-lime-100 text-lime-800' },
+  disclosure_given: { icon: '◎', label: 'Disclosure Given', color: 'bg-amber-100 text-amber-800' }  // AI Role Compliance
 }
 
 export default function CallTimeline({ callId, organizationId }: CallTimelineProps) {

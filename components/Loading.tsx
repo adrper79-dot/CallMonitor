@@ -8,6 +8,7 @@ interface LoadingProps {
   fullScreen?: boolean
   showLogo?: boolean
   size?: 'sm' | 'md' | 'lg'
+  transparent?: boolean
 }
 
 /**
@@ -16,7 +17,7 @@ interface LoadingProps {
  * "Patience is the companion of wisdom." — Saint Augustine
  * 
  * Features:
- * - Video loading animation (place at /public/loading.mp4)
+ * - Video loading animation with transparency support
  * - Fallback to animated logo
  * - 1960s-style loading messages
  * 
@@ -39,7 +40,8 @@ export function Loading({
   message, 
   fullScreen = true,
   showLogo = true,
-  size = 'md'
+  size = 'md',
+  transparent = true
 }: LoadingProps) {
   const [videoError, setVideoError] = useState(false)
   const [displayMessage, setDisplayMessage] = useState(message || LOADING_MESSAGES[0])
@@ -59,23 +61,25 @@ export function Loading({
 
   const content = (
     <div className="flex flex-col items-center justify-center gap-8">
-      {/* Video or Logo */}
-      <div className="relative">
+      {/* Video Loading Animation with Transparency */}
+      <div className="relative w-48 h-48 flex items-center justify-center">
         {!videoError ? (
           <video
             autoPlay
             loop
             muted
             playsInline
-            className="w-48 h-48 object-contain rounded-lg"
+            className={`w-48 h-48 object-contain rounded-lg ${transparent ? 'mix-blend-screen' : ''}`}
+            style={transparent ? { 
+              backgroundColor: 'transparent',
+              filter: 'drop-shadow(0 0 15px rgba(0, 206, 209, 0.6))'
+            } : {}}
             onError={() => setVideoError(true)}
           >
             <source src="/loading.mp4" type="video/mp4" />
           </video>
         ) : showLogo ? (
-          <div className="w-48 h-48 flex items-center justify-center">
-            <Logo size="hero" animated />
-          </div>
+          <Logo size="hero" animated />
         ) : (
           <LoadingOrbit />
         )}
@@ -90,7 +94,7 @@ export function Loading({
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50">
+      <div className={`fixed inset-0 z-50 flex items-center justify-center ${transparent ? 'bg-gray-900/95' : 'bg-gray-50'}`}>
         {content}
       </div>
     )

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
+import { isValidUUID } from '@/lib/utils/validation'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -14,17 +15,36 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!(session?.user as any)?.id) {
+    const userId = (session?.user as any)?.id
+    if (!userId) {
       return ApiErrors.unauthorized()
     }
 
     const callId = params.id
+    
+    // Validate UUID format early to prevent DB errors
+    if (!isValidUUID(callId)) {
+      return ApiErrors.badRequest('Invalid call ID format')
+    }
 
-    // Fetch call
+    // First get user's org membership
+    const { data: membershipRows } = await supabaseAdmin
+      .from('org_members')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .limit(1)
+
+    const userOrgId = membershipRows?.[0]?.organization_id
+    if (!userOrgId) {
+      return ApiErrors.notFound('Call not found') // 404 prevents org probing
+    }
+
+    // Fetch call with organization_id filter for tenant isolation
     const { data: call, error: callError } = await (supabaseAdmin as any)
       .from('calls')
       .select('*')
       .eq('id', callId)
+      .eq('organization_id', userOrgId)
       .single()
 
     if (callError) {

@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic'
 async function handleGET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!(session?.user as any)?.id) {
+    const userId = (session?.user as any)?.id
+    if (!userId) {
       return ApiErrors.unauthorized()
     }
 
@@ -25,6 +26,18 @@ async function handleGET(req: NextRequest) {
 
     if (!orgId) {
       return ApiErrors.badRequest('orgId is required')
+    }
+
+    // SECURITY: Verify user belongs to the requested organization
+    const { data: membershipRows } = await supabaseAdmin
+      .from('org_members')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('user_id', userId)
+      .limit(1)
+
+    if (!membershipRows || membershipRows.length === 0) {
+      return ApiErrors.notFound('Organization not found') // 404 prevents org probing
     }
 
     let query = (supabaseAdmin as any)

@@ -3,6 +3,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { createClient } from '@supabase/supabase-js'
 import { requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { isValidUUID } from '@/lib/utils/validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,14 +12,32 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
+    // Validate UUID format early to prevent DB errors
+    if (!isValidUUID(params.id)) {
+      return Errors.badRequest('Invalid recording ID format')
+    }
+
+    // Query by ID AND organization_id for tenant isolation (ARCH_DOCS Requirement 6)
     const { data: recording, error: recordingError } = await supabaseAdmin
       .from('recordings')
-      .select('*')
+      .select('id, call_id, call_sid, recording_url, duration_seconds, status, source, media_hash, created_at, organization_id')
       .eq('id', params.id)
+      .eq('organization_id', ctx.orgId)
       .single()
 
     if (recordingError) throw recordingError
     if (!recording) return Errors.notFound('Recording')
+
+    // Audit log: Recording access (sensitive media) - non-blocking, best-effort
+    void supabaseAdmin.from('audit_logs').insert({
+      organization_id: ctx.orgId,
+      user_id: ctx.userId,
+      resource_type: 'recordings',
+      resource_id: params.id,
+      action: 'recording:accessed',
+      after: { accessed_at: new Date().toISOString() },
+      created_at: new Date().toISOString()
+    })
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

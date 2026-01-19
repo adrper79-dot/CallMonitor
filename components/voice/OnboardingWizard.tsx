@@ -236,7 +236,7 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">🎙️ Record</span>
+                      <span className="text-sm font-medium">Record</span>
                       <Switch
                         checked={config.record}
                         onCheckedChange={(checked) => setConfig({ ...config, record: checked })}
@@ -256,7 +256,7 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">📝 Transcribe</span>
+                      <span className="text-sm font-medium">Transcribe</span>
                       <Switch
                         checked={config.transcribe}
                         onCheckedChange={(checked) => setConfig({ ...config, transcribe: checked })}
@@ -269,7 +269,7 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
               {/* Trust badge */}
               <div className="flex items-center gap-2 text-xs text-gray-500 pt-2">
                 <Badge variant="secondary" className="text-xs">
-                  🔒 Immutable Evidence
+                  Immutable Evidence
                 </Badge>
                 <span>All calls create court-ready records</span>
               </div>

@@ -24,7 +24,7 @@ const sizes = {
  * 
  * "A mark of distinction for the discerning technologist."
  * 
- * Place your logo file at: /public/logo.png
+ * Uses /public/logo.jpg as the primary logo image
  */
 export function Logo({ 
   size = 'md', 
@@ -37,12 +37,24 @@ export function Logo({
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      {/* Logo - Using SVG (PNG fallback disabled until logo.png is added) */}
+      {/* Logo - Using new image with SVG fallback */}
       <div 
         className={`relative flex-shrink-0 ${animated ? 'animate-float' : ''}`}
         style={{ width: icon, height: icon }}
       >
-        <LogoSVG size={icon} />
+        {!imgError ? (
+          <Image
+            src="/logo.jpg"
+            alt="Word Is Bond Logo"
+            width={icon}
+            height={icon}
+            className="object-contain rounded-lg"
+            onError={() => setImgError(true)}
+            priority={size === 'hero'}
+          />
+        ) : (
+          <LogoSVG size={icon} />
+        )}
       </div>
       
       {showText && (

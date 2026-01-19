@@ -21,6 +21,7 @@ import { stripe } from '@/lib/services/stripeService'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
+import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { 
   writeAudit, 
   writeAuditLegacy, 
@@ -31,7 +32,7 @@ import {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
-export async function POST(req: NextRequest) {
+async function handleStripeWebhook(req: Request) {
   const body = await req.text()
   const signature = req.headers.get('stripe-signature')!
 
@@ -407,3 +408,9 @@ function extractPlanFromPriceId(priceId: string): string {
   if (priceId.includes('enterprise')) return 'enterprise'
   return 'free'
 }
+
+// Export with rate limiting per ARCH_DOCS webhook security requirements
+export const POST = withRateLimit(handleStripeWebhook, {
+  identifier: (req) => `webhook-stripe-${getClientIP(req)}`,
+  config: { maxAttempts: 1000, windowMs: 60 * 1000, blockMs: 5 * 60 * 1000 }
+})

@@ -191,7 +191,6 @@ export function ConfirmationPrompts({
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-lg">📋</span>
             <h3 className="font-semibold text-gray-900">Confirmation Checklist</h3>
           </div>
           <Badge variant={requiredConfirmed === requiredCount ? 'success' : 'default'}>
@@ -394,7 +393,7 @@ export function ConfirmationPrompts({
               {skipItem.template.isRequired && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                   <p className="text-sm text-yellow-800">
-                    ⚠️ This is a required confirmation. Please provide a reason for skipping.
+                    This is a required confirmation. Please provide a reason for skipping.
                   </p>
                 </div>
               )}

@@ -39,6 +39,21 @@ export async function POST(
       return ApiErrors.badRequest('Invalid call ID')
     }
 
+    // RBAC: Only Owner, Admin, or Operator can trigger translations
+    // Viewer and Analyst roles are read-only per ARCH_DOCS RBAC model
+    const { data: membership } = await supabaseAdmin
+      .from('org_members')
+      .select('role')
+      .eq('organization_id', ctx.orgId)
+      .eq('user_id', ctx.userId)
+      .single()
+
+    const userRole = membership?.role || 'viewer'
+    if (!['owner', 'admin', 'operator'].includes(userRole)) {
+      logger.warn('Translate POST: unauthorized role attempt', { userId: ctx.userId, role: userRole })
+      return ApiErrors.forbidden()
+    }
+
     const body = await request.json()
     const { toLanguage, fromLanguage, useVoiceCloning } = body
 

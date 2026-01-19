@@ -384,6 +384,22 @@ async function getCallSidFromCallId(callId: string): Promise<string | null> {
  */
 async function checkAndTriggerTranslation(callId: string, organizationId: string, transcriptText: string, detectedLanguage?: string, recordingUrl?: string) {
   try {
+    // ARCH_DOCS Plan Tier Gating: Translation requires Global, Business, or Enterprise plan
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('plan')
+      .eq('id', organizationId)
+      .limit(1)
+    
+    const orgPlan = orgRows?.[0]?.plan?.toLowerCase() || 'free'
+    const translationPlans = ['global', 'business', 'enterprise']
+    if (!translationPlans.includes(orgPlan)) {
+      logger.debug('AssemblyAI webhook: Translation skipped - plan does not support translation', { 
+        callId, organizationId, plan: orgPlan, requiredPlans: translationPlans
+      })
+      return
+    }
+
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
       .select('translate, translate_from, translate_to, use_voice_cloning')
@@ -584,6 +600,22 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
  */
 async function checkAndProcessSurvey(callId: string, organizationId: string, transcriptText: string, recordingId: string) {
   try {
+    // ARCH_DOCS Plan Tier Gating: Survey requires Insights, Global, Business, or Enterprise plan
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('plan')
+      .eq('id', organizationId)
+      .limit(1)
+    
+    const orgPlan = orgRows?.[0]?.plan?.toLowerCase() || 'free'
+    const surveyPlans = ['insights', 'global', 'business', 'enterprise']
+    if (!surveyPlans.includes(orgPlan)) {
+      logger.debug('AssemblyAI webhook: Survey skipped - plan does not support survey', { 
+        callId, organizationId, plan: orgPlan, requiredPlans: surveyPlans
+      })
+      return
+    }
+
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
       .select('survey')

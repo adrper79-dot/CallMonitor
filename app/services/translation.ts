@@ -49,7 +49,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
         status: 'failed',
         completed_at: new Date().toISOString(),
         produced_by: 'model',
-        is_authoritative: true,
+        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
         output: { error: 'Plan does not support translation', plan: orgPlan }
       }).eq('id', translationRunId)
       return
@@ -67,12 +67,17 @@ export async function translateText(input: TranslationInput): Promise<void> {
       })
     } else {
       try {
+        // Add timeout protection for external API calls (30 second timeout)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
             'Content-Type': 'application/json'
           },
+          signal: controller.signal,
           body: JSON.stringify({
             model: 'gpt-3.5-turbo',
             messages: [
@@ -88,6 +93,8 @@ export async function translateText(input: TranslationInput): Promise<void> {
             max_tokens: 2000
           })
         })
+        
+        clearTimeout(timeoutId)
 
         if (openaiRes.ok) {
           const openaiData = await openaiRes.json()
@@ -100,7 +107,10 @@ export async function translateText(input: TranslationInput): Promise<void> {
           translationError = `OpenAI API error: ${openaiRes.status} - ${errorText}`
         }
       } catch (err: any) {
-        translationError = `OpenAI translation failed: ${err?.message || 'Unknown error'}`
+        const errorMsg = err?.name === 'AbortError' 
+          ? 'OpenAI translation timed out (30s)'
+          : `OpenAI translation failed: ${err?.message || 'Unknown error'}`
+        translationError = errorMsg
       }
     }
 
@@ -197,7 +207,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
         status: 'completed',
         completed_at: new Date().toISOString(),
         produced_by: 'model',
-        is_authoritative: true,
+        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
         output: {
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, translated_text: translatedText,
@@ -214,7 +224,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
         status: 'failed',
         completed_at: new Date().toISOString(),
         produced_by: 'model',
-        is_authoritative: true,
+        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
         output: {
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, error: translationError || 'Translation failed',
@@ -232,7 +242,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
       status: 'failed',
       completed_at: new Date().toISOString(),
       produced_by: 'model',
-      is_authoritative: true,
+      is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
       output: { error: err?.message || 'Translation service error', failed_at: new Date().toISOString() }
     }).eq('id', translationRunId)
   }

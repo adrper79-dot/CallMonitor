@@ -111,6 +111,14 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       throw e
     }
 
+    // RBAC: Only Owner, Admin, or Operator can trigger transcription
+    // Per ARCH_DOCS RBAC matrix: AI operations require 'execute' permission on 'transcript'
+    const userRole = membershipRows[0]?.role || 'viewer'
+    if (!['owner', 'admin', 'operator'].includes(userRole)) {
+      const e = new AppError({ code: 'AUTH_FORBIDDEN', message: 'Insufficient permissions to trigger transcription', user_message: 'You do not have permission to perform this action', severity: 'HIGH', retriable: false })
+      throw e
+    }
+
     // MASTER_ARCHITECTURE enforcement: call-rooted requirement.
     // Schema: recordings.call_sid is text. We now rely on canonical mapping stored in calls.call_sid (added to schema via migration).
     // Resolve call_id from calls.call_sid so ai_runs.call_id can be populated.

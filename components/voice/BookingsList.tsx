@@ -81,12 +81,12 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return '⏳'
-      case 'confirmed': return '✅'
-      case 'calling': return '📞'
+      case 'pending': return '○'
+      case 'confirmed': return '✓'
+      case 'calling': return '●'
       case 'completed': return '✓'
       case 'cancelled': return '✕'
-      case 'failed': return '⚠️'
+      case 'failed': return '!'
       default: return '•'
     }
   }

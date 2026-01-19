@@ -1,8 +1,8 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** January 18, 2026  
-**Version:** 3.1  
-**Status:** Production Ready (99% Complete) ⭐ ALL 5 AI ROLE PHASES COMPLETE
+**Last Updated:** January 19, 2026  
+**Version:** 3.2  
+**Status:** Production Ready (99% Complete) ⭐ DEEP VALIDATION COMPLETE
 
 > **"The System of Record for Business Conversations"**
 
@@ -270,8 +270,48 @@ Revenue Infrastructure Implementation (v1.6.0):** ⭐
    - File: `/app/api/reports/schedules/[id]/route.ts` (schedule management)
    - File: `/app/api/cron/scheduled-reports/route.ts` (automated execution)
 
-### **
-## 🔧 **Recent Updates (January 17, 2026)**
+---
+
+## 🔧 **Recent Updates (January 19, 2026)** ⭐ NEW
+
+### **Deep End-to-End Validation (v3.2):**
+
+Complete flow-by-flow validation ensuring ARCH_DOCS compliance, schema alignment, and UX best practices.
+
+**1. Call Placement Flow Fixes:**
+- ✅ Added `actor_type` and `actor_label` to 6 audit_log inserts in `startCallHandler.ts`
+- ✅ Consistent actor tracking: `'human'` for user-initiated, `'system'` for automated
+
+**2. Transcription Flow UX Improvements:**
+- ✅ Added `transcriptionStatus` prop chain: API → `useCallDetails` hook → `CallDetailView` → `ArtifactViewer`
+- ✅ New "Transcribing audio..." spinner when status is `queued` or `processing`
+- ✅ New "Transcription failed" warning when status is `failed`
+- ✅ Users now see real-time feedback instead of empty artifact panel
+
+**3. Survey Flow Audit Compliance:**
+- ✅ Added audit logging when survey completes (2 locations in `webhooks/survey/route.ts`)
+- ✅ `actor_type: 'vendor'`, `actor_label: 'signalwire-survey-ai'`
+
+**4. Secret Shopper Schema Alignment:**
+- ✅ Fixed schema mismatch in `/api/shopper/results/route.ts`
+- ✅ Changed `score` → `overall_score` (matches Schema.txt)
+- ✅ Changed `score_breakdown` → `outcome_results` (matches Schema.txt)
+- ✅ Removed non-schema columns: `ai_summary`, `conversation_log`, `raw_transcript`, `status`
+- ✅ Added `evaluated_by: 'signalwire-shopper-ai'`
+- ✅ Fixed GET handler to use `overall_score` field
+
+**Files Modified:**
+- `app/actions/calls/startCallHandler.ts` - 6 audit log fixes
+- `app/api/calls/[id]/route.ts` - Added transcriptionStatus to response
+- `hooks/useCallDetails.ts` - Added transcriptionStatus to interface
+- `components/voice/CallDetailView.tsx` - Pass transcriptionStatus prop
+- `components/voice/ArtifactViewer.tsx` - Transcription status indicators
+- `app/api/webhooks/survey/route.ts` - 2 audit log additions
+- `app/api/shopper/results/route.ts` - Schema alignment fixes
+
+---
+
+## 🔧 **Previous Updates (January 17, 2026)**
 
 ### **Evidence Custody Upgrades (v1.4.1):**
 

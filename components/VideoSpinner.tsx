@@ -3,21 +3,25 @@
 import React, { useState } from 'react'
 
 interface VideoSpinnerProps {
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
+  transparent?: boolean
 }
 
 const sizeMap = {
   sm: 'w-8 h-8',
   md: 'w-16 h-16',
-  lg: 'w-24 h-24'
+  lg: 'w-24 h-24',
+  xl: 'w-48 h-48'
 }
 
 /**
- * VideoSpinner - Simple inline video-based loading spinner
- * Uses /loading.mp4 for smooth animation with futuristic feel
+ * VideoSpinner - Video-based loading animation
+ * 
+ * Uses /loading.mp4 with transparency support via mix-blend-mode
+ * The video plays as a smooth futuristic loading indicator
  */
-export function VideoSpinner({ size = 'md', className = '' }: VideoSpinnerProps) {
+export function VideoSpinner({ size = 'md', className = '', transparent = true }: VideoSpinnerProps) {
   const [videoError, setVideoError] = useState(false)
 
   if (videoError) {
@@ -32,18 +36,24 @@ export function VideoSpinner({ size = 'md', className = '' }: VideoSpinnerProps)
   }
 
   return (
-    <video
-      autoPlay
-      loop
-      muted
-      playsInline
-      className={`${sizeMap[size]} object-contain ${className}`}
-      onError={() => setVideoError(true)}
-      aria-label="Loading"
-      role="status"
-    >
-      <source src="/loading.mp4" type="video/mp4" />
-    </video>
+    <div className={`${sizeMap[size]} ${className}`}>
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className={`w-full h-full object-contain ${transparent ? 'mix-blend-screen' : ''}`}
+        style={transparent ? { 
+          backgroundColor: 'transparent',
+          filter: 'drop-shadow(0 0 10px rgba(0, 206, 209, 0.5))'
+        } : {}}
+        onError={() => setVideoError(true)}
+        aria-label="Loading"
+        role="status"
+      >
+        <source src="/loading.mp4" type="video/mp4" />
+      </video>
+    </div>
   )
 }
 

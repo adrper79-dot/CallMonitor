@@ -16,7 +16,7 @@ export type CallDisposition =
   | 'not_interested'
   | 'follow_up'
   | 'wrong_number'
-  | 'callback_scheduled'
+  // Note: 'callback_scheduled' not in DB CHECK constraint - use 'follow_up' instead
   | 'other'
 
 export interface CallDispositionUpdate {
@@ -117,8 +117,8 @@ export interface CallConsent {
   consent_method: ConsentMethod | null
   consent_timestamp: string | null
   consent_audio_offset_ms: number | null
-  consent_verified_by: string | null
-  consent_verified_at: string | null
+  // Note: consent_verified_by and consent_verified_at planned for future migration
+  // Not yet in production schema per Schema.txt
 }
 
 export interface ConsentCaptureRequest {

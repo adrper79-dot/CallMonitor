@@ -131,7 +131,7 @@ export async function GET(
         call_id: callId,
         event_type: 'consent_captured',
         timestamp: call.consent_timestamp,
-        actor_id: call.consent_verified_by,
+        actor_id: null, // consent_verified_by column not yet in production schema
         actor_name: null,
         details: {
           method: call.consent_method

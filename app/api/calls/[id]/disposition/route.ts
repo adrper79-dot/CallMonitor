@@ -24,7 +24,7 @@ const VALID_DISPOSITIONS: CallDisposition[] = [
   'not_interested',
   'follow_up',
   'wrong_number',
-  'callback_scheduled',
+  // Note: 'callback_scheduled' removed - not in DB CHECK constraint
   'other'
 ]
 
