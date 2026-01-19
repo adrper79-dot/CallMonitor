@@ -66,13 +66,17 @@ export async function GET(
       .eq('call_id', callId)
 
     // Look for AssemblyAI transcription runs - models used are 'assemblyai-v1' or 'assemblyai-upload'
-    const transcript = aiRuns?.find((r: any) => 
+    const transcriptRun = aiRuns?.find((r: any) => 
       r.model === 'assemblyai-v1' || 
       r.model === 'assemblyai-upload' || 
       r.model?.includes('transcription')
     )
     const translation = aiRuns?.find((r: any) => r.model?.includes('translation'))
     const survey = aiRuns?.find((r: any) => r.model?.includes('survey'))
+
+    // Extract transcript content and status
+    const transcript = transcriptRun?.output?.transcript || transcriptRun?.output || recording?.transcript_json || null
+    const transcriptionStatus = transcriptRun?.status || null
 
     // Fetch evidence manifest
     const { data: manifest } = await (supabaseAdmin as any)
@@ -92,7 +96,8 @@ export async function GET(
       success: true,
       call,
       recording: recording || null,
-      transcript: transcript?.output?.transcript || transcript?.output || recording?.transcript_json || null,
+      transcript,
+      transcriptionStatus,
       translation: translation?.output || null,
       manifest: manifest || null,
       score: score || null,

@@ -30,6 +30,7 @@ export interface ArtifactViewerProps {
     breakdown: any
   } | null
   survey?: any | null
+  transcriptionStatus?: 'queued' | 'processing' | 'completed' | 'failed' | null
 }
 
 export default function ArtifactViewer({
@@ -41,6 +42,7 @@ export default function ArtifactViewer({
   manifest,
   score,
   survey,
+  transcriptionStatus,
 }: ArtifactViewerProps) {
   const hasRecording = !!recording?.recording_url
   const hasTranscript = !!transcript
@@ -49,6 +51,7 @@ export default function ArtifactViewer({
   const hasManifest = !!manifest
   const hasScore = !!score
   const hasAnyArtifact = hasRecording || hasTranscript || hasTranslation
+  const isTranscribing = transcriptionStatus === 'queued' || transcriptionStatus === 'processing'
 
   // Email state
   const [showEmailForm, setShowEmailForm] = useState(false)
@@ -229,9 +232,42 @@ export default function ArtifactViewer({
           </TabsContent>
         )}
 
-        {!hasRecording && !hasTranscript && !hasTranslation && !hasSurvey && !hasManifest && !hasScore && (
+        {!hasRecording && !hasTranscript && !hasTranslation && !hasSurvey && !hasManifest && !hasScore && !isTranscribing && (
           <div className="p-8 text-center text-slate-400">
             No artifacts available for this call yet.
+          </div>
+        )}
+
+        {/* Transcription in progress indicator */}
+        {isTranscribing && !hasTranscript && (
+          <div className="p-6 text-center">
+            <div className="inline-flex items-center gap-3 px-4 py-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+              <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <div className="text-left">
+                <p className="text-sm font-medium text-blue-300">
+                  {transcriptionStatus === 'queued' ? 'Transcription queued' : 'Transcribing audio...'}
+                </p>
+                <p className="text-xs text-blue-400/70">This typically takes 1-3 minutes</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transcription failed indicator */}
+        {transcriptionStatus === 'failed' && !hasTranscript && (
+          <div className="p-6 text-center">
+            <div className="inline-flex items-center gap-3 px-4 py-3 bg-red-900/30 border border-red-700/50 rounded-lg">
+              <svg className="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="text-left">
+                <p className="text-sm font-medium text-red-300">Transcription failed</p>
+                <p className="text-xs text-red-400/70">The audio could not be transcribed</p>
+              </div>
+            </div>
           </div>
         )}
       </Tabs>

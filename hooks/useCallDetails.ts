@@ -27,6 +27,7 @@ export interface CallDetails {
     breakdown: any
   } | null
   survey: any | null
+  transcriptionStatus: 'queued' | 'processing' | 'completed' | 'failed' | null
 }
 
 export function useCallDetails(callId: string | null) {
@@ -64,6 +65,7 @@ export function useCallDetails(callId: string | null) {
             manifest: fallbackData.evidence_manifest || null,
             score: null,
             survey: null,
+            transcriptionStatus: null,
           })
           return
         }
@@ -89,6 +91,7 @@ export function useCallDetails(callId: string | null) {
     manifest: details?.manifest || null,
     score: details?.score || null,
     survey: details?.survey || null,
+    transcriptionStatus: details?.transcriptionStatus || null,
     loading,
     error,
   }

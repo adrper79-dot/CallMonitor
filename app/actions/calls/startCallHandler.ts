@@ -58,6 +58,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         resource_type: resource,
         resource_id: resourceId,
         action: 'error',
+        actor_type: capturedActorId ? 'human' : 'system',
+        actor_label: capturedActorId || 'cpid-call-handler',
         before: null,
         after: payload,
         created_at: new Date().toISOString()
@@ -460,6 +462,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         resource_type: 'calls',
         resource_id: callId,
         action: 'intent:call_start',
+        actor_type: capturedActorId ? 'human' : 'system',
+        actor_label: capturedActorId || 'cpid-call-handler',
         before: null,
         after: {
           flow_type,
@@ -627,7 +631,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('calls', callId, new AppError({ code: 'RECORDING_TOOL_NOT_FOUND', message: 'No recording tool available for organization', user_message: 'No recording tool available for your organization', severity: 'MEDIUM', retriable: false }).toJSON())
       } else {
         try {
-          await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'intent:recording_requested', before: null, after: { tool_id: orgToolId, requested_at: new Date().toISOString() }, created_at: new Date().toISOString() })
+          await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'intent:recording_requested', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: { tool_id: orgToolId, requested_at: new Date().toISOString() }, created_at: new Date().toISOString() })
         } catch (e) { }
       }
     }
@@ -643,7 +647,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     const canonicalCall = persistedCall[0]
     try {
-      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', before: null, after: { ...canonicalCall, config: effectiveModulations, call_sid }, created_at: new Date().toISOString() })
+      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: { ...canonicalCall, config: effectiveModulations, call_sid }, created_at: new Date().toISOString() })
     } catch (auditErr) {
       logger.error('startCallHandler: failed to insert audit log', auditErr as Error, { callId })
       await writeAuditError('audit_logs', callId, new AppError({ code: 'AUDIT_LOG_INSERT_FAILED', message: 'Failed to write audit log', user_message: 'Call started but an internal audit log could not be saved.', severity: 'MEDIUM', retriable: true, details: { cause: (auditErr as any).message } }).toJSON())
@@ -654,14 +658,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   } catch (err: any) {
     if (err instanceof AppError) {
       const payload = err.toJSON()
-      try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+      try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
       return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
     }
     // log the unexpected error for debugging
     logger.error('startCallHandler unexpected error', err)
     const unexpected = new AppError({ code: 'CALL_START_UNEXPECTED', message: err?.message ?? 'Unexpected error', user_message: 'An unexpected error occurred while starting the call.', severity: 'CRITICAL', retriable: true, details: { stack: err?.stack } })
     const payload = unexpected.toJSON()
-    try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+    try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', actor_type: 'system', actor_label: 'cpid-call-handler', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
     return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
   }
 }

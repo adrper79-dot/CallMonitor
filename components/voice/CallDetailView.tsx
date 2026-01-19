@@ -26,7 +26,7 @@ export interface CallDetailViewProps {
  * Light theme, no emojis, clear hierarchy.
  */
 export default function CallDetailView({ callId, organizationId, onModulationChange }: CallDetailViewProps) {
-  const { call, recording, transcript, translation, manifest, score, survey, loading, error } = useCallDetails(callId)
+  const { call, recording, transcript, translation, manifest, score, survey, transcriptionStatus, loading, error } = useCallDetails(callId)
   const { config } = useVoiceConfig(organizationId)
   const { toast } = useToast()
   const [exporting, setExporting] = useState(false)
@@ -377,6 +377,7 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
         manifest={manifest}
         score={score}
         survey={survey}
+        transcriptionStatus={transcriptionStatus}
       />
     </div>
   )

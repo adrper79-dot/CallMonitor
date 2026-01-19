@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
     }
 
     const resultId = uuidv4()
+    // Per ARCH_DOCS Schema.txt: shopper_results uses overall_score, outcome_results, evaluated_by
+    // NOT: score, score_breakdown, ai_summary, conversation_log, raw_transcript, status
     const { error: insertErr } = await supabaseAdmin
       .from('shopper_results')
       .insert({
@@ -69,13 +71,11 @@ export async function POST(req: NextRequest) {
         script_id: scriptId || null,
         call_id: callId,
         recording_id: recordingId || null,
-        score: scoringResult?.score || null,
-        score_breakdown: scoringResult?.details || [],
-        ai_summary: aiSummary,
-        conversation_log: conversation,
-        raw_transcript: rawTranscript,
-        status: 'completed',
-        evaluated_at: new Date().toISOString()
+        overall_score: scoringResult?.score || null,
+        outcome_results: scoringResult?.details || [],
+        evaluated_at: new Date().toISOString(),
+        evaluated_by: 'signalwire-shopper-ai',
+        notes: aiSummary || null
       })
 
     if (insertErr) {
@@ -96,18 +96,18 @@ export async function POST(req: NextRequest) {
         resource_id: resultId,
         actor_type: 'vendor',
         actor_label: 'signalwire-shopper-ai',
-        details: { call_id: callId, script_id: scriptId, score: scoringResult?.score, has_recording: !!recordingId }
+        details: { call_id: callId, script_id: scriptId, overall_score: scoringResult?.score, has_recording: !!recordingId }
       })
     } catch { /* Best effort */ }
 
     logger.info('Shopper results: completed', {
-      callId, resultId, score: scoringResult?.score, hasRecording: !!recordingId
+      callId, resultId, overall_score: scoringResult?.score, hasRecording: !!recordingId
     })
 
     return success({
       result_id: resultId,
-      score: scoringResult?.score || null,
-      details: scoringResult?.details || []
+      overall_score: scoringResult?.score || null,
+      outcome_results: scoringResult?.details || []
     })
 
   } catch (err: any) {
@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
       return Errors.internal(error)
     }
 
-    const scores = (results || []).filter(r => r.score !== null).map(r => r.score)
+    const scores = (results || []).filter(r => r.overall_score !== null).map(r => r.overall_score)
     const avgScore = scores.length > 0 
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : null

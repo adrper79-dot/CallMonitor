@@ -199,6 +199,26 @@ async function processSurveyResponseAsync(
 
       // Emit webhook event when survey completes (once)
       if (isComplete && !wasComplete) {
+        // Add audit log for survey completion per ARCH_DOCS
+        try {
+          await supabaseAdmin.from('audit_logs').insert({
+            id: uuidv4(),
+            organization_id: call.organization_id,
+            action: 'survey_completed',
+            resource_type: 'ai_run',
+            resource_id: existingRun.id,
+            actor_type: 'vendor',
+            actor_label: 'signalwire-survey-ai',
+            details: { 
+              call_id: call.id, 
+              responses_count: responses.length,
+              total_questions: totalQuestions
+            }
+          })
+        } catch (auditErr) {
+          logger.warn('survey webhook: audit log failed', { error: auditErr })
+        }
+
         await emitWebhookEvent({
           organizationId: call.organization_id,
           eventType: 'survey.completed',
@@ -276,6 +296,26 @@ async function processSurveyResponseAsync(
 
       // Emit webhook event when survey completes
       if (isComplete) {
+        // Add audit log for survey completion per ARCH_DOCS
+        try {
+          await supabaseAdmin.from('audit_logs').insert({
+            id: uuidv4(),
+            organization_id: call.organization_id,
+            action: 'survey_completed',
+            resource_type: 'ai_run',
+            resource_id: surveyRunId,
+            actor_type: 'vendor',
+            actor_label: 'signalwire-survey-ai',
+            details: { 
+              call_id: call.id, 
+              responses_count: 1,
+              total_questions: totalQuestions
+            }
+          })
+        } catch (auditErr) {
+          logger.warn('survey webhook: audit log failed', { error: auditErr })
+        }
+
         await emitWebhookEvent({
           organizationId: call.organization_id,
           eventType: 'survey.completed',

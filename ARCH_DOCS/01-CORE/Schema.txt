@@ -1,9 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
-
 CREATE TABLE public.access_grants_archived (
   id uuid NOT NULL,
   organization_id uuid,
@@ -36,7 +33,6 @@ CREATE TABLE public.ai_runs (
   system_id uuid,
   model text,
   status text,
-  job_id text,
   started_at timestamp with time zone,
   completed_at timestamp with time zone,
   output jsonb,
@@ -45,6 +41,7 @@ CREATE TABLE public.ai_runs (
   deleted_by uuid,
   is_authoritative boolean NOT NULL DEFAULT false,
   produced_by text,
+  job_id text,
   CONSTRAINT ai_runs_pkey PRIMARY KEY (id),
   CONSTRAINT ai_runs_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
   CONSTRAINT ai_runs_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id),
@@ -780,7 +777,6 @@ CREATE TABLE public.qa_evaluation_disclosures (
 CREATE TABLE public.recordings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
-  call_id uuid,
   call_sid text NOT NULL,
   recording_sid text UNIQUE,
   recording_url text NOT NULL,
@@ -809,11 +805,12 @@ CREATE TABLE public.recordings (
   evidence_completeness text NOT NULL DEFAULT 'unknown'::text CHECK (evidence_completeness = ANY (ARRAY['unknown'::text, 'partial'::text, 'complete'::text, 'failed'::text])),
   disclosure_given boolean DEFAULT false,
   disclosure_type text,
+  call_id uuid,
   CONSTRAINT recordings_pkey PRIMARY KEY (id),
-  CONSTRAINT recordings_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
   CONSTRAINT recordings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT recordings_tool_id_fkey FOREIGN KEY (tool_id) REFERENCES public.tools(id),
   CONSTRAINT recordings_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
+  CONSTRAINT recordings_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
   CONSTRAINT recordings_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.report_access_log (
