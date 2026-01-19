@@ -49,8 +49,8 @@ function getSignalWireDomain(): string | null {
 /**
  * Get SignalWire WebRTC token
  * 
- * Creates a JWT token for browser-based WebRTC calls.
- * Uses SignalWire Relay REST API for token generation.
+ * Creates a Subscriber Access Token (SAT) for browser-based WebRTC calls.
+ * Uses SignalWire Fabric API for token generation.
  * 
  * @see https://developer.signalwire.com/sdks/reference/browser-sdk/
  */
@@ -69,9 +69,10 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
 
   try {
-    // Try Relay REST JWT endpoint first (for Relay SDK v3)
-    const jwtResponse = await fetch(
-      `https://${signalwireDomain}/api/relay/rest/jwt`,
+    // Use the Fabric Subscriber Access Token (SAT) endpoint
+    // This is the correct endpoint for @signalwire/js v3+ browser SDK
+    const satResponse = await fetch(
+      `https://${signalwireDomain}/api/fabric/subscribers/tokens`,
       {
         method: 'POST',
         headers: {
@@ -79,18 +80,18 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
           'Authorization': authHeader
         },
         body: JSON.stringify({
-          resource: sessionId,
-          expires_in: 3600  // 1 hour
+          reference: sessionId,  // User/session identifier
+          expires_in: 3600       // 1 hour
         })
       }
     )
 
-    if (jwtResponse.ok) {
-      const data = await jwtResponse.json()
-      logger.info('[webrtc] Got SignalWire JWT token')
+    if (satResponse.ok) {
+      const data = await satResponse.json()
+      logger.info('[webrtc] Got SignalWire SAT token from Fabric API')
 
       return {
-        token: data.jwt_token,
+        token: data.token,  // SAT token field
         iceServers: [
           // SignalWire STUN/TURN servers
           { urls: `stun:${signalwireDomain}:3478` },
@@ -103,14 +104,44 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
       }
     }
 
-    // Log the error but continue - we can still return a session without pre-fetched token
-    const errorText = await jwtResponse.text()
-    logger.warn('[webrtc] SignalWire JWT endpoint returned non-OK', { status: jwtResponse.status, errorText })
+    // Log the error but continue - we can try legacy endpoints
+    const errorText = await satResponse.text()
+    logger.warn('[webrtc] SignalWire Fabric SAT endpoint returned non-OK', { status: satResponse.status, errorText })
 
-    // Return null token but provide ICE servers for fallback WebRTC
-    // The client can authenticate directly with project/token
+    // Fallback: Try legacy Relay JWT endpoint (for older SignalWire accounts)
+    const jwtResponse = await fetch(
+      `https://${signalwireDomain}/api/relay/rest/jwt`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader
+        },
+        body: JSON.stringify({
+          resource: sessionId,
+          expires_in: 3600
+        })
+      }
+    )
+
+    if (jwtResponse.ok) {
+      const data = await jwtResponse.json()
+      logger.info('[webrtc] Got SignalWire JWT token from legacy Relay endpoint')
+      return {
+        token: data.jwt_token,
+        iceServers: [
+          { urls: `stun:${signalwireDomain}:3478` },
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ]
+      }
+    }
+
+    logger.warn('[webrtc] Both SAT and JWT endpoints failed')
+
+    // Return null token - client will need to handle authentication differently
     return {
-      token: '', // Empty - client will use project credentials directly
+      token: '',
       iceServers: [
         { urls: `stun:${signalwireDomain}:3478` },
         { urls: 'stun:stun.l.google.com:19302' },
@@ -119,7 +150,6 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     }
   } catch (error) {
     logger.error('[webrtc] Error getting SignalWire token', error)
-    // Return fallback ICE servers even if token fails
     return {
       token: '',
       iceServers: [
