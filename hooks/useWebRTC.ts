@@ -176,20 +176,26 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('connecting')
 
       // Create SignalWire client
-      const clientOptions: any = {
-        host: session.signalwire_space,
-      }
+      // IMPORTANT: The @signalwire/js SDK v3+ automatically connects to relay.signalwire.com
+      // Do NOT pass a custom "host" parameter - it will break WebSocket connections
+      const clientOptions: any = {}
 
       if (session.signalwire_token) {
+        // Use the JWT token from SignalWire's Relay REST API
         clientOptions.token = session.signalwire_token
-      } else {
-        clientOptions.project = session.signalwire_project
+      } else if (session.token) {
+        // Fallback: Use the session token as the auth token
         clientOptions.token = session.token
+      } else {
+        // Last resort: Project credentials (requires correct Relay configuration in SignalWire)
+        clientOptions.project = session.signalwire_project
+        // Note: Project-based auth also doesn't need host - SDK handles it
       }
 
       console.log('[WebRTC] Initializing SignalWire client with:', {
-        ...clientOptions,
-        token: clientOptions.token ? `${clientOptions.token.substring(0, 10)}...` : 'MISSING'
+        hasToken: !!clientOptions.token,
+        tokenPreview: clientOptions.token ? `${clientOptions.token.substring(0, 10)}...` : 'MISSING',
+        project: clientOptions.project || 'N/A (using token auth)'
       })
 
       const client = await SignalWire(clientOptions)
