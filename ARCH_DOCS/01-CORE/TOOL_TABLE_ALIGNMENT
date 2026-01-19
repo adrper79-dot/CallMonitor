@@ -24,21 +24,23 @@
     "DELETE": ["id"]
   },
   "calls": {
-    "GET": ["id", "organization_id", "system_id", "status", "started_at", "ended_at", "created_by"],
-    "POST": ["organization_id", "system_id", "status", "started_at", "ended_at", "created_by"],
-    "PUT": ["status", "started_at", "ended_at"],
+    "_note": "Updated 2026-01-19 per Schema.txt - includes all actual DB columns",
+    "GET": ["id", "organization_id", "system_id", "status", "started_at", "ended_at", "created_by", "call_sid", "disposition", "disposition_set_at", "disposition_set_by", "disposition_notes", "consent_method", "consent_timestamp", "consent_audio_offset_ms", "is_deleted", "deleted_at", "deleted_by", "is_authoritative", "immutability_policy", "custody_status", "retention_class", "legal_hold_flag", "evidence_completeness", "disclosure_type", "disclosure_given", "disclosure_timestamp", "disclosure_text"],
+    "POST": ["id", "organization_id", "system_id", "status", "started_at", "call_sid", "created_by"],
+    "PUT": ["status", "started_at", "ended_at", "call_sid", "disposition", "disposition_set_at", "disposition_set_by", "disposition_notes", "consent_method", "consent_timestamp", "consent_audio_offset_ms"],
     "DELETE": ["id"]
   },
   "ai_runs": {
-    "GET": ["id", "call_id", "system_id", "model", "status", "started_at", "completed_at", "output"],
-    "POST": ["call_id", "system_id", "model", "status"],
-    "PUT": ["status", "started_at", "completed_at", "output"],
+    "GET": ["id", "call_id", "system_id", "model", "status", "started_at", "completed_at", "output", "is_authoritative", "produced_by", "job_id"],
+    "POST": ["id", "call_id", "system_id", "model", "status", "is_authoritative", "produced_by"],
+    "PUT": ["status", "started_at", "completed_at", "output", "is_authoritative", "produced_by"],
     "DELETE": ["id"]
   },
   "recordings": {
-    "GET": ["id", "organization_id", "call_sid", "recording_sid", "recording_url", "duration_seconds", "transcript_json", "status", "created_at", "updated_at", "source", "ai_metadata", "has_live_translation", "live_translation_provider"],
-    "POST": ["organization_id", "call_sid", "recording_url", "duration_seconds", "source", "ai_metadata"],
-    "PUT": ["status", "transcript_json", "ai_metadata", "has_live_translation", "live_translation_provider"],
+    "_note": "Updated 2026-01-19 per Schema.txt - call_id is the FK, not call_sid",
+    "GET": ["id", "organization_id", "call_id", "call_sid", "recording_url", "duration_seconds", "transcript_json", "status", "created_at", "updated_at", "source", "ai_metadata", "has_live_translation", "live_translation_provider", "transcript_text", "transcript_status", "transcript_job_id", "is_authoritative", "produced_by", "transcription_provider"],
+    "POST": ["id", "organization_id", "call_id", "call_sid", "recording_url", "duration_seconds", "source", "status"],
+    "PUT": ["status", "transcript_json", "transcript_text", "transcript_status", "ai_metadata", "has_live_translation", "live_translation_provider"],
     "DELETE": ["id"]
   },
   "scorecards": {

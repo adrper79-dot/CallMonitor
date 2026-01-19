@@ -1,9 +1,11 @@
 # Artifact Authority Contract
 
-**Version:** 1.0  
-**Last Updated:** January 16, 2026  
-**Status:** Canonical  
+**Version:** 1.1  
+**Last Updated:** January 19, 2026  
+**Status:** Canonical (Validated)  
 **Purpose:** Define what artifacts are authoritative (legally defensible) vs preview (assist-only)
+
+> **Note (v1.1):** Code validated on January 19, 2026. Fixed `translation.ts` to correctly mark LLM translations as `is_authoritative: false` per this contract.
 
 ---
 
