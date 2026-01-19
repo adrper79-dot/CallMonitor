@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from 'next-auth/react'
 import { Logo } from '@/components/Logo'
+import { EmailInput, PasswordInput, isValidEmail } from '@/components/ui/form-validation'
 
 /**
  * SIGN IN PAGE
@@ -13,6 +14,7 @@ import { Logo } from '@/components/Logo'
  * - One clear action: Sign In
  * - Multiple methods but clear hierarchy
  * - Minimal friction
+ * - Immediate validation feedback
  */
 export default function SignInPage() {
   const router = useRouter()
@@ -26,6 +28,10 @@ export default function SignInPage() {
   const [googleAvailable, setGoogleAvailable] = useState(false)
   const [emailLinkAvailable, setEmailLinkAvailable] = useState(false)
   const [authMethod, setAuthMethod] = useState<'password' | 'email'>('password')
+
+  // Form validation
+  const emailValid = email.length === 0 || isValidEmail(email)
+  const canSubmit = isValidEmail(email) && (authMethod === 'email' || password.length > 0)
 
   // Check for success message from signup
   const message = searchParams.get('message')
@@ -210,44 +216,60 @@ export default function SignInPage() {
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
               </label>
-              <input
+              <EmailInput
                 id="email"
-                type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={setEmail}
                 placeholder="you@company.com"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                autoComplete="email"
               />
             </div>
 
             {authMethod === 'password' && (
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <input
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <Link 
+                    href="/forgot-password" 
+                    className="text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={setPassword}
                   placeholder="Your password"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                  autoComplete="current-password"
+                  showStrength={false}
                 />
               </div>
             )}
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
                 {error}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || !canSubmit}
+              className={`
+                w-full py-3 px-4 font-medium rounded-lg transition-all
+                ${canSubmit
+                  ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }
+                disabled:opacity-50 disabled:cursor-not-allowed
+              `}
             >
               {loading 
                 ? 'Please wait...' 

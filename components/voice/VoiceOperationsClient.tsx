@@ -158,8 +158,19 @@ export default function VoiceOperationsClient({
 
   const handleOnboardingComplete = async (config: OnboardingConfig) => {
     setShowOnboarding(false)
-    // The onboarding wizard will trigger the call placement
-    // For now, just close the wizard - user can place call normally
+    
+    // Dispatch event to set the config and trigger call placement
+    // The ExecutionControls component will pick up this config
+    const callEvent = new CustomEvent('onboarding:complete', {
+      detail: {
+        targetNumber: config.targetNumber,
+        targetName: config.targetName,
+        fromNumber: config.fromNumber,
+        record: config.record,
+        transcribe: config.transcribe,
+      }
+    })
+    window.dispatchEvent(callEvent)
   }
 
   const handleTargetSelect = (number: string, name?: string) => {
@@ -242,15 +253,25 @@ export default function VoiceOperationsClient({
               {/* Target & Campaign Selector with Recent Targets */}
               <div className="space-y-4" data-tour="target-selector">
                 <TargetCampaignSelector organizationId={organizationId} />
-                
-                {/* Recent Targets - Quick Access */}
-                <div className="bg-white rounded-md border border-gray-200 p-4">
-                  <RecentTargets
-                    organizationId={organizationId}
-                    onSelect={handleTargetSelect}
-                    limit={3}
+              </div>
+
+              {/* PRIMARY ACTION: Place Call Button - Above the fold */}
+              <div data-tour="place-call">
+                {!activeCallId && (
+                  <ExecutionControls 
+                    organizationId={organizationId} 
+                    onCallPlaced={handleCallPlaced}
                   />
-                </div>
+                )}
+              </div>
+
+              {/* Recent Targets - Quick Access (secondary) */}
+              <div className="bg-white rounded-md border border-gray-200 p-4">
+                <RecentTargets
+                  organizationId={organizationId}
+                  onSelect={handleTargetSelect}
+                  limit={3}
+                />
               </div>
 
               {/* Call Options - Progressive Disclosure */}
@@ -295,16 +316,6 @@ export default function VoiceOperationsClient({
                 )}
               </section>
 
-              {/* Execution Controls - Primary Action */}
-              <div data-tour="place-call">
-                {!activeCallId && (
-                  <ExecutionControls 
-                    organizationId={organizationId} 
-                    onCallPlaced={handleCallPlaced}
-                  />
-                )}
-              </div>
-
               {/* Call Detail View */}
               <div id="call-detail-container">
                 <CallDetailView
@@ -344,6 +355,14 @@ export default function VoiceOperationsClient({
 
                 <TargetCampaignSelector organizationId={organizationId} />
 
+                {/* PRIMARY ACTION: Place Call Button - Immediately after phone input */}
+                {!activeCallId && (
+                  <ExecutionControls 
+                    organizationId={organizationId}
+                    onCallPlaced={handleCallPlaced}
+                  />
+                )}
+
                 {/* Recent Targets */}
                 <div className="bg-white rounded-md border border-gray-200 p-4">
                   <RecentTargets
@@ -374,13 +393,6 @@ export default function VoiceOperationsClient({
                     />
                   </div>
                 </details>
-
-                {!activeCallId && (
-                  <ExecutionControls 
-                    organizationId={organizationId}
-                    onCallPlaced={handleCallPlaced}
-                  />
-                )}
 
                 {/* Scheduled Calls - Collapsible */}
                 <details className="bg-white rounded-md border border-gray-200">

@@ -154,7 +154,7 @@ export default async function InvitePage({ params }: PageProps) {
             You're Invited!
           </h1>
           <p className="text-slate-400 mb-6">
-            You've been invited to join <span className="text-white font-medium">{orgName}</span> on VoxSouth.
+            You've been invited to join <span className="text-white font-medium">{orgName}</span> on Wordis Bond.
           </p>
 
           <div className="bg-slate-800/50 rounded-lg p-4 mb-6">

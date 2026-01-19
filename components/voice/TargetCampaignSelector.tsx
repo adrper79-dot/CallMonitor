@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { useRBAC } from '@/hooks/useRBAC'
 import { NativeSelect as Select } from '@/components/ui/native-select'
@@ -27,6 +27,17 @@ export interface TargetCampaignSelectorProps {
   organizationId: string | null
 }
 
+/**
+ * TargetCampaignSelector - Simplified Single-Input Design
+ * 
+ * Steve Jobs principle: Focus on what matters
+ * - One primary input field for the target number
+ * - Smart autocomplete from saved targets
+ * - Optional "Your number" for bridge calls
+ * - Campaigns in collapsible Advanced section
+ * 
+ * Professional Design System v3.0
+ */
 export default function TargetCampaignSelector({ organizationId }: TargetCampaignSelectorProps) {
   const { config, loading: configLoading, updateConfig } = useVoiceConfig(organizationId)
   const { role } = useRBAC(organizationId)
@@ -39,10 +50,13 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [newTarget, setNewTarget] = useState({ phone_number: '', name: '' })
   
-  // Quick dial - enter a number directly without saving as target
-  const [quickDialNumber, setQuickDialNumber] = useState('')
-  const [fromNumber, setFromNumber] = useState('')  // Agent's phone number
-  const [useQuickDial, setUseQuickDial] = useState(true)  // Default to quick dial mode
+  // Unified input state
+  const [targetNumber, setTargetNumber] = useState('')
+  const [fromNumber, setFromNumber] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   const canEdit = role === 'owner' || role === 'admin'
 
@@ -50,7 +64,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
     if (!organizationId) return
 
     async function fetchData() {
-      if (!organizationId) return // Guard for TypeScript
+      if (!organizationId) return
       try {
         setLoading(true)
         const [targetsRes, campaignsRes] = await Promise.all([
@@ -72,7 +86,6 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
           setCampaigns(campaignsData.campaigns || [])
         }
       } catch (err) {
-        // Silently handle - empty states are shown in UI
         setCampaigns([])
         setTargets([])
       } finally {
@@ -83,36 +96,104 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
     fetchData()
   }, [organizationId])
 
-  async function handleSave() {
-    if (!organizationId || !canEdit) return
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        suggestionsRef.current && 
+        !suggestionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
-    try {
-      setSaving(true)
-      await updateConfig({
-        target_id: config?.target_id,
-        campaign_id: config?.campaign_id,
-      })
-      toast({
-        title: 'Configuration saved',
-        description: 'Target and campaign selection saved successfully.',
-      })
-    } catch (err: any) {
-      toast({
-        title: 'Error',
-        description: err?.message || 'Failed to save configuration',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
+  // Filter targets for autocomplete
+  const filteredTargets = targets.filter(t => 
+    t.is_active && (
+      t.phone_number.includes(targetNumber) ||
+      t.name?.toLowerCase().includes(targetNumber.toLowerCase())
+    )
+  ).slice(0, 5)
+
+  // Validate E.164 format
+  const isValidE164 = (number: string) => /^\+[1-9]\d{1,14}$/.test(number)
+  const isTargetValid = isValidE164(targetNumber)
+
+  // Auto-format phone number to E.164
+  const autoFormatPhone = (value: string): string => {
+    // Remove all non-digit characters except +
+    let cleaned = value.replace(/[^\d+]/g, '')
+    
+    // If starts with digits (no +), assume US number and add +1
+    if (cleaned.length > 0 && !cleaned.startsWith('+')) {
+      // Remove any leading 1 if present (to avoid +11...)
+      if (cleaned.startsWith('1') && cleaned.length > 10) {
+        cleaned = cleaned.slice(1)
+      }
+      cleaned = '+1' + cleaned
+    }
+    
+    return cleaned
+  }
+
+  // Handle target number change with auto-formatting
+  const handleTargetChange = (value: string) => {
+    // Only auto-format when user pastes or types enough digits
+    let formattedValue = value
+    
+    // Auto-format if it looks like a raw phone number (10+ digits, no +)
+    if (/^\d{10,}$/.test(value.replace(/\D/g, '')) && !value.startsWith('+')) {
+      formattedValue = autoFormatPhone(value)
+    }
+    
+    setTargetNumber(formattedValue)
+    setShowSuggestions(formattedValue.length > 0 && filteredTargets.length > 0)
+    
+    // Sync to config
+    if (isValidE164(formattedValue)) {
+      updateConfig({ quick_dial_number: formattedValue, target_id: null })
+    }
+  }
+
+  // Handle blur to auto-format incomplete numbers
+  const handleTargetBlur = () => {
+    if (targetNumber && !targetNumber.startsWith('+')) {
+      const formatted = autoFormatPhone(targetNumber)
+      setTargetNumber(formatted)
+      if (isValidE164(formatted)) {
+        updateConfig({ quick_dial_number: formatted, target_id: null })
+      }
+    }
+  }
+
+  // Handle selecting from suggestions
+  const handleSelectTarget = (target: Target) => {
+    setTargetNumber(target.phone_number)
+    setShowSuggestions(false)
+    updateConfig({ target_id: target.id, quick_dial_number: null })
+    toast({
+      title: 'Target selected',
+      description: target.name ? `${target.name} (${target.phone_number})` : target.phone_number,
+    })
+  }
+
+  // Handle from number change
+  const handleFromNumberChange = (value: string) => {
+    setFromNumber(value)
+    if (!value || isValidE164(value)) {
+      updateConfig({ from_number: value || null })
     }
   }
 
   async function handleAddTarget() {
     if (!organizationId || !canEdit) return
     
-    // Validate E.164 format
-    const e164Regex = /^\+[1-9]\d{1,14}$/
-    if (!e164Regex.test(newTarget.phone_number)) {
+    if (!isValidE164(newTarget.phone_number)) {
       toast({
         title: 'Invalid phone number',
         description: 'Phone number must be in E.164 format (e.g., +12025551234)',
@@ -137,10 +218,8 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       const data = await res.json()
       
       if (data.success && data.target) {
-        // Add to local state
         setTargets([...targets, data.target])
         
-        // Auto-select if it's the only target
         if (targets.length === 0) {
           await updateConfig({ target_id: data.target.id })
         }
@@ -148,7 +227,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
         setShowAddTarget(false)
         setNewTarget({ phone_number: '', name: '' })
         toast({
-          title: 'Target added',
+          title: 'Target saved',
           description: `Added ${data.target.phone_number} to your targets.`,
         })
       } else {
@@ -166,210 +245,204 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   }
 
   if (loading || configLoading) {
-    return <div className="p-4 text-slate-400 text-sm">Loading...</div>
-  }
-
-  // Handle quick dial number change and sync to config
-  const handleQuickDialChange = (number: string) => {
-    setQuickDialNumber(number)
-    // Store the quick dial number in config for the call - immediate update
-    updateConfig({ quick_dial_number: number || null, target_id: null })
-  }
-  
-  // Handle from number (agent's phone) change
-  const handleFromNumberChange = (number: string) => {
-    setFromNumber(number)
-    updateConfig({ from_number: number || null })
-  }
-  
-  // Toggle between saved targets and quick dial
-  const handleModeChange = (useQuick: boolean) => {
-    setUseQuickDial(useQuick)
-    if (!useQuick) {
-      setQuickDialNumber('')
-      updateConfig({ quick_dial_number: null })
-    } else {
-      updateConfig({ target_id: null })
-    }
+    return (
+      <div className="p-4 bg-white rounded-lg border border-[#E5E5E5]">
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <section aria-labelledby="target-campaign-selector" className="w-full p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm">
-      <h3 id="target-campaign-selector" className="text-base font-semibold text-[#333333] mb-2">
-        📞 Target Number
+    <section 
+      aria-labelledby="target-campaign-selector" 
+      className="w-full p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm"
+      data-tour="target-selector"
+    >
+      <h3 id="target-campaign-selector" className="text-base font-semibold text-[#333333] mb-1">
+        📞 Who are you calling?
       </h3>
       <p className="text-xs text-[#666666] mb-4">
-        Enter a phone number to call or select from saved targets.
+        Enter a phone number or select from recent targets
       </p>
 
       <div className="space-y-4">
-        {/* Mode Selector Tabs */}
-        <div className="flex border-b border-[#E5E5E5]">
-          <button
-            type="button"
-            onClick={() => handleModeChange(true)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              useQuickDial
-                ? 'border-[#C4001A] text-[#C4001A]'
-                : 'border-transparent text-[#666666] hover:text-[#333333]'
-            }`}
-          >
-            Quick Dial
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange(false)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              !useQuickDial
-                ? 'border-[#C4001A] text-[#C4001A]'
-                : 'border-transparent text-[#666666] hover:text-[#333333]'
-            }`}
-          >
-            Saved Targets ({targets.filter(t => t.is_active).length})
-          </button>
+        {/* Primary: Target Phone Number Input with Autocomplete */}
+        <div className="relative">
+          <label className="block text-sm font-medium text-[#333333] mb-1.5">
+            Phone Number to Call <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">📞</span>
+            <input
+              ref={inputRef}
+              type="tel"
+              value={targetNumber}
+              onChange={(e) => handleTargetChange(e.target.value)}
+              onBlur={handleTargetBlur}
+              onFocus={() => setShowSuggestions(targetNumber.length > 0 && filteredTargets.length > 0)}
+              placeholder="(202) 555-1234 or +12025551234"
+              className={`
+                w-full pl-10 pr-4 py-3 text-lg font-mono rounded-lg border-2 transition-all
+                focus:outline-none focus:ring-2 focus:ring-offset-1
+                ${isTargetValid 
+                  ? 'border-green-400 focus:ring-green-300 bg-green-50' 
+                  : targetNumber.length > 0 
+                    ? 'border-amber-300 focus:ring-amber-200'
+                    : 'border-gray-200 focus:ring-primary-300 focus:border-primary-400'
+                }
+              `}
+              aria-describedby="target-hint"
+              aria-expanded={showSuggestions}
+              aria-autocomplete="list"
+            />
+            {/* Valid indicator */}
+            {isTargetValid && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                ✓
+              </span>
+            )}
+          </div>
+          
+          {/* Autocomplete suggestions */}
+          {showSuggestions && filteredTargets.length > 0 && (
+            <div 
+              ref={suggestionsRef}
+              className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+            >
+              <div className="text-xs text-gray-500 px-3 py-1.5 bg-gray-50 border-b">
+                Recent Targets
+              </div>
+              {filteredTargets.map((target) => (
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => handleSelectTarget(target)}
+                  className="w-full px-3 py-2 text-left hover:bg-primary-50 transition-colors flex items-center justify-between group"
+                >
+                  <div>
+                    <span className="font-mono text-gray-900">{target.phone_number}</span>
+                    {target.name && (
+                      <span className="ml-2 text-sm text-gray-500">{target.name}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-primary-600 opacity-0 group-hover:opacity-100">
+                    Select
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          <p id="target-hint" className="text-xs text-[#666666] mt-1">
+            {targetNumber && !isTargetValid 
+              ? 'Include + and country code (e.g., +1 for US)' 
+              : 'E.164 format with country code'
+            }
+          </p>
         </div>
 
-        {/* Quick Dial Mode */}
-        {useQuickDial && (
-          <div className="space-y-4">
-            {/* Your Phone Number (Agent) - Optional for bridge calls */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <label className="block text-sm font-medium text-blue-900 mb-2">
-                📱 Your Phone Number (Agent)
-              </label>
+        {/* Ready indicator */}
+        {isTargetValid && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="text-sm text-green-800 flex items-center gap-2">
+              <span className="text-lg">✓</span>
+              <span>Ready to call <span className="font-mono font-bold">{targetNumber}</span></span>
+            </div>
+            {fromNumber && isValidE164(fromNumber) && (
+              <div className="text-xs text-green-700 mt-1 ml-6">
+                Bridge call via {fromNumber}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Advanced Options - Collapsible */}
+        <details 
+          className="group border border-gray-200 rounded-lg"
+          open={showAdvanced}
+          onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center justify-between list-none">
+            <span className="flex items-center gap-2">
+              <span className="text-gray-400 group-open:rotate-90 transition-transform">▶</span>
+              Advanced Options
+            </span>
+            {(fromNumber || config?.campaign_id) && (
+              <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                {[fromNumber ? 'Bridge' : '', config?.campaign_id ? 'Campaign' : ''].filter(Boolean).join(' + ')}
+              </span>
+            )}
+          </summary>
+          
+          <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-3">
+            {/* Your Phone Number (for bridge calls) */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className="block text-sm font-medium text-[#333333]">
+                  Call me first at
+                </label>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                  Bridge Call
+                </span>
+              </div>
               <Input
                 type="tel"
                 value={fromNumber}
                 onChange={(e) => handleFromNumberChange(e.target.value)}
                 placeholder="+12025551234"
-                className="text-base font-mono bg-white"
-                aria-describedby="from-number-help"
+                className="font-mono"
               />
-              <p id="from-number-help" className="text-xs text-blue-700 mt-1">
-                Optional: For bridge calls, we call you first then connect to the target
+              <p className="text-xs text-[#666666] mt-1.5 leading-relaxed">
+                <strong>How it works:</strong> We'll call your phone first. When you answer, we connect you to the target number. 
+                This keeps you in control and ensures the call is recorded from your end.
               </p>
             </div>
 
-            {/* Target Phone Number to Call */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <label className="block text-sm font-medium text-[#333333] mb-2">
-                📞 Phone Number to Call (Target)
-              </label>
-              <Input
-                type="tel"
-                value={quickDialNumber}
-                onChange={(e) => handleQuickDialChange(e.target.value)}
-                placeholder="+12025551234"
-                className="text-lg font-mono bg-white"
-                aria-describedby="quick-dial-help"
-              />
-              <p id="quick-dial-help" className="text-xs text-[#666666] mt-1">
-                E.164 format required (e.g., +12025551234)
-              </p>
-            </div>
-            
-            {/* Status indicator */}
-            {quickDialNumber && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="text-sm text-green-800 space-y-1">
-                  <div>✓ Target: <span className="font-mono font-bold">{quickDialNumber}</span></div>
-                  {fromNumber && (
-                    <div>✓ Agent: <span className="font-mono font-bold">{fromNumber}</span> (bridge call)</div>
-                  )}
-                  {!fromNumber && (
-                    <div className="text-green-600 text-xs">Direct call mode (no agent bridge)</div>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {!quickDialNumber && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                ⚠️ Enter a phone number to call above
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Saved Targets Mode */}
-        {!useQuickDial && (
-          <div className="space-y-3">
+            {/* Campaign Selector */}
             <div>
               <Select
-                label="Select Target Number"
-                value={config?.target_id || ''}
+                label="Campaign"
+                value={config?.campaign_id || ''}
                 onChange={(e) => {
                   if (canEdit) {
-                    updateConfig({ target_id: e.target.value || null, quick_dial_number: null })
+                    updateConfig({ campaign_id: e.target.value || null })
                   }
                 }}
                 disabled={!canEdit}
-                aria-label="Select target phone number"
               >
-                <option value="">-- Select a target --</option>
-                {targets
-                  .filter((t) => t.is_active)
-                  .map((target) => (
-                    <option key={target.id} value={target.id}>
-                      {target.name ? `${target.name} (${target.phone_number})` : target.phone_number}
+                <option value="">None (single call)</option>
+                {campaigns
+                  .filter((c) => c.is_active)
+                  .map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      {campaign.name}
                     </option>
                   ))}
               </Select>
+              <p className="text-xs text-[#666666] mt-1">
+                Group calls under a campaign for reporting
+              </p>
             </div>
-            
-            {/* Currently selected target display */}
-            {config?.target_id && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="text-sm text-green-800">
-                  ✓ Selected: <span className="font-mono font-bold">
-                    {targets.find(t => t.id === config.target_id)?.phone_number || config.target_id}
-                  </span>
-                </div>
-              </div>
-            )}
-            
-            {targets.filter(t => t.is_active).length === 0 && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                No saved targets yet. Add a target or use Quick Dial mode.
-              </div>
-            )}
-            
-            {canEdit && (
+
+            {/* Save target button */}
+            {canEdit && targetNumber && isTargetValid && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddTarget(true)}
+                onClick={() => {
+                  setNewTarget({ phone_number: targetNumber, name: '' })
+                  setShowAddTarget(true)
+                }}
                 className="w-full"
               >
-                + Add New Target Number
+                💾 Save {targetNumber} to Targets
               </Button>
             )}
           </div>
-        )}
-
-        {/* Campaign Selector */}
-        <div className="pt-3 border-t border-[#E5E5E5]">
-          <Select
-            label="Campaign (Optional)"
-            value={config?.campaign_id || ''}
-            onChange={(e) => {
-              if (canEdit) {
-                updateConfig({ campaign_id: e.target.value || null })
-              }
-            }}
-            disabled={!canEdit}
-            aria-label="Select campaign"
-          >
-            <option value="">None</option>
-            {campaigns
-              .filter((c) => c.is_active)
-              .map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
-          </Select>
-        </div>
+        </details>
 
         {!canEdit && (
           <p className="text-xs text-[#666666] italic">
@@ -379,24 +452,21 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       </div>
 
       {/* Add Target Dialog */}
-      <Dialog open={showAddTarget} onOpenChange={setShowAddTarget} title="Add Target Number">
+      <Dialog open={showAddTarget} onOpenChange={setShowAddTarget} title="Save Target">
         <div className="space-y-4">
           <Input
-            label="Phone Number *"
+            label="Phone Number"
             type="tel"
             value={newTarget.phone_number}
             onChange={(e) => setNewTarget({ ...newTarget, phone_number: e.target.value })}
             placeholder="+12025551234"
             required
           />
-          <p className="text-xs text-[#666666] -mt-2">
-            E.164 format required (e.g., +12025551234)
-          </p>
           <Input
-            label="Name (Optional)"
+            label="Name (makes it easier to find later)"
             value={newTarget.name}
             onChange={(e) => setNewTarget({ ...newTarget, name: e.target.value })}
-            placeholder="Customer Support Line"
+            placeholder="e.g., Main Support Line"
           />
         </div>
         <div className="flex justify-end gap-2 mt-4">
@@ -404,7 +474,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
             Cancel
           </Button>
           <Button onClick={handleAddTarget} disabled={saving || !newTarget.phone_number}>
-            {saving ? 'Adding...' : 'Add Target'}
+            {saving ? 'Saving...' : 'Save Target'}
           </Button>
         </div>
       </Dialog>

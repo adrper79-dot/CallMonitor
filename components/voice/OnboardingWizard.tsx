@@ -20,43 +20,47 @@ export interface OnboardingConfig {
   transcribe: boolean
 }
 
-type Step = 'target' | 'caller-id' | 'options' | 'confirm'
+type Step = 'setup' | 'ready'
 
 /**
- * OnboardingWizard - First-Call Setup
+ * OnboardingWizard - Simplified First-Call Setup
  * 
- * Guides new users through placing their first call.
+ * Steve Jobs principle: "Simple can be harder than complex"
+ * Reduced from 4 steps to 2 for maximum conversion.
+ * 
+ * Step 1: Enter phone number (with optional name)
+ * Step 2: Review & Place Call (recording/transcription enabled by default)
+ * 
  * Professional Design System v3.0
  */
 export function OnboardingWizard({ organizationId, onComplete, onSkip }: OnboardingWizardProps) {
-  const [step, setStep] = useState<Step>('target')
+  const [step, setStep] = useState<Step>('setup')
   const [config, setConfig] = useState<OnboardingConfig>({
     targetNumber: '',
     targetName: '',
     fromNumber: '',
-    record: true,
-    transcribe: true,
+    record: true,       // Default ON - this is our core value
+    transcribe: true,   // Default ON - this is our core value
   })
   const [error, setError] = useState<string | null>(null)
-
-  const steps: { id: Step; label: string }[] = [
-    { id: 'target', label: 'Who to call' },
-    { id: 'caller-id', label: 'Your number' },
-    { id: 'options', label: 'Options' },
-    { id: 'confirm', label: 'Confirm' },
-  ]
-
-  const currentStepIndex = steps.findIndex(s => s.id === step)
 
   const validatePhoneNumber = (number: string): boolean => {
     const e164Regex = /^\+[1-9]\d{1,14}$/
     return e164Regex.test(number)
   }
 
+  const formatPhoneHint = (value: string): string | null => {
+    // Help users format correctly
+    if (value && !value.startsWith('+')) {
+      return 'Add + and country code (e.g., +1 for US)'
+    }
+    return null
+  }
+
   const handleNext = () => {
     setError(null)
 
-    if (step === 'target') {
+    if (step === 'setup') {
       if (!config.targetNumber) {
         setError('Please enter a phone number')
         return
@@ -65,26 +69,21 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
         setError('Please use E.164 format (e.g., +12025551234)')
         return
       }
-      setStep('caller-id')
-    } else if (step === 'caller-id') {
-      // Caller ID is optional for simple calls
+      // Optional: validate fromNumber if provided
       if (config.fromNumber && !validatePhoneNumber(config.fromNumber)) {
-        setError('Please use E.164 format (e.g., +12025551234)')
+        setError('Your number should be in E.164 format (e.g., +12025551234)')
         return
       }
-      setStep('options')
-    } else if (step === 'options') {
-      setStep('confirm')
-    } else if (step === 'confirm') {
+      setStep('ready')
+    } else if (step === 'ready') {
       onComplete(config)
     }
   }
 
   const handleBack = () => {
     setError(null)
-    const idx = currentStepIndex
-    if (idx > 0) {
-      setStep(steps[idx - 1].id)
+    if (step === 'ready') {
+      setStep('setup')
     }
   }
 
@@ -95,8 +94,15 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
         <div className="bg-primary-50 px-6 py-4 border-b border-primary-100">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Set Up Your First Call</h2>
-              <p className="text-sm text-gray-600 mt-0.5">Let's get you started in under a minute</p>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {step === 'setup' ? 'Set Up Your First Call' : 'Ready to Call'}
+              </h2>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {step === 'setup' 
+                  ? 'Enter the number you want to call' 
+                  : 'Review and place your first call'
+                }
+              </p>
             </div>
             <button
               onClick={onSkip}
@@ -107,178 +113,165 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
           </div>
         </div>
 
-        {/* Progress */}
+        {/* Simple Progress - 2 steps */}
         <div className="px-6 py-3 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            {steps.map((s, idx) => (
-              <React.Fragment key={s.id}>
-                <div 
-                  className={`
-                    flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium
-                    ${idx < currentStepIndex 
-                      ? 'bg-success text-white' 
-                      : idx === currentStepIndex 
-                        ? 'bg-primary-600 text-white' 
-                        : 'bg-gray-100 text-gray-400'
-                    }
-                  `}
-                >
-                  {idx < currentStepIndex ? (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    idx + 1
-                  )}
-                </div>
-                {idx < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 ${idx < currentStepIndex ? 'bg-success' : 'bg-gray-200'}`} />
-                )}
-              </React.Fragment>
-            ))}
+            <div 
+              className={`
+                flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
+                ${step === 'ready' ? 'bg-success text-white' : 'bg-primary-600 text-white'}
+              `}
+            >
+              {step === 'ready' ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : '1'}
+            </div>
+            <div className={`flex-1 h-1 rounded ${step === 'ready' ? 'bg-success' : 'bg-gray-200'}`} />
+            <div 
+              className={`
+                flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium
+                ${step === 'ready' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-400'}
+              `}
+            >
+              2
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Step {currentStepIndex + 1} of {steps.length}: {steps[currentStepIndex].label}
-          </p>
         </div>
 
         {/* Content */}
         <div className="p-6">
           {/* Error */}
           {error && (
-            <div className="mb-4 p-3 bg-error-light border border-red-200 rounded-md text-error text-sm">
+            <div className="mb-4 p-3 bg-error-light border border-red-200 rounded-md text-error text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
               {error}
             </div>
           )}
 
-          {/* Step 1: Target */}
-          {step === 'target' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Enter the phone number you want to call. This can be a support line, customer number, or test line.
-              </p>
-              <Input
-                label="Phone Number to Call"
-                type="tel"
-                value={config.targetNumber}
-                onChange={(e) => setConfig({ ...config, targetNumber: e.target.value })}
-                placeholder="+12025551234"
-                hint="E.164 format required (include country code)"
-                autoFocus
-              />
+          {/* Step 1: Setup - Combined target + optional caller ID */}
+          {step === 'setup' && (
+            <div className="space-y-5">
+              <div>
+                <Input
+                  label="Phone Number to Call *"
+                  type="tel"
+                  value={config.targetNumber}
+                  onChange={(e) => setConfig({ ...config, targetNumber: e.target.value })}
+                  placeholder="+12025551234"
+                  hint={formatPhoneHint(config.targetNumber) || "E.164 format (include country code)"}
+                  autoFocus
+                />
+              </div>
+              
               <Input
                 label="Name (optional)"
                 value={config.targetName || ''}
                 onChange={(e) => setConfig({ ...config, targetName: e.target.value })}
-                placeholder="Main Support Line"
-                hint="For your reference only"
+                placeholder="e.g., Main Support Line"
+                hint="For your reference"
               />
-            </div>
-          )}
 
-          {/* Step 2: Caller ID */}
-          {step === 'caller-id' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Optionally enter your phone number. This enables "bridge calls" where we call you first, then connect you to the target.
-              </p>
-              <Input
-                label="Your Phone Number (optional)"
-                type="tel"
-                value={config.fromNumber || ''}
-                onChange={(e) => setConfig({ ...config, fromNumber: e.target.value })}
-                placeholder="+12025559876"
-                hint="Leave empty for direct outbound calls"
-              />
-              <div className="p-3 bg-info-light border border-blue-200 rounded-md">
-                <p className="text-sm text-gray-700">
-                  <strong>Bridge calls</strong> connect you to the target through our system, ensuring all calls are recorded with full provenance.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Options */}
-          {step === 'options' && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Choose what to capture during the call. These can be changed later.
-              </p>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Record Call</p>
-                    <p className="text-xs text-gray-500">Immutable audio evidence</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="success">Authoritative</Badge>
-                    <Switch
-                      checked={config.record}
-                      onCheckedChange={(checked) => setConfig({ ...config, record: checked })}
-                    />
-                  </div>
+              {/* Collapsible advanced option */}
+              <details className="group">
+                <summary className="text-sm text-primary-600 cursor-pointer hover:text-primary-700 flex items-center gap-1">
+                  <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  Add your phone number (for bridge calls)
+                </summary>
+                <div className="mt-3 pl-5">
+                  <Input
+                    label="Your Phone Number"
+                    type="tel"
+                    value={config.fromNumber || ''}
+                    onChange={(e) => setConfig({ ...config, fromNumber: e.target.value })}
+                    placeholder="+12025559876"
+                    hint="We'll call you first, then connect to target"
+                  />
                 </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Transcribe</p>
-                    <p className="text-xs text-gray-500">AI-powered canonical transcript</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="success">Authoritative</Badge>
-                    <Switch
-                      checked={config.transcribe}
-                      onCheckedChange={(checked) => setConfig({ ...config, transcribe: checked })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs text-gray-500">
-                More options (translation, surveys, secret shopper) available in Settings.
-              </p>
+              </details>
             </div>
           )}
 
-          {/* Step 4: Confirm */}
-          {step === 'confirm' && (
+          {/* Step 2: Ready - Confirm and call */}
+          {step === 'ready' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Review your configuration and place your first call.
-              </p>
-              
-              <div className="bg-gray-50 rounded-md p-4 space-y-3">
-                <div className="flex justify-between items-start">
+              {/* Call summary card */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">Calling:</span>
                   <div className="text-right">
-                    <p className="text-sm font-mono text-gray-900">{config.targetNumber}</p>
+                    <p className="text-base font-mono font-medium text-gray-900">{config.targetNumber}</p>
                     {config.targetName && (
-                      <p className="text-xs text-gray-500">{config.targetName}</p>
+                      <p className="text-sm text-gray-500">{config.targetName}</p>
                     )}
                   </div>
                 </div>
 
                 {config.fromNumber && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Your number:</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-500">Via bridge:</span>
                     <span className="text-sm font-mono text-gray-900">{config.fromNumber}</span>
                   </div>
                 )}
+              </div>
 
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Recording:</span>
-                  <Badge variant={config.record ? 'success' : 'default'}>
-                    {config.record ? 'Enabled' : 'Disabled'}
-                  </Badge>
-                </div>
+              {/* Evidence options - inline toggles */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Evidence Capture</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, record: !config.record })}
+                    className={`
+                      flex-1 p-3 rounded-lg border-2 transition-all
+                      ${config.record 
+                        ? 'border-success bg-success/5' 
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">🎙️ Record</span>
+                      <Switch
+                        checked={config.record}
+                        onCheckedChange={(checked) => setConfig({ ...config, record: checked })}
+                      />
+                    </div>
+                  </button>
 
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Transcription:</span>
-                  <Badge variant={config.transcribe ? 'success' : 'default'}>
-                    {config.transcribe ? 'Enabled' : 'Disabled'}
-                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() => setConfig({ ...config, transcribe: !config.transcribe })}
+                    className={`
+                      flex-1 p-3 rounded-lg border-2 transition-all
+                      ${config.transcribe 
+                        ? 'border-success bg-success/5' 
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">📝 Transcribe</span>
+                      <Switch
+                        checked={config.transcribe}
+                        onCheckedChange={(checked) => setConfig({ ...config, transcribe: checked })}
+                      />
+                    </div>
+                  </button>
                 </div>
+              </div>
+
+              {/* Trust badge */}
+              <div className="flex items-center gap-2 text-xs text-gray-500 pt-2">
+                <Badge variant="secondary" className="text-xs">
+                  🔒 Immutable Evidence
+                </Badge>
+                <span>All calls create court-ready records</span>
               </div>
             </div>
           )}
@@ -286,7 +279,7 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
 
         {/* Actions */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
-          {currentStepIndex > 0 && (
+          {step === 'ready' && (
             <Button variant="outline" onClick={handleBack}>
               Back
             </Button>
@@ -296,7 +289,11 @@ export function OnboardingWizard({ organizationId, onComplete, onSkip }: Onboard
             onClick={handleNext}
             className="flex-1"
           >
-            {step === 'confirm' ? 'Place Call' : 'Continue'}
+            {step === 'ready' ? (
+              <span className="flex items-center justify-center gap-2">
+                <span>📞</span> Place Call
+              </span>
+            ) : 'Continue'}
           </Button>
         </div>
       </div>

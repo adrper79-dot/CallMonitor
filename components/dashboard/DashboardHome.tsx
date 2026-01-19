@@ -127,8 +127,21 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         <section aria-label="Quick Actions" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
           
+          {/* PRIMARY CTA - Make a Call */}
+          <Link
+            href="/voice"
+            className="block w-full py-4 px-6 bg-primary-600 hover:bg-primary-700 text-white text-center font-semibold rounded-lg shadow-sm transition-colors"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              Make a Call
+            </span>
+          </Link>
+          
+          {/* Secondary Actions */}
           <div className="bg-white border border-gray-200 rounded-md p-4 space-y-1">
-            <ActionLink href="/voice" title="Make a Call" description="Start a new outbound call" />
             <ActionLink href="/bookings" title="Schedule Call" description="Book a future call" />
             <ActionLink href="/settings?tab=targets" title="Manage Targets" description="Add or edit call targets" />
             {(plan === 'business' || plan === 'enterprise') && (

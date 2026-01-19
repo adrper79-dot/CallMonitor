@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import AuthProvider from "../components/AuthProvider"
-import UnlockForm from "../components/UnlockForm"
 import Navigation from "../components/Navigation"
 import { ErrorBoundary } from "../components/ErrorBoundary"
+import { ToastProvider } from "../components/ui/toast"
 
 // Jetsons-inspired typography
 const spaceGrotesk = Space_Grotesk({ 
@@ -26,17 +26,17 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'VoxSouth | The Executive\'s Voice Intelligence Platform',
-  description: 'For the discerning executive who demands tomorrow\'s technology today. Enterprise call monitoring, transcription, and AI-powered analytics.',
-  keywords: ['call monitoring', 'voice analytics', 'transcription', 'AI', 'executive', 'enterprise'],
+  title: 'Wordis Bond | The System of Record for Business Conversations',
+  description: 'Evidence-grade call monitoring, transcription, and AI-powered analytics. What was said is what matters.',
+  keywords: ['call monitoring', 'voice analytics', 'transcription', 'AI', 'evidence-grade', 'enterprise'],
   authors: [{ name: 'Latimer + Woods Tech LLC' }],
   icons: {
     icon: '/favicon.ico',
     apple: '/logo.png',
   },
   openGraph: {
-    title: 'VoxSouth | The Executive\'s Voice Intelligence Platform',
-    description: 'Tomorrow\'s voice technology, available today.',
+    title: 'Wordis Bond | The System of Record for Business Conversations',
+    description: 'Evidence-grade call monitoring. What was said is what matters.',
     type: 'website',
   },
 }
@@ -54,9 +54,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-body min-h-screen">
         <ErrorBoundary>
           <AuthProvider>
-            <UnlockForm />
-            <Navigation />
-            {children}
+            <ToastProvider>
+              <Navigation />
+              {children}
+            </ToastProvider>
           </AuthProvider>
         </ErrorBoundary>
       </body>

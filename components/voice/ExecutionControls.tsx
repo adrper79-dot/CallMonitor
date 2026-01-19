@@ -22,7 +22,7 @@ export interface ExecutionControlsProps {
 export default function ExecutionControls({ organizationId, onCallPlaced }: ExecutionControlsProps) {
   const { role } = useRBAC(organizationId)
   const canPlaceCall = usePermission(organizationId, 'call', 'execute')
-  const { config } = useVoiceConfig(organizationId)
+  const { config, updateConfig } = useVoiceConfig(organizationId)
   const { toast } = useToast()
   const { updates, connected } = useRealtime(organizationId)
 
@@ -31,6 +31,42 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
   const [callStatus, setCallStatus] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
   const isPlacingCallRef = useRef(false)
+  const pendingOnboardingCall = useRef<any>(null)
+
+  // Listen for onboarding completion to trigger immediate call
+  useEffect(() => {
+    function handleOnboardingComplete(e: CustomEvent) {
+      const detail = e.detail
+      if (detail?.targetNumber) {
+        // Store the config to trigger call after config update
+        pendingOnboardingCall.current = detail
+        // Update config with onboarding values
+        updateConfig({
+          quick_dial_number: detail.targetNumber,
+          from_number: detail.fromNumber || null,
+          record: detail.record ?? true,
+          transcribe: detail.transcribe ?? true,
+        })
+      }
+    }
+
+    window.addEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
+    return () => {
+      window.removeEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
+    }
+  }, [updateConfig])
+
+  // Trigger call after config is updated from onboarding
+  useEffect(() => {
+    if (pendingOnboardingCall.current && config?.quick_dial_number === pendingOnboardingCall.current.targetNumber) {
+      // Small delay to ensure config is fully propagated
+      const timer = setTimeout(() => {
+        pendingOnboardingCall.current = null
+        handlePlaceCall()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [config?.quick_dial_number])
 
   // Monitor real-time updates for active call
   useEffect(() => {
