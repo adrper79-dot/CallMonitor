@@ -47,9 +47,9 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     logger.error('[webrtc] SignalWire credentials not configured', null)
     return null
   }
-  
+
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
-  
+
   try {
     // Try Relay REST JWT endpoint first (for Relay SDK v3)
     const jwtResponse = await fetch(
@@ -66,11 +66,11 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
         })
       }
     )
-    
+
     if (jwtResponse.ok) {
       const data = await jwtResponse.json()
       logger.info('[webrtc] Got SignalWire JWT token')
-      
+
       return {
         token: data.jwt_token,
         iceServers: [
@@ -84,11 +84,11 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
         ]
       }
     }
-    
+
     // Log the error but continue - we can still return a session without pre-fetched token
     const errorText = await jwtResponse.text()
     logger.warn('[webrtc] SignalWire JWT endpoint returned non-OK', { status: jwtResponse.status, errorText })
-    
+
     // Return null token but provide ICE servers for fallback WebRTC
     // The client can authenticate directly with project/token
     return {
@@ -126,47 +126,47 @@ export async function POST(request: NextRequest) {
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Rate limiting (30 sessions per hour per user - prevents abuse)
     const rateLimitKey = `webrtc:session:${userId}`
     const rateLimitCheck = await checkRateLimit(rateLimitKey, 30, 60 * 60 * 1000) // 30/hour
-    
+
     if (!rateLimitCheck.allowed) {
       logger.warn('WebRTC session rate limit exceeded', { userId, remaining: rateLimitCheck.remaining })
-      
+
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'RATE_LIMIT_EXCEEDED', 
-            message: `Too many session requests. Please try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: `Too many session requests. Please try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.`
+          }
         },
         { status: 429 }
       )
     }
-    
+
     // Get user's organization
     const { data: member, error: memberError } = await supabaseAdmin
       .from('org_members')
       .select('organization_id, role')
       .eq('user_id', userId)
       .single()
-    
+
     if (memberError || !member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Check RBAC: Owner, Admin, Operator can use WebRTC
     if (!['owner', 'admin', 'operator'].includes(member.role)) {
       return NextResponse.json(
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       )
     }
-    
+
     // Check feature flag
     const { data: featureFlag } = await supabaseAdmin
       .from('org_feature_flags')
@@ -182,41 +182,84 @@ export async function POST(request: NextRequest) {
       .eq('organization_id', member.organization_id)
       .eq('feature', 'voice_operations')
       .single()
-    
+
     if (featureFlag?.enabled === false) {
       return NextResponse.json(
         { success: false, error: { code: 'FEATURE_DISABLED', message: 'Voice operations are disabled' } },
         { status: 403 }
       )
     }
-    
-    // Check for existing active session
-    const { data: existingSession } = await supabaseAdmin
+
+    // Check for and auto-cleanup stale sessions
+    // Per ARCH_DOCS: Sessions stuck in 'initializing' for >5 min or any active session >1 hour old should be cleaned up
+    const ONE_HOUR_AGO = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const FIVE_MIN_AGO = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+    // Find stale sessions to clean up
+    const { data: staleSessions } = await supabaseAdmin
       .from('webrtc_sessions')
-      .select('id, status')
+      .select('id, status, created_at')
       .eq('user_id', userId)
       .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
-      .single()
-    
-    if (existingSession) {
-      return NextResponse.json(
-        { success: false, error: { code: 'SESSION_EXISTS', message: 'Active WebRTC session already exists. End it first.' } },
-        { status: 409 }
-      )
+
+    if (staleSessions && staleSessions.length > 0) {
+      for (const session of staleSessions) {
+        const createdAt = new Date(session.created_at).toISOString()
+        const isStale = createdAt < ONE_HOUR_AGO ||
+          (session.status === 'initializing' && createdAt < FIVE_MIN_AGO)
+
+        if (isStale) {
+          // Auto-cleanup stale session with audit logging per ARCH_DOCS
+          const { error: cleanupError } = await supabaseAdmin
+            .from('webrtc_sessions')
+            .update({ status: 'disconnected', updated_at: new Date().toISOString() })
+            .eq('id', session.id)
+
+          if (!cleanupError) {
+            // ARCH_DOCS compliant audit log with source='webrtc' and before/after state
+            await supabaseAdmin.from('audit_logs').insert({
+              organization_id: member.organization_id,
+              user_id: userId,
+              resource_type: 'webrtc_session',
+              resource_id: session.id,
+              action: 'webrtc:session.auto_cleanup',
+              actor_type: 'system',
+              actor_label: 'webrtc-session-cleanup',
+              before: { status: session.status, source: 'webrtc' },
+              after: { status: 'disconnected', source: 'webrtc', reason: 'stale_session_cleanup' },
+              created_at: new Date().toISOString()
+            })
+
+            logger.info('WebRTC stale session auto-cleaned', {
+              session_id: session.id,
+              user_id: userId,
+              old_status: session.status,
+              source: 'webrtc',
+              age_minutes: Math.round((Date.now() - new Date(session.created_at).getTime()) / 60000)
+            })
+          }
+        } else {
+          // Session is not stale - return conflict
+          return NextResponse.json(
+            { success: false, error: { code: 'SESSION_EXISTS', message: 'Active WebRTC session already exists. End it first or wait for it to expire.' } },
+            { status: 409 }
+          )
+        }
+      }
     }
-    
+
     // Generate session token
     const sessionToken = generateSessionToken()
     const sessionId = crypto.randomUUID()
-    
+
     // Get SignalWire credentials
     const signalWireCredentials = await getSignalWireWebRTCToken(sessionId)
-    
+
     // Get user agent from request (for logging only - not stored in DB)
     const userAgent = request.headers.get('user-agent') || 'unknown'
     const forwardedFor = request.headers.get('x-forwarded-for')
     const ipAddress = forwardedFor?.split(',')[0] || 'unknown'
-    
+
     // Create session record - only columns that exist in production schema
     // Schema: id, organization_id, user_id, session_token, status, created_at
     const { data: newSession, error: insertError } = await supabaseAdmin
@@ -230,7 +273,7 @@ export async function POST(request: NextRequest) {
       })
       .select()
       .single()
-    
+
     if (insertError) {
       logger.error('WebRTC session creation failed', insertError, { userId, sessionId })
       return NextResponse.json(
@@ -238,7 +281,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
-    
+
     // CORRECT: Audit log for WebRTC session creation
     await supabaseAdmin.from('audit_logs').insert({
       organization_id: member.organization_id,
@@ -257,14 +300,14 @@ export async function POST(request: NextRequest) {
       },
       created_at: new Date().toISOString()
     })
-    
+
     logger.info('WebRTC session created', {
       session_id: sessionId,
       user_id: userId,
       organization_id: member.organization_id,
       source: 'webrtc'
     })
-    
+
     return NextResponse.json({
       success: true,
       session: {
@@ -294,14 +337,14 @@ export async function GET(request: NextRequest) {
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Get active session
     const { data: webrtcSession } = await supabaseAdmin
       .from('webrtc_sessions')
@@ -311,14 +354,14 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
-    
+
     if (!webrtcSession) {
       return NextResponse.json({
         success: true,
         session: null
       })
     }
-    
+
     // Return only columns that exist in production schema:
     // id, organization_id, user_id, session_token, status, created_at
     return NextResponse.json({
@@ -352,21 +395,21 @@ export async function DELETE(request: NextRequest) {
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Get organization for audit logging
     const { data: member } = await supabaseAdmin
       .from('org_members')
       .select('organization_id')
       .eq('user_id', userId)
       .single()
-    
+
     // Find and update active session
     // NOTE: disconnected_at is NOT in production schema - only update status
     const { data: updatedSession, error: updateError } = await supabaseAdmin
@@ -378,7 +421,7 @@ export async function DELETE(request: NextRequest) {
       .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
       .select()
       .single()
-    
+
     if (updateError && updateError.code !== 'PGRST116') {
       // Ignore "no rows returned" error
       logger.error('WebRTC session disconnect failed', updateError, { userId })
@@ -387,7 +430,7 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       )
     }
-    
+
     // CORRECT: Audit log for WebRTC session termination
     if (updatedSession && member?.organization_id) {
       await supabaseAdmin.from('audit_logs').insert({
@@ -402,14 +445,14 @@ export async function DELETE(request: NextRequest) {
         after: { status: 'disconnected', source: 'webrtc' },
         created_at: new Date().toISOString()
       })
-      
+
       logger.info('WebRTC session disconnected', {
         session_id: updatedSession.id,
         user_id: userId,
         source: 'webrtc'
       })
     }
-    
+
     return NextResponse.json({
       success: true,
       message: updatedSession ? 'Session ended' : 'No active session'
