@@ -265,6 +265,8 @@ async function processWebhookAsync(req: Request) {
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
+        is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS
+        produced_by: 'model',
         output: {
           ...(typeof aiRun.output === 'object' ? aiRun.output : {}),
           transcript: transcriptJson,
@@ -294,7 +296,9 @@ async function processWebhookAsync(req: Request) {
           action: 'update',
           before: { status: 'queued' },
           after: { status: 'completed', transcript_id: transcriptId },
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          actor_type: 'vendor',
+          actor_label: 'assemblyai-webhook'
         })
       } catch (auditErr) {
         // Best-effort

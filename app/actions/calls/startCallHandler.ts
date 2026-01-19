@@ -566,7 +566,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Transcription unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        const aiRow = { id: aiId, call_id: callId, system_id: systemAiId, model: 'assemblyai-v1', status: 'queued' }
+        const aiRow = { 
+          id: aiId, 
+          call_id: callId, 
+          system_id: systemAiId, 
+          model: 'assemblyai-v1', 
+          status: 'queued',
+          produced_by: 'model',
+          is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
+        }
         try {
           const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
           if (aiErr) {
@@ -596,6 +604,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           system_id: systemAiId, 
           model: 'assemblyai-translation-v1', 
           status: 'queued',
+          produced_by: 'model',
+          is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS
           output: { translate_from: fromLang, translate_to: toLang, pending: true }
         }
         try {

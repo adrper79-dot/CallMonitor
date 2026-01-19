@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
       id: transcriptId, call_id: null, system_id: null,
       model: 'assemblyai-upload', status: 'pending',
       started_at: new Date().toISOString(),
+      produced_by: 'model',
+      is_authoritative: true,
       output: { filename, audio_url, organization_id }
     })
 
@@ -59,6 +61,8 @@ export async function POST(request: NextRequest) {
       
       await supabaseAdmin.from('ai_runs').update({
         status: 'failed', completed_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
         output: { filename, audio_url, organization_id, error: error.error || 'AssemblyAI submission failed' }
       }).eq('id', transcriptId)
 
@@ -69,6 +73,8 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('ai_runs').update({
       status: 'processing',
+      produced_by: 'model',
+      is_authoritative: true,
       output: { filename, audio_url, organization_id, job_id: transcriptData.id, assemblyai_status: transcriptData.status }
     }).eq('id', transcriptId)
 

@@ -408,8 +408,14 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     const aiRunId = uuidv4()
     const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
-      id: aiRunId, call_id: callId, system_id: systemAiId,
-      model: 'assemblyai-v1', status: 'queued', started_at: new Date().toISOString()
+      id: aiRunId, 
+      call_id: callId, 
+      system_id: systemAiId,
+      model: 'assemblyai-v1', 
+      status: 'queued', 
+      started_at: new Date().toISOString(),
+      produced_by: 'model',
+      is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
     })
 
     if (aiErr) {
