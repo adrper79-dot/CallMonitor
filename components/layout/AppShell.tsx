@@ -186,7 +186,8 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
