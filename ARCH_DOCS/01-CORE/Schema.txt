@@ -1329,12 +1329,28 @@ CREATE TABLE public.transcript_versions (
   CONSTRAINT transcript_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT transcript_versions_produced_by_user_id_fkey FOREIGN KEY (produced_by_user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.usage_limits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  plan text,
+  metric text,
+  limit_value integer,
+  billing_period text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT usage_limits_pkey PRIMARY KEY (id),
+  CONSTRAINT usage_limits_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.usage_records (
   id uuid NOT NULL,
   organization_id uuid,
   metric text,
   value integer,
   recorded_at timestamp with time zone DEFAULT now(),
+  call_id uuid,
+  quantity integer,
+  billing_period_start timestamp with time zone,
+  billing_period_end timestamp with time zone,
+  metadata jsonb,
   CONSTRAINT usage_records_pkey PRIMARY KEY (id),
   CONSTRAINT usage_records_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -1429,6 +1445,13 @@ CREATE TABLE public.webhook_deliveries (
   status text DEFAULT 'pending'::text,
   attempts integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
+  max_attempts integer DEFAULT 5,
+  next_retry_at timestamp with time zone,
+  response_status integer,
+  response_body text,
+  response_time_ms integer,
+  last_error text,
+  delivered_at timestamp with time zone,
   CONSTRAINT webhook_deliveries_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.webhook_failures (
@@ -1468,6 +1491,10 @@ CREATE TABLE public.webhook_subscriptions (
   headers jsonb DEFAULT '{}'::jsonb,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
+  retry_policy text DEFAULT 'exponential'::text,
+  max_retries integer DEFAULT 5,
+  timeout_ms integer DEFAULT 30000,
+  updated_at timestamp with time zone,
   CONSTRAINT webhook_subscriptions_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.webrtc_sessions (
@@ -1477,5 +1504,8 @@ CREATE TABLE public.webrtc_sessions (
   session_token text NOT NULL UNIQUE,
   status text DEFAULT 'initializing'::text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT webrtc_sessions_pkey PRIMARY KEY (id)
+  call_id uuid,
+  updated_at timestamp with time zone,
+  CONSTRAINT webrtc_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT webrtc_sessions_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id)
 );
