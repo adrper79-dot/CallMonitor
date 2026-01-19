@@ -186,6 +186,28 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
       throw e
     }
 
+    // Intent capture: Record intent:transcription_requested BEFORE execution (ARCH_DOCS compliance)
+    // "You initiate intent. We orchestrate execution."
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
+        organization_id,
+        user_id: capturedActorId,
+        system_id: null,
+        resource_type: 'recordings',
+        resource_id: recording_id,
+        action: 'intent:transcription_requested',
+        before: null,
+        after: {
+          recording_id,
+          call_id: resolvedCallId,
+          provider: 'assemblyai',
+          declared_at: new Date().toISOString()
+        },
+        created_at: new Date().toISOString()
+      })
+    } catch (__) {}
+
     // Execute AssemblyAI (Intelligence Plane) with retry and circuit breaker
     let aaiRes
     try {

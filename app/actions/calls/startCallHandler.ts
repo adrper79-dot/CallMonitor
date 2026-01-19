@@ -449,7 +449,28 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw e
     }
 
-    
+    // Intent capture: Record intent:call_start BEFORE execution (ARCH_DOCS compliance)
+    // "You initiate intent. We orchestrate execution."
+    await bestEffortAuditLog(
+      () => supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
+        organization_id,
+        user_id: capturedActorId,
+        system_id: capturedSystemCpidId,
+        resource_type: 'calls',
+        resource_id: callId,
+        action: 'intent:call_start',
+        before: null,
+        after: {
+          flow_type,
+          modulations: effectiveModulations,
+          record_enabled: effectiveModulations?.record ?? false,
+          declared_at: new Date().toISOString()
+        },
+        created_at: new Date().toISOString()
+      }),
+      { resource: 'calls', resourceId: callId, action: 'intent:call_start' }
+    )
 
     // execute SignalWire (via injected caller if available)
     let call_sid: string | null = null

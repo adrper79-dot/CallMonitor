@@ -68,22 +68,30 @@ export async function writeAudit(entry: AuditLogEntry): Promise<boolean> {
       resource: entry.resource_id
     })
 
-    // Write to database
+    // Write to database using correct schema columns
+    // Schema: id, organization_id, user_id, system_id, resource_type, resource_id, 
+    //         action, before, after, created_at, actor_type, actor_label
+    // Extra fields go in the 'after' jsonb column
     const { error } = await supabaseAdmin
       .from('audit_logs')
       .insert({
-        event_type: entry.event_type,
-        actor_id: entry.actor_id,
-        actor_type: entry.actor_type || 'system',
         organization_id: entry.organization_id,
+        user_id: entry.actor_type === 'user' ? entry.actor_id : null,
+        system_id: entry.actor_type === 'system' ? entry.actor_id : null,
         resource_type: entry.resource_type,
         resource_id: entry.resource_id,
         action: entry.action,
-        status: entry.status,
-        metadata: entry.metadata || {},
-        error_message: entry.error_message,
-        ip_address: entry.ip_address,
-        user_agent: entry.user_agent,
+        actor_type: entry.actor_type || 'system',
+        actor_label: entry.event_type, // Use event_type as actor label
+        before: null,
+        after: {
+          event_type: entry.event_type,
+          status: entry.status,
+          metadata: entry.metadata || {},
+          error_message: entry.error_message,
+          ip_address: entry.ip_address,
+          user_agent: entry.user_agent
+        },
         created_at: new Date().toISOString()
       })
 

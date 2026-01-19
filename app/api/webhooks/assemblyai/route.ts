@@ -127,11 +127,11 @@ async function processWebhookAsync(req: Request) {
           source: 'assemblyai-webhook'
         })
         
-        // Find and update ai_run to failed status
+        // Find and update ai_run to failed status (check both models)
         const { data: aiRows } = await supabaseAdmin
           .from('ai_runs')
           .select('id, call_id, output')
-          .eq('model', 'assemblyai-v1')
+          .in('model', ['assemblyai-v1', 'assemblyai-upload'])
           .contains('output', { job_id: transcriptId })
           .limit(1)
 
@@ -150,10 +150,11 @@ async function processWebhookAsync(req: Request) {
     }
 
     // Find the ai_run by transcript_id (stored in output.job_id)
+    // Check both call-based (assemblyai-v1) and upload-based (assemblyai-upload) models
     const { data: aiRows, error: aiErr } = await supabaseAdmin
       .from('ai_runs')
       .select('id, call_id, output')
-      .eq('model', 'assemblyai-v1')
+      .in('model', ['assemblyai-v1', 'assemblyai-upload'])
       .contains('output', { job_id: transcriptId })
       .limit(1)
 
@@ -468,8 +469,31 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       return
     }
 
-    // Create translation ai_run entry
+    // Intent capture: Record intent:translation_requested BEFORE execution (ARCH_DOCS compliance)
+    // "You initiate intent. We orchestrate execution."
     const translationRunId = uuidv4()
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
+        organization_id: organizationId,
+        user_id: null, // webhook-initiated (system action)
+        system_id: systemAiId,
+        resource_type: 'ai_runs',
+        resource_id: translationRunId,
+        action: 'intent:translation_requested',
+        before: null,
+        after: {
+          call_id: callId,
+          from_language: fromLanguage,
+          to_language: toLanguage,
+          provider: 'openai',
+          declared_at: new Date().toISOString()
+        },
+        created_at: new Date().toISOString()
+      })
+    } catch (__) {}
+
+    // Create translation ai_run entry
     await supabaseAdmin
       .from('ai_runs')
       .insert({

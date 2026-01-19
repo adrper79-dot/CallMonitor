@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: { 'Authorization': assemblyAIKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio_url, language_detection: true })
+      body: JSON.stringify({ 
+        audio_url, 
+        language_detection: true,
+        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`
+      })
     })
 
     if (!uploadResponse.ok) {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('ai_runs').update({
       status: 'processing',
-      output: { filename, audio_url, organization_id, assemblyai_id: transcriptData.id, assemblyai_status: transcriptData.status }
+      output: { filename, audio_url, organization_id, job_id: transcriptData.id, assemblyai_status: transcriptData.status }
     }).eq('id', transcriptId)
 
     return NextResponse.json({ success: true, transcript_id: transcriptId, assemblyai_id: transcriptData.id, status: 'processing' })

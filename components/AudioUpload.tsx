@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 
 export interface AudioUploadProps {
   organizationId: string
-  onUploadComplete?: (transcriptId: string) => void
+  onUploadComplete?: (transcriptId: string, transcript?: string) => void
 }
 
 export default function AudioUpload({ organizationId, onUploadComplete }: AudioUploadProps) {
@@ -16,7 +16,108 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
   const [uploading, setUploading] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [pollingId, setPollingId] = useState<string | null>(null)
+  const [transcriptResult, setTranscriptResult] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollCountRef = useRef(0)
+  const MAX_POLL_ATTEMPTS = 60 // 5 minutes at 5-second intervals
+
+  // Poll for transcription status
+  const pollStatus = useCallback(async (transcriptId: string) => {
+    try {
+      const res = await fetch(`/api/audio/status/${transcriptId}`, {
+        credentials: 'include'
+      })
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch status')
+      }
+
+      const data = await res.json()
+      
+      if (data.status === 'completed') {
+        // Success! Stop polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        setTranscribing(false)
+        setProgress(100)
+        setPollingId(null)
+        setTranscriptResult(data.transcript || null)
+        
+        toast({
+          title: 'Transcription complete!',
+          description: data.transcript 
+            ? `${data.transcript.substring(0, 100)}${data.transcript.length > 100 ? '...' : ''}`
+            : 'Transcript is ready'
+        })
+        
+        if (onUploadComplete) {
+          onUploadComplete(transcriptId, data.transcript)
+        }
+        return
+      }
+
+      if (data.status === 'failed') {
+        // Error - stop polling
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        setTranscribing(false)
+        setPollingId(null)
+        
+        toast({
+          title: 'Transcription failed',
+          description: data.error || 'Unknown error occurred',
+          variant: 'destructive'
+        })
+        return
+      }
+
+      // Still processing - update progress (visual feedback)
+      pollCountRef.current += 1
+      const estimatedProgress = Math.min(50 + (pollCountRef.current * 0.8), 95)
+      setProgress(estimatedProgress)
+
+      // Check timeout
+      if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
+        setTranscribing(false)
+        setPollingId(null)
+        
+        toast({
+          title: 'Transcription timeout',
+          description: 'Transcription is taking longer than expected. Check back later.',
+          variant: 'destructive'
+        })
+      }
+    } catch (err) {
+      logger.error('AudioUpload: poll status failed', err)
+    }
+  }, [onUploadComplete])
+
+  // Start polling when pollingId is set
+  useEffect(() => {
+    if (pollingId && !pollIntervalRef.current) {
+      pollCountRef.current = 0
+      pollIntervalRef.current = setInterval(() => {
+        pollStatus(pollingId)
+      }, 5000) // Poll every 5 seconds
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [pollingId, pollStatus])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -93,22 +194,23 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       }
 
       const transcribeData = await transcribeRes.json()
-      setProgress(100)
+      setProgress(50)
+
+      // Start polling for completion (webhook will update status)
+      setPollingId(transcribeData.transcript_id)
 
       toast({
-        title: 'Success!',
-        description: `Audio uploaded and transcription started. ID: ${transcribeData.transcript_id}`
+        title: 'Transcription started',
+        description: 'Processing audio... This may take a few minutes.'
       })
 
-      // Reset form
+      // Reset file selection (but keep transcribing state for polling)
       setFile(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
-
-      if (onUploadComplete) {
-        onUploadComplete(transcribeData.transcript_id)
-      }
+      setUploading(false)
+      // Note: transcribing remains true until polling completes
     } catch (err: any) {
       logger.error('AudioUpload: upload/transcription failed', err, {
         organizationId
@@ -118,7 +220,6 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
         description: err.message || 'An error occurred',
         variant: 'destructive'
       })
-    } finally {
       setUploading(false)
       setTranscribing(false)
       setProgress(0)
@@ -227,6 +328,28 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
           Audio will be uploaded to secure storage and transcribed using AssemblyAI. 
           Results will appear in your Voice Operations page.
         </p>
+
+        {/* Transcript Result */}
+        {transcriptResult && (
+          <div className="p-4 bg-slate-900 rounded border border-green-700">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-green-500">✓</span>
+              <span className="text-sm font-medium text-slate-100">Transcription Complete</span>
+            </div>
+            <p className="text-sm text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap">
+              {transcriptResult}
+            </p>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(transcriptResult)
+                toast({ title: 'Copied to clipboard' })
+              }}
+              className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+            >
+              Copy to clipboard
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

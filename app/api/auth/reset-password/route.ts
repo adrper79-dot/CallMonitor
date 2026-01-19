@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 
 /**
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createServerSupabaseClient()
+    const supabase = supabaseAdmin
 
     // Update the user's password
     const { error } = await supabase.auth.updateUser({
