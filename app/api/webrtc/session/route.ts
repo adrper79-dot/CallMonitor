@@ -48,12 +48,22 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     return null
   }
 
+  // Normalize SIGNALWIRE_SPACE - extract space name and construct full domain
+  // Handles: 'blackkryptonians', 'blackkryptonians.signalwire.com', 'https://blackkryptonians.signalwire.com/'
+  const rawSpace = String(SIGNALWIRE_SPACE)
+  const spaceName = rawSpace
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+    .replace(/\.signalwire\.com$/i, '')
+    .trim()
+  const signalwireDomain = `${spaceName}.signalwire.com`
+
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
 
   try {
     // Try Relay REST JWT endpoint first (for Relay SDK v3)
     const jwtResponse = await fetch(
-      `https://${SIGNALWIRE_SPACE}/api/relay/rest/jwt`,
+      `https://${signalwireDomain}/api/relay/rest/jwt`,
       {
         method: 'POST',
         headers: {
@@ -75,7 +85,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
         token: data.jwt_token,
         iceServers: [
           // SignalWire STUN/TURN servers
-          { urls: `stun:${SIGNALWIRE_SPACE}:3478` },
+          { urls: `stun:${signalwireDomain}:3478` },
           // Google STUN as fallback
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
@@ -94,7 +104,7 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
     return {
       token: '', // Empty - client will use project credentials directly
       iceServers: [
-        { urls: `stun:${SIGNALWIRE_SPACE}:3478` },
+        { urls: `stun:${signalwireDomain}:3478` },
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
       ]
