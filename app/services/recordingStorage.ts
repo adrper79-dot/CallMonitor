@@ -14,14 +14,14 @@ export async function storeRecording(
   try {
     const signalwireProjectId = process.env.SIGNALWIRE_PROJECT_ID
     const signalwireToken = process.env.SIGNALWIRE_TOKEN
-    
+
     if (!signalwireProjectId || !signalwireToken) {
       logger.error('recordingStorage: SignalWire credentials not configured')
       return null
     }
 
     const authHeader = `Basic ${Buffer.from(`${signalwireProjectId}:${signalwireToken}`).toString('base64')}`
-    
+
     logger.debug('recordingStorage: downloading from SignalWire', { recordingId })
 
     const response = await fetch(recordingUrl, {
@@ -30,13 +30,13 @@ export async function storeRecording(
     })
 
     if (!response.ok) {
-      logger.error('recordingStorage: failed to download from SignalWire', undefined, { 
+      logger.error('recordingStorage: failed to download from SignalWire', undefined, {
         status: response.status, statusText: response.statusText
       })
       return null
     }
 
-    logger.debug('recordingStorage: download successful', { 
+    logger.debug('recordingStorage: download successful', {
       recordingId,
       contentType: response.headers.get('content-type'),
       contentLength: response.headers.get('content-length')
@@ -45,7 +45,14 @@ export async function storeRecording(
     const audioBuffer = await response.arrayBuffer()
     const audioBlob = new Blob([audioBuffer])
 
-    const contentType = response.headers.get('content-type') || 'audio/mpeg'
+    // Detect content type - handle octet-stream by inferring from URL or defaulting to audio/mpeg
+    let contentType = response.headers.get('content-type') || 'audio/mpeg'
+    // If octet-stream, infer from URL or default to wav (SignalWire typically returns wav)
+    if (contentType === 'application/octet-stream') {
+      if (recordingUrl.includes('.wav')) contentType = 'audio/wav'
+      else if (recordingUrl.includes('.mp3')) contentType = 'audio/mpeg'
+      else contentType = 'audio/wav' // Default to wav for SignalWire recordings
+    }
     const extension = contentType.includes('wav') ? 'wav' : contentType.includes('mp3') ? 'mp3' : 'mp3'
 
     const storagePath = `${organizationId}/${callId}/${recordingId}.${extension}`
@@ -59,7 +66,7 @@ export async function storeRecording(
       return null
     }
 
-    logger.info('recordingStorage: uploaded to Supabase Storage', { 
+    logger.info('recordingStorage: uploaded to Supabase Storage', {
       recordingId, storagePath, sizeBytes: audioBuffer.byteLength
     })
 
@@ -98,7 +105,7 @@ export async function getRecordingSignedUrl(
     const extensions = ['mp3', 'wav', 'm4a']
     for (const ext of extensions) {
       const storagePath = `${organizationId}/${callId}/${recordingId}.${ext}`
-      
+
       const { data, error } = await supabaseAdmin.storage
         .from('recordings')
         .createSignedUrl(storagePath, expiresIn)
@@ -116,14 +123,14 @@ export async function getRecordingSignedUrl(
 export async function ensureRecordingsBucket(): Promise<boolean> {
   try {
     const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
-    
+
     if (listError) {
       logger.error('recordingStorage: failed to list buckets', listError)
       return false
     }
 
     const recordingsBucket = buckets?.find(b => b.name === 'recordings')
-    
+
     if (!recordingsBucket) {
       const { error: createError } = await supabaseAdmin.storage.createBucket('recordings', {
         public: true,

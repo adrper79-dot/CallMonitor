@@ -55,12 +55,12 @@ export async function GET(req: NextRequest) {
 
     // Parse query parameters
     const { searchParams } = new URL(req.url)
-    const startDate = searchParams.get('startDate') || 
+    const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const endDate = searchParams.get('endDate') || new Date().toISOString()
 
-    // Query calls with sentiment data (via recordings table)
-    // Note: Using the transcript_json column which contains sentiment_summary
+    // Query recordings with sentiment data
+    // Note: Using recordings.organization_id directly (not via calls join)
     const { data: recordings, error } = await supabaseAdmin
       .from('recordings')
       .select(`
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         created_at,
         transcript_json
       `)
-      .eq('calls.organization_id', ctx.orgId)
+      .eq('organization_id', ctx.orgId)
       .gte('created_at', startDate)
       .lte('created_at', endDate)
       .not('transcript_json', 'is', null)
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
 
     // Compute sentiment trends
     const trends = computeSentimentTrends(sentimentData)
-    
+
     return success({ trends })
   } catch (err: any) {
     logger.error('Sentiment trends analytics API error', err)

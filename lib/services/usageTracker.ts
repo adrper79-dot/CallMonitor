@@ -66,6 +66,7 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
     const { error } = await supabaseAdmin
       .from('usage_records')
       .insert({
+        id: crypto.randomUUID(),
         organization_id: organizationId,
         call_id: callId,
         metric,
@@ -191,34 +192,34 @@ export async function checkUsageLimits(
 
     // Check specific metric
     if (metric === 'call' && usage.calls >= limits.calls_per_month) {
-      return { 
-        allowed: false, 
+      return {
+        allowed: false,
         reason: `Monthly call limit reached (${limits.calls_per_month} calls)`,
-        limits 
+        limits
       }
     }
 
     if (metric === 'minute' && usage.minutes >= limits.minutes_per_month) {
-      return { 
-        allowed: false, 
+      return {
+        allowed: false,
         reason: `Monthly minute limit reached (${limits.minutes_per_month} minutes)`,
-        limits 
+        limits
       }
     }
 
     if (metric === 'transcription' && usage.transcriptions >= limits.transcriptions_per_month) {
-      return { 
-        allowed: false, 
+      return {
+        allowed: false,
         reason: `Monthly transcription limit reached (${limits.transcriptions_per_month})`,
-        limits 
+        limits
       }
     }
 
     if (metric === 'translation' && usage.translations >= limits.translations_per_month) {
-      return { 
-        allowed: false, 
+      return {
+        allowed: false,
         reason: `Monthly translation limit reached (${limits.translations_per_month})`,
-        limits 
+        limits
       }
     }
 

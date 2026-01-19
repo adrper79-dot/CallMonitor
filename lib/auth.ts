@@ -37,10 +37,10 @@ function getAdapter() {
   if (process.env.NEXT_PHASE === 'phase-production-build') {
     return undefined
   }
-  
+
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  
+
   // If URL is missing, return undefined silently (env vars not loaded yet in serverless cold start)
   // Credentials provider will still work
   if (!supabaseUrl || !serviceKey) {
@@ -50,7 +50,7 @@ function getAdapter() {
     }
     return undefined
   }
-  
+
   try {
     const supabaseForAdapter = createClient(supabaseUrl, serviceKey)
     return SupabaseAdapter(supabaseForAdapter as any)
@@ -61,9 +61,39 @@ function getAdapter() {
   }
 }
 
+/**
+ * Check if a string is a valid UUID v4 format
+ */
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+/**
+ * Generate a deterministic UUID v5 from an OAuth provider ID
+ * Uses a namespace to ensure consistent UUIDs for the same provider ID
+ */
+function generateUUIDFromOAuthId(providerId: string): string {
+  // If already a valid UUID, return it
+  if (isValidUUID(providerId)) return providerId
+
+  // Create a deterministic UUID v4-like ID from the provider ID
+  // We use a simple hash-based approach for determinism
+  const hash = Array.from(providerId).reduce((acc, char) => {
+    const h = ((acc << 5) - acc + char.charCodeAt(0)) | 0
+    return h
+  }, 0)
+
+  // Generate a pseudo-random but deterministic UUID
+  const hexStr = Math.abs(hash).toString(16).padStart(8, '0')
+  const remaining = providerId.split('').map(c => c.charCodeAt(0).toString(16)).join('').slice(0, 24).padEnd(24, '0')
+
+  return `${hexStr}-${remaining.slice(0, 4)}-4${remaining.slice(4, 7)}-8${remaining.slice(7, 10)}-${remaining.slice(10, 22)}`
+}
+
 function getProviders(adapter: any) {
   const providers: any[] = []
-  
+
   // Always include credentials provider
   providers.push(CredentialsProvider({
     name: 'Credentials',
@@ -73,7 +103,7 @@ function getProviders(adapter: any) {
     },
     async authorize(credentials) {
       if (!credentials || !credentials.username || !credentials.password) return null
-      
+
       const key = String(credentials.username).toLowerCase()
       if (!(global as any).__loginRateLimiter) (global as any).__loginRateLimiter = new Map()
       const limiter: Map<string, any> = (global as any).__loginRateLimiter
@@ -131,7 +161,7 @@ function getProviders(adapter: any) {
           .contains('verified_domains', [emailDomain])
           .limit(1)
           .single()
-        
+
         // If SSO is required for this domain, block password login
         if (!ssoError && ssoConfig?.require_sso) {
           logger.warn('Password login blocked: SSO required for domain', { email: emailToUse, domain: emailDomain })
@@ -149,8 +179,8 @@ function getProviders(adapter: any) {
       const endpoint = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
+        headers: {
+          'Content-Type': 'application/json',
           'apikey': anonKey,
           'Authorization': `Bearer ${anonKey}`
         },
@@ -235,7 +265,7 @@ export function getAuthOptions() {
     ...(adapter ? { adapter } : {}),
     providers,
     secret: process.env.NEXTAUTH_SECRET,
-    
+
     // Mobile-friendly cookie settings
     cookies: {
       sessionToken: {
@@ -266,16 +296,16 @@ export function getAuthOptions() {
         },
       },
     },
-    
+
     // Use JWT for mobile compatibility - required for cross-device sessions
     session: {
       strategy: 'jwt' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
-    
+
     // Trust proxy (Vercel)
     useSecureCookies: process.env.NODE_ENV === 'production',
-    
+
     callbacks: {
       async jwt({ token, user }: { token: any; user: any }) {
         if (user) {
@@ -286,30 +316,35 @@ export function getAuthOptions() {
       async session({ session, token }: { session: any; token: any }) {
         if (session?.user && token?.id) {
           (session.user as any).id = token.id
-          
+
           if (typeof token.id === 'string') {
             try {
               const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
               const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-              
+
               if (supabaseUrl && serviceKey) {
                 const supabase = createClient(supabaseUrl, serviceKey)
-                
+
+                // Convert OAuth provider ID to valid UUID if needed
+                // Google OAuth returns numeric IDs like "112664217366082215907"
+                const userId = generateUUIDFromOAuthId(token.id)
+
+                // First, try to find user by email (more reliable for OAuth)
                 const { data: existingUser } = await supabase
                   .from('users')
                   .select('id, organization_id')
-                  .eq('id', token.id)
-                  .single()
-                
+                  .eq('email', session.user.email)
+                  .maybeSingle()
+
                 if (!existingUser) {
                   let orgId: string | null = null
-                  
+
                   const { data: orgs } = await supabase
                     .from('organizations')
                     .select('id, tool_id')
                     .order('created_at', { ascending: false })
                     .limit(1)
-                  
+
                   if (orgs && orgs.length > 0) {
                     orgId = orgs[0].id
                     logger.info('Session callback: using existing organization', { orgId, email: session.user.email })
@@ -324,26 +359,26 @@ export function getAuthOptions() {
                       })
                       .select('id')
                       .single()
-                    
+
                     if (orgError) {
                       logger.error('Session callback: failed to create organization', orgError, { email: session.user.email })
                       throw new Error('Failed to create organization')
                     }
-                    
+
                     orgId = newOrg.id
                     logger.info('Session callback: created organization', { orgId, email: session.user.email })
-                    
+
+                    // NOTE: tools table only has: id, name, description, created_at (per Schema.txt)
+                    // Organization-tool relationship is via organizations.tool_id FK
                     const { data: tool, error: toolError } = await supabase
                       .from('tools')
                       .insert({
                         name: `${session.user.email}'s Recording Tool`,
-                        type: 'recording',
-                        organization_id: orgId,
-                        created_by: token.id
+                        description: 'Voice recording tool'
                       })
                       .select('id')
                       .single()
-                    
+
                     if (toolError) {
                       logger.error('Session callback: failed to create tool', toolError)
                     } else if (tool) {
@@ -351,7 +386,7 @@ export function getAuthOptions() {
                         .from('organizations')
                         .update({ tool_id: tool.id })
                         .eq('id', orgId)
-                      
+
                       if (updateError) {
                         logger.error('Session callback: failed to link tool to organization', updateError)
                       } else {
@@ -359,37 +394,37 @@ export function getAuthOptions() {
                       }
                     }
                   }
-                  
+
                   if (!orgId) {
                     throw new Error('Organization is required but missing')
                   }
-                  
+
                   const { error: userInsertErr } = await supabase.from('users').insert({
-                    id: token.id,
+                    id: userId,  // Use generated UUID (converted from OAuth ID if needed)
                     email: session.user.email,
                     organization_id: orgId,
                     role: 'owner',  // First user in org gets owner role
                     is_admin: true
                   })
-                  
+
                   if (userInsertErr) {
                     logger.error('Session callback: failed to create user', userInsertErr)
                     throw new Error('Failed to create user record')
                   }
-                  
+
                   logger.info('Session callback: created user record', { email: session.user.email })
-                  
+
                   const { error: memberInsertErr } = await supabase.from('org_members').insert({
                     organization_id: orgId,
-                    user_id: token.id,
+                    user_id: userId,  // Use generated UUID
                     role: 'owner'  // Per RBAC matrix: owner has full access
                   })
-                  
+
                   if (memberInsertErr) {
                     logger.error('Session callback: failed to create org membership', memberInsertErr)
                     throw new Error('Failed to create organization membership')
                   }
-                  
+
                   logger.info('Session callback: created org_members record', { email: session.user.email })
                 }
               }
@@ -417,7 +452,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
   if (_cachedAuthOptions) {
     return _cachedAuthOptions
   }
-  
+
   try {
     _cachedAuthOptions = getAuthOptions()
     return _cachedAuthOptions

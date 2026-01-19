@@ -9,7 +9,7 @@
 // CALL DISPOSITION
 // ============================================================================
 
-export type CallDisposition = 
+export type CallDisposition =
   | 'sale'
   | 'no_answer'
   | 'voicemail'
@@ -37,7 +37,7 @@ export interface CallWithDisposition {
 // STRUCTURED CALL NOTES
 // ============================================================================
 
-export type CallNoteTag = 
+export type CallNoteTag =
   | 'objection_raised'
   | 'competitor_mentioned'
   | 'pricing_discussed'
@@ -96,7 +96,7 @@ export interface CreateCallNoteRequest {
 // CONSENT TRACKING
 // ============================================================================
 
-export type ConsentMethod = 
+export type ConsentMethod =
   | 'ivr_played'
   | 'verbal_yes'
   | 'dtmf_confirm'
@@ -148,7 +148,7 @@ export interface SurveyQuestionConfig {
 // WEBHOOKS
 // ============================================================================
 
-export type WebhookEventType = 
+export type WebhookEventType =
   | 'call.started'
   | 'call.answered'
   | 'call.completed'
@@ -179,7 +179,7 @@ export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = [
 
 export type WebhookRetryPolicy = 'none' | 'fixed' | 'exponential'
 
-export type WebhookDeliveryStatus = 
+export type WebhookDeliveryStatus =
   | 'pending'
   | 'processing'
   | 'delivered'
@@ -243,7 +243,7 @@ export interface WebhookPayload {
 // FEATURE FLAGS / KILL SWITCHES
 // ============================================================================
 
-export type FeatureFlag = 
+export type FeatureFlag =
   | 'voice_operations'
   | 'recording'
   | 'transcription'
@@ -331,7 +331,7 @@ export interface FeatureStatus {
 // WEBRTC
 // ============================================================================
 
-export type WebRTCSessionStatus = 
+export type WebRTCSessionStatus =
   | 'initializing'
   | 'connecting'
   | 'connected'
@@ -353,6 +353,8 @@ export interface WebRTCSession {
   session_token: string
   status: WebRTCSessionStatus
   created_at: string
+  call_id?: string | null      // FK to calls table per Schema.txt
+  updated_at?: string | null   // Per Schema.txt
 }
 
 export interface WebRTCCredentials {
@@ -378,7 +380,7 @@ export interface WebRTCCallRequest {
 // WEBRPC (Real-time Procedure Calls)
 // ============================================================================
 
-export type WebRPCMethod = 
+export type WebRPCMethod =
   | 'call.place'
   | 'call.hangup'
   | 'call.mute'
@@ -416,7 +418,7 @@ export interface WebRPCEvent {
 // TIMELINE VIEW
 // ============================================================================
 
-export type TimelineEventType = 
+export type TimelineEventType =
   | 'call_started'
   | 'call_answered'
   | 'call_completed'

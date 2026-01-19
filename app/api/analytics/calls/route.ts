@@ -25,8 +25,8 @@ export const dynamic = 'force-dynamic'
 interface CallRow {
   id: string
   status: string
-  created_at: string
-  duration_seconds: number | null
+  started_at: string | null  // Per Schema.txt - calls has started_at, not created_at
+  ended_at: string | null
 }
 
 interface TimeSeriesPoint {
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
     // Parse query parameters
     const { searchParams } = new URL(req.url)
-    const startDate = searchParams.get('startDate') || 
+    const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const endDate = searchParams.get('endDate') || new Date().toISOString()
     const groupBy = (searchParams.get('groupBy') || 'day') as 'day' | 'week' | 'month'
@@ -66,13 +66,14 @@ export async function GET(req: NextRequest) {
     }
 
     // Query calls with filters
+    // NOTE: calls table uses started_at (not created_at) per Schema.txt
     const { data: calls, error } = await supabaseAdmin
       .from('calls')
-      .select('id, status, created_at, duration_seconds')
+      .select('id, status, started_at, ended_at')
       .eq('organization_id', ctx.orgId)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate)
-      .order('created_at', { ascending: false })
+      .gte('started_at', startDate)
+      .lte('started_at', endDate)
+      .order('started_at', { ascending: false })
       .limit(10000) // Reasonable limit for performance
 
     if (error) {
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
 
     // Compute aggregated metrics
     const metrics = computeCallMetrics(calls || [], groupBy)
-    
+
     return success({ metrics })
   } catch (err: any) {
     logger.error('Call analytics API error', err)
@@ -96,31 +97,37 @@ export async function GET(req: NextRequest) {
 function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month'): CallMetrics {
   const total_calls = calls.length
   const completed_calls = calls.filter(c => c.status === 'completed').length
-  const failed_calls = calls.filter(c => 
+  const failed_calls = calls.filter(c =>
     c.status === 'failed' || c.status === 'no-answer' || c.status === 'busy'
   ).length
-  
-  // Calculate average duration (only from completed calls with duration)
+
+  // Calculate duration from started_at/ended_at (calls table doesn't have duration_seconds per Schema.txt)
   const durationsSeconds = calls
-    .filter(c => c.duration_seconds && c.status === 'completed')
-    .map(c => c.duration_seconds as number)
-  
+    .filter(c => c.started_at && c.ended_at && c.status === 'completed')
+    .map(c => {
+      const start = new Date(c.started_at!).getTime()
+      const end = new Date(c.ended_at!).getTime()
+      return Math.round((end - start) / 1000)
+    })
+    .filter(d => d > 0 && d < 3600) // Filter outliers
+
   const avg_duration_seconds = durationsSeconds.length > 0
     ? Math.round(durationsSeconds.reduce((a, b) => a + b, 0) / durationsSeconds.length)
     : 0
-  
+
   const total_duration_minutes = Math.round(
     durationsSeconds.reduce((a, b) => a + b, 0) / 60
   )
-  
+
   const completion_rate = total_calls > 0
     ? Math.round((completed_calls / total_calls) * 100)
     : 0
 
-  // Group calls by time period
+  // Group calls by time period (use started_at for grouping)
   const grouped: Record<string, CallRow[]> = {}
   calls.forEach(call => {
-    const key = getGroupKey(call.created_at, groupBy)
+    if (!call.started_at) return // Skip calls without started_at
+    const key = getGroupKey(call.started_at, groupBy)
     if (!grouped[key]) grouped[key] = []
     grouped[key].push(call)
   })
@@ -130,20 +137,21 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
     .map(([date, calls]) => {
       const completedInPeriod = calls.filter(c => c.status === 'completed')
       const durationsInPeriod = completedInPeriod
-        .filter(c => c.duration_seconds)
-        .map(c => c.duration_seconds as number)
-      
+        .filter(c => c.started_at && c.ended_at)
+        .map(c => Math.round((new Date(c.ended_at!).getTime() - new Date(c.started_at!).getTime()) / 1000))
+        .filter(d => d > 0 && d < 3600)
+
       return {
         date,
         total: calls.length,
         completed: completedInPeriod.length,
-        failed: calls.filter(c => 
+        failed: calls.filter(c =>
           c.status === 'failed' || c.status === 'no-answer' || c.status === 'busy'
         ).length,
         avg_duration: durationsInPeriod.length > 0
           ? Math.round(
-              durationsInPeriod.reduce((sum, d) => sum + d, 0) / durationsInPeriod.length
-            )
+            durationsInPeriod.reduce((sum, d) => sum + d, 0) / durationsInPeriod.length
+          )
           : 0
       }
     })
@@ -165,7 +173,7 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
  */
 function getGroupKey(timestamp: string, groupBy: 'day' | 'week' | 'month'): string {
   const date = new Date(timestamp)
-  
+
   if (groupBy === 'day') {
     return date.toISOString().slice(0, 10) // YYYY-MM-DD
   } else if (groupBy === 'week') {
@@ -178,6 +186,6 @@ function getGroupKey(timestamp: string, groupBy: 'day' | 'week' | 'month'): stri
   } else if (groupBy === 'month') {
     return date.toISOString().slice(0, 7) // YYYY-MM
   }
-  
+
   return date.toISOString().slice(0, 10)
 }
