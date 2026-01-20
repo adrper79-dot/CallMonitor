@@ -18,7 +18,7 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const CALL_ID = 'b0d66494-bde3-44e8-9e5e-51ed583b6a60';
+const CALL_ID = '075041e5-7bf2-4e5c-845c-3d25139f53d4';
 
 async function checkCallStatus() {
     console.log(`=== CHECKING CALL: ${CALL_ID} ===\n`);
