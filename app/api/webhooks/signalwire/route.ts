@@ -207,7 +207,12 @@ async function processWebhookAsync(req: Request) {
         updateData.ended_at = new Date().toISOString()
       }
       if ((mappedStatus === 'in_progress' || mappedStatus === 'completed') && !call.started_at) {
-        updateData.started_at = new Date().toISOString()
+        // Fix for calls_time_order constraint: started_at must be < ended_at
+        // If we have duration, backdate start time. Otherwise assume 1 second ago.
+        const durationSec = parseInt(String(callDuration || 0), 10) || 1
+        const endDate = updateData.ended_at ? new Date(updateData.ended_at) : new Date()
+        const startDate = new Date(endDate.getTime() - (durationSec * 1000))
+        updateData.started_at = startDate.toISOString()
       }
 
       const { error: updateErr } = await supabaseAdmin.from('calls').update(updateData).eq('id', callId)
@@ -378,31 +383,42 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       env: process.env.NODE_ENV
     })
 
+    // Check for existing runs FOR THIS SPECIFIC RECORDING
     const { data: aiRows } = await supabaseAdmin
       .from('ai_runs')
-      .select('id, status')
+      .select('id, status, output')
       .eq('call_id', callId)
       .eq('model', 'assemblyai-v1')
-      .limit(1)
 
     let aiRunId = uuidv4()
     let shouldCreate = true
 
     if (aiRows && aiRows.length > 0) {
-      const existingRun = aiRows[0]
-      logger.info('SignalWire webhook: Found existing ai_run', { callId, status: existingRun.status, id: existingRun.id })
+      // Find if we have a run specifically for this recording
+      const existingForRecording = aiRows.find(run =>
+        run.output?.recording_id === recordingId ||
+        (explicitRecordingUrl && run.output?.recording_url === explicitRecordingUrl)
+      )
 
-      if (existingRun.status === 'processing' || existingRun.status === 'completed') {
-        logger.info('SignalWire webhook: Skipping transcription - already processing/completed', { callId, aiRunId: existingRun.id })
-        return
-      }
+      if (existingForRecording) {
+        logger.info('SignalWire webhook: Found existing ai_run for this recording', {
+          callId,
+          recordingId,
+          aiRunId: existingForRecording.id,
+          status: existingForRecording.status
+        })
 
-      // If queued or failed, we use this run and proceed to submit
-      if (existingRun.status === 'queued' || existingRun.status === 'failed') {
-        aiRunId = existingRun.id
+        if (existingForRecording.status === 'processing' || existingForRecording.status === 'completed') {
+          logger.info('SignalWire webhook: Skipping - recording already processed', { recordingId })
+          return
+        }
+
+        // If queued/failed, retry using same ID
+        aiRunId = existingForRecording.id
         shouldCreate = false
-        logger.info('SignalWire webhook: Using existing ai_run for transcription', { callId, aiRunId, status: existingRun.status })
       }
+      // If we found runs but NONE for this recording, we proceed to create a new one (shouldCreate = true)
+      // This allows multiple recordings (legs) to be transcribed separately
     }
 
     const { data: systemsRows } = await supabaseAdmin
@@ -417,19 +433,19 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       return
     }
 
-    let recordingUrl = explicitRecordingUrl
+    let recordingUrlToUse = explicitRecordingUrl
 
-    if (!recordingUrl) {
+    if (!recordingUrlToUse) {
       const { data: recRows } = await supabaseAdmin
         .from('recordings')
         .select('recording_url')
         .eq('id', recordingId)
         .limit(1)
 
-      recordingUrl = recRows?.[0]?.recording_url
+      recordingUrlToUse = recRows?.[0]?.recording_url
     }
 
-    if (!recordingUrl) {
+    if (!recordingUrlToUse) {
       logger.warn('SignalWire webhook: recording URL not found - skipping transcription', { recordingId })
       return
     }
@@ -447,7 +463,6 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     if (!process.env.ASSEMBLYAI_API_KEY) {
       logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured - skipping transcription')
-      // PROD DEBUG: Write to audit_logs so we can see it
       try {
         await supabaseAdmin.from('audit_logs').insert({
           id: uuidv4(),
@@ -472,20 +487,26 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
         status: 'queued',
         started_at: new Date().toISOString(),
         produced_by: 'model',
-        is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
+        is_authoritative: true,
+        output: { recording_id: recordingId, recording_url: recordingUrlToUse } // Track specific recording
       })
 
       if (aiErr) {
         logger.error('SignalWire webhook: failed to create ai_run', aiErr, { callId })
         return
       }
+    } else {
+      // If reusing existing run, make sure output has recording info
+      await supabaseAdmin.from('ai_runs').update({
+        output: { recording_id: recordingId, recording_url: recordingUrlToUse }
+      }).eq('id', aiRunId)
     }
 
     const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: { 'Authorization': process.env.ASSEMBLYAI_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        audio_url: recordingUrl,
+        audio_url: recordingUrlToUse,
         webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`,
         sentiment_analysis: true, entity_detection: true, auto_chapters: true,
         speaker_labels: true, content_safety: true, iab_categories: true, language_detection: true
