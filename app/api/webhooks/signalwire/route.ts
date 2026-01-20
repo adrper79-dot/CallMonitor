@@ -293,7 +293,7 @@ async function processWebhookAsync(req: Request) {
             logger.error('SignalWire webhook: failed to update recording', updateRecErr, { recordingId: existingRec.id })
           } else {
             logger.info('SignalWire webhook: updated recording', { recordingId: existingRec.id })
-            await triggerTranscriptionIfEnabled(callId, existingRec.id, organizationId)
+            await triggerTranscriptionIfEnabled(callId, existingRec.id, organizationId, recordingUrl)
           }
         } else {
           const recordingId = uuidv4()
@@ -338,7 +338,7 @@ async function processWebhookAsync(req: Request) {
               }
             })()
 
-            await triggerTranscriptionIfEnabled(callId, recordingId, organizationId)
+            await triggerTranscriptionIfEnabled(callId, recordingId, organizationId, recordingUrl)
           }
         }
       } else {
@@ -355,8 +355,10 @@ async function processWebhookAsync(req: Request) {
   }
 }
 
-async function triggerTranscriptionIfEnabled(callId: string, recordingId: string, organizationId: string) {
+async function triggerTranscriptionIfEnabled(callId: string, recordingId: string, organizationId: string, explicitRecordingUrl?: string) {
   try {
+    logger.info('SignalWire webhook: triggerTranscriptionIfEnabled', { callId, recordingId, hasExplicitUrl: !!explicitRecordingUrl })
+
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
       .select('transcribe')
@@ -380,6 +382,8 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     if (aiRows && aiRows.length > 0) {
       const existingRun = aiRows[0]
+      logger.info('SignalWire webhook: Found existing ai_run', { callId, status: existingRun.status, id: existingRun.id })
+
       if (existingRun.status === 'processing' || existingRun.status === 'completed') {
         logger.info('SignalWire webhook: Skipping transcription - already processing/completed', { callId, aiRunId: existingRun.id })
         return
@@ -405,13 +409,18 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       return
     }
 
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('recording_url')
-      .eq('id', recordingId)
-      .limit(1)
+    let recordingUrl = explicitRecordingUrl
 
-    const recordingUrl = recRows?.[0]?.recording_url
+    if (!recordingUrl) {
+      const { data: recRows } = await supabaseAdmin
+        .from('recordings')
+        .select('recording_url')
+        .eq('id', recordingId)
+        .limit(1)
+
+      recordingUrl = recRows?.[0]?.recording_url
+    }
+
     if (!recordingUrl) {
       logger.warn('SignalWire webhook: recording URL not found - skipping transcription', { recordingId })
       return
