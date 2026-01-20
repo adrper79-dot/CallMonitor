@@ -329,18 +329,42 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         return
       }
 
-      // Validate phone number
-      const sanitizedNumber = phoneNumber.replace(/\D/g, '')
+      // Validate phone number - E.164 Compliance
+      // 1. Remove non-numeric characters (keep + if present at start)
+      let cleanNumber = phoneNumber.trim()
+      const hasPlus = cleanNumber.startsWith('+')
+      const sanitizedNumber = cleanNumber.replace(/\D/g, '')
+
+      // 2. Length check (10-15 digits standard)
       if (sanitizedNumber.length < 10) {
         setError('Invalid phone number: Must be at least 10 digits')
         setCallState('idle')
         return
       }
+      if (sanitizedNumber.length > 15) {
+        setError('Invalid phone number: Must be no more than 15 digits')
+        setCallState('idle')
+        return
+      }
 
-      // Normalize phone number
-      const formattedNumber = phoneNumber.startsWith('+')
-        ? phoneNumber
-        : `+1${sanitizedNumber}`
+      // 3. Formatting
+      let formattedNumber = cleanNumber
+      if (hasPlus) {
+        // Assume user knows what they are doing with E.164
+        formattedNumber = cleanNumber
+      } else {
+        // Heuristic for US/Canada:
+        // If 10 digits, add +1
+        // If 11 digits and starts with 1, add +
+        if (sanitizedNumber.length === 10) {
+          formattedNumber = `+1${sanitizedNumber}`
+        } else if (sanitizedNumber.length === 11 && sanitizedNumber.startsWith('1')) {
+          formattedNumber = `+${sanitizedNumber}`
+        } else {
+          // Ambiguous - default to adding + and hope it's a full international number
+          formattedNumber = `+${sanitizedNumber}`
+        }
+      }
 
       // Get the from number from the session
       const fromNumber = sessionRef.current?.signalwire_number
