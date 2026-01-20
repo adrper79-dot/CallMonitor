@@ -74,9 +74,11 @@ async function handleWebhook(req: Request) {
     }
   }
 
-  void processWebhookAsync(req).catch((err) => {
+  try {
+    await processWebhookAsync(req)
+  } catch (err) {
     logger.error('SignalWire webhook async processing failed', err)
-  })
+  }
 
   return NextResponse.json({ ok: true, received: true })
 }
