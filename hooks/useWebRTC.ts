@@ -335,9 +335,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const hasPlus = cleanNumber.startsWith('+')
       const sanitizedNumber = cleanNumber.replace(/\D/g, '')
 
-      // 2. Length check (10-15 digits standard)
-      if (sanitizedNumber.length < 10) {
-        setError('Invalid phone number: Must be at least 10 digits')
+      // 2. Length check (E.164 can be short, e.g. +290 xxxx is 7 digits)
+      if (sanitizedNumber.length < 6) {
+        setError('Invalid phone number: Too short (must be at least 6 digits)')
         setCallState('idle')
         return
       }

@@ -74,14 +74,15 @@ async function handleWebhook(req: Request) {
     }
   }
 
-  // Return 200 OK immediately - AssemblyAI requires quick response
-  // Process webhook asynchronously per architecture: AssemblyAI is intelligence plane
-  void processWebhookAsync(req).catch((err) => {
+  // Process webhook - AWAIT execution to prevent Serverless freeze
+  try {
+    await processWebhookAsync(req)
+  } catch (err) {
     logger.error('AssemblyAI webhook async processing failed', err, {
       source: 'assemblyai-webhook',
       phase: 'async-processing'
     })
-  })
+  }
 
   return NextResponse.json({ ok: true, received: true })
 }

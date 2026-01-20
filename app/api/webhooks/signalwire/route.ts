@@ -75,6 +75,7 @@ async function handleWebhook(req: Request) {
   }
 
   try {
+    // CRITICAL FIX: Await the async process so Vercel doesn't kill the lambda
     await processWebhookAsync(req)
   } catch (err) {
     logger.error('SignalWire webhook async processing failed', err)

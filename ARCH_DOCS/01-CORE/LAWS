@@ -1,0 +1,128 @@
+LAW 01 — Canonical Data Never Mutates
+
+Rule: Canonical artifacts (recordings, transcripts, evidence manifests, outcomes) are never edited in place. All corrections create new versions with provenance and supersession pointers.
+Why: This is already core to your compliance posture (immutability guarantees + provenance + versioning).
+
+Enforcement requirements
+
+DB triggers prevent updates to immutable tables (pattern already exists for evidence manifests / transcript_versions / artifact_provenance).
+
+UI must never present “edit transcript” or “fix summary” as an overwrite; only “append correction / create revision.”
+
+LAW 02 — Search Is Always Derived and Non-Authoritative
+
+Rule: Search indexes are derived views, never a source of truth. Search may be rebuilt, but canonical artifacts may not be rewritten to satisfy search.
+Definition: Search is an append-only projection of canonical events.
+
+Enforcement requirements
+
+Search records must store:
+
+source_table, source_id, source_version
+
+canonical hashes (where available)
+
+produced_at server timestamp
+
+input_refs or equivalent provenance link
+
+Search writes must be append-only (no UPDATE of indexed “document bodies”; create new doc version).
+
+(Reason: you already certify “append-only artifacts” and “server timestamps only,” so search must inherit those semantics.)
+
+LAW 03 — Tenant Isolation Is Absolute; Cross-Tenant Is an Overlay, Not a Join
+
+Rule: Cross-tenant grouping (phone number, domain, “external org”) cannot break tenant isolation.
+Pattern: Create an overlay entity graph where each org sees only:
+
+entities they observed, or
+
+entities explicitly shared (admin action)
+
+Enforcement requirements
+
+RLS: external-entity tables must be org-scoped unless explicitly marked as “global, internal-only.”
+
+Any “global dedupe” must be computed in a service-only context, then written back as per-org references (not exposed globally).
+
+(Your compliance doc emphasizes tenant isolation + actor attribution + traceability; this is the safe way.)
+
+LAW 04 — Observed Identity ≠ Asserted Identity
+
+Rule: Phone numbers, email domains, and CRM identities are observations. They may be linked, but never silently merged.
+UX rule: Linking requires an explicit human action recorded in audit logs.
+
+Enforcement requirements
+
+Separate tables for:
+
+observed identifiers (auto)
+
+asserted links (human)
+
+confidence + provenance of the observation
+
+All merges must be reversible and versioned.
+
+LAW 05 — Integrations Never Become the System of Record
+
+Rule: HubSpot/Salesforce are external systems. Your system stores:
+
+OAuth tokens
+
+references to CRM objects
+
+immutable evidence attachments/links
+…but never allows CRMs to overwrite canonical conversation artifacts.
+
+Enforcement requirements
+
+Integration writes are limited to:
+
+creating notes/engagements that reference your evidence bundle
+
+storing external object IDs and last sync timestamps
+
+Never sync “edited transcripts” back and forth.
+
+(You already have “exportability & portability” and evidence bundle tracking; CRMs should receive exports, not authority.)
+
+LAW 06 — Caller ID Is a Governed Identity Surface
+
+Rule: Caller ID selection must be:
+
+permissioned
+
+attributable
+
+recorded per call
+
+auditable
+
+You already have caller_id_numbers and endpoints for managing caller IDs (plus number listing).
+The missing part is user-to-number permission + lifecycle governance.
+
+Enforcement requirements
+
+Numbers belong to orgs; users get permission to use subsets.
+
+Per-call record must persist “chosen caller ID number id” (or explicit E.164 string + reference).
+
+Any reassignment/retirement generates audit logs.
+
+LAW 07 — “AI Must Not Speak Commitments” Applies to All New Surfaces
+
+Rule: Any new UI layer (search summaries, CRM push, entity linking suggestions) must not create “AI implied commitments.”
+Implementation: Use the AI Role Policy checklist as a release gate for these features.
+
+LAW 08 — No Feature-Silo Pages; Everything Is a Call Modulation or Read-Only View
+
+Rule: New features must not introduce tool sprawl.
+
+Search is a retrieval surface.
+
+Entities are overlays.
+
+Integrations are connectors.
+
+(Your master architecture explicitly fights tool sprawl and emphasizes enforceable UI/API contracts and negative tests.)
