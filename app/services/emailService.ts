@@ -33,7 +33,7 @@ export interface ArtifactEmailOptions {
 
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY
-  
+
   if (!apiKey) {
     logger.error('emailService: RESEND_API_KEY not configured')
     return { success: false, error: 'Email service not configured' }
@@ -72,7 +72,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
 
     const result = await response.json()
     logger.info('emailService: Email sent successfully', { messageId: result.id, to: options.to })
-    
+
     return { success: true, messageId: result.id }
   } catch (error: any) {
     logger.error('emailService: Send failed', error)
@@ -209,7 +209,7 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     }
 
     if (attachments.length === 0) {
-      return { success: false, error: 'No artifacts available for this call' }
+      return { success: false, error: 'NO_ARTIFACTS' }
     }
 
     const callDate = call.started_at ? new Date(call.started_at).toLocaleDateString() : 'Unknown'

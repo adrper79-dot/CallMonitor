@@ -32,11 +32,11 @@ export async function POST(
 
     const callId = params.id
     const body = await req.json()
-    const { 
-      email, 
-      includeRecording = true, 
-      includeTranscript = true, 
-      includeTranslation = true 
+    const {
+      email,
+      includeRecording = true,
+      includeTranscript = true,
+      includeTranslation = true
     } = body
 
     if (!email || typeof email !== 'string') {
@@ -105,6 +105,12 @@ export async function POST(
     })
 
     if (!result.success) {
+      if (result.error === 'NO_ARTIFACTS') {
+        return NextResponse.json(
+          { success: false, error: 'No artifacts available (recording/transcript still processing or disabled)' },
+          { status: 404 }
+        )
+      }
       return NextResponse.json(
         { success: false, error: result.error || 'Failed to send email' },
         { status: 500 }

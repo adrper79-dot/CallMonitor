@@ -363,7 +363,10 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       .eq('organization_id', organizationId)
       .limit(1)
 
-    if (vcRows?.[0]?.transcribe !== true) return
+    if (vcRows?.[0]?.transcribe !== true) {
+      logger.info('SignalWire webhook: Skipping transcription - disabled in voice_configs', { organizationId })
+      return
+    }
 
     const { data: aiRows } = await supabaseAdmin
       .from('ai_runs')
@@ -372,7 +375,10 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       .eq('model', 'assemblyai-v1')
       .limit(1)
 
-    if (aiRows && aiRows.length > 0 && aiRows[0].status !== 'failed') return
+    if (aiRows && aiRows.length > 0 && aiRows[0].status !== 'failed') {
+      logger.info('SignalWire webhook: Skipping transcription - already queued/processing', { callId, aiRunId: aiRows[0].id })
+      return
+    }
 
     const { data: systemsRows } = await supabaseAdmin
       .from('systems')
@@ -382,7 +388,7 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     const systemAiId = systemsRows?.[0]?.id
     if (!systemAiId) {
-      logger.warn('SignalWire webhook: AI system not found', { callId })
+      logger.warn('SignalWire webhook: AI system not found - skipping transcription', { callId })
       return
     }
 
@@ -394,7 +400,7 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     const recordingUrl = recRows?.[0]?.recording_url
     if (!recordingUrl) {
-      logger.warn('SignalWire webhook: recording URL not found', { recordingId })
+      logger.warn('SignalWire webhook: recording URL not found - skipping transcription', { recordingId })
       return
     }
 
@@ -404,10 +410,13 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       .eq('id', organizationId)
       .limit(1)
 
-    if (orgRows?.[0]?.plan === 'free') return
+    if (orgRows?.[0]?.plan === 'free') {
+      logger.info('SignalWire webhook: Skipping transcription - free plan', { organizationId })
+      return
+    }
 
     if (!process.env.ASSEMBLYAI_API_KEY) {
-      logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured')
+      logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured - skipping transcription')
       return
     }
 
