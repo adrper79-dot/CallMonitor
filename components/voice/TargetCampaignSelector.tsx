@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
+import { useTargetNumber } from '@/hooks/TargetNumberProvider'
 import { useRBAC } from '@/hooks/useRBAC'
 import { NativeSelect as Select } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
@@ -42,16 +43,14 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   const { config, loading: configLoading, updateConfig } = useVoiceConfig(organizationId)
   const { role } = useRBAC(organizationId)
   const { toast } = useToast()
-  
+  const { targetNumber, setTargetNumber } = useTargetNumber() // Use shared context
+
   const [targets, setTargets] = useState<Target[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showAddTarget, setShowAddTarget] = useState(false)
   const [newTarget, setNewTarget] = useState({ phone_number: '', name: '' })
-  
-  // Unified input state
-  const [targetNumber, setTargetNumber] = useState('')
   const [fromNumber, setFromNumber] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -100,7 +99,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        suggestionsRef.current && 
+        suggestionsRef.current &&
         !suggestionsRef.current.contains(event.target as Node) &&
         inputRef.current &&
         !inputRef.current.contains(event.target as Node)
@@ -113,7 +112,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   }, [])
 
   // Filter targets for autocomplete
-  const filteredTargets = targets.filter(t => 
+  const filteredTargets = targets.filter(t =>
     t.is_active && (
       t.phone_number.includes(targetNumber) ||
       t.name?.toLowerCase().includes(targetNumber.toLowerCase())
@@ -128,7 +127,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   const autoFormatPhone = (value: string): string => {
     // Remove all non-digit characters except +
     let cleaned = value.replace(/[^\d+]/g, '')
-    
+
     // If starts with digits (no +), assume US number and add +1
     if (cleaned.length > 0 && !cleaned.startsWith('+')) {
       // Remove any leading 1 if present (to avoid +11...)
@@ -137,7 +136,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       }
       cleaned = '+1' + cleaned
     }
-    
+
     return cleaned
   }
 
@@ -145,15 +144,15 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   const handleTargetChange = (value: string) => {
     // Only auto-format when user pastes or types enough digits
     let formattedValue = value
-    
+
     // Auto-format if it looks like a raw phone number (10+ digits, no +)
     if (/^\d{10,}$/.test(value.replace(/\D/g, '')) && !value.startsWith('+')) {
       formattedValue = autoFormatPhone(value)
     }
-    
+
     setTargetNumber(formattedValue)
     setShowSuggestions(formattedValue.length > 0 && filteredTargets.length > 0)
-    
+
     // Sync to config
     if (isValidE164(formattedValue)) {
       updateConfig({ quick_dial_number: formattedValue, target_id: null })
@@ -192,7 +191,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
 
   async function handleAddTarget() {
     if (!organizationId || !canEdit) return
-    
+
     if (!isValidE164(newTarget.phone_number)) {
       toast({
         title: 'Invalid phone number',
@@ -214,16 +213,16 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
           name: newTarget.name || undefined
         })
       })
-      
+
       const data = await res.json()
-      
+
       if (data.success && data.target) {
         setTargets([...targets, data.target])
-        
+
         if (targets.length === 0) {
           await updateConfig({ target_id: data.target.id })
         }
-        
+
         setShowAddTarget(false)
         setNewTarget({ phone_number: '', name: '' })
         toast({
@@ -256,13 +255,13 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
   }
 
   return (
-    <section 
-      aria-labelledby="target-campaign-selector" 
+    <section
+      aria-labelledby="target-campaign-selector"
       className="w-full p-4 bg-white rounded-lg border border-[#E5E5E5] shadow-sm"
       data-tour="target-selector"
     >
       <h3 id="target-campaign-selector" className="text-base font-semibold text-[#333333] mb-1">
-                Who are you calling?
+        Who are you calling?
       </h3>
       <p className="text-xs text-[#666666] mb-4">
         Enter a phone number or select from recent targets
@@ -296,9 +295,9 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
               className={`
                 w-full pl-10 pr-4 py-3 text-lg font-mono rounded-lg border-2 transition-all
                 focus:outline-none focus:ring-2 focus:ring-offset-1
-                ${isTargetValid 
-                  ? 'border-green-400 focus:ring-green-300 bg-green-50' 
-                  : targetNumber.length > 0 
+                ${isTargetValid
+                  ? 'border-green-400 focus:ring-green-300 bg-green-50'
+                  : targetNumber.length > 0
                     ? 'border-amber-300 focus:ring-amber-200'
                     : 'border-gray-200 focus:ring-primary-300 focus:border-primary-400'
                 }
@@ -314,10 +313,10 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
               </span>
             )}
           </div>
-          
+
           {/* Autocomplete suggestions */}
           {showSuggestions && filteredTargets.length > 0 && (
-            <div 
+            <div
               ref={suggestionsRef}
               className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
             >
@@ -344,10 +343,10 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
               ))}
             </div>
           )}
-          
+
           <p id="target-hint" className="text-xs text-[#666666] mt-1">
-            {targetNumber && !isTargetValid 
-              ? 'Include + and country code (e.g., +1 for US)' 
+            {targetNumber && !isTargetValid
+              ? 'Include + and country code (e.g., +1 for US)'
               : 'E.164 format with country code'
             }
           </p>
@@ -369,7 +368,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
         )}
 
         {/* Advanced Options - Collapsible */}
-        <details 
+        <details
           className="group border border-gray-200 rounded-lg"
           open={showAdvanced}
           onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}
@@ -385,7 +384,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
               </span>
             )}
           </summary>
-          
+
           <div className="px-4 pb-4 space-y-4 border-t border-gray-100 pt-3">
             {/* Your Phone Number (for bridge calls) */}
             <div>
@@ -406,14 +405,14 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    ;(e.target as HTMLInputElement).blur()
+                      ; (e.target as HTMLInputElement).blur()
                   }
                 }}
                 placeholder="+12025551234"
                 className="font-mono"
               />
               <p className="text-xs text-[#666666] mt-1.5 leading-relaxed">
-                <strong>How it works:</strong> We'll call your phone first. When you answer, we connect you to the target number. 
+                <strong>How it works:</strong> We'll call your phone first. When you answer, we connect you to the target number.
                 This keeps you in control and ensures the call is recorded from your end.
               </p>
             </div>

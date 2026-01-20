@@ -2,6 +2,7 @@
 
 import React, { useEffect, useCallback } from 'react'
 import { useWebRTCContext } from '@/hooks/WebRTCProvider'
+import { useTargetNumber } from '@/hooks/TargetNumberProvider'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +23,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
   const webrtc = useWebRTCContext()
   const { config } = useVoiceConfig(organizationId)
   const { toast } = useToast()
+  const { targetNumber, isValid: hasValidNumber } = useTargetNumber() // Read from shared context
 
   const {
     connect,
@@ -89,35 +91,22 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
   }, [disconnect, toast])
 
   const handleMakeCall = useCallback(async () => {
-    if (!hasDialTarget) {
-      toast({
-        title: 'No target',
-        description: 'Enter a phone number first',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const phoneNumber = config?.quick_dial_number || ''
-
-    console.log('[WebRTCCallControls] Attempting call with:', {
-      phoneNumber,
-      hasConfig: !!config,
-      quick_dial_number: config?.quick_dial_number,
-      target_id: config?.target_id
-    })
-
-    if (!phoneNumber || phoneNumber.length < 6) {
+    if (!hasValidNumber) {
       toast({
         title: 'Invalid phone number',
-        description: 'Please enter a valid phone number in the Quick Dial settings',
+        description: 'Please enter a valid phone number in E.164 format (starts with +)',
         variant: 'destructive',
       })
       return
     }
 
+    console.log('[WebRTCCallControls] Attempting call with:', {
+      phoneNumber: targetNumber,
+      hasValidNumber
+    })
+
     try {
-      await makeCall(phoneNumber, {
+      await makeCall(targetNumber, {
         record: config?.record || false,
         transcribe: config?.transcribe || false,
         translate: config?.translate || false,
@@ -134,7 +123,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
         variant: 'destructive',
       })
     }
-  }, [hasDialTarget, config, makeCall, currentCall, onCallPlaced, toast])
+  }, [hasValidNumber, targetNumber, config, makeCall, currentCall, onCallPlaced, toast])
 
   const handleHangUp = useCallback(async () => {
     try {
@@ -275,7 +264,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
         {callState === 'idle' && (
           <Button
             onClick={handleMakeCall}
-            disabled={!hasDialTarget}
+            disabled={!hasValidNumber}
             variant="primary"
             size="lg"
             className="w-full h-14 text-base"
@@ -357,8 +346,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
           </div>
         )}
 
-        {/* No target warning */}
-        {!hasDialTarget && callState === 'idle' && (
+        {!hasValidNumber && callState === 'idle' && (
           <p className="text-sm text-gray-500 text-center">
             Enter a phone number above to place a call
           </p>
