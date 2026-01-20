@@ -27,19 +27,19 @@ export async function GET(req: NextRequest) {
     } else if (process.env.NODE_ENV === 'production') {
       // In production, CRON_SECRET must be set
       logger.error('Cron: CRON_SECRET not configured in production')
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Server configuration error: CRON_SECRET required' 
+      return NextResponse.json({
+        success: false,
+        error: 'Server configuration error: CRON_SECRET required'
       }, { status: 500 })
     }
 
     const now = new Date()
-    const windowStart = new Date(now.getTime() - 60000)
-    const windowEnd = new Date(now.getTime() + 60000)
+    const windowStart = new Date(now.getTime() - 15 * 60000) // Look back 15 minutes
+    const windowEnd = new Date(now.getTime() + 60000) // Look ahead 1 minute
 
-    logger.info('Cron: Checking scheduled calls', { 
-      windowStart: windowStart.toISOString(), 
-      windowEnd: windowEnd.toISOString() 
+    logger.info('Cron: Checking scheduled calls', {
+      windowStart: windowStart.toISOString(),
+      windowEnd: windowEnd.toISOString()
     })
 
     const { data: bookings, error: fetchError } = await supabaseAdmin
@@ -95,12 +95,12 @@ export async function GET(req: NextRequest) {
           modulations,
           actor_id: 'system-cron' // Cron jobs run as system, not a user
         }
-        
+
         if (booking.from_number) {
           callInput.from_number = booking.from_number
           callInput.flow_type = 'bridge'
         }
-        
+
         const callResult = await startCallHandler(callInput, { supabaseAdmin })
 
         if (callResult.success && (callResult as any).call) {

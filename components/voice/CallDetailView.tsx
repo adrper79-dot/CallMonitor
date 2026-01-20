@@ -36,14 +36,14 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
   // Fetch existing outcome when call changes
   const fetchOutcome = useCallback(async () => {
     if (!callId) return
-    
+
     setOutcomeLoading(true)
     try {
       const res = await fetch(`/api/calls/${callId}/outcome`, {
         method: 'GET',
         credentials: 'include',
       })
-      
+
       if (res.ok) {
         const data = await res.json()
         if (data.success && data.data.outcome) {
@@ -78,19 +78,19 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
   // Download evidence bundle
   async function handleDownloadEvidence() {
     if (!callId) return
-    
+
     try {
       setExporting(true)
       const res = await fetch(`/api/calls/${callId}/export`, {
         method: 'GET',
         credentials: 'include',
       })
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Export failed' }))
         throw new Error(errorData.error || 'Failed to export evidence')
       }
-      
+
       // Get the blob and trigger download
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
@@ -101,7 +101,7 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
+
       toast({
         title: 'Evidence Downloaded',
         description: 'Complete evidence bundle exported successfully',
@@ -166,11 +166,11 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const statusVariant = 
+  const statusVariant =
     call.status === 'completed' ? 'success' :
-    call.status === 'failed' || call.status === 'no-answer' || call.status === 'busy' ? 'error' :
-    call.status === 'in_progress' ? 'default' :
-    'default'
+      call.status === 'failed' || call.status === 'no-answer' || call.status === 'busy' ? 'error' :
+        call.status === 'in_progress' ? 'default' :
+          'default'
 
   return (
     <div className="space-y-6">
@@ -236,12 +236,12 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
             </Button>
           </Link>
         )}
-        
+
         {/* Download Evidence - Export complete bundle */}
         {call.status === 'completed' && (
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="gap-1.5"
             onClick={handleDownloadEvidence}
             disabled={exporting}
@@ -264,7 +264,7 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
             )}
           </Button>
         )}
-        
+
         {recording?.recording_url && (
           <Button
             variant="outline"
@@ -329,12 +329,12 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
 
       {/* Outcome Declaration - Post-Call Outcome Capture */}
       {/* Per AI Role Policy: Humans declare outcomes, not AI */}
-      {call.status === 'completed' && organizationId && (
+      {['completed', 'failed', 'no-answer', 'busy', 'in_progress'].includes(call.status || '') && organizationId && (
         <section aria-label="Outcome Declaration">
           <OutcomeDeclaration
             callId={call.id}
             organizationId={organizationId}
-            callCompleted={true}
+            callCompleted={['completed', 'failed', 'no-answer', 'busy'].includes(call.status || '')}
             existingOutcome={callOutcome}
             onOutcomeSaved={handleOutcomeSaved}
             enableAISummary={true}
