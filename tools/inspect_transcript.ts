@@ -17,7 +17,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function inspectTranscript() {
-    const targetCallId = '18f4f5c2-128d-4662-b385-8a1ebe759ece'
+    const targetCallId = '7766e828-4038-41e9-a76d-23038bcc68d6'
     console.log(`Inspecting Call ID: ${targetCallId}`)
 
     // 1. Find the AI Runs for this call

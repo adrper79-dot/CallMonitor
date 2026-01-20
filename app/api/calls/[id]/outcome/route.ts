@@ -514,6 +514,7 @@ export async function PUT(
     const updateFields: any = {
       revision_number: existingOutcome.revision_number + 1,
       updated_at: new Date().toISOString(),
+      last_updated_by_user_id: userId,
     }
 
     if (outcome_status !== undefined) updateFields.outcome_status = outcome_status

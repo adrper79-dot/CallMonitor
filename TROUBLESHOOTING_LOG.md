@@ -80,16 +80,16 @@ To confirm the *rest* of the pipeline works (transcription processing, translati
 - **Result**: 2 AI runs per call. One for the bot (likely empty), one for the user (speech).
     - **Bonus**: This ALSO fixes the translation failure. The translation logic will now receive valid text from the User Leg instead of `null` from the silent Bot Leg.
 
-### 8. Silent Audio Input (User Hardware?)
-- **Problem**: Transcriptions are completing successfully (`Status: completed`), but returning `""` (Empty String).
-- **Impact**: Causes Translation to fail with `OpenAI Error 400: content is null`.
-- **Diagnosis**: Pipeline is functional. The Recording file itself contains no speech (silence).
-- **Action**: User advised to check microphone/input settings.
+### 8. Silent Audio Input (False Positive)
+- **Initial Diagnosis**: Transcriptions were completing with `""` (Empty String), leading to translation failure. Suspected microphone issues.
+- **Correction**: User confirmed valid text appeared in AssemblyAI Dashboard. The audio was NOT silent.
+- **Resolution**: Pointed to data loss in the webhook handler (see below).
 
-### 9. Data Persistence Failure (Webhook)
+### 9. Data Persistence Failure (Webhook) - **FIXED**
 - **Problem**: Transcript text exists in AssemblyAI Dashboard but is missing from Database (`ai_runs`), causing downstream Translation failure.
-- **Diagnosis**: Webhook handler extracts `text` for translation trigger but fails to persist the full `transcript` object back to `ai_runs.output`.
-- **Action**: Fix `app/api/webhooks/assemblyai/route.ts` to ensure `transcriptJson` is correctly saved.
+- **Root Cause**: AssemblyAI webhook payload `status: completed` sometimes omits the `text` field (notification only). Our code trusted the payload, saving `undefined` as text.
+- **Fix**: Updated `app/api/webhooks/assemblyai/route.ts` to detect missing text and automatically **fetch the full transcript** from the AssemblyAI API.
+- **Status**: Code updated. Awaiting deployment.
 - **Impact**: Bypassing signature validation means we trust any POST request to `/api/webhooks/assemblyai`.
 - **Risk**: Low for this beta phase. An attacker would need to guess the exact URL and internal IDs to corrupt data.
 - **Mitigation**: We can add IP Allowlisting for AssemblyAI servers later, or debug the signature mismatch (likely a Vercel body encoding issue).
