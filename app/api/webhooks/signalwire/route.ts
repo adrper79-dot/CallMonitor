@@ -272,7 +272,7 @@ async function processWebhookAsync(req: Request) {
 
       if (orgToolId) {
         const durationSeconds = recordingDuration
-          ? Math.round(parseInt(String(recordingDuration), 10) / 1000)
+          ? Math.round(parseInt(String(recordingDuration), 10))
           : callDuration ? Math.round(parseInt(String(callDuration), 10)) : null
 
         if (existingRec) {
