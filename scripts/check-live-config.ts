@@ -18,7 +18,7 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const CALL_ID = 'b64559c9-1c7b-47d0-b947-a80b2765ffdd';
+const CALL_ID = '2bc51928-2ecd-4661-91f4-6e8edb8f0845';
 
 async function checkLiveConfig() {
     console.log(`Checking Live Translation Config for call: ${CALL_ID}`);

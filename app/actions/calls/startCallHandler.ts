@@ -606,37 +606,65 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         }
       }
     }
+  }
     // enqueue translation run if requested (driven by voice_configs)
     if (effectiveModulations.translate) {
-      // require languages to be present; if missing, record an audit and skip enqueuing
-      const fromLang = effectiveModulations.translate_from ?? null
-      const toLang = effectiveModulations.translate_to ?? null
-      if (!fromLang || !toLang) {
-        await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_LANG_MISSING', message: 'Translation configured but language codes missing', user_message: 'Translation configuration incomplete; skipping translation.', severity: 'MEDIUM', retriable: false }).toJSON())
-      } else if (!systemAiId) {
-        await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Translation unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
-      } else {
-        const aiId = uuidv4()
-        // Note: Using 'output' column for metadata since 'meta' doesn't exist in schema
-        const aiRow = {
-          id: aiId,
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'assemblyai-translation-v1',
-          status: 'queued',
-          produced_by: 'model',
-          is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS
-          output: { translate_from: fromLang, translate_to: toLang, pending: true }
+    // require languages to be present; if missing, record an audit and skip enqueuing
+    const fromLang = effectiveModulations.translate_from ?? null
+    const toLang = effectiveModulations.translate_to ?? null
+    if (!fromLang || !toLang) {
+      await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_LANG_MISSING', message: 'Translation configured but language codes missing', user_message: 'Translation configuration incomplete; skipping translation.', severity: 'MEDIUM', retriable: false }).toJSON())
+    } else if (!systemAiId) {
+      await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Translation unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
+    } else {
+      const aiId = uuidv4()
+      // Note: Using 'output' column for metadata since 'meta' doesn't exist in schema
+      const aiRow = {
+        id: aiId,
+        call_id: callId,
+        system_id: systemAiId,
+        model: 'assemblyai-translation-v1',
+        status: 'queued',
+        produced_by: 'model',
+        is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS
+        output: { translate_from: fromLang, translate_to: toLang, pending: true }
+      }
+      try {
+        const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
+        if (aiErr) {
+          logger.error('startCallHandler: failed to insert ai_run (translation)', undefined, { callId, error: aiErr?.message })
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
         }
-        try {
-          const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
-          if (aiErr) {
-            logger.error('startCallHandler: failed to insert ai_run (translation)', undefined, { callId, error: aiErr?.message })
-            await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
-          }
-        } catch (e) {
-          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+      } catch (e) {
+        await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+      }
+    }
+  }
+
+  // enqueue survey run if requested (driven by voice_configs)
+  if (effectiveModulations.survey) {
+    if (!systemAiId) {
+      await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Survey unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
+    } else {
+      const aiId = uuidv4()
+      const aiRow = {
+        id: aiId,
+        call_id: callId,
+        system_id: systemAiId,
+        model: 'assemblyai-survey',
+        status: 'queued',
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { pending: true }
+      }
+      try {
+        const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
+        if (aiErr) {
+          logger.error('startCallHandler: failed to insert ai_run (survey)', undefined, { callId, error: aiErr?.message })
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_SURVEY_INSERT_FAILED', message: 'Failed to enqueue survey', user_message: 'Survey could not be started.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
         }
+      } catch (e) {
+        await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_SURVEY_INSERT_FAILED', message: 'Failed to enqueue survey', user_message: 'Survey could not be started.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
       }
     }
 

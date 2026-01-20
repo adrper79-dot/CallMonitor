@@ -375,9 +375,22 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       .eq('model', 'assemblyai-v1')
       .limit(1)
 
-    if (aiRows && aiRows.length > 0 && aiRows[0].status !== 'failed') {
-      logger.info('SignalWire webhook: Skipping transcription - already queued/processing', { callId, aiRunId: aiRows[0].id })
-      return
+    let aiRunId = uuidv4()
+    let shouldCreate = true
+
+    if (aiRows && aiRows.length > 0) {
+      const existingRun = aiRows[0]
+      if (existingRun.status === 'processing' || existingRun.status === 'completed') {
+        logger.info('SignalWire webhook: Skipping transcription - already processing/completed', { callId, aiRunId: existingRun.id })
+        return
+      }
+
+      // If queued or failed, we use this run and proceed to submit
+      if (existingRun.status === 'queued' || existingRun.status === 'failed') {
+        aiRunId = existingRun.id
+        shouldCreate = false
+        logger.info('SignalWire webhook: Using existing ai_run for transcription', { callId, aiRunId, status: existingRun.status })
+      }
     }
 
     const { data: systemsRows } = await supabaseAdmin
@@ -420,21 +433,22 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       return
     }
 
-    const aiRunId = uuidv4()
-    const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
-      id: aiRunId,
-      call_id: callId,
-      system_id: systemAiId,
-      model: 'assemblyai-v1',
-      status: 'queued',
-      started_at: new Date().toISOString(),
-      produced_by: 'model',
-      is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
-    })
+    if (shouldCreate) {
+      const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
+        id: aiRunId,
+        call_id: callId,
+        system_id: systemAiId,
+        model: 'assemblyai-v1',
+        status: 'queued',
+        started_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
+      })
 
-    if (aiErr) {
-      logger.error('SignalWire webhook: failed to create ai_run', aiErr, { callId })
-      return
+      if (aiErr) {
+        logger.error('SignalWire webhook: failed to create ai_run', aiErr, { callId })
+        return
+      }
     }
 
     const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {

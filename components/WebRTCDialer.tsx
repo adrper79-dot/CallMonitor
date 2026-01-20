@@ -59,9 +59,9 @@ function StatusIndicator({ status }: { status: WebRTCStatus }) {
     on_call: { color: 'bg-blue-500 animate-pulse', label: 'On Call' },
     error: { color: 'bg-red-500', label: 'Error' },
   }
-  
+
   const config = statusConfig[status]
-  
+
   return (
     <div className="flex items-center gap-2">
       <div className={`w-2 h-2 rounded-full ${config.color}`} />
@@ -72,11 +72,11 @@ function StatusIndicator({ status }: { status: WebRTCStatus }) {
 
 function QualityIndicator({ quality }: { quality: { packet_loss_percent?: number } | null }) {
   if (!quality) return null
-  
+
   const loss = quality.packet_loss_percent ?? 0
   let color = 'text-green-600'
   let label = 'Excellent'
-  
+
   if (loss > 5) {
     color = 'text-red-600'
     label = 'Poor'
@@ -87,7 +87,7 @@ function QualityIndicator({ quality }: { quality: { packet_loss_percent?: number
     color = 'text-green-500'
     label = 'Good'
   }
-  
+
   return (
     <div className="flex items-center gap-1">
       <svg className={`w-4 h-4 ${color}`} fill="currentColor" viewBox="0 0 20 20">
@@ -107,7 +107,7 @@ export function WebRTCDialer({
 }: WebRTCDialerProps) {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown')
-  
+
   const {
     connect,
     disconnect,
@@ -195,9 +195,9 @@ export function WebRTCDialer({
       <div className={`flex items-center gap-2 ${className}`}>
         <StatusIndicator status={status} />
         {!isConnected ? (
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleConnect}
             disabled={status === 'connecting' || status === 'initializing'}
           >
@@ -287,16 +287,15 @@ export function WebRTCDialer({
                 {callState === 'active' && formatDuration(currentCall.duration)}
               </p>
             </div>
-            
+
             {/* Call Controls */}
             <div className="flex items-center justify-center gap-4">
               <button
                 onClick={isMuted ? unmute : mute}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-                  isMuted 
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isMuted
+                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                  }`}
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? (
@@ -310,7 +309,7 @@ export function WebRTCDialer({
                   </svg>
                 )}
               </button>
-              
+
               <button
                 onClick={hangUp}
                 className="w-14 h-14 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-colors"
@@ -332,7 +331,7 @@ export function WebRTCDialer({
               <input
                 type="tel"
                 value={formatPhoneDisplay(phoneNumber)}
-                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^\d+]/g, ''))}
                 placeholder="Enter phone number"
                 className="w-full text-center text-2xl font-mono py-3 border-b border-gray-200 focus:border-[#1E3A5F] outline-none bg-transparent"
               />
@@ -367,11 +366,10 @@ export function WebRTCDialer({
               <button
                 onClick={handleCall}
                 disabled={!canDial}
-                className={`flex-1 h-14 rounded-lg flex items-center justify-center gap-2 text-white font-medium transition-colors ${
-                  canDial 
-                    ? 'bg-green-600 hover:bg-green-700' 
+                className={`flex-1 h-14 rounded-lg flex items-center justify-center gap-2 text-white font-medium transition-colors ${canDial
+                    ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-gray-300 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
