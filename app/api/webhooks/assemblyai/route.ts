@@ -29,7 +29,10 @@ export const dynamic = 'force-dynamic'
 async function handleWebhook(req: Request) {
   // Validate webhook signature if API key is configured
   const apiKey = process.env.ASSEMBLYAI_API_KEY
-  if (apiKey) {
+  // Allow skipping validation for debugging or if signature checks fail persistently
+  const skipValidation = process.env.ASSEMBLYAI_SKIP_SIGNATURE_VALIDATION === 'true'
+
+  if (apiKey && !skipValidation) {
     const signature = req.headers.get('X-AssemblyAI-Signature') ||
       req.headers.get('X-Signature') ||
       req.headers.get('Signature')

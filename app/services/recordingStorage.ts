@@ -51,6 +51,8 @@ export async function storeRecording(
       if (recordingUrl.includes('.wav')) contentType = 'audio/wav'
       else if (recordingUrl.includes('.mp3')) contentType = 'audio/mpeg'
       else contentType = 'audio/wav' // Default to wav for SignalWire recordings
+    } else if (contentType === 'audio/x-wav') {
+      contentType = 'audio/wav' // Normalize x-wav to wav for Supabase Storage compatibility
     }
     const extension = contentType.includes('wav') ? 'wav' : contentType.includes('mp3') ? 'mp3' : 'mp3'
 
