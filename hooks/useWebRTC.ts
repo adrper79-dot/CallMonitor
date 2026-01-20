@@ -329,10 +329,18 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         return
       }
 
+      // Validate phone number
+      const sanitizedNumber = phoneNumber.replace(/\D/g, '')
+      if (sanitizedNumber.length < 10) {
+        setError('Invalid phone number: Must be at least 10 digits')
+        setCallState('idle')
+        return
+      }
+
       // Normalize phone number
       const formattedNumber = phoneNumber.startsWith('+')
         ? phoneNumber
-        : `+1${phoneNumber.replace(/\D/g, '')}`
+        : `+1${sanitizedNumber}`
 
       // Get the from number from the session
       const fromNumber = sessionRef.current?.signalwire_number
@@ -420,7 +428,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('ending')
       await callRef.current.hangup()
     } catch (err: any) {
-      console.error('[WebRTC] hangUp error:', err)
+      // Ignore common error when hanging up a call that's already ending/destroyed
+      if (err?.message?.includes('Invalid RTCPeer ID')) {
+        console.log('[WebRTC] Call already destroyed (Invalid RTCPeer ID)')
+      } else {
+        console.error('[WebRTC] hangUp error:', err)
+      }
+
       // Force cleanup
       callRef.current = null
       setCallState('idle')
