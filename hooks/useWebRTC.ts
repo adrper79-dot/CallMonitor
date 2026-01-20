@@ -147,24 +147,23 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('initializing')
       setError(null)
 
-      // Try to create WebRTC session via API
-      let response = await apiPost<{ success: boolean; session: WebRTCSession; error?: any }>(
+      // ALWAYS delete any existing session first to ensure clean slate
+      // This prevents waiting for 5-minute timeout on stale sessions
+      console.log('[WebRTC] Cleaning up any existing sessions...')
+      try {
+        await apiDelete('/api/webrtc/session')
+      } catch (cleanupErr) {
+        // Ignore cleanup errors (e.g., if no session exists)
+        console.log('[WebRTC] Session cleanup completed (or no session to clean)')
+      }
+
+      // Create fresh WebRTC session
+      const response = await apiPost<{ success: boolean; session: WebRTCSession; error?: any }>(
         '/api/webrtc/session'
       )
 
-      // If session exists, end it and retry once (ARCH_DOCS: robust, idempotent session management)
-      if (
-        response?.error?.code === 'SESSION_EXISTS' ||
-        (response as any)?.error?.message?.includes('Active WebRTC session already exists')
-      ) {
-        await apiDelete('/api/webrtc/session')
-        response = await apiPost<{ success: boolean; session: WebRTCSession; error?: any }>(
-          '/api/webrtc/session'
-        )
-      }
-
       if (!response.success || !response.session) {
-        throw new Error('Failed to create WebRTC session')
+        throw new Error(response.error?.message || 'Failed to create WebRTC session')
       }
 
       const session = response.session
