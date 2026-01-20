@@ -19,7 +19,7 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const CALL_ID = 'b0d66494-bde3-44e8-9e5e-51ed583b6a60';
+const CALL_ID = 'b64559c9-1c7b-47d0-b947-a80b2765ffdd';
 
 async function triggerTranscription() {
     console.log(`Triggering transcription for call: ${CALL_ID}`);
