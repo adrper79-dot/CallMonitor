@@ -371,6 +371,13 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
       return
     }
 
+    // DEBUG: Check Config Status
+    logger.info('SignalWire webhook: CONFIG CHECK', {
+      has_assembly_key: !!process.env.ASSEMBLYAI_API_KEY,
+      key_len: process.env.ASSEMBLYAI_API_KEY ? process.env.ASSEMBLYAI_API_KEY.length : 0,
+      env: process.env.NODE_ENV
+    })
+
     const { data: aiRows } = await supabaseAdmin
       .from('ai_runs')
       .select('id, status')
@@ -440,6 +447,19 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
 
     if (!process.env.ASSEMBLYAI_API_KEY) {
       logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured - skipping transcription')
+      // PROD DEBUG: Write to audit_logs so we can see it
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id: organizationId,
+          resource_type: 'system',
+          action: 'error',
+          actor_type: 'system',
+          before: { error: 'ASSEMBLYAI_API_KEY_MISSING' },
+          after: { env_check: process.env.NODE_ENV },
+          created_at: new Date().toISOString()
+        })
+      } catch (e) { }
       return
     }
 
