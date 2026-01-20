@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { planSupportsFeature } from '@/lib/rbac'
 import { requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
-import { zonedTimeToUtc } from 'date-fns-tz'
+import { fromZonedTime } from 'date-fns-tz'
 import { parseISO, isValid } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -88,8 +88,28 @@ export async function POST(req: NextRequest) {
       return Errors.badRequest('Invalid phone number format (use E.164)')
     }
 
-    const startDate = new Date(start_time)
     const now = new Date()
+
+    // Handle timezone conversion
+    // If start_time is an ISO string without offset (e.g. 2026-01-20T10:00:00), it's treated as local to the specified timezone.
+    // fromZonedTime converts that "Wall Time" in "Timezone" to absolute UTC Date.
+    let startDate: Date
+    try {
+      if (timezone && timezone !== 'UTC') {
+        // If start_time string has 'Z' or offset, fromZonedTime respects it.
+        // If it has no offset, it applies the timezone.
+        startDate = fromZonedTime(start_time, timezone)
+      } else {
+        startDate = new Date(start_time)
+      }
+
+      if (!isValid(startDate)) {
+        return Errors.badRequest('Invalid start_time format')
+      }
+    } catch (e) {
+      return Errors.badRequest('Invalid start_time or timezone')
+    }
+
     if (startDate < new Date(now.getTime() - 5 * 60 * 1000)) {
       return Errors.badRequest('start_time cannot be in the past')
     }
@@ -113,9 +133,9 @@ export async function POST(req: NextRequest) {
       timezone, attendee_name, attendee_email, attendee_phone,
       modulations, notes, status: 'pending', created_by: ctx.userId
     }
-    
+
     if (from_number) insertData.from_number = from_number
-    
+
     const { data: booking, error } = await supabaseAdmin
       .from('booking_events')
       .insert(insertData)
