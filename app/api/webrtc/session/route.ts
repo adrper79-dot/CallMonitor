@@ -429,6 +429,7 @@ export async function GET(request: NextRequest) {
       success: true,
       session: {
         id: webrtcSession.id,
+        session_token: webrtcSession.session_token,
         status: webrtcSession.status,
         created_at: webrtcSession.created_at
         // NOTE: call_id, connected_at, audio_bitrate, packet_loss_percent, 

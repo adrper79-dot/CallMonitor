@@ -16,6 +16,7 @@
 
 import { logger } from '@/lib/logger'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { v4 as uuidv4 } from 'uuid'
 
 // Audit event types
 export type AuditEventType =
@@ -75,6 +76,7 @@ export async function writeAudit(entry: AuditLogEntry): Promise<boolean> {
     const { error } = await supabaseAdmin
       .from('audit_logs')
       .insert({
+        id: uuidv4(),
         organization_id: entry.organization_id,
         user_id: entry.actor_type === 'user' ? entry.actor_id : null,
         system_id: entry.actor_type === 'system' ? entry.actor_id : null,
@@ -187,7 +189,7 @@ export async function writeAuditLegacy(
 export async function writeAuditErrorLegacy(
   table: string,
   resourceId: string,
-  errorData: { message: string; error?: string; [key: string]: any }
+  errorData: { message: string; error?: string;[key: string]: any }
 ): Promise<boolean> {
   return writeAudit({
     event_type: 'USER_ACTION',

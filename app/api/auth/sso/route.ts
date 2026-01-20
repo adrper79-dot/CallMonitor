@@ -21,6 +21,7 @@ import {
 } from '@/lib/sso/ssoService'
 import { withRateLimit } from '@/lib/rateLimit'
 import { randomBytes } from 'crypto'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -119,30 +120,31 @@ async function handlePOST(req: Request): Promise<Response> {
     // Initiate SSO login flow
     if (action === 'login') {
       const { email, callback_url } = body
-      
+
       if (!email) {
         return NextResponse.json({ success: false, error: 'Email required' }, { status: 400 })
       }
 
       const config = await getSSOConfigByDomain(email)
       if (!config) {
-        return NextResponse.json({ 
-          success: false, 
+        return NextResponse.json({
+          success: false,
           sso_available: false,
-          error: 'No SSO configuration found for this email domain' 
+          error: 'No SSO configuration found for this email domain'
         }, { status: 404 })
       }
 
       // Generate state for CSRF protection
       const state = randomBytes(32).toString('hex')
-      
+
       // Store state temporarily (in production, use Redis or similar)
       await supabaseAdmin.from('audit_logs').insert({
+        id: uuidv4(),
         resource_type: 'sso_state',
         resource_id: state as unknown as string,
         action: 'create',
-        after: { 
-          config_id: config.id, 
+        after: {
+          config_id: config.id,
           callback_url: callback_url || '/',
           expires: Date.now() + 600000 // 10 minutes
         }
@@ -198,16 +200,16 @@ async function handlePOST(req: Request): Promise<Response> {
       return NextResponse.json({ success: false, error: 'Provider type and name required' }, { status: 400 })
     }
 
-    if ((config.provider_type === 'saml' || config.provider_type === 'okta') && 
-        (!config.saml_entity_id || !config.saml_sso_url || !config.saml_certificate)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'SAML configuration requires Entity ID, SSO URL, and Certificate' 
+    if ((config.provider_type === 'saml' || config.provider_type === 'okta') &&
+      (!config.saml_entity_id || !config.saml_sso_url || !config.saml_certificate)) {
+      return NextResponse.json({
+        success: false,
+        error: 'SAML configuration requires Entity ID, SSO URL, and Certificate'
       }, { status: 400 })
     }
 
     if (['oidc', 'azure_ad', 'google_workspace'].includes(config.provider_type) &&
-        (!config.oidc_client_id || !config.oidc_issuer_url)) {
+      (!config.oidc_client_id || !config.oidc_issuer_url)) {
       return NextResponse.json({
         success: false,
         error: 'OIDC configuration requires Client ID and Issuer URL'
@@ -236,6 +238,7 @@ async function handlePOST(req: Request): Promise<Response> {
 
     // Log audit event
     await supabaseAdmin.from('audit_logs').insert({
+      id: uuidv4(),
       organization_id: orgId,
       user_id: userId,
       resource_type: 'sso_config',
@@ -309,6 +312,7 @@ async function handleDELETE(req: Request): Promise<Response> {
 
     // Log audit event
     await supabaseAdmin.from('audit_logs').insert({
+      id: uuidv4(),
       organization_id: orgId,
       user_id: userId,
       resource_type: 'sso_config',
