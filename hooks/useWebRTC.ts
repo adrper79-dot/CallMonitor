@@ -37,6 +37,7 @@ export interface WebRTCSession {
   signalwire_project: string
   signalwire_space: string
   signalwire_token: string | null
+  signalwire_number: string | null
   ice_servers: RTCIceServer[]
 }
 
@@ -333,9 +334,14 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         ? phoneNumber
         : `+1${phoneNumber.replace(/\D/g, '')}`
 
+      // Get the from number from the session
+      const fromNumber = sessionRef.current?.signalwire_number
+      console.log('[WebRTC] Dialing:', { to: formattedNumber, from: fromNumber })
+
       // Create call via SignalWire client
       const call = await clientRef.current.dial({
         to: formattedNumber,
+        from: fromNumber || undefined, // SignalWire number as caller ID
         nodeId: undefined, // Let SignalWire choose
         // Pass modulation options
         ...(options?.record && { record: true }),

@@ -364,7 +364,8 @@ export async function POST(request: NextRequest) {
         ice_servers: signalWireCredentials?.iceServers || [],
         signalwire_project: SIGNALWIRE_PROJECT_ID,
         signalwire_space: getSignalWireDomain(),
-        signalwire_token: signalWireCredentials?.token || null
+        signalwire_token: signalWireCredentials?.token || null,
+        signalwire_number: process.env.SIGNALWIRE_NUMBER || null
       }
     }, { status: 201 })
   } catch (error: any) {

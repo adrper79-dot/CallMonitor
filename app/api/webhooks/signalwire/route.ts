@@ -178,12 +178,12 @@ async function processWebhookAsync(req: Request) {
       if (isBusinessPlan && isFeatureFlagEnabled) {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
-          .select('live_translate, translation_from, translation_to')
+          .select('live_translate, translate_from, translate_to')
           .eq('organization_id', organizationId)
           .limit(1)
 
         const voiceConfig = vcRows?.[0]
-        if (voiceConfig?.live_translate === true && voiceConfig?.translation_from && voiceConfig?.translation_to) {
+        if (voiceConfig?.live_translate === true && voiceConfig?.translate_from && voiceConfig?.translate_to) {
           hasLiveTranslation = true
         }
       }

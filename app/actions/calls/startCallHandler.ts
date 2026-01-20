@@ -172,12 +172,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       try {
         const { data: vcRows } = await supabaseAdmin
           .from('voice_configs')
-          .select('translation_from, translation_to')
+          .select('translate_from, translate_to')
           .eq('organization_id', organization_id)
           .limit(1)
         if (vcRows?.[0]) {
-          translateFrom = vcRows[0].translation_from || null
-          translateTo = vcRows[0].translation_to || null
+          translateFrom = vcRows[0].translate_from || null
+          translateTo = vcRows[0].translate_to || null
         }
       } catch (e) {
         logger.warn('Failed to fetch translation languages', e as Error)
@@ -380,7 +380,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // default to conservative (all false) when no config present
     let effectiveModulations: Modulations & { translate_from?: string | null; translate_to?: string | null } = { record: false, transcribe: false, translate: false }
     try {
-      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,live_translate,translation_from,translation_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
+      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,live_translate,translate_from,translate_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
       if (!vcErr && vcRows && vcRows[0]) {
         const cfg: any = vcRows[0]
         effectiveModulations.record = !!cfg.record
@@ -388,8 +388,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         effectiveModulations.translate = !!cfg.live_translate
         effectiveModulations.survey = !!cfg.survey
         effectiveModulations.synthetic_caller = !!cfg.synthetic_caller
-        if (typeof cfg.translation_from === 'string') effectiveModulations.translate_from = cfg.translation_from
-        if (typeof cfg.translation_to === 'string') effectiveModulations.translate_to = cfg.translation_to
+        if (typeof cfg.translate_from === 'string') effectiveModulations.translate_from = cfg.translate_from
+        if (typeof cfg.translate_to === 'string') effectiveModulations.translate_to = cfg.translate_to
       }
     } catch (e) {
       // best-effort: if voice_configs absent or lookup fails, keep conservative defaults

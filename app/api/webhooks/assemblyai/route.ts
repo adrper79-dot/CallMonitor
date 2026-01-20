@@ -402,7 +402,7 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
 
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('live_translate, translation_from, translation_to, use_voice_cloning')
+      .select('live_translate, translate_from, translate_to, use_voice_cloning')
       .eq('organization_id', organizationId)
       .limit(1)
 
@@ -423,8 +423,8 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
     }
 
     // Handle auto-detection: if translate_from or translate_to is 'auto', use detected language
-    let fromLanguage = config.translation_from
-    let toLanguage = config.translation_to
+    let fromLanguage = config.translate_from
+    let toLanguage = config.translate_to
 
     // For bridge calls, we need to handle bidirectional translation
     const { data: callRows } = await supabaseAdmin

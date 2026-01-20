@@ -62,7 +62,7 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   if (organizationId) {
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, live_translate, translation_from, translation_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
+      .select('record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
       .eq('organization_id', organizationId)
       .limit(1)
 

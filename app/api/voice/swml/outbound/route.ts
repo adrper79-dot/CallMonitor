@@ -60,13 +60,13 @@ export async function POST(req: Request) {
 
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, live_translate, translation_from, translation_to')
+      .select('record, live_translate, translate_from, translate_to')
       .eq('organization_id', organizationId)
       .limit(1)
 
     voiceConfig = vcRows?.[0] || null
 
-    if (!voiceConfig?.live_translate || !voiceConfig?.translation_from || !voiceConfig?.translation_to) {
+    if (!voiceConfig?.live_translate || !voiceConfig?.translate_from || !voiceConfig?.translate_to) {
       logger.warn('SWML outbound: translation not enabled', { organizationId })
       return swmlResponse(FALLBACK_SWML)
     }

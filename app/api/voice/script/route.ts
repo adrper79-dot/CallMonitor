@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     // Get voice_configs for this organization
     const { data: vcRows } = await supabaseAdmin
       .from('voice_configs')
-      .select('record, transcribe, live_translate, translation_from, translation_to, survey, synthetic_caller, shopper_script')
+      .select('record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, shopper_script')
       .eq('organization_id', organizationId)
       .limit(1)
 
