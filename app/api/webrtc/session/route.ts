@@ -55,8 +55,9 @@ function getSignalWireDomain(): string | null {
  * @see https://developer.signalwire.com/sdks/reference/browser-sdk/
  */
 async function getSignalWireWebRTCToken(sessionId: string): Promise<{
-  token: string
-  iceServers: RTCIceServer[]
+  token?: string
+  iceServers?: RTCIceServer[]
+  error?: string
 } | null> {
   if (!SIGNALWIRE_PROJECT_ID || !SIGNALWIRE_TOKEN || !SIGNALWIRE_SPACE) {
     logger.error('[webrtc] SignalWire credentials not configured', null)
@@ -70,7 +71,6 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
 
   try {
     // Use the Fabric Subscriber Access Token (SAT) endpoint
-    // This is the correct endpoint for @signalwire/js v3+ browser SDK
     const satResponse = await fetch(
       `https://${signalwireDomain}/api/fabric/subscribers/tokens`,
       {
@@ -80,8 +80,8 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
           'Authorization': authHeader
         },
         body: JSON.stringify({
-          reference: sessionId,  // User/session identifier
-          expires_in: 3600       // 1 hour
+          reference: sessionId,
+          expires_in: 3600
         })
       }
     )
@@ -91,21 +91,27 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
       logger.info('[webrtc] Got SignalWire SAT token from Fabric API')
 
       return {
-        token: data.token,  // SAT token field
+        token: data.token,
         iceServers: [
-          // SignalWire STUN/TURN servers
           { urls: `stun:${signalwireDomain}:3478` },
-          // Google STUN as fallback
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          // Include any SignalWire-provided ICE servers
           ...(data.ice_servers || [])
         ]
       }
     }
 
-    // Log the error but continue - we can try legacy endpoints
+    // Check for specific errors
     const errorText = await satResponse.text()
+    let errorJson: any = {}
+    try { errorJson = JSON.parse(errorText) } catch (e) { }
+
+    // Check for insufficient balance
+    if (errorJson?.errors?.some((e: any) => e.code === 'insufficient_balance') || errorText.includes('insufficient_balance')) {
+      logger.warn('[webrtc] SignalWire insufficient balance', { organization_id: 'system' })
+      return { error: 'INSUFFICIENT_FUNDS' }
+    }
+
     logger.warn('[webrtc] SignalWire Fabric SAT endpoint returned non-OK', { status: satResponse.status, errorText })
 
     // Fallback: Try legacy Relay JWT endpoint (for older SignalWire accounts)
@@ -139,7 +145,6 @@ async function getSignalWireWebRTCToken(sessionId: string): Promise<{
 
     logger.warn('[webrtc] Both SAT and JWT endpoints failed')
 
-    // Return null token - client will need to handle authentication differently
     return {
       token: '',
       iceServers: [
@@ -302,6 +307,13 @@ export async function POST(request: NextRequest) {
 
     // Get SignalWire credentials
     const signalWireCredentials = await getSignalWireWebRTCToken(sessionId)
+
+    if (signalWireCredentials?.error === 'INSUFFICIENT_FUNDS') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INSUFFICIENT_FUNDS', message: 'SignalWire account has insufficient balance. Please add funds to your SignalWire account.' } },
+        { status: 402 }
+      )
+    }
 
     // Get user agent from request (for logging only - not stored in DB)
     const userAgent = request.headers.get('user-agent') || 'unknown'
