@@ -57,7 +57,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
   }, [error, toast])
 
   const hasDialTarget = config?.quick_dial_number || config?.target_id
-  const dialTargetDisplay = config?.quick_dial_number || 
+  const dialTargetDisplay = config?.quick_dial_number ||
     (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
 
   const handleConnect = useCallback(async () => {
@@ -99,14 +99,30 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
     }
 
     const phoneNumber = config?.quick_dial_number || ''
-    
+
+    console.log('[WebRTCCallControls] Attempting call with:', {
+      phoneNumber,
+      hasConfig: !!config,
+      quick_dial_number: config?.quick_dial_number,
+      target_id: config?.target_id
+    })
+
+    if (!phoneNumber || phoneNumber.length < 6) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'Please enter a valid phone number in the Quick Dial settings',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       await makeCall(phoneNumber, {
         record: config?.record || false,
         transcribe: config?.transcribe || false,
         translate: config?.translate || false,
       })
-      
+
       // Notify parent - use a generated ID since WebRTC doesn't have call_id yet
       if (currentCall?.id) {
         onCallPlaced?.(currentCall.id)
@@ -234,7 +250,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
                 {formatDuration(currentCall.duration)}
               </span>
             </div>
-            
+
             {/* Call Quality */}
             {quality && (
               <div className="mt-3 pt-3 border-t border-success/10 grid grid-cols-2 gap-2 text-xs">
