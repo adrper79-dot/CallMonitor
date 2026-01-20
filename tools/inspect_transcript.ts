@@ -17,7 +17,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function inspectTranscript() {
-    const targetCallId = '861ca828-c0d7-4e42-b893-4db19d336784'
+    const targetCallId = '18f4f5c2-128d-4662-b385-8a1ebe759ece'
     console.log(`Inspecting Call ID: ${targetCallId}`)
 
     // 1. Find the AI Runs for this call
@@ -36,16 +36,13 @@ async function inspectTranscript() {
     if (runs && runs.length > 0) {
         console.log(`Found ${runs.length} AI Runs for Call ${targetCallId}:`)
         for (const r of runs) {
-            console.log(`\n--- Run ID: ${r.id} ---`)
-            console.log(`Status: ${r.status}`)
-            console.log(`Model: ${r.model}`)
-            if (r.output?.error) {
-                console.log(`ERROR:`, r.output.error)
+            console.log(`Run: ${r.model} | Status: ${r.status}`)
+            if (r.status === 'completed') {
+                console.log(`FULL OUTPUT:`, JSON.stringify(r.output, null, 2))
             }
-            if (r.output?.transcript) {
-                const text = r.output.transcript.text
-                console.log(`Transcript Length: ${text ? text.length : 0}`)
-                if (text) console.log(`Snippet: ${text.substring(0, 50)}...`)
+            if (r.output?.error) {
+                const err = r.output.error
+                console.log(`ERROR: ${err.message || JSON.stringify(err)}`)
             }
         }
     } else {

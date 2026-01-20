@@ -93,12 +93,39 @@ async function processWebhookAsync(req: Request) {
 
     // AssemblyAI webhook payload structure
     const transcriptId = payload.transcript_id
-    const status = payload.status // 'completed', 'error', 'processing'
-    const text = payload.text // Full transcript text
-    const words = payload.words // Word-level timestamps
-    const confidence = payload.confidence // Overall confidence score
+    let status = payload.status // 'completed', 'error', 'processing'
+    let text = payload.text // Full transcript text
+    let words = payload.words // Word-level timestamps
+    let confidence = payload.confidence // Overall confidence score
     const audioUrl = payload.audio_url // Original audio URL
-    const languageCode = payload.language_code || payload.language_detection?.language_code
+    let languageCode = payload.language_code || payload.language_detection?.language_code
+
+    // Fallback: If status is completed but text is missing, fetch full transcript
+    if (status === 'completed' && (!text || text === undefined) && transcriptId) {
+      logger.warn('AssemblyAI webhook: Payload missing text, fetching from API', { transcriptId })
+      try {
+        const apiKey = process.env.ASSEMBLYAI_API_KEY
+        if (apiKey) {
+          const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+            headers: { 'Authorization': apiKey }
+          })
+          if (response.ok) {
+            const fullTranscript = await response.json()
+            text = fullTranscript.text
+            words = fullTranscript.words
+            confidence = fullTranscript.confidence
+            languageCode = fullTranscript.language_code
+            // If status was somehow different, trust the API
+            status = fullTranscript.status
+            logger.info('AssemblyAI webhook: Successfully fetched missing transcript data', { transcriptId, hasText: !!text })
+          } else {
+            logger.error('AssemblyAI webhook: Failed to fetch transcript fallback', undefined, { status: response.status })
+          }
+        }
+      } catch (fetchErr) {
+        logger.error('AssemblyAI webhook: Fetch fallback exception', fetchErr)
+      }
+    }
 
     // Analytics features (enabled in transcription request)
     const sentimentAnalysis = payload.sentiment_analysis_results // Array of {text, start, end, sentiment, confidence}
