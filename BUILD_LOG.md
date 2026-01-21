@@ -109,3 +109,15 @@ All tasks from both `finalization-prompts` and `LANDING_FEASIBILITY_ASSESSMENT` 
 - **Architecture**: Enforced `MASTER_ARCHITECTURE` alignment (Event-driven AI).
 - **Security**: Validated no client-side `supabaseAdmin` leakage.
 - **Health**: `api/health` passed all checks.
+
+## Architecture & Integrity Update (Jan 21 2026)
+
+**Goal:** Review codebase and update `ARCH_DOCS` to reflect reality.
+
+### Updates
+1. **Translation Zombie Fix**: Applied same "Claim Intent" logic to `webhooks/assemblyai` for Translation pipelines. Prevents partial/duplicate runs.
+2. **Architecture Documentation**: 
+   - Updated `MASTER_ARCHITECTURE.txt` sequence diagram to show Intent -> Claim flow.
+   - Updated `LIVE_TRANSLATION_FLOW.md` to reflect `ai_runs` update logic.
+   - Clarified AI Providers (OpenAI for Translation).
+   - Clarified UI Orchestration rules (Client Media allowed).
