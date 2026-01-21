@@ -27,8 +27,8 @@ function parseNumericScore(value: unknown): number | null {
 }
 
 function extractResponses(output: any): Array<{ digit?: string; value?: string }> {
-  if (Array.isArray(output?.responses)) return output.responses
-  if (Array.isArray(output?.results?.responses)) return output.results.responses
+  if (output && Array.isArray(output.responses)) return output.responses
+  if (output && output.results && Array.isArray(output.results.responses)) return output.results.responses
   return []
 }
 
