@@ -96,6 +96,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     if (typeof window !== 'undefined') {
       const audio = new Audio()
       audio.autoplay = true
+      // iOS/Safari Helper: unlock audio context on touch? 
+      // SIP.js usually handles this if we prompt getUserMedia first
       remoteAudioRef.current = audio
     }
   }, [])
@@ -189,8 +191,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         },
         onInvite: (invitation) => {
           console.log('[WebRTC] Incoming Invite')
-          // Auto-answer for now (or show UI)
-          // invitation.accept()
+          // Auto-answer logic could go here
         }
       }
 
@@ -244,7 +245,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
       // Clean number
       const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '')
-      // Construct Target URI: sip:+15551234567@domain
       const target = UserAgent.makeURI(`sip:${cleanNumber}@${userAgentRef.current.configuration.uri?.host}`)
       if (!target) throw new Error('Invalid target URI')
 
@@ -257,6 +257,20 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         switch (newState) {
           case SessionState.Establishing:
             setCallState('ringing')
+            // Handle Early Media (Ringing)
+            if (remoteAudioRef.current && inviter.sessionDescriptionHandler) {
+              const sdh = inviter.sessionDescriptionHandler as any
+              const remoteStream = new MediaStream()
+              if (sdh.peerConnection) {
+                sdh.peerConnection.getReceivers().forEach((receiver: any) => {
+                  if (receiver.track) {
+                    remoteStream.addTrack(receiver.track)
+                  }
+                })
+              }
+              remoteAudioRef.current.srcObject = remoteStream
+              remoteAudioRef.current.play().catch(e => console.error('Audio play error (early)', e))
+            }
             break
           case SessionState.Established:
             setCallState('active')
@@ -267,10 +281,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
               duration: 0
             })
 
-            // Audio Handling
+            // Audio Handling (Confirmed)
             if (remoteAudioRef.current) {
               const remoteStream = new MediaStream()
-              // Access peerConnection safely by casting to any as SessionDescriptionHandler is generic
               const sdh = inviter.sessionDescriptionHandler as any
               if (sdh && sdh.peerConnection) {
                 sdh.peerConnection.getReceivers().forEach((receiver: any) => {
@@ -291,8 +304,12 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         }
       })
 
-      // Send Invite
-      await inviter.invite()
+      // Send Invite with Explicit Audio Constraints
+      await inviter.invite({
+        sessionDescriptionHandlerOptions: {
+          constraints: { audio: true, video: false }
+        }
+      })
 
     } catch (err: any) {
       console.error('[WebRTC] Make call error:', err)
@@ -310,7 +327,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
           if (sessionRef.current instanceof Inviter) {
             await sessionRef.current.cancel()
           } else {
-            // Incoming invitation (Invitation class) has reject()
             const invitation = sessionRef.current as any
             if (typeof invitation.reject === 'function') {
               await invitation.reject()
@@ -326,15 +342,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [])
 
-  // MUTE/UNMUTE (Basic track disabling)
+  // MUTE/UNMUTE
   const mute = useCallback(() => {
-    // TODO: Implement track disabling
     setIsMuted(true)
+    // TODO: implement logic
   }, [])
 
   const unmute = useCallback(() => {
-    // TODO: Implement track enabling
     setIsMuted(false)
+    // TODO: implement logic
   }, [])
 
   return {
