@@ -2,16 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-// Use RoomSession directly from the underlying package to avoid 'not exported' errors
-import { RoomSession } from '@signalwire/webrtc'
+// Removed static import to avoid build errors. Using dynamic import.
 
 /**
  * WebRTC Hook (SignalWire Video Room Version)
  * 
  * Strategy: Connect to a Video Room to verify Media Connectivity (Relay Tunnel).
- * Fabric API was unavailable (404), so we use the robust Room Token API.
- * 
- * Update: Importing from @signalwire/webrtc directly to ensuring named exports work.
+ * Implementation: Uses Dynamic Import to load SDK and find RoomSession class.
  */
 
 export type WebRTCStatus =
@@ -29,24 +26,6 @@ export type CallState =
   | 'active'
   | 'ending'
 
-export interface WebRTCSession {
-  id: string
-}
-
-export interface CallQuality {
-  packet_loss_percent?: number
-  audio_bitrate?: number
-  jitter_ms?: number
-  round_trip_time_ms?: number
-}
-
-export interface CurrentCall {
-  id: string
-  phone_number: string
-  started_at: Date
-  duration: number
-}
-
 export interface UseWebRTCResult {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
@@ -57,13 +36,13 @@ export interface UseWebRTCResult {
   hangUp: () => Promise<void>
 
   callState: CallState
-  currentCall: CurrentCall | null
+  currentCall: any
 
   mute: () => void
   unmute: () => void
   isMuted: boolean
 
-  quality: CallQuality | null
+  quality: any
   sessionId: string | null
 }
 
@@ -71,9 +50,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [status, setStatus] = useState<WebRTCStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [callState, setCallState] = useState<CallState>('idle')
-  const [currentCall, setCurrentCall] = useState<CurrentCall | null>(null)
+  const [currentCall, setCurrentCall] = useState<any>(null)
   const [isMuted, setIsMuted] = useState(false)
-  const [quality, setQuality] = useState<CallQuality | null>(null)
+  const [quality, setQuality] = useState<any>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   const roomSessionRef = useRef<any>(null)
@@ -84,7 +63,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     if (typeof window !== 'undefined') {
       const audio = new Audio()
       audio.autoplay = true
-      // Audio element management
       remoteAudioRef.current = audio
     }
   }, [])
@@ -99,7 +77,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   useEffect(() => {
     if (callState === 'active' && currentCall) {
       durationIntervalRef.current = setInterval(() => {
-        setCurrentCall(prev => prev ? { ...prev, duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000) } : null)
+        setCurrentCall((prev: any) => prev ? { ...prev, duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000) } : null)
       }, 1000)
     } else {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
@@ -126,15 +104,30 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       }
 
       // 2. Get Video Room Token
-      // Backend generates token for a user-specific room
       const tokenRes = await apiPost<{ success: boolean; token: string }>('/api/webrtc/token')
       if (!tokenRes.success || !tokenRes.token) {
         throw new Error('Failed to fetch SignalWire Token')
       }
 
-      // 3. Initialize RoomSession
-      console.log('[SignalWire] Initializing Room Session (Direct WebRTC Package)')
+      // 3. Dynamic Import of SDK
+      console.log('[SignalWire] Dynamically Importing SDK...')
 
+      // @ts-ignore
+      const module = await import('@signalwire/js')
+      console.log('[SignalWire] Module Loaded:', module)
+
+      // Resolve RoomSession Class
+      // Try multiple locations: Named export, Video namespace, etc.
+      const RoomSession = module.VideoRoomSession || (module.Video && module.Video.RoomSession) || module.RoomSession
+
+      if (!RoomSession) {
+        console.error('[SignalWire] Exports:', Object.keys(module))
+        throw new Error('Could not find RoomSession class in SDK')
+      }
+
+      console.log('[SignalWire] Found RoomSession Class')
+
+      // Instantiate
       const roomSession = new RoomSession({
         token: tokenRes.token,
         rootElement: remoteAudioRef.current || undefined
@@ -146,11 +139,12 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       roomSession.on('room.joined', (e: any) => {
         console.log('[SignalWire] Room Joined', e.room_session.name)
         setStatus('connected')
-        setCallState('idle') // Connected but not "calling" anyone yet
+        setCallState('idle')
       })
 
       roomSession.on('room.error', (e: any) => {
         console.error('[SignalWire] Room Error', e)
+        setError(e?.message || 'Room Error')
       })
 
       roomSession.on('destroy', () => {
@@ -184,14 +178,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   }, [])
 
   const makeCall = useCallback(async (phoneNumber: string) => {
-    // In "Room Mode", 'makeCall' is simulated or disabled.
     console.log('[SignalWire] Dialing in Room Mode (Already Connected)')
-
     if (status !== 'connected') {
       setError('Not connected to room')
       return
     }
-
     setCallState('active')
     setCurrentCall({
       id: roomSessionRef.current?.id || 'room-call',
