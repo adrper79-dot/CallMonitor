@@ -70,11 +70,11 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string, organ
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
 
   try {
-    // 1. Get JWT Token (Legacy Relay)
-    // We use this because we need to define the 'resource' name (sessionId) explicitly
-    // so that we can dial 'client:{sessionId}' from the LAML API.
-    const jwtResponse = await fetch(
-      `https://${signalwireDomain}/api/relay/rest/jwt`,
+    // 1. Get Fabric Subscriber Token (Modern API)
+    // We create a Fabric subscriber which can be dialed via 'client:{sessionId}' from LAML API
+    // This replaces the deprecated Relay REST JWT endpoint
+    const fabricResponse = await fetch(
+      `https://${signalwireDomain}/api/fabric/subscribers`,
       {
         method: 'POST',
         headers: {
@@ -82,8 +82,17 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string, organ
           'Authorization': authHeader
         },
         body: JSON.stringify({
-          resource: sessionId, // CRITICAL: This allows us to dial "client:{sessionId}"
-          expires_in: 3600
+          name: sessionId, // Subscriber name - allows "client:{sessionId}" dialing
+          channels: {
+            audio: true,
+            video: false
+          },
+          scopes: ['webrtc'], // WebRTC calling permissions
+          expires_in_seconds: 3600,
+          meta: {
+            user_id: userId,
+            organization_id: organizationId
+          }
         })
       }
     )
@@ -101,19 +110,19 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string, organ
       credential: 'openrelayproject'
     })
 
-    if (jwtResponse.ok) {
-      const data = await jwtResponse.json()
-      logger.info('[webrtc] Got SignalWire JWT token', { sessionId })
+    if (fabricResponse.ok) {
+      const data = await fabricResponse.json()
+      logger.info('[webrtc] Got SignalWire Fabric subscriber token', { sessionId, subscriberId: data.id })
 
       return {
-        token: data.jwt_token,
+        token: data.token, // Fabric API returns 'token' not 'jwt_token'
         iceServers
       }
     }
 
     // Handle Errors
-    const errorText = await jwtResponse.text()
-    logger.warn('[webrtc] Failed to get JWT token', { status: jwtResponse.status, errorText })
+    const errorText = await fabricResponse.text()
+    logger.warn('[webrtc] Failed to create Fabric subscriber', { status: fabricResponse.status, errorText })
 
     if (errorText.includes('insufficient_balance')) {
       return { error: 'INSUFFICIENT_FUNDS' }
