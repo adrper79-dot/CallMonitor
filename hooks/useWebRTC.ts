@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-import * as SignalWire from '@signalwire/js'
+import { Video } from '@signalwire/js'
 
 /**
  * WebRTC Hook (SignalWire SDK Version)
@@ -129,7 +129,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setError(null)
 
       // 1. Get Session ID (for Audit Log)
-      // We still call the session endpoint to maintain DB integrity
       const sessionRes = await apiPost<{ success: boolean; session: any }>('/api/webrtc/session')
       if (sessionRes.success && sessionRes.session) {
         setSessionId(sessionRes.session.id)
@@ -142,12 +141,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       }
 
       // 3. Initialize SignalWire Client
-      // Using generic 'Client' or 'WebRTC.Client' from v3 SDK
-      // Note: @signalwire/js exports a top-level factory or classes.
-      // We assume Video.Client pattern which supports 'dial'.
+      console.log('[SignalWire] Initializing Client with Token')
 
-      // @ts-ignore - SDK types can be mismatching
-      const client = new SignalWire.Video.Client({
+      // Use named export Video.Client
+      // Note: In @signalwire/js v3, Video.Client is the correct constructor for browser-based WebRTC
+      const client = new Video.Client({
         token: tokenRes.token,
         // rootElement: remoteAudioRef.current // Optional binding
       })
@@ -164,7 +162,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       })
 
       client.on('signalwire.notification', (notification: any) => {
-        // Handle incoming calls or other notifications
         // console.log('[SignalWire] Notification:', notification)
       })
 
@@ -187,7 +184,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       if (clientRef.current) {
         clientRef.current.disconnect()
       }
-      // Cleanup backend session logic if needed
       try { await apiDelete('/api/webrtc/session') } catch { }
 
       setStatus('disconnected')
@@ -211,7 +207,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '')
 
       // Dial
-      // Note: Video.Client.dial expects { to: string, audio: true, video: false }
       const call = await clientRef.current.dial({
         to: cleanNumber,
         audio: true,
@@ -221,9 +216,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       activeCallRef.current = call
 
       // Bind Events
-      // SDK V3 Call object events
       call.on('room.joined', () => {
-        // Connected
         setCallState('active')
         setCurrentCall({
           id: call.id,
@@ -232,8 +225,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
           duration: 0
         })
 
-        // Bind Audio Track
-        // The SDK usually plays automatically if configured, or exposes remoteStream
         if (call.remoteStream && remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = call.remoteStream
           remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
@@ -245,11 +236,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         setCurrentCall(null)
         activeCallRef.current = null
       })
-
-      // Or listen to member.joined?
-      // SignalWire V3 'dial' returns a RoomSession object.
-      // We can inspect 'call.state'.
-      // For now, assume promise resolves on connection.
 
       console.log('[SignalWire] Call initiated', call.id)
 
