@@ -8,15 +8,15 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/webrtc/dial
- * Server-assisted dialing for WebRTC calls
+ * Server-Side Dial for WebRTC → PSTN
  * 
- * Note: With SIP.js implementation, the browser sends SIP INVITE directly.
- * This endpoint exists for:
- * 1. Logging/tracking calls on the server
- * 2. Future server-assisted dial scenarios
- * 3. Backward compatibility
+ * Architecture:
+ * 1. Browser is connected via SIP.js to SignalWire SIP endpoint (web-rtc01)
+ * 2. This endpoint uses REST API to dial PSTN number
+ * 3. When PSTN answers, we bridge audio back to the SIP endpoint
  * 
- * For direct browser-to-PSTN, the SIP.js UserAgent handles the INVITE.
+ * This is necessary because SIP endpoint doesn't have a PSTN dial plan.
+ * We use LAML to dial PSTN and connect to the SIP user.
  */
 export async function POST(request: NextRequest) {
     try {
@@ -54,7 +54,23 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Create call record for tracking
+        // SignalWire config
+        const projectId = process.env.SIGNALWIRE_PROJECT_ID
+        const apiToken = process.env.SIGNALWIRE_TOKEN
+        const spaceUrl = process.env.SIGNALWIRE_SPACE?.replace('https://', '').replace(/\/$/, '')
+        const callerId = process.env.SIGNALWIRE_NUMBER || '+12027711933'
+        const sipDomain = process.env.SIGNALWIRE_SIP_DOMAIN || 'blackkryptonians-589c9fd2c624.sip.signalwire.com'
+        const sipUsername = process.env.SIGNALWIRE_SIP_USERNAME || 'web-rtc01'
+
+        if (!projectId || !apiToken || !spaceUrl) {
+            logger.error('[WebRTC Dial] SignalWire config missing')
+            return NextResponse.json(
+                { success: false, error: { code: 'CONFIG_ERROR', message: 'Telephony not configured' } },
+                { status: 500 }
+            )
+        }
+
+        // Create call record
         const { v4: uuidv4 } = await import('uuid')
         const callId = uuidv4()
 
@@ -62,7 +78,8 @@ export async function POST(request: NextRequest) {
             id: callId,
             organization_id: member.organization_id,
             created_by: userId,
-            status: 'initiating'
+            status: 'initiating',
+            caller_id_used: callerId
         })
 
         // Update WebRTC session if provided
@@ -76,14 +93,67 @@ export async function POST(request: NextRequest) {
                 .eq('id', sessionId)
         }
 
-        logger.info('[WebRTC Dial] Call logged', { callId, phoneNumber, sessionId })
+        logger.info('[WebRTC Dial] Initiating PSTN call', { callId, phoneNumber, sipUsername })
 
-        // With SIP.js, the actual INVITE is sent by the browser.
-        // This endpoint just logs and returns the call ID for tracking.
+        // Format phone number
+        const cleanNumber = phoneNumber.replace(/\D/g, '')
+        const formattedNumber = cleanNumber.startsWith('1') ? `+${cleanNumber}` : `+1${cleanNumber}`
+
+        // LAML to connect PSTN call to the SIP endpoint
+        // When the PSTN party answers, <Dial> connects them to the SIP user
+        const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial callerId="${callerId}">
+    <Sip>sip:${sipUsername}@${sipDomain}</Sip>
+  </Dial>
+</Response>`
+
+        // REST API endpoint
+        const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
+        const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
+
+        // Dial the PSTN number, when answered connect to our SIP endpoint
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                From: callerId,
+                To: formattedNumber,
+                Twiml: bridgeTwiml
+            }).toString()
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            logger.error('[WebRTC Dial] SignalWire Error', { status: response.status, error: errorText })
+
+            await supabaseAdmin.from('calls').update({ status: 'failed' }).eq('id', callId)
+
+            return NextResponse.json(
+                { success: false, error: { code: 'SIGNALWIRE_ERROR', message: `Dial failed: ${response.status}` } },
+                { status: 502 }
+            )
+        }
+
+        const data = await response.json()
+
+        // Update call record
+        await supabaseAdmin.from('calls').update({
+            status: 'in-progress',
+            call_sid: data.sid,
+            started_at: new Date().toISOString()
+        }).eq('id', callId)
+
+        logger.info('[WebRTC Dial] PSTN call initiated', { callId, callSid: data.sid })
+
         return NextResponse.json({
             success: true,
             callId,
-            message: 'Call logged. SIP INVITE sent by browser.'
+            callSid: data.sid,
+            message: 'Dialing PSTN, will connect to your browser when answered'
         })
 
     } catch (err: any) {

@@ -204,8 +204,59 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         logLevel: 'warn',
         delegate: {
           onInvite: (invitation: any) => {
-            console.log('[SIP.js] Incoming call - auto-rejecting (outbound only)')
-            invitation.reject()
+            console.log('[SIP.js] Incoming call from:', invitation.remoteIdentity?.uri?.toString())
+
+            // Accept the call (this is from our server-side dial)
+            invitation.accept({
+              sessionDescriptionHandlerOptions: {
+                constraints: { audio: true, video: false }
+              }
+            }).then(() => {
+              console.log('[SIP.js] Call accepted')
+              sessionRef.current = invitation
+              setCallState('active')
+              setStatus('on_call')
+
+              // Setup remote audio
+              const setupAudio = () => {
+                const sdh = invitation.sessionDescriptionHandler as any
+                if (sdh?.peerConnection) {
+                  sdh.peerConnection.ontrack = (event: RTCTrackEvent) => {
+                    if (event.track.kind === 'audio' && remoteAudioRef.current) {
+                      console.log('[SIP.js] Got remote audio track')
+                      const stream = new MediaStream([event.track])
+                      remoteAudioRef.current.srcObject = stream
+                      remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
+                    }
+                  }
+                  // Check if tracks are already there
+                  const receivers = sdh.peerConnection.getReceivers()
+                  receivers.forEach((receiver: RTCRtpReceiver) => {
+                    if (receiver.track?.kind === 'audio' && remoteAudioRef.current) {
+                      const stream = new MediaStream([receiver.track])
+                      remoteAudioRef.current.srcObject = stream
+                      remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
+                    }
+                  })
+                }
+              }
+              setupAudio()
+
+              // Handle call termination
+              invitation.stateChange.addListener((state: any) => {
+                console.log('[SIP.js] Inbound call state:', state)
+                if (state === 'Terminated') {
+                  setCallState('idle')
+                  setCurrentCall(null)
+                  setStatus('registered')
+                  sessionRef.current = null
+                }
+              })
+            }).catch((err: any) => {
+              console.error('[SIP.js] Failed to accept call', err)
+              setError('Failed to accept incoming call')
+              setCallState('idle')
+            })
           }
         }
       })
@@ -274,15 +325,17 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   }, [])
 
   /**
-   * Make outbound call via SIP INVITE
+   * Make outbound call via Server-Side Dial
+   * 
+   * Flow:
+   * 1. Call server /api/webrtc/dial
+   * 2. Server dials PSTN via REST API
+   * 3. When PSTN answers, SignalWire connects to our SIP endpoint
+   * 4. Browser receives inbound INVITE and accepts it
    */
   const makeCall = useCallback(async (phoneNumber: string) => {
     if (status !== 'registered') {
       setError('Not registered with SIP server')
-      return
-    }
-    if (!userAgentRef.current) {
-      setError('UserAgent not initialized')
       return
     }
 
@@ -290,91 +343,37 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('dialing')
       setError(null)
 
-      const SIP = await import('sip.js')
-      const { Inviter } = SIP
+      console.log('[SIP.js] Requesting server-side dial:', phoneNumber)
 
-      // Format phone number for SIP URI
-      // SignalWire expects: sip:+1XXXXXXXXXX@domain
-      const cleanNumber = phoneNumber.replace(/\D/g, '')
-      const formattedNumber = cleanNumber.startsWith('1') ? `+${cleanNumber}` : `+1${cleanNumber}`
+      // Call server to initiate PSTN dial
+      const dialRes = await apiPost<{ success: boolean; callId?: string; callSid?: string; error?: any }>(
+        '/api/webrtc/dial',
+        { phoneNumber, sessionId }
+      )
 
-      // Get domain from session
-      const sessionRes = await apiPost<{ success: boolean; session: any }>('/api/webrtc/session')
-      const domain = sessionRes.session?.sip_domain || 'sip.signalwire.com'
-
-      const targetUri = SIP.UserAgent.makeURI(`sip:${formattedNumber}@${domain}`)
-      if (!targetUri) {
-        throw new Error('Invalid phone number')
+      if (!dialRes.success) {
+        throw new Error(dialRes.error?.message || 'Failed to dial')
       }
 
-      console.log('[SIP.js] Dialing:', targetUri.toString())
+      console.log('[SIP.js] Server dial initiated:', dialRes.callSid)
 
-      // Create INVITE
-      const inviter = new Inviter(userAgentRef.current, targetUri, {
-        sessionDescriptionHandlerOptions: {
-          constraints: { audio: true, video: false }
-        }
+      // Update state - the actual call will come as an inbound INVITE
+      setCurrentCall({
+        id: dialRes.callId || 'server-call',
+        phone_number: phoneNumber,
+        started_at: new Date(),
+        duration: 0
       })
 
-      sessionRef.current = inviter
-
-      // Handle session state changes
-      inviter.stateChange.addListener((state: any) => {
-        console.log('[SIP.js] Call state:', state)
-        switch (state) {
-          case 'Establishing':
-            setCallState('ringing')
-            break
-          case 'Established':
-            setCallState('active')
-            setCurrentCall({
-              id: inviter.id,
-              phone_number: phoneNumber,
-              started_at: new Date(),
-              duration: 0
-            })
-            setStatus('on_call')
-            break
-          case 'Terminated':
-            setCallState('idle')
-            setCurrentCall(null)
-            setStatus('registered')
-            sessionRef.current = null
-            break
-        }
-      })
-
-      // Handle remote audio - use delegate pattern for sip.js
-      const setupRemoteAudio = () => {
-        const sessionDescHandler = inviter.sessionDescriptionHandler as any
-        if (sessionDescHandler?.peerConnection) {
-          sessionDescHandler.peerConnection.addEventListener('track', (event: RTCTrackEvent) => {
-            if (event.track.kind === 'audio' && remoteAudioRef.current) {
-              console.log('[SIP.js] Got remote audio track')
-              const remoteStream = new MediaStream([event.track])
-              remoteAudioRef.current.srcObject = remoteStream
-              remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
-            }
-          })
-        }
-      }
-
-      // Setup audio after session is established
-      inviter.stateChange.addListener((state: any) => {
-        if (state === 'Established') {
-          setupRemoteAudio()
-        }
-      })
-
-      // Send INVITE
-      await inviter.invite()
+      // Note: We stay in 'dialing' state until we get an inbound INVITE
+      // The UserAgent delegate in connect() handles incoming calls
 
     } catch (err: any) {
       console.error('[SIP.js] Call error', err)
       setError(err.message || 'Call failed')
       setCallState('idle')
     }
-  }, [status])
+  }, [status, sessionId])
 
   /**
    * Hang up current call
