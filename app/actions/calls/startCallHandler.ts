@@ -531,14 +531,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         const conferenceName = `bridge-${callId}`
 
         // Call leg A (your agent/number) - joins conference
-        const sidA = await placeSignalWireCall(from_number, false, conferenceName, '1')
+        const sidA = await placeSignalWireCall(from_number, shouldUseLiveTranslation, conferenceName, '1')
         // Call leg B (destination) - joins same conference
-        const sidB = await placeSignalWireCall(phone_number, false, conferenceName, '2')
+        const sidB = await placeSignalWireCall(phone_number, shouldUseLiveTranslation, conferenceName, '2')
         call_sid = sidB
         logger.info('startCallHandler: signalwire bridge created', {
           conference: conferenceName,
           legA: sidA ? '[REDACTED]' : null,
-          legB: sidB ? '[REDACTED]' : null
+          legB: sidB ? '[REDACTED]' : null,
+          liveTranslation: shouldUseLiveTranslation
         })
       } else {
         call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
