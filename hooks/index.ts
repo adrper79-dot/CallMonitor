@@ -7,13 +7,13 @@
 
 // WebRTC - Browser-based calling
 export { useWebRTC } from './useWebRTC'
-export type { 
-  WebRTCStatus, 
-  CallState, 
-  WebRTCSession, 
-  CallQuality, 
+export type {
+  WebRTCStatus,
+  CallState,
+  WebRTCSession,
+  CallQuality,
   UseWebRTCResult,
-  CallOptions,
+
   CurrentCall
 } from './useWebRTC'
 
