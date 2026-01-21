@@ -55,7 +55,7 @@ function StatusIndicator({ status }: { status: WebRTCStatus }) {
     disconnected: { color: 'bg-gray-400', label: 'Disconnected' },
     initializing: { color: 'bg-yellow-400 animate-pulse', label: 'Initializing...' },
     connecting: { color: 'bg-yellow-400 animate-pulse', label: 'Connecting...' },
-    connected: { color: 'bg-green-500', label: 'Ready' },
+    registered: { color: 'bg-green-500', label: 'Ready' },
     on_call: { color: 'bg-blue-500 animate-pulse', label: 'On Call' },
     error: { color: 'bg-red-500', label: 'Error' },
   }
@@ -185,7 +185,7 @@ export function WebRTCDialer({
     }
   }, [phoneNumber, makeCall])
 
-  const isConnected = status === 'connected' || status === 'on_call'
+  const isConnected = status === 'registered' || status === 'on_call'
   const canDial = isConnected && callState === 'idle' && phoneNumber.length >= 10
   const isOnCall = callState === 'active' || callState === 'ringing' || callState === 'dialing'
 
@@ -293,8 +293,8 @@ export function WebRTCDialer({
               <button
                 onClick={isMuted ? unmute : mute}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${isMuted
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
@@ -367,8 +367,8 @@ export function WebRTCDialer({
                 onClick={handleCall}
                 disabled={!canDial}
                 className={`flex-1 h-14 rounded-lg flex items-center justify-center gap-2 text-white font-medium transition-colors ${canDial
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-gray-300 cursor-not-allowed'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-gray-300 cursor-not-allowed'
                   }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
