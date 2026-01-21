@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
 
         // 2. Validate Credentials
         const projectId = process.env.SIGNALWIRE_PROJECT_ID
-        const apiToken = process.env.SIGNALWIRE_API_TOKEN
-        const spaceUrl = process.env.SIGNALWIRE_SIP_DOMAIN?.replace('.sip.', '.') // derive space from sip domain if needed, or use specific env
+        const apiToken = process.env.SIGNALWIRE_TOKEN // Correct env name
+        const spaceUrl = process.env.SIGNALWIRE_SPACE?.replace('https://', '').replace(/\/$/, '') // Correct env name
 
         if (!projectId || !apiToken || !spaceUrl) {
             logger.error('SignalWire credentials missing for Token generation', {
@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
         // Attempt to mint a 'video' type token which is often used for Unified SDK / WebRTC
-        // Or a 'relay' token. Standard v3 SDK uses /api/relay/rest/jwt
         const endpoint = `https://${spaceUrl}/api/relay/rest/jwt`
 
         const response = await fetch(endpoint, {
