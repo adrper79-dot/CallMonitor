@@ -89,7 +89,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (clientRef.current) clientRef.current.disconnect()
+      if (clientRef.current && typeof clientRef.current.disconnect === 'function') {
+        clientRef.current.disconnect()
+      }
     }
   }, [])
 
@@ -130,7 +132,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
       // 3. Initialize SignalWire Client
       console.log('[SignalWire] Initializing Fabric Client')
-      console.log('[SignalWire] Factory:', SignalWire)
 
       // Use the Factory function pattern for Call Fabric
       // @ts-ignore
@@ -141,15 +142,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
       console.log('[SignalWire] Client Created:', client)
 
-      // Connect
-      await client.connect()
-      console.log('[SignalWire] Client Connected')
+      // Removed explicit connect() call to fix build error
+      // The client returned by SignalWire() factory is ready or auto-connects on dial
+
+      console.log('[SignalWire] Client Ready (Implicit)')
 
       setStatus('connected')
       clientRef.current = client
-
-      // Handle Incoming Calls?
-      // client.on('call.received', ...)
 
     } catch (err: any) {
       console.error('[WebRTC] Connection error:', err)
@@ -161,7 +160,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const disconnect = useCallback(async () => {
     try {
       if (activeCallRef.current) await activeCallRef.current.hangup()
-      if (clientRef.current) clientRef.current.disconnect()
+      if (clientRef.current && typeof clientRef.current.disconnect === 'function') {
+        clientRef.current.disconnect()
+      }
       try { await apiDelete('/api/webrtc/session') } catch { }
       setStatus('disconnected')
       setCallState('idle')
@@ -192,11 +193,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       activeCallRef.current = call
       console.log('[SignalWire] Call Object:', call)
 
-      // Need to listen to call state
-      // Fabric Call object might expose .on('state', ...) or promises
-      // Assuming 'call' is the active session.
-
-      // If dial matches successfully, we are active?
       setCallState('active')
       setCurrentCall({
         id: call.id || Math.random().toString(),
@@ -204,9 +200,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         started_at: new Date(),
         duration: 0
       })
-
-      // Listen for hangup
-      // call.on('destroy', ...)
 
     } catch (err: any) {
       console.error('[WebRTC] Make call error:', err)
