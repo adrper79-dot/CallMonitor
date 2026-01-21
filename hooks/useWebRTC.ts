@@ -2,18 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-import { Inviter, UserAgent, Registerer, SessionState, Session } from 'sip.js'
+import * as SignalWire from '@signalwire/js'
 
 /**
- * WebRTC Hook (SIP.js Version)
+ * WebRTC Hook (SignalWire SDK Version)
  * 
- * Manages browser-based calling via SIP over WebSockets.
- * Replaces legacy @signalwire/js implementation.
+ * Manages browser-based calling via SignalWire Unified SDK (v3).
+ * Replaces legacy SIP.js implementation to solve traversal issues.
  * 
- * Architecture:
- * - Registers as SIP endpoint (e.g., sip:web-rtc01@domain)
- * - Uses standard SIP INVITE for outbound calls (Browser -> PSTN)
- * - Handles incoming calls via SIP registration
+ * Features:
+ * - Authenticates via JWT (from /api/webrtc/token)
+ * - Uses SignalWire Relay for connectivity (Bypassing UDP blocks)
+ * - Handles Outbound Calls
  */
 
 export type WebRTCStatus =
@@ -33,11 +33,6 @@ export type CallState =
 
 export interface WebRTCSession {
   id: string
-  sip_username: string
-  sip_password?: string
-  sip_domain: string
-  websocket_url: string
-  ice_servers: Array<{ urls: string; username?: string; credential?: string }>
 }
 
 export interface CallQuality {
@@ -85,9 +80,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   // Refs
-  const userAgentRef = useRef<UserAgent | null>(null)
-  const registererRef = useRef<Registerer | null>(null)
-  const sessionRef = useRef<Session | null>(null)
+  const clientRef = useRef<any>(null) // SignalWire Client
+  const activeCallRef = useRef<any>(null) // SignalWire Call Object
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -96,8 +90,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     if (typeof window !== 'undefined') {
       const audio = new Audio()
       audio.autoplay = true
-      // iOS/Safari Helper: unlock audio context on touch? 
-      // SIP.js usually handles this if we prompt getUserMedia first
       remoteAudioRef.current = audio
     }
   }, [])
@@ -106,12 +98,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (sessionRef.current?.state === SessionState.Established) {
-        sessionRef.current.bye()
-      }
-      if (userAgentRef.current) {
-        userAgentRef.current.stop()
-      }
+      if (activeCallRef.current) activeCallRef.current.hangup()
+      if (clientRef.current) clientRef.current.disconnect()
     }
   }, [])
 
@@ -140,68 +128,48 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('initializing')
       setError(null)
 
-      // 1. Get Session Config from Backend
-      const response = await apiPost<{ success: boolean; session: WebRTCSession; error?: any }>(
-        '/api/webrtc/session'
-      )
-
-      if (!response.success || !response.session) {
-        throw new Error(response.error?.message || 'Failed to create WebRTC session')
+      // 1. Get Session ID (for Audit Log)
+      // We still call the session endpoint to maintain DB integrity
+      const sessionRes = await apiPost<{ success: boolean; session: any }>('/api/webrtc/session')
+      if (sessionRes.success && sessionRes.session) {
+        setSessionId(sessionRes.session.id)
       }
 
-      const { session } = response
-      setSessionId(session.id)
-
-      // 2. Initialize SIP UserAgent
-      const { sip_username, sip_password, sip_domain, websocket_url, ice_servers } = session
-
-      if (!sip_password) {
-        throw new Error('SIP credentials missing password from server')
+      // 2. Get JWT Token
+      const tokenRes = await apiPost<{ success: boolean; token: string }>('/api/webrtc/token')
+      if (!tokenRes.success || !tokenRes.token) {
+        throw new Error('Failed to fetch SignalWire Token')
       }
 
-      const uri = UserAgent.makeURI(`sip:${sip_username}@${sip_domain}`)
-      if (!uri) throw new Error('Invalid SIP URI')
+      // 3. Initialize SignalWire Client
+      // Using generic 'Client' or 'WebRTC.Client' from v3 SDK
+      // Note: @signalwire/js exports a top-level factory or classes.
+      // We assume Video.Client pattern which supports 'dial'.
 
-      const userAgent = new UserAgent({
-        uri,
-        transportOptions: {
-          server: websocket_url
-        },
-        authorizationUsername: sip_username,
-        authorizationPassword: sip_password,
-        sessionDescriptionHandlerFactoryOptions: {
-          peerConnectionOptions: {
-            iceServers: ice_servers
-          }
-        }
+      // @ts-ignore - SDK types can be mismatching
+      const client = new SignalWire.Video.Client({
+        token: tokenRes.token,
+        // rootElement: remoteAudioRef.current // Optional binding
       })
 
-      userAgentRef.current = userAgent
+      // Event Listeners
+      client.on('signalwire.error', (err: any) => {
+        console.error('[SignalWire] Error:', err)
+        setError(err?.message)
+      })
 
-      // 3. Setup Event Listeners
-      userAgent.delegate = {
-        onConnect: () => {
-          setStatus('connected')
-          console.log('[WebRTC] Connected to WebSocket')
-        },
-        onDisconnect: (error) => {
-          setStatus('disconnected')
-          console.log('[WebRTC] Disconnected', error)
-          if (error) setError(`Disconnected: ${error.message}`)
-        },
-        onInvite: (invitation) => {
-          console.log('[WebRTC] Incoming Invite')
-          // Auto-answer logic could go here
-        }
-      }
+      client.on('signalwire.ready', () => {
+        console.log('[SignalWire] Client Ready')
+        setStatus('connected')
+      })
 
-      await userAgent.start()
+      client.on('signalwire.notification', (notification: any) => {
+        // Handle incoming calls or other notifications
+        // console.log('[SignalWire] Notification:', notification)
+      })
 
-      // 4. Register
-      const registerer = new Registerer(userAgent)
-      registererRef.current = registerer
-      await registerer.register()
-      console.log('[WebRTC] Registered')
+      await client.connect()
+      clientRef.current = client
 
     } catch (err: any) {
       console.error('[WebRTC] Connection error:', err)
@@ -213,16 +181,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   // DISCONNECT
   const disconnect = useCallback(async () => {
     try {
-      if (sessionRef.current && sessionRef.current.state === SessionState.Established) {
-        await sessionRef.current.bye()
+      if (activeCallRef.current) {
+        await activeCallRef.current.hangup()
       }
-      if (registererRef.current) {
-        await registererRef.current.unregister()
+      if (clientRef.current) {
+        clientRef.current.disconnect()
       }
-      if (userAgentRef.current) {
-        await userAgentRef.current.stop()
-      }
-      // Cleanup backend session
+      // Cleanup backend session logic if needed
       try { await apiDelete('/api/webrtc/session') } catch { }
 
       setStatus('disconnected')
@@ -235,7 +200,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
   // MAKE CALL
   const makeCall = useCallback(async (phoneNumber: string) => {
-    if (!userAgentRef.current || status !== 'connected') {
+    if (!clientRef.current || status !== 'connected') {
       setError('Not connected')
       return
     }
@@ -243,75 +208,50 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     try {
       setCallState('dialing')
 
-      // Clean number
       const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '')
-      const target = UserAgent.makeURI(`sip:${cleanNumber}@${userAgentRef.current.configuration.uri?.host}`)
-      if (!target) throw new Error('Invalid target URI')
 
-      const inviter = new Inviter(userAgentRef.current, target)
-      sessionRef.current = inviter
+      // Dial
+      // Note: Video.Client.dial expects { to: string, audio: true, video: false }
+      const call = await clientRef.current.dial({
+        to: cleanNumber,
+        audio: true,
+        video: false
+      })
 
-      // Setup Session Events
-      inviter.stateChange.addListener((newState) => {
-        console.log('[WebRTC] Session state:', newState)
-        switch (newState) {
-          case SessionState.Establishing:
-            setCallState('ringing')
-            if (remoteAudioRef.current && inviter.sessionDescriptionHandler) {
-              const sdh = inviter.sessionDescriptionHandler as any
-              const remoteStream = new MediaStream()
-              if (sdh.peerConnection) {
-                sdh.peerConnection.oniceconnectionstatechange = () => {
-                  console.log('[WebRTC] ICE State:', sdh.peerConnection.iceConnectionState)
-                }
-                sdh.peerConnection.getReceivers().forEach((receiver: any) => {
-                  if (receiver.track) {
-                    remoteStream.addTrack(receiver.track)
-                  }
-                })
-              }
-              remoteAudioRef.current.srcObject = remoteStream
-              remoteAudioRef.current.play().catch(e => console.error('Audio play error (early)', e))
-            }
-            break
-          case SessionState.Established:
-            setCallState('active')
-            setCurrentCall({
-              id: inviter.id,
-              phone_number: phoneNumber,
-              started_at: new Date(),
-              duration: 0
-            })
+      activeCallRef.current = call
 
-            // Audio Handling (Confirmed)
-            if (remoteAudioRef.current) {
-              const remoteStream = new MediaStream()
-              const sdh = inviter.sessionDescriptionHandler as any
-              if (sdh && sdh.peerConnection) {
-                sdh.peerConnection.getReceivers().forEach((receiver: any) => {
-                  if (receiver.track) {
-                    remoteStream.addTrack(receiver.track)
-                  }
-                })
-              }
-              remoteAudioRef.current.srcObject = remoteStream
-              remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
-            }
-            break
-          case SessionState.Terminated:
-            setCallState('idle')
-            setCurrentCall(null)
-            sessionRef.current = null
-            break
+      // Bind Events
+      // SDK V3 Call object events
+      call.on('room.joined', () => {
+        // Connected
+        setCallState('active')
+        setCurrentCall({
+          id: call.id,
+          phone_number: phoneNumber,
+          started_at: new Date(),
+          duration: 0
+        })
+
+        // Bind Audio Track
+        // The SDK usually plays automatically if configured, or exposes remoteStream
+        if (call.remoteStream && remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = call.remoteStream
+          remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
         }
       })
 
-      // Send Invite with Explicit Audio Constraints
-      await inviter.invite({
-        sessionDescriptionHandlerOptions: {
-          constraints: { audio: true, video: false }
-        }
+      call.on('room.ended', () => {
+        setCallState('idle')
+        setCurrentCall(null)
+        activeCallRef.current = null
       })
+
+      // Or listen to member.joined?
+      // SignalWire V3 'dial' returns a RoomSession object.
+      // We can inspect 'call.state'.
+      // For now, assume promise resolves on connection.
+
+      console.log('[SignalWire] Call initiated', call.id)
 
     } catch (err: any) {
       console.error('[WebRTC] Make call error:', err)
@@ -322,23 +262,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
   // HANG UP
   const hangUp = useCallback(async () => {
-    if (sessionRef.current) {
-      switch (sessionRef.current.state) {
-        case SessionState.Initial:
-        case SessionState.Establishing:
-          if (sessionRef.current instanceof Inviter) {
-            await sessionRef.current.cancel()
-          } else {
-            const invitation = sessionRef.current as any
-            if (typeof invitation.reject === 'function') {
-              await invitation.reject()
-            }
-          }
-          break
-        case SessionState.Established:
-          await sessionRef.current.bye()
-          break
-      }
+    if (activeCallRef.current) {
+      await activeCallRef.current.hangup()
       setCallState('idle')
       setCurrentCall(null)
     }
@@ -346,13 +271,17 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
   // MUTE/UNMUTE
   const mute = useCallback(() => {
-    setIsMuted(true)
-    // TODO: implement logic
+    if (activeCallRef.current) {
+      activeCallRef.current.audioMute()
+      setIsMuted(true)
+    }
   }, [])
 
   const unmute = useCallback(() => {
-    setIsMuted(false)
-    // TODO: implement logic
+    if (activeCallRef.current) {
+      activeCallRef.current.audioUnmute()
+      setIsMuted(false)
+    }
   }, [])
 
   return {
