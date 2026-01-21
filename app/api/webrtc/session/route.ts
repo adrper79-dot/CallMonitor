@@ -186,7 +186,17 @@ export async function POST(request: NextRequest) {
         // ICE servers for peer connection
         ice_servers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:80?transport=udp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
         ]
       }
     })
