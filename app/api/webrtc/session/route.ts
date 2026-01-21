@@ -145,7 +145,11 @@ export async function POST(request: NextRequest) {
     const websocketUrl = process.env.SIGNALWIRE_WEBSOCKET_URL
 
     if (!sipUsername || !sipDomain || !websocketUrl) {
-      logger.error('[webrtc] SIP credentials not configured')
+      logger.error('[webrtc] SIP credentials not configured', undefined, {
+        hasSipUsername: !!sipUsername,
+        hasSipDomain: !!sipDomain,
+        hasWebsocketUrl: !!websocketUrl
+      })
       return NextResponse.json(
         { success: false, error: { code: 'CONFIG_ERROR', message: 'WebRTC not configured' } },
         { status: 500 }
