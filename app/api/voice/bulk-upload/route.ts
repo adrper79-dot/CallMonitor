@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Read CSV file
     const text = await file.text()
-    
+
     // Parse CSV
     const records = parse(text, {
       columns: true,
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Validate and process each record
     const results = []
-    
+
     for (const record of records) {
       const phoneNumber = record.phone_number || record['Phone Number'] || record.PhoneNumber
       const description = record.description || record.Description || ''
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
             description,
             notes,
             status: 'error',
-            error: result.error?.message || 'Call failed'
+            error: (result.error as any)?.message || 'Call failed'
           })
         }
       } catch (error: any) {

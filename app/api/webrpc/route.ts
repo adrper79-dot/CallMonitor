@@ -119,8 +119,8 @@ async function handleCallPlace(
       })
 
       return {
-        code: result.error?.code || 'CALL_START_FAILED',
-        message: result.error?.user_message || result.error?.message || 'Failed to start call'
+        code: (result.error as any)?.code || 'CALL_START_FAILED',
+        message: (result.error as any)?.user_message || (result.error as any)?.message || 'Failed to start call'
       }
     }
 

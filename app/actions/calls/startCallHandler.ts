@@ -1,11 +1,16 @@
 import { v4 as uuidv4 } from 'uuid'
 import { AppError } from '@/types/app-error'
+import { SupabaseClient } from '@supabase/supabase-js'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
-import { fetchSignalWireWithRetry } from '@/lib/utils/fetchWithRetry'
-import { signalWireBreaker } from '@/lib/utils/circuitBreaker'
-import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
+import { bestEffortAuditLog, logAuditError } from '@/lib/monitoring/auditLogMonitor'
 import { trackUsage, checkUsageLimits } from '@/lib/services/usageTracker'
+import {
+  placeSignalWireCall as placeSignalWireCallExternal,
+  extractSignalWireConfig,
+  createVoiceConfigClient,
+  type PlaceCallResponse
+} from '@/lib/signalwire/callPlacer'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -29,13 +34,13 @@ export type StartCallInput = {
 }
 
 export type StartCallDeps = {
-  supabaseAdmin: any
+  supabaseAdmin: SupabaseClient
   signalwireCall?: (params: { from: string; to: string; url: string; statusCallback: string }) => Promise<{ call_sid: string }>
   env?: Record<string, string | undefined>
 }
 
 type ApiResponseSuccess = { success: true; call_id: string }
-type ApiResponseError = { success: false; error: any }
+type ApiResponseError = { success: false; error: unknown }
 type ApiResponse = ApiResponseSuccess | ApiResponseError
 
 export default async function startCallHandler(input: StartCallInput, deps: StartCallDeps): Promise<ApiResponse> {
@@ -47,245 +52,72 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   // always reference the effective organization (after overrides)
   let organization_id: string = input.organization_id
 
-  async function writeAuditError(resource: string, resourceId: string | null, payload: any) {
-    // Use monitored best-effort audit logging
-    await bestEffortAuditLog(
-      () => supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id,
-        user_id: capturedActorId,
-        system_id: capturedSystemCpidId,
-        resource_type: resource,
-        resource_id: resourceId,
-        action: 'error',
-        actor_type: capturedActorId ? 'human' : 'system',
-        actor_label: capturedActorId || 'cpid-call-handler',
-        before: null,
-        after: payload,
-        created_at: new Date().toISOString()
-      }),
-      { resource, resourceId, action: 'error' }
-    )
+  async function writeAuditError(resource: string, resourceId: string | null, payload: unknown) {
+    // Use standardized monitored audit logging helper
+    await logAuditError({
+      supabaseAdmin,
+      organizationId: organization_id,
+      actorId: capturedActorId,
+      systemId: capturedSystemCpidId,
+      resource,
+      resourceId,
+      payload
+    })
   }
 
-  // helper to place a single SignalWire call (returns sid)
+  // Adapter function: wraps extracted callPlacer with closure context
+  // This maintains backward compatibility while using the extracted module
   const placeSignalWireCall = async (
     toNumber: string,
     useLiveTranslation: boolean = false,
     conference?: string,
     leg?: string
-  ) => {
-    logger.info('placeSignalWireCall: ENTERED function', {
-      toNumber: toNumber ? '[REDACTED]' : null,
-      useLiveTranslation,
-      callId,
-      conference: conference || 'none',
-      leg: leg || 'single'
-    })
+  ): Promise<string | null> => {
+    // Extract SignalWire config from environment
+    const config = extractSignalWireConfig(env)
 
-    // Use centralized config per architecture (with fallback to env for testing)
-    const { config: appConfig } = env.SIGNALWIRE_PROJECT_ID ? { config: null } : await import('@/lib/config')
-    const swProject = env.SIGNALWIRE_PROJECT_ID || appConfig?.signalwire.projectId
-    const swToken = env.SIGNALWIRE_TOKEN || env.SIGNALWIRE_API_TOKEN || appConfig?.signalwire.token
-    const swNumber = env.SIGNALWIRE_NUMBER || appConfig?.signalwire.number
-    const rawSpace = String(env.SIGNALWIRE_SPACE || appConfig?.signalwire.space || '')
-    const swSpace = rawSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '').trim()
-
-    logger.debug('placeSignalWireCall: extracted config', {
-      hasProject: !!swProject,
-      hasToken: !!swToken,
-      hasSpace: !!swSpace,
-      hasNumber: !!swNumber,
-      rawSpace: rawSpace ? rawSpace.substring(0, 20) + '...' : null,
-      extractedSpace: swSpace || null
-    })
-
-    if (!(swProject && swToken && swSpace && swNumber)) {
-      // Build detailed error message showing what's missing
+    if (!config) {
       const missing = []
-      if (!swProject) missing.push('SIGNALWIRE_PROJECT_ID')
-      if (!swToken) missing.push('SIGNALWIRE_TOKEN')
-      if (!swSpace) missing.push('SIGNALWIRE_SPACE')
-      if (!swNumber) missing.push('SIGNALWIRE_NUMBER')
+      if (!env.SIGNALWIRE_PROJECT_ID) missing.push('SIGNALWIRE_PROJECT_ID')
+      if (!env.SIGNALWIRE_TOKEN && !env.SIGNALWIRE_API_TOKEN) missing.push('SIGNALWIRE_TOKEN')
+      if (!env.SIGNALWIRE_SPACE) missing.push('SIGNALWIRE_SPACE')
+      if (!env.SIGNALWIRE_NUMBER) missing.push('SIGNALWIRE_NUMBER')
+      if (!env.NEXT_PUBLIC_APP_URL) missing.push('NEXT_PUBLIC_APP_URL')
 
-      if (env.NODE_ENV === 'production') {
-        const e = new AppError({
-          code: 'SIGNALWIRE_CONFIG_MISSING',
-          message: `SignalWire credentials missing: ${missing.join(', ')}`,
-          user_message: 'System configuration error - please contact support',
-          severity: 'CRITICAL',
-          retriable: false
-        })
-        await writeAuditError('systems', null, e.toJSON())
-        logger.error('CRITICAL: SignalWire config missing', undefined, { missing: missing.join(', ') })
-        throw e
-      }
-      // Never return mock data in production - always throw if config is incomplete
-      logger.error('CRITICAL: SignalWire config incomplete - cannot proceed', undefined, { missing: missing.join(', ') })
       const e = new AppError({
         code: 'SIGNALWIRE_CONFIG_MISSING',
-        message: `SignalWire configuration incomplete: ${missing.join(', ')}`,
-        user_message: 'System configuration error. Please contact support.',
-        severity: 'CRITICAL'
+        message: `SignalWire credentials missing: ${missing.join(', ')}`,
+        user_message: 'System configuration error - please contact support',
+        severity: 'CRITICAL',
+        retriable: false
       })
       await writeAuditError('systems', null, e.toJSON())
+      logger.error('CRITICAL: SignalWire config missing', undefined, { missing: missing.join(', ') })
       throw e
     }
 
-    const auth = Buffer.from(`${swProject}:${swToken}`).toString('base64')
-    const params = new URLSearchParams()
+    // Create voice config client from Supabase
+    const voiceConfigClient = createVoiceConfigClient(supabaseAdmin)
 
-    // Check for caller ID mask (custom display number)
-    let fromNumber = swNumber
-    try {
-      const { data: vcRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('caller_id_mask, caller_id_verified')
-        .eq('organization_id', organization_id)
-        .limit(1)
+    // Call extracted function with explicit parameters
+    const result: PlaceCallResponse = await placeSignalWireCallExternal({
+      toNumber,
+      callId,
+      organizationId: organization_id,
+      useLiveTranslation,
+      conference,
+      leg,
+      config,
+      voiceConfigClient,
+      onAuditError: writeAuditError
+    })
 
-      const callerIdMask = vcRows?.[0]?.caller_id_mask
-      const isVerified = vcRows?.[0]?.caller_id_verified
-
-      // Only use mask if it's set and verified (or if it's a SignalWire number)
-      if (callerIdMask && (isVerified || callerIdMask.startsWith('+1'))) {
-        fromNumber = callerIdMask
-        logger.info('placeSignalWireCall: using caller ID mask', {
-          masked: true,
-          verified: isVerified
-        })
-      }
-    } catch (e) {
-      // Best effort - continue with default number
-    }
-
-    params.append('From', fromNumber)
-    params.append('To', toNumber)
-
-    // Route to SWML endpoint for live translation, LaML for regular calls
-    if (useLiveTranslation && callId) {
-      // Get translation language settings from voice_configs
-      // Column names are translate_from and translate_to (per ARCH_DOCS Schema.txt)
-      // MASTER_ARCHITECTURE compliance: Translation requires explicit language codes, no inference
-      let translateFrom: string | null = null
-      let translateTo: string | null = null
-      try {
-        const { data: vcRows } = await supabaseAdmin
-          .from('voice_configs')
-          .select('translate_from, translate_to')
-          .eq('organization_id', organization_id)
-          .limit(1)
-        if (vcRows?.[0]) {
-          translateFrom = vcRows[0].translate_from || null
-          translateTo = vcRows[0].translate_to || null
-        }
-      } catch (e) {
-        logger.warn('Failed to fetch translation languages', e as Error)
-      }
-
-      // Fail if language codes are not configured (per MASTER_ARCHITECTURE - no inference)
-      if (!translateFrom || !translateTo) {
-        const e = new AppError({
-          code: 'TRANSLATION_LANGUAGES_REQUIRED',
-          message: 'Translation requires source and target languages to be configured',
-          user_message: 'Please configure translation languages before placing a translated call',
-          severity: 'HIGH'
-        })
-        await writeAuditError('calls', callId, e.toJSON())
-        return { success: false, error: e.toJSON() }
-      }
-
-      const swmlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organization_id)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
-      params.append('Url', swmlUrl)
-      logger.info('startCallHandler: routing to SWML endpoint for live translation', {
-        callId,
-        translateFrom,
-        translateTo
-      })
+    if (result.success) {
+      return result.callSid
     } else {
-      // Build LaML URL with parameters (use empty string if callId not yet set)
-      const callIdParam = callId || ''
-      let lamlUrl = `${env.NEXT_PUBLIC_APP_URL}/api/voice/laml/outbound?callId=${encodeURIComponent(callIdParam)}`
-
-      // Add conference parameters for bridge calls
-      if (conference) {
-        lamlUrl += `&conference=${encodeURIComponent(conference)}`
-        if (leg) {
-          lamlUrl += `&leg=${encodeURIComponent(leg)}`
-        }
-      }
-
-      params.append('Url', lamlUrl)
+      // For backward compatibility, return null on non-throwing errors
+      return null
     }
-    // Pass callId in callback URLs so webhooks can definitively identify the call
-    // This solves the race condition when multiple calls happen simultaneously
-    const callIdParam = callId ? `?callId=${encodeURIComponent(callId)}` : ''
-    params.append('StatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callIdParam}`)
-
-    // Enable recording at REST API level for ALL calls
-    // CRITICAL: Must use Record=true at REST API level for BOTH single-leg AND conference calls
-    // The <Conference record="..."> attribute alone is NOT sufficient - SignalWire ignores it
-    // Always use Record=true here, and the <Conference record="..."> in LaML acts as reinforcement
-    params.append('Record', 'true')
-    params.append('RecordingStatusCallback', `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire${callIdParam}`)
-    params.append('RecordingStatusCallbackEvent', 'completed')
-    logger.info('placeSignalWireCall: RECORDING ENABLED', {
-      Record: 'true',
-      RecordingStatusCallback: `${env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`,
-      isConferenceCall: !!conference
-    })
-
-    const swEndpoint = `https://${swSpace}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}/Calls.json`
-
-    // Log ALL parameters being sent to SignalWire (for debugging)
-    const paramsForLog = Object.fromEntries(params.entries())
-    logger.debug('placeSignalWireCall: FULL REST API REQUEST', {
-      endpoint: swEndpoint,
-      to: toNumber ? '[REDACTED]' : null,
-      from: swNumber ? '[REDACTED]' : null,
-      hasRecord: params.has('Record'),
-      recordValue: params.get('Record'),
-      hasRecordingCallback: params.has('RecordingStatusCallback'),
-      urlCallback: params.get('Url'),
-      statusCallback: params.get('StatusCallback'),
-      allParamKeys: Object.keys(paramsForLog)
-    })
-
-    const controller = new AbortController()
-    // Use circuit breaker and retry logic for SignalWire API calls
-    let swRes
-    try {
-      swRes = await signalWireBreaker.execute(async () => {
-        return await fetchSignalWireWithRetry(swEndpoint, {
-          method: 'POST',
-          headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params
-        })
-      })
-    } catch (fetchErr: any) {
-      // Error already logged and wrapped by retry utility or circuit breaker
-      if (fetchErr instanceof AppError) {
-        await writeAuditError('calls', callId, fetchErr.toJSON())
-        throw fetchErr
-      }
-
-      logger.error('startCallHandler: SignalWire fetch error', fetchErr, { error: fetchErr?.message ?? String(fetchErr) })
-      const e = new AppError({ code: 'SIGNALWIRE_FETCH_FAILED', message: 'Failed to reach SignalWire', user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { cause: fetchErr?.message ?? String(fetchErr) } })
-      await writeAuditError('calls', callId, e.toJSON())
-      throw e
-    }
-
-    if (!swRes.ok) {
-      const text = await swRes.text()
-      logger.error('startCallHandler: SignalWire POST failed', undefined, { status: swRes.status, body: text })
-      const e = new AppError({ code: 'SIGNALWIRE_API_ERROR', message: `SignalWire Error: ${swRes.status}`, user_message: 'Failed to place call via carrier', severity: 'HIGH', retriable: true, details: { provider_error: text } })
-      await writeAuditError('calls', callId, e.toJSON())
-      throw e
-    }
-
-    const swData = await swRes.json()
-    logger.info('startCallHandler: SignalWire responded', { sid: swData?.sid ? '[REDACTED]' : null })
-    return swData?.sid ?? null
   }
 
   try {
@@ -382,7 +214,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     try {
       const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,live_translate,translate_from,translate_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
       if (!vcErr && vcRows && vcRows[0]) {
-        const cfg: any = vcRows[0]
+        const cfg = vcRows[0] as Record<string, unknown>
         effectiveModulations.record = !!cfg.record
         effectiveModulations.transcribe = !!cfg.transcribe
         effectiveModulations.translate = !!cfg.live_translate
@@ -469,7 +301,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // Intent capture: Record intent:call_start BEFORE execution (ARCH_DOCS compliance)
     // "You initiate intent. We orchestrate execution."
     await bestEffortAuditLog(
-      () => supabaseAdmin.from('audit_logs').insert({
+      async () => await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(),
         organization_id,
         user_id: capturedActorId,
@@ -551,7 +383,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // NOTE: TOOL_TABLE_ALIGNMENT doesn't list call_sid, but it's required for webhook processing
     // Without call_sid, webhooks cannot find calls to update status/recordings/transcriptions
     // Use 'in_progress' (underscore) to match database enum and UI components
-    const updateData: any = { status: 'in_progress' }
+    const updateData: { status: string; call_sid?: string } = { status: 'in_progress' }
     if (call_sid) {
       updateData.call_sid = call_sid
     }

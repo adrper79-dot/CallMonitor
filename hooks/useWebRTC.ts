@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete, apiGet } from '@/lib/apiClient'
+import { useSignalWireContext } from '@/contexts/SignalWireContext'
 
 /**
  * WebRTC Hook
@@ -88,20 +89,28 @@ export interface CurrentCall {
   duration: number
 }
 
-// Singleton SignalWire client
-let signalWireClient: SignalWireClient | null = null
-let signalWirePromise: Promise<any> | null = null
+/**
+ * Load SignalWire SDK with deduplication
+ * Uses context-based promise ref to prevent multiple loads per instance
+ */
+function useSignalWireSDKLoader() {
+  const { sdkPromiseRef } = useSignalWireContext()
 
-async function loadSignalWire(): Promise<any> {
-  if (signalWirePromise) return signalWirePromise
+  const loadSignalWire = useCallback(async (): Promise<any> => {
+    if (sdkPromiseRef.current) {
+      return sdkPromiseRef.current
+    }
 
-  signalWirePromise = (async () => {
-    // Dynamic import to avoid SSR issues
-    const { SignalWire } = await import('@signalwire/js')
-    return SignalWire
-  })()
+    sdkPromiseRef.current = (async () => {
+      // Dynamic import to avoid SSR issues
+      const { SignalWire } = await import('@signalwire/js')
+      return SignalWire
+    })()
 
-  return signalWirePromise
+    return sdkPromiseRef.current
+  }, [sdkPromiseRef])
+
+  return { loadSignalWire }
 }
 
 export function useWebRTC(organizationId: string | null): UseWebRTCResult {
@@ -113,6 +122,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [isMuted, setIsMuted] = useState(false)
   const [quality, setQuality] = useState<CallQuality | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // SDK Loader
+  const { loadSignalWire } = useSignalWireSDKLoader()
 
   // Refs
   const clientRef = useRef<SignalWireClient | null>(null)
@@ -201,7 +213,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const client = await SignalWire(clientOptions)
 
       clientRef.current = client
-      signalWireClient = client
 
       // Set up event handlers
       client.on('call.received', (call: any) => {
@@ -256,7 +267,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       if (clientRef.current) {
         await clientRef.current.disconnect()
         clientRef.current = null
-        signalWireClient = null
       }
 
       // End session on server

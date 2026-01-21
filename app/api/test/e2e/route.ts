@@ -29,14 +29,14 @@ export async function POST(req: Request) {
     // Check service key authentication
     const serviceKey = req.headers.get('X-Service-Key') || req.headers.get('x-service-key')
     const expectedKey = process.env.SERVICE_API_KEY
-    
+
     if (!expectedKey) {
       return NextResponse.json({
         success: false,
         error: 'SERVICE_API_KEY not configured. Set it in Vercel environment variables.'
       }, { status: 500 })
     }
-    
+
     if (!serviceKey || serviceKey !== expectedKey) {
       return NextResponse.json({
         success: false,
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       .eq('organization_id', organization_id)
       .eq('role', 'owner')
       .limit(1)
-    
+
     const ownerId = members?.[0]?.user_id
 
     const results: any = {
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         if (!phone_number) {
           return NextResponse.json({ success: false, error: 'phone_number required' }, { status: 400 })
         }
-        
+
         const targetId = uuidv4()
         const { data: target, error } = await supabaseAdmin
           .from('voice_targets')
@@ -147,14 +147,14 @@ export async function POST(req: Request) {
 
       case 'update_config': {
         const { modulations } = params
-        
+
         // Check if config exists
         const { data: existing } = await supabaseAdmin
           .from('voice_configs')
           .select('*')
           .eq('organization_id', organization_id)
           .limit(1)
-        
+
         const configPayload = {
           record: modulations?.record ?? true,
           transcribe: modulations?.transcribe ?? true,
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
           const { error } = await supabaseAdmin
             .from('voice_configs')
             .insert({ id: configId, organization_id, ...configPayload })
-          
+
           if (error) {
             results.actions.push({ action: 'update_config', success: false, error: error.message })
           } else {
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
             .from('voice_configs')
             .update(configPayload)
             .eq('organization_id', organization_id)
-          
+
           if (error) {
             results.actions.push({ action: 'update_config', success: false, error: error.message })
           } else {
@@ -195,9 +195,9 @@ export async function POST(req: Request) {
       case 'execute_call': {
         const { phone_to, from_number, modulations } = params
         if (!phone_to || !from_number) {
-          return NextResponse.json({ 
-            success: false, 
-            error: 'phone_to and from_number required in params' 
+          return NextResponse.json({
+            success: false,
+            error: 'phone_to and from_number required in params'
           }, { status: 400 })
         }
 
@@ -209,16 +209,16 @@ export async function POST(req: Request) {
             .eq('organization_id', organization_id)
             .eq('role', 'owner')
             .limit(1)
-          
+
           if (ownerErr || !ownerData || ownerData.length === 0) {
             return NextResponse.json({
               success: false,
               error: 'No owner user found for organization'
             }, { status: 400 })
           }
-          
+
           const actorId = ownerData[0].user_id
-          
+
           // Use startCallHandler directly with actor_id
           const callResult = await startCallHandler({
             organization_id,
@@ -230,9 +230,9 @@ export async function POST(req: Request) {
 
           if (callResult.success) {
             const successResult = callResult as any
-            results.actions.push({ 
-              action: 'execute_call', 
-              success: true, 
+            results.actions.push({
+              action: 'execute_call',
+              success: true,
               call_id: successResult.call_id,
               call_sid: successResult.call?.call_sid || 'N/A'
             })
@@ -240,15 +240,15 @@ export async function POST(req: Request) {
             results.call_sid = successResult.call?.call_sid
           } else {
             // Properly serialize error
-            const errorMsg = typeof callResult.error === 'string' 
-              ? callResult.error 
-              : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
-            
+            const errorMsg = typeof callResult.error === 'string'
+              ? callResult.error
+              : (callResult.error as any)?.message || (callResult.error as any)?.user_message || JSON.stringify(callResult.error)
+
             logger.error('Execute call failed', undefined, { errorMsg, callResult })
-            
-            results.actions.push({ 
-              action: 'execute_call', 
-              success: false, 
+
+            results.actions.push({
+              action: 'execute_call',
+              success: false,
               error: errorMsg
             })
           }
@@ -266,7 +266,7 @@ export async function POST(req: Request) {
       case 'full_pipeline': {
         // Full E2E pipeline: target → config → call
         const { phone_to, from_number, translate_from, translate_to, email } = params
-        
+
         if (!phone_to || !from_number) {
           return NextResponse.json({
             success: false,
@@ -281,13 +281,13 @@ export async function POST(req: Request) {
           .eq('organization_id', organization_id)
           .eq('role', 'owner')
           .limit(1)
-        
+
         if (ownerErr || !ownerData || ownerData.length === 0) {
           results.success = false
           results.error = 'No owner user found for organization'
           return NextResponse.json(results, { status: 400 })
         }
-        
+
         const actorId = ownerData[0].user_id
 
         // Step 1: Create target
@@ -302,7 +302,7 @@ export async function POST(req: Request) {
             is_active: true,
             created_at: new Date().toISOString()
           })
-        
+
         results.actions.push({
           action: 'create_target',
           success: !targetErr,
@@ -350,8 +350,8 @@ export async function POST(req: Request) {
             organization_id,
             phone_number: phone_to,
             from_number,
-            modulations: { 
-              record: true, 
+            modulations: {
+              record: true,
               transcribe: true,
               translate: enableTranslation
             },
@@ -378,12 +378,12 @@ export async function POST(req: Request) {
           results.success = true
         } else {
           // Properly serialize error object
-          const errorMsg = typeof callResult.error === 'string' 
-            ? callResult.error 
-            : callResult.error?.message || callResult.error?.user_message || JSON.stringify(callResult.error)
-          
+          const errorMsg = typeof callResult.error === 'string'
+            ? callResult.error
+            : (callResult.error as any)?.message || (callResult.error as any)?.user_message || JSON.stringify(callResult.error)
+
           logger.error('Execute call failed', undefined, { errorMsg, callResult })
-          
+
           results.actions.push({
             action: 'execute_call',
             success: false,
@@ -446,7 +446,7 @@ export async function GET() {
     service_key_configured: hasKey,
     available_actions: [
       'create_target',
-      'create_survey', 
+      'create_survey',
       'update_config',
       'execute_call',
       'full_pipeline',

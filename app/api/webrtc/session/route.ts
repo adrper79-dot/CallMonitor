@@ -54,7 +54,7 @@ function getSignalWireDomain(): string | null {
  * 
  * @see https://developer.signalwire.com/sdks/reference/browser-sdk/
  */
-async function getSignalWireWebRTCToken(sessionId: string, userId: string): Promise<{
+async function getSignalWireWebRTCToken(sessionId: string, userId: string, organizationId: string): Promise<{
   token?: string
   iceServers?: RTCIceServer[]
   error?: string
@@ -80,7 +80,7 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string): Prom
           'Authorization': authHeader
         },
         body: JSON.stringify({
-          reference: userId, // CRITICAL: Use userId to map 1 User = 1 Subscriber for billing
+          reference: `org-${organizationId}`, // Use organization ID to ensure 1 subscriber per org, not per user
           expires_in: 3600
         })
       }
@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     const sessionId = crypto.randomUUID()
 
     // Get SignalWire credentials
-    const signalWireCredentials = await getSignalWireWebRTCToken(sessionId, userId)
+    const signalWireCredentials = await getSignalWireWebRTCToken(sessionId, userId, member.organization_id)
 
     if (signalWireCredentials?.error === 'INSUFFICIENT_FUNDS') {
       return NextResponse.json(
