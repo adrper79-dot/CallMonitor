@@ -257,11 +257,12 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         switch (newState) {
           case SessionState.Establishing:
             setCallState('ringing')
-            // Handle Early Media (Ringing)
             if (remoteAudioRef.current && inviter.sessionDescriptionHandler) {
               const sdh = inviter.sessionDescriptionHandler as any
-              const remoteStream = new MediaStream()
               if (sdh.peerConnection) {
+                sdh.peerConnection.oniceconnectionstatechange = () => {
+                  console.log('[WebRTC] ICE State:', sdh.peerConnection.iceConnectionState)
+                }
                 sdh.peerConnection.getReceivers().forEach((receiver: any) => {
                   if (receiver.track) {
                     remoteStream.addTrack(receiver.track)
