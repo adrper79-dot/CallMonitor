@@ -119,12 +119,16 @@ export async function POST(request: NextRequest) {
     const { v4: uuidv4 } = await import('uuid')
     const sessionId = uuidv4()
 
+    const sessionToken = uuidv4()
+
     // Create session record
     const { data: sessionRecord, error: insertError } = await supabaseAdmin
       .from('webrtc_sessions')
       .insert({
         id: sessionId,
+        organization_id: member.organization_id,
         user_id: userId,
+        session_token: sessionToken,
         status: 'initializing',
         created_at: new Date().toISOString()
       })
