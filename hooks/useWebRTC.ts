@@ -38,6 +38,13 @@ export interface CallQuality {
   round_trip_time_ms?: number
 }
 
+export interface CurrentCall {
+  id: string
+  phone_number: string
+  started_at: Date
+  duration: number
+}
+
 export interface UseWebRTCResult {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
