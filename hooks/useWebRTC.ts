@@ -119,43 +119,48 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       // @ts-ignore
       const module = await import('@signalwire/js')
       console.log('[SignalWire] Exports:', Object.keys(module))
+      console.log('[SignalWire] Typeof SignalWire:', typeof module.SignalWire)
+      console.log('[SignalWire] Has Video?', !!module.Video)
+      console.log('[SignalWire] Has Voice?', !!module.Voice)
+      console.log('[SignalWire] Has Relay?', !!module.Relay)
 
       let client
 
       // Strategy A: Unified 'SignalWire' Factory
-      // Matches @signalwire/js v3+ best practice?
       if (typeof module.SignalWire === 'function') {
-        console.log('[SignalWire] Using Factory Function Strategy')
-        // Try with just token (Unified) or Project+Token (Relay compatibility)
+        console.log('[SignalWire] Strategy A: Factory Function')
         try {
+          // Try Connect
           client = await module.SignalWire({
             token: tokenRes.token,
-            project: tokenRes.project_id
+            // project: tokenRes.project_id // Unified usually infers project from token
           })
-          // If client has .voice namespace, use that?
-          // Or client IS the client.
         } catch (e: any) {
           console.error('[SignalWire] Factory Error:', e)
-          // Fallback?
-          throw e
+          // If Factory fails, try Legacy Class if available
         }
       }
-      // Strategy B: Legacy Voice/Relay Class
-      else {
+
+      // Strategy B: Legacy Voice/Relay Class (Fallback or Primary if Factory failed/missing)
+      if (!client) {
         const ClientClass = (module.Voice && module.Voice.Client) || (module.Relay && module.Relay.Client)
         if (ClientClass) {
-          console.log('[SignalWire] Using Voice.Client Class Strategy')
+          console.log('[SignalWire] Strategy B: Legacy Client Class')
           client = new ClientClass({
             project: tokenRes.project_id,
             token: tokenRes.token
           })
-          await client.connect() // Explicit connect for legacy classes
+          await client.connect()
         } else {
-          throw new Error('No compatible Client Class found in SDK')
+          throw new Error('No compatible Client Class found (Factory failed or missing, Legacy missing)')
         }
       }
 
-      console.log('[SignalWire] Client Ready:', client)
+      console.log('[SignalWire] Client Ready. Keys:', Object.keys(client))
+      console.log('[SignalWire] Client Proto:', Object.getPrototypeOf(client))
+      console.log('[SignalWire] Client.voice?', !!client.voice)
+      console.log('[SignalWire] Client.dial?', typeof client.dial)
+
 
       // Bind Global Events if possible
       if (client.on) {
