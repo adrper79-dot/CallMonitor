@@ -12,5 +12,19 @@ ARCH_DOCS/
 .next/*
 out/
 
+
 # Build artifacts
 *.tsbuildinfo
+
+# Database & Migrations
+migrations/
+db_validation_report.json
+
+# Scratchpad & Logs
+V5_Issues.txt
+finalization-prompts
+
+# Large/Test Media
+/*.mp4
+*.uvz
+image (1).jpg
