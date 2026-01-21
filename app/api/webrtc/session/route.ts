@@ -186,11 +186,8 @@ export async function POST(request: NextRequest) {
         // ICE servers for peer connection
         ice_servers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          ice_servers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       }
     })
 
