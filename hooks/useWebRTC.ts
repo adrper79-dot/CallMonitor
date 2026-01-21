@@ -259,6 +259,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
             setCallState('ringing')
             if (remoteAudioRef.current && inviter.sessionDescriptionHandler) {
               const sdh = inviter.sessionDescriptionHandler as any
+              const remoteStream = new MediaStream()
               if (sdh.peerConnection) {
                 sdh.peerConnection.oniceconnectionstatechange = () => {
                   console.log('[WebRTC] ICE State:', sdh.peerConnection.iceConnectionState)
