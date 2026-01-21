@@ -551,50 +551,85 @@ async function checkAndTriggerTranslation(callId: string, organizationId: string
       return
     }
 
-    // Intent capture: Record intent:translation_requested BEFORE execution (ARCH_DOCS compliance)
-    // "You initiate intent. We orchestrate execution."
-    const translationRunId = uuidv4()
+    // Check for existing queued translation run (created by startCallHandler)
+    const { data: existingTransRuns } = await supabaseAdmin
+      .from('ai_runs')
+      .select('id')
+      .eq('call_id', callId)
+      .in('model', ['assemblyai-translation', 'assemblyai-translation-v1'])
+      .eq('status', 'queued')
+      .limit(1)
+
+    // Reuse existing ID if available, otherwise generate new one
+    // Standardize model to 'assemblyai-translation-v1' to match startCallHandler
+    const translationRunId = existingTransRuns?.[0]?.id || uuidv4()
+    const isNew = !existingTransRuns?.[0]
+
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: organizationId,
-        user_id: null, // webhook-initiated (system action)
-        system_id: systemAiId,
-        resource_type: 'ai_runs',
-        resource_id: translationRunId,
-        action: 'intent:translation_requested',
-        actor_type: 'vendor',
-        actor_label: 'assemblyai-webhook',
-        before: null,
-        after: {
-          call_id: callId,
-          from_language: fromLanguage,
-          to_language: toLanguage,
-          provider: 'openai',
-          declared_at: new Date().toISOString()
-        },
-        created_at: new Date().toISOString()
-      })
+      if (isNew) {
+        // Intent capture for new runs
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id: organizationId,
+          user_id: null,
+          system_id: systemAiId,
+          resource_type: 'ai_runs',
+          resource_id: translationRunId,
+          action: 'intent:translation_requested',
+          actor_type: 'vendor',
+          actor_label: 'assemblyai-webhook',
+          before: null,
+          after: {
+            call_id: callId,
+            from_language: fromLanguage,
+            to_language: toLanguage,
+            provider: 'openai',
+            declared_at: new Date().toISOString()
+          },
+          created_at: new Date().toISOString()
+        })
+      }
     } catch (__) { }
 
-    // Create translation ai_run entry
-    await supabaseAdmin
-      .from('ai_runs')
-      .insert({
-        id: translationRunId,
-        call_id: callId,
-        system_id: systemAiId,
-        model: 'assemblyai-translation',
-        status: 'queued',
-        started_at: new Date().toISOString(),
-        output: {
-          from_language: fromLanguage,
-          to_language: toLanguage,
-          source_text: transcriptText,
-          detected_language: detectedLanguage,
-          bridge_call: isBridgeCall
-        }
-      })
+    // Upsert translation ai_run entry (Insert if new, Update if existing)
+    // We use upsert logic or simple insert/update based on isNew
+    if (isNew) {
+      await supabaseAdmin
+        .from('ai_runs')
+        .insert({
+          id: translationRunId,
+          call_id: callId,
+          system_id: systemAiId,
+          model: 'assemblyai-translation-v1', // Standardized
+          status: 'queued',
+          started_at: new Date().toISOString(),
+          output: {
+            from_language: fromLanguage,
+            to_language: toLanguage,
+            source_text: transcriptText,
+            detected_language: detectedLanguage,
+            bridge_call: isBridgeCall
+          }
+        })
+    } else {
+      // Claim the existing run -> Update it with execution details
+      await supabaseAdmin
+        .from('ai_runs')
+        .update({
+          // Ensure model is standardized
+          model: 'assemblyai-translation-v1',
+          started_at: new Date().toISOString(),
+          output: {
+            from_language: fromLanguage,
+            to_language: toLanguage,
+            source_text: transcriptText,
+            detected_language: detectedLanguage,
+            bridge_call: isBridgeCall,
+            claimed_by_webhook: true
+          }
+        })
+        .eq('id', translationRunId)
+    }
 
     // Get recording URL if voice cloning is enabled
     let finalRecordingUrl = recordingUrl
