@@ -219,6 +219,7 @@ async function processWebhookAsync(req: Request) {
 
       if (updateErr) {
         logger.error('SignalWire webhook: failed to update call', updateErr, { callId })
+      } else {
         logger.info('SignalWire webhook: updated call status', { callId, status: mappedStatus })
 
         // RTI: Capture Call Completion/Failure
@@ -243,333 +244,334 @@ async function processWebhookAsync(req: Request) {
           }
         }
       }
-
-      if (recordingSid && recordingUrl) {
-        const { data: existingRecRows } = await supabaseAdmin
-          .from('recordings')
-          .select('id, status')
-          .eq('recording_sid', recordingSid)
-          .limit(1)
-
-        const existingRec = existingRecRows?.[0]
-
-        const { data: orgRows } = await supabaseAdmin
-          .from('organizations')
-          .select('tool_id')
-          .eq('id', organizationId)
-          .limit(1)
-
-        let orgToolId = orgRows?.[0]?.tool_id
-
-        // If organization has no tool_id, get or create the voice tool
-        if (!orgToolId) {
-          logger.warn('SignalWire webhook: organization has no tool_id, attempting to assign', { organizationId })
-
-          // Get or create voice tool
-          const { data: toolRows } = await supabaseAdmin
-            .from('tools')
-            .select('id')
-            .eq('name', 'voice')
-            .limit(1)
-
-          if (toolRows?.[0]?.id) {
-            orgToolId = toolRows[0].id
-            // Update org with tool_id for future calls
-            await supabaseAdmin
-              .from('organizations')
-              .update({ tool_id: orgToolId })
-              .eq('id', organizationId)
-            logger.info('SignalWire webhook: assigned tool_id to organization', { organizationId, toolId: orgToolId })
-          } else {
-            // Create voice tool if it doesn't exist
-            const newToolId = uuidv4()
-            const { error: toolErr } = await supabaseAdmin
-              .from('tools')
-              .insert({ id: newToolId, name: 'voice', description: 'Voice operations tool' })
-
-            if (!toolErr) {
-              orgToolId = newToolId
-              await supabaseAdmin
-                .from('organizations')
-                .update({ tool_id: newToolId })
-                .eq('id', organizationId)
-              logger.info('SignalWire webhook: created voice tool and assigned to org', { organizationId, toolId: newToolId })
-            }
-          }
-        }
-
-        if (orgToolId) {
-          const durationSeconds = recordingDuration
-            ? Math.round(parseInt(String(recordingDuration), 10))
-            : callDuration ? Math.round(parseInt(String(callDuration), 10)) : null
-
-          if (existingRec) {
-            const updateData: any = {
-              recording_url: recordingUrl, duration_seconds: durationSeconds,
-              status: 'completed', updated_at: new Date().toISOString()
-            }
-            if (hasLiveTranslation) {
-              updateData.has_live_translation = true
-              updateData.live_translation_provider = 'signalwire'
-            }
-
-            const { error: updateRecErr } = await supabaseAdmin.from('recordings').update(updateData).eq('id', existingRec.id)
-
-            if (updateRecErr) {
-              logger.error('SignalWire webhook: failed to update recording', updateRecErr, { recordingId: existingRec.id })
-            } else {
-              logger.info('SignalWire webhook: updated recording', { recordingId: existingRec.id })
-              await triggerTranscriptionIfEnabled(callId, existingRec.id, organizationId, recordingUrl)
-            }
-          } else {
-            const recordingId = uuidv4()
-            const insertData: any = {
-              id: recordingId, organization_id: organizationId, call_sid: callSid,
-              call_id: callId, // FK to calls table per 20260118_schema_alignment.sql
-              recording_sid: recordingSid, recording_url: recordingUrl, duration_seconds: durationSeconds,
-              status: 'completed', tool_id: orgToolId,
-              source: 'signalwire', // Per ARCH_DOCS: SignalWire is authoritative for recordings
-              created_at: new Date().toISOString(), updated_at: new Date().toISOString()
-            }
-            if (hasLiveTranslation) {
-              insertData.has_live_translation = true
-              insertData.live_translation_provider = 'signalwire'
-            }
-
-            const { error: insertRecErr } = await supabaseAdmin.from('recordings').insert(insertData)
-
-            if (insertRecErr) {
-              logger.error('SignalWire webhook: failed to create recording', insertRecErr, { callId })
-            } else {
-              logger.info('SignalWire webhook: created recording', { recordingId, callId })
-
-              try {
-                await supabaseAdmin.from('audit_logs').insert({
-                  id: uuidv4(), organization_id: organizationId, user_id: null, system_id: null,
-                  resource_type: 'recordings', resource_id: recordingId, action: 'create',
-                  actor_type: 'vendor',
-                  actor_label: 'signalwire-webhook',
-                  before: null, after: { call_id: callId, recording_sid: recordingSid },
-                  created_at: new Date().toISOString()
-                })
-              } catch { /* Best-effort */ }
-
-              void (async () => {
-                try {
-                  const { storeRecording, ensureRecordingsBucket } = await import('@/app/services/recordingStorage')
-                  await ensureRecordingsBucket()
-                  await storeRecording(recordingUrl, organizationId, callId, recordingId)
-                } catch (err) {
-                  logger.error('SignalWire webhook: failed to store recording', err, { recordingId })
-                }
-              })()
-
-              await triggerTranscriptionIfEnabled(callId, recordingId, organizationId, recordingUrl)
-            }
-          }
-        } else {
-          logger.error('SignalWire webhook: could not assign tool_id, recording not saved', {
-            organizationId,
-            recordingSid,
-            recordingUrl: recordingUrl ? '[PRESENT]' : '[MISSING]'
-          })
-        }
-      }
-
-    } catch (err: any) {
-      logger.error('SignalWire webhook processing error', err)
     }
-  }
 
-async function triggerTranscriptionIfEnabled(callId: string, recordingId: string, organizationId: string, explicitRecordingUrl?: string) {
-    try {
-      logger.info('SignalWire webhook: triggerTranscriptionIfEnabled', { callId, recordingId, hasExplicitUrl: !!explicitRecordingUrl })
-
-      const { data: vcRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('transcribe')
-        .eq('organization_id', organizationId)
+    if (recordingSid && recordingUrl) {
+      const { data: existingRecRows } = await supabaseAdmin
+        .from('recordings')
+        .select('id, status')
+        .eq('recording_sid', recordingSid)
         .limit(1)
 
-      if (vcRows?.[0]?.transcribe !== true) {
-        logger.info('SignalWire webhook: Skipping transcription - disabled in voice_configs', { organizationId })
-        return
-      }
-
-      // DEBUG: Check Config Status
-      logger.info('SignalWire webhook: CONFIG CHECK', {
-        has_assembly_key: !!process.env.ASSEMBLYAI_API_KEY,
-        key_len: process.env.ASSEMBLYAI_API_KEY ? process.env.ASSEMBLYAI_API_KEY.length : 0,
-        env: process.env.NODE_ENV
-      })
-
-      // Check for existing runs FOR THIS SPECIFIC RECORDING
-      const { data: aiRows } = await supabaseAdmin
-        .from('ai_runs')
-        .select('id, status, output')
-        .eq('call_id', callId)
-        .eq('model', 'assemblyai-v1')
-
-      let aiRunId = uuidv4()
-      let shouldCreate = true
-
-      if (aiRows && aiRows.length > 0) {
-        // Find if we have a run specifically for this recording
-        const existingForRecording = aiRows.find(run =>
-          run.output?.recording_id === recordingId ||
-          (explicitRecordingUrl && run.output?.recording_url === explicitRecordingUrl)
-        )
-
-        if (existingForRecording) {
-          logger.info('SignalWire webhook: Found existing ai_run for this recording', {
-            callId,
-            recordingId,
-            aiRunId: existingForRecording.id,
-            status: existingForRecording.status
-          })
-
-          if (existingForRecording.status === 'processing' || existingForRecording.status === 'completed') {
-            logger.info('SignalWire webhook: Skipping - recording already processed', { recordingId })
-            return
-          }
-
-          // If queued/failed, retry using same ID
-          aiRunId = existingForRecording.id
-          shouldCreate = false
-        } else {
-          // Look for a generic placeholder run created by startCallHandler (status='queued', no output or empty output)
-          const placeholder = aiRows.find(run =>
-            run.status === 'queued' &&
-            (!run.output || Object.keys(run.output).length === 0 || run.output.pending === true)
-          )
-
-          if (placeholder) {
-            logger.info('SignalWire webhook: Claiming placeholder ai_run', { aiRunId: placeholder.id })
-            aiRunId = placeholder.id
-            shouldCreate = false
-          }
-        }
-        // If we found runs but NONE for this recording AND no placeholder, we proceed to create a new one (shouldCreate = true)
-      }
-
-      const { data: systemsRows } = await supabaseAdmin
-        .from('systems')
-        .select('id')
-        .eq('key', 'system-ai')
-        .limit(1)
-
-      const systemAiId = systemsRows?.[0]?.id
-      if (!systemAiId) {
-        logger.warn('SignalWire webhook: AI system not found - skipping transcription', { callId })
-        return
-      }
-
-      let recordingUrlToUse = explicitRecordingUrl
-
-      if (!recordingUrlToUse) {
-        const { data: recRows } = await supabaseAdmin
-          .from('recordings')
-          .select('recording_url')
-          .eq('id', recordingId)
-          .limit(1)
-
-        recordingUrlToUse = recRows?.[0]?.recording_url
-      }
-
-      if (!recordingUrlToUse) {
-        logger.warn('SignalWire webhook: recording URL not found - skipping transcription', { recordingId })
-        return
-      }
+      const existingRec = existingRecRows?.[0]
 
       const { data: orgRows } = await supabaseAdmin
         .from('organizations')
-        .select('plan')
+        .select('tool_id')
         .eq('id', organizationId)
         .limit(1)
 
-      if (orgRows?.[0]?.plan === 'free') {
-        logger.info('SignalWire webhook: Skipping transcription - free plan', { organizationId })
-        return
+      let orgToolId = orgRows?.[0]?.tool_id
+
+      // If organization has no tool_id, get or create the voice tool
+      if (!orgToolId) {
+        logger.warn('SignalWire webhook: organization has no tool_id, attempting to assign', { organizationId })
+
+        // Get or create voice tool
+        const { data: toolRows } = await supabaseAdmin
+          .from('tools')
+          .select('id')
+          .eq('name', 'voice')
+          .limit(1)
+
+        if (toolRows?.[0]?.id) {
+          orgToolId = toolRows[0].id
+          // Update org with tool_id for future calls
+          await supabaseAdmin
+            .from('organizations')
+            .update({ tool_id: orgToolId })
+            .eq('id', organizationId)
+          logger.info('SignalWire webhook: assigned tool_id to organization', { organizationId, toolId: orgToolId })
+        } else {
+          // Create voice tool if it doesn't exist
+          const newToolId = uuidv4()
+          const { error: toolErr } = await supabaseAdmin
+            .from('tools')
+            .insert({ id: newToolId, name: 'voice', description: 'Voice operations tool' })
+
+          if (!toolErr) {
+            orgToolId = newToolId
+            await supabaseAdmin
+              .from('organizations')
+              .update({ tool_id: newToolId })
+              .eq('id', organizationId)
+            logger.info('SignalWire webhook: created voice tool and assigned to org', { organizationId, toolId: newToolId })
+          }
+        }
       }
 
-      if (!process.env.ASSEMBLYAI_API_KEY) {
-        logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured - skipping transcription')
-        try {
-          await supabaseAdmin.from('audit_logs').insert({
-            id: uuidv4(),
-            organization_id: organizationId,
-            resource_type: 'system',
-            action: 'error',
-            actor_type: 'system',
-            before: { error: 'ASSEMBLYAI_API_KEY_MISSING' },
-            after: { env_check: process.env.NODE_ENV },
-            created_at: new Date().toISOString()
-          })
-        } catch (e) { }
-        return
-      }
+      if (orgToolId) {
+        const durationSeconds = recordingDuration
+          ? Math.round(parseInt(String(recordingDuration), 10))
+          : callDuration ? Math.round(parseInt(String(callDuration), 10)) : null
 
-      if (shouldCreate) {
-        const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
-          id: aiRunId,
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'assemblyai-v1',
-          status: 'queued',
-          started_at: new Date().toISOString(),
-          produced_by: 'model',
-          is_authoritative: true,
-          output: { recording_id: recordingId, recording_url: recordingUrlToUse } // Track specific recording
-        })
+        if (existingRec) {
+          const updateData: any = {
+            recording_url: recordingUrl, duration_seconds: durationSeconds,
+            status: 'completed', updated_at: new Date().toISOString()
+          }
+          if (hasLiveTranslation) {
+            updateData.has_live_translation = true
+            updateData.live_translation_provider = 'signalwire'
+          }
 
-        if (aiErr) {
-          logger.error('SignalWire webhook: failed to create ai_run', aiErr, { callId })
-          return
+          const { error: updateRecErr } = await supabaseAdmin.from('recordings').update(updateData).eq('id', existingRec.id)
+
+          if (updateRecErr) {
+            logger.error('SignalWire webhook: failed to update recording', updateRecErr, { recordingId: existingRec.id })
+          } else {
+            logger.info('SignalWire webhook: updated recording', { recordingId: existingRec.id })
+            await triggerTranscriptionIfEnabled(callId, existingRec.id, organizationId, recordingUrl)
+          }
+        } else {
+          const recordingId = uuidv4()
+          const insertData: any = {
+            id: recordingId, organization_id: organizationId, call_sid: callSid,
+            call_id: callId, // FK to calls table per 20260118_schema_alignment.sql
+            recording_sid: recordingSid, recording_url: recordingUrl, duration_seconds: durationSeconds,
+            status: 'completed', tool_id: orgToolId,
+            source: 'signalwire', // Per ARCH_DOCS: SignalWire is authoritative for recordings
+            created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+          }
+          if (hasLiveTranslation) {
+            insertData.has_live_translation = true
+            insertData.live_translation_provider = 'signalwire'
+          }
+
+          const { error: insertRecErr } = await supabaseAdmin.from('recordings').insert(insertData)
+
+          if (insertRecErr) {
+            logger.error('SignalWire webhook: failed to create recording', insertRecErr, { callId })
+          } else {
+            logger.info('SignalWire webhook: created recording', { recordingId, callId })
+
+            try {
+              await supabaseAdmin.from('audit_logs').insert({
+                id: uuidv4(), organization_id: organizationId, user_id: null, system_id: null,
+                resource_type: 'recordings', resource_id: recordingId, action: 'create',
+                actor_type: 'vendor',
+                actor_label: 'signalwire-webhook',
+                before: null, after: { call_id: callId, recording_sid: recordingSid },
+                created_at: new Date().toISOString()
+              })
+            } catch { /* Best-effort */ }
+
+            void (async () => {
+              try {
+                const { storeRecording, ensureRecordingsBucket } = await import('@/app/services/recordingStorage')
+                await ensureRecordingsBucket()
+                await storeRecording(recordingUrl, organizationId, callId, recordingId)
+              } catch (err) {
+                logger.error('SignalWire webhook: failed to store recording', err, { recordingId })
+              }
+            })()
+
+            await triggerTranscriptionIfEnabled(callId, recordingId, organizationId, recordingUrl)
+          }
         }
       } else {
-        // If reusing existing run, make sure output has recording info
-        await supabaseAdmin.from('ai_runs').update({
-          output: { recording_id: recordingId, recording_url: recordingUrlToUse }
-        }).eq('id', aiRunId)
-      }
-
-      const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
-        method: 'POST',
-        headers: { 'Authorization': process.env.ASSEMBLYAI_API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio_url: recordingUrlToUse,
-          webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`,
-          sentiment_analysis: true, entity_detection: true, auto_chapters: true,
-          speaker_labels: true, content_safety: true, iab_categories: true, language_detection: true
+        logger.error('SignalWire webhook: could not assign tool_id, recording not saved', {
+          organizationId,
+          recordingSid,
+          recordingUrl: recordingUrl ? '[PRESENT]' : '[MISSING]'
         })
+      }
+    }
+
+  } catch (err: any) {
+    logger.error('SignalWire webhook processing error', err)
+  }
+}
+
+async function triggerTranscriptionIfEnabled(callId: string, recordingId: string, organizationId: string, explicitRecordingUrl?: string) {
+  try {
+    logger.info('SignalWire webhook: triggerTranscriptionIfEnabled', { callId, recordingId, hasExplicitUrl: !!explicitRecordingUrl })
+
+    const { data: vcRows } = await supabaseAdmin
+      .from('voice_configs')
+      .select('transcribe')
+      .eq('organization_id', organizationId)
+      .limit(1)
+
+    if (vcRows?.[0]?.transcribe !== true) {
+      logger.info('SignalWire webhook: Skipping transcription - disabled in voice_configs', { organizationId })
+      return
+    }
+
+    // DEBUG: Check Config Status
+    logger.info('SignalWire webhook: CONFIG CHECK', {
+      has_assembly_key: !!process.env.ASSEMBLYAI_API_KEY,
+      key_len: process.env.ASSEMBLYAI_API_KEY ? process.env.ASSEMBLYAI_API_KEY.length : 0,
+      env: process.env.NODE_ENV
+    })
+
+    // Check for existing runs FOR THIS SPECIFIC RECORDING
+    const { data: aiRows } = await supabaseAdmin
+      .from('ai_runs')
+      .select('id, status, output')
+      .eq('call_id', callId)
+      .eq('model', 'assemblyai-v1')
+
+    let aiRunId = uuidv4()
+    let shouldCreate = true
+
+    if (aiRows && aiRows.length > 0) {
+      // Find if we have a run specifically for this recording
+      const existingForRecording = aiRows.find(run =>
+        run.output?.recording_id === recordingId ||
+        (explicitRecordingUrl && run.output?.recording_url === explicitRecordingUrl)
+      )
+
+      if (existingForRecording) {
+        logger.info('SignalWire webhook: Found existing ai_run for this recording', {
+          callId,
+          recordingId,
+          aiRunId: existingForRecording.id,
+          status: existingForRecording.status
+        })
+
+        if (existingForRecording.status === 'processing' || existingForRecording.status === 'completed') {
+          logger.info('SignalWire webhook: Skipping - recording already processed', { recordingId })
+          return
+        }
+
+        // If queued/failed, retry using same ID
+        aiRunId = existingForRecording.id
+        shouldCreate = false
+      } else {
+        // Look for a generic placeholder run created by startCallHandler (status='queued', no output or empty output)
+        const placeholder = aiRows.find(run =>
+          run.status === 'queued' &&
+          (!run.output || Object.keys(run.output).length === 0 || run.output.pending === true)
+        )
+
+        if (placeholder) {
+          logger.info('SignalWire webhook: Claiming placeholder ai_run', { aiRunId: placeholder.id })
+          aiRunId = placeholder.id
+          shouldCreate = false
+        }
+      }
+      // If we found runs but NONE for this recording AND no placeholder, we proceed to create a new one (shouldCreate = true)
+    }
+
+    const { data: systemsRows } = await supabaseAdmin
+      .from('systems')
+      .select('id')
+      .eq('key', 'system-ai')
+      .limit(1)
+
+    const systemAiId = systemsRows?.[0]?.id
+    if (!systemAiId) {
+      logger.warn('SignalWire webhook: AI system not found - skipping transcription', { callId })
+      return
+    }
+
+    let recordingUrlToUse = explicitRecordingUrl
+
+    if (!recordingUrlToUse) {
+      const { data: recRows } = await supabaseAdmin
+        .from('recordings')
+        .select('recording_url')
+        .eq('id', recordingId)
+        .limit(1)
+
+      recordingUrlToUse = recRows?.[0]?.recording_url
+    }
+
+    if (!recordingUrlToUse) {
+      logger.warn('SignalWire webhook: recording URL not found - skipping transcription', { recordingId })
+      return
+    }
+
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('plan')
+      .eq('id', organizationId)
+      .limit(1)
+
+    if (orgRows?.[0]?.plan === 'free') {
+      logger.info('SignalWire webhook: Skipping transcription - free plan', { organizationId })
+      return
+    }
+
+    if (!process.env.ASSEMBLYAI_API_KEY) {
+      logger.warn('SignalWire webhook: ASSEMBLYAI_API_KEY not configured - skipping transcription')
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: uuidv4(),
+          organization_id: organizationId,
+          resource_type: 'system',
+          action: 'error',
+          actor_type: 'system',
+          before: { error: 'ASSEMBLYAI_API_KEY_MISSING' },
+          after: { env_check: process.env.NODE_ENV },
+          created_at: new Date().toISOString()
+        })
+      } catch (e) { }
+      return
+    }
+
+    if (shouldCreate) {
+      const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert({
+        id: aiRunId,
+        call_id: callId,
+        system_id: systemAiId,
+        model: 'assemblyai-v1',
+        status: 'queued',
+        started_at: new Date().toISOString(),
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { recording_id: recordingId, recording_url: recordingUrlToUse } // Track specific recording
       })
 
-      if (aaiRes.ok) {
-        const aaiData = await aaiRes.json()
-        await supabaseAdmin.from('ai_runs').update({
-          status: 'processing',
-          produced_by: 'model',
-          is_authoritative: true,
-          output: { job_id: aaiData.id, status: 'queued' }
-        }).eq('id', aiRunId)
-        logger.info('SignalWire webhook: triggered AssemblyAI transcription', { aiRunId, jobId: aaiData.id })
-      } else {
-        const errText = await aaiRes.text()
-        logger.error('SignalWire webhook: AssemblyAI API error', undefined, { status: aaiRes.status, error: errText })
-        await supabaseAdmin.from('ai_runs').update({
-          status: 'failed',
-          produced_by: 'model',
-          is_authoritative: true,
-          output: { error: errText, status_code: aaiRes.status }
-        }).eq('id', aiRunId)
+      if (aiErr) {
+        logger.error('SignalWire webhook: failed to create ai_run', aiErr, { callId })
+        return
       }
-
-    } catch (err: any) {
-      logger.error('SignalWire webhook: Transcription trigger error', err, { callId })
+    } else {
+      // If reusing existing run, make sure output has recording info
+      await supabaseAdmin.from('ai_runs').update({
+        output: { recording_id: recordingId, recording_url: recordingUrlToUse }
+      }).eq('id', aiRunId)
     }
-  }
 
-  export const POST = withRateLimit(handleWebhook, {
-    identifier: (req) => `webhook-signalwire-${getClientIP(req)}`,
-    config: { maxAttempts: 1000, windowMs: 60 * 1000, blockMs: 5 * 60 * 1000 }
-  })
+    const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+      method: 'POST',
+      headers: { 'Authorization': process.env.ASSEMBLYAI_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audio_url: recordingUrlToUse,
+        webhook_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/assemblyai`,
+        sentiment_analysis: true, entity_detection: true, auto_chapters: true,
+        speaker_labels: true, content_safety: true, iab_categories: true, language_detection: true
+      })
+    })
+
+    if (aaiRes.ok) {
+      const aaiData = await aaiRes.json()
+      await supabaseAdmin.from('ai_runs').update({
+        status: 'processing',
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { job_id: aaiData.id, status: 'queued' }
+      }).eq('id', aiRunId)
+      logger.info('SignalWire webhook: triggered AssemblyAI transcription', { aiRunId, jobId: aaiData.id })
+    } else {
+      const errText = await aaiRes.text()
+      logger.error('SignalWire webhook: AssemblyAI API error', undefined, { status: aaiRes.status, error: errText })
+      await supabaseAdmin.from('ai_runs').update({
+        status: 'failed',
+        produced_by: 'model',
+        is_authoritative: true,
+        output: { error: errText, status_code: aaiRes.status }
+      }).eq('id', aiRunId)
+    }
+
+  } catch (err: any) {
+    logger.error('SignalWire webhook: Transcription trigger error', err, { callId })
+  }
+}
+
+export const POST = withRateLimit(handleWebhook, {
+  identifier: (req) => `webhook-signalwire-${getClientIP(req)}`,
+  config: { maxAttempts: 1000, windowMs: 60 * 1000, blockMs: 5 * 60 * 1000 }
+})

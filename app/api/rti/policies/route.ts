@@ -1,6 +1,7 @@
-
 import { NextResponse } from 'next/server'
-import { requireAuth, success, Errors, parseRequestBody } from '@/lib/api/utils'
+import { requireAuth, requireRole, success, Errors, parseRequestBody } from '@/lib/api/utils'
+import supabaseAdmin from '@/lib/supabaseAdmin'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,29 +9,30 @@ export async function GET(req: Request) {
     try {
         const ctx = await requireAuth()
         if (ctx instanceof NextResponse) return ctx
-        const { supabase } = ctx
+        const { orgId } = ctx
 
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('attention_policies')
             .select('*')
+            .eq('organization_id', orgId)
             .eq('is_enabled', true)
             .order('priority', { ascending: true })
 
         if (error) throw error
 
-        return success({ policies: data })
+        return success({ policies: data || [] })
     } catch (err) {
-        return Errors.serverError(err)
+        return Errors.internal(err instanceof Error ? err : undefined)
     }
 }
 
 export async function POST(req: Request) {
     try {
-        const ctx = await requireAuth()
+        // Require admin role for policy management
+        const ctx = await requireRole(['owner', 'admin'])
         if (ctx instanceof NextResponse) return ctx
-        const { supabase, user } = ctx
+        const { orgId, userId } = ctx
 
-        // RLS handles Admin check, but we can double check logic or rely on DB error
         const body = await parseRequestBody(req)
 
         // Validate basics
@@ -38,24 +40,29 @@ export async function POST(req: Request) {
             return Errors.badRequest('Missing name or policy_type')
         }
 
+        // Validate policy_type
+        const validTypes = ['quiet_hours', 'threshold', 'recurring_suppress', 'keyword_escalate', 'custom']
+        if (!validTypes.includes(body.policy_type)) {
+            return Errors.badRequest(`Invalid policy_type. Must be one of: ${validTypes.join(', ')}`)
+        }
+
         // Prepare Record
+        const policyId = uuidv4()
         const policy = {
-            organization_id: body.organization_id, // RLS will override/check this
+            id: policyId,
+            organization_id: orgId,
             name: body.name,
-            description: body.description,
+            description: body.description || null,
             policy_type: body.policy_type,
             policy_config: body.policy_config || {},
             priority: body.priority || 100,
             is_enabled: body.is_enabled ?? true,
-            created_by: user.id
+            created_by: userId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         }
 
-        // Supabase RLS will ignore passed organization_id if it doesn't match? 
-        // Usually best to let RLS handle it, or force it from session if we knew org_id.
-        // Given the endpoint context usually implies 'current org', we assume `body.organization_id` 
-        // corresponds to one the user is in. RLS policy 'attention_policies_insert_admin' checks membership.
-
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('attention_policies')
             .insert(policy)
             .select()
@@ -69,6 +76,6 @@ export async function POST(req: Request) {
         return success({ policy: data })
 
     } catch (err) {
-        return Errors.serverError(err)
+        return Errors.internal(err instanceof Error ? err : undefined)
     }
 }
