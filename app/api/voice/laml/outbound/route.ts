@@ -243,11 +243,16 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
   const elements: string[] = []
 
   // Dial/Conference Block
+  // Dial/Conference Block
+  // CRITICAL FIX: startConferenceOnEnter="true" ensures participants connect immediately
+  // without waiting for a moderator. endConferenceOnExit="true" ensures call ends when one party leaves.
   elements.push('<Dial>')
+  const confAttrs = 'startConferenceOnEnter="true" endConferenceOnExit="true" beep="false" maxParticipants="2"'
+
   if (voiceConfig?.record === true) {
-    elements.push(`  <Conference record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
+    elements.push(`  <Conference ${confAttrs} record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
   } else {
-    elements.push(`  <Conference>${escapeXml(conferenceName)}</Conference>`)
+    elements.push(`  <Conference ${confAttrs}>${escapeXml(conferenceName)}</Conference>`)
   }
   elements.push('</Dial>')
 
