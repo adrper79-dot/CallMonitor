@@ -298,7 +298,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
    * Make an outbound call
    */
   const makeCall = useCallback(async (phoneNumber: string, options?: CallOptions) => {
-    if (!clientRef.current) {
+    if (!clientRef.current || !sessionRef.current) {
       setError('Not connected. Call connect() first.')
       return
     }
@@ -312,29 +312,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('dialing')
       setError(null)
 
-      // IMPORTANT: Request microphone permission BEFORE dialing
-      // The SignalWire SDK requires getUserMedia() to be called before it can
-      // create device watchers and access audio devices
-      try {
-        console.log('[WebRTC] Requesting microphone permission...')
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        // Stop the stream immediately - we just needed to get permission
-        stream.getTracks().forEach(track => track.stop())
-        console.log('[WebRTC] Microphone permission granted')
-      } catch (mediaErr: any) {
-        console.error('[WebRTC] Microphone permission denied:', mediaErr)
-        setError('Microphone access denied. Please allow microphone access to make calls.')
-        setCallState('idle')
-        return
-      }
-
       // Validate phone number - E.164 Compliance
-      // 1. Remove non-numeric characters (keep + if present at start)
       let cleanNumber = phoneNumber.trim()
       const hasPlus = cleanNumber.startsWith('+')
       const sanitizedNumber = cleanNumber.replace(/\D/g, '')
 
-      // 2. Length check (E.164 can be short, e.g. +290 xxxx is 7 digits)
       if (sanitizedNumber.length < 6) {
         setError('Invalid phone number: Too short (must be at least 6 digits)')
         setCallState('idle')
@@ -346,96 +328,77 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         return
       }
 
-      // 3. Formatting
+      // Format to E.164
       let formattedNumber = cleanNumber
       if (hasPlus) {
-        // Assume user knows what they are doing with E.164
         formattedNumber = cleanNumber
       } else {
-        // Heuristic for US/Canada:
-        // If 10 digits, add +1
-        // If 11 digits and starts with 1, add +
         if (sanitizedNumber.length === 10) {
           formattedNumber = `+1${sanitizedNumber}`
         } else if (sanitizedNumber.length === 11 && sanitizedNumber.startsWith('1')) {
           formattedNumber = `+${sanitizedNumber}`
         } else {
-          // Ambiguous - default to adding + and hope it's a full international number
           formattedNumber = `+${sanitizedNumber}`
         }
       }
 
-      // Get the from number from the session
-      const fromNumber = sessionRef.current?.signalwire_number
-      console.log('[WebRTC] Dialing:', { to: formattedNumber, from: fromNumber })
-
-      // Create call via SignalWire client
-      const call = await clientRef.current.dial({
+      console.log('[WebRTC] Initiating conference call:', {
         to: formattedNumber,
-        from: fromNumber || undefined, // SignalWire number as caller ID
-        nodeId: undefined, // Let SignalWire choose
-        // Pass modulation options
-        ...(options?.record && { record: true }),
-        ...(options?.transcribe && { transcribe: true }),
+        subscriberId: sessionRef.current.id
       })
 
-      callRef.current = call
-
-      // Set up call event handlers
-      call.on('state', (state: string) => {
-        console.log('[WebRTC] Call state:', state)
-        switch (state) {
-          case 'ringing':
-            setCallState('ringing')
-            break
-          case 'active':
-          case 'answered':
-            setCallState('active')
-            setStatus('on_call')
-            setCurrentCall({
-              id: call.id,
-              phone_number: formattedNumber,
-              started_at: new Date(),
-              duration: 0,
-            })
-            // Start duration timer
-            durationIntervalRef.current = setInterval(() => {
-              setCurrentCall(prev => prev ? {
-                ...prev,
-                duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000)
-              } : null)
-            }, 1000)
-            break
-          case 'ending':
-          case 'hangup':
-            setCallState('ending')
-            break
-          case 'destroy':
-          case 'ended':
-            if (durationIntervalRef.current) {
-              clearInterval(durationIntervalRef.current)
-              durationIntervalRef.current = null
-            }
-            callRef.current = null
-            setCallState('idle')
-            setCurrentCall(null)
-            setStatus('connected')
-            break
-        }
+      // Call backend to initiate conference bridging
+      // The backend will:
+      // 1. Create a SignalWire conference
+      // 2. Dial our browser client (Fabric subscriber) into the conference
+      // 3. Dial the PSTN number into the same conference
+      const response = await fetch('/api/voice/webrtc-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          destination: formattedNumber,
+          subscriber_id: sessionRef.current.id
+        })
       })
 
-      call.on('error', (err: any) => {
-        console.error('[WebRTC] Call error:', err)
-        setError(err?.message || 'Call failed')
-        setCallState('idle')
-        setStatus('connected')
-        callRef.current = null
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error?.message || 'Failed to initiate call')
+      }
+
+      const data = await response.json()
+      console.log('[WebRTC] Conference bridging initiated:', {
+        callId: data.call_id,
+        conferenceId: data.conference_id
       })
+
+      // The backend has initiated the conference.
+      // SignalWire will now call our browser client via Fabric,
+      // and we'll receive an incoming call notification via client.on('call.received')
+
+      // Set temporary call state
+      setCurrentCall({
+        id: data.call_id,
+        phone_number: formattedNumber,
+        started_at: new Date(),
+        duration: 0
+      })
+
+      // Set to ringing state while we wait for SignalWire to call us back
+      setCallState('ringing')
+      setStatus('connecting')
+
+      // The actual call connection happens when SignalWire sends us the incoming call invite
+      // See the client.on('call.received') handler in the connect() function
 
     } catch (err: any) {
       console.error('[WebRTC] makeCall error:', err)
       setError(err?.message || 'Failed to place call')
       setCallState('idle')
+      setCurrentCall(null)
     }
   }, [callState])
 
