@@ -115,8 +115,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate session ID
-    const sessionId = `webrtc-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    // Generate session ID (must be UUID format for database)
+    const { v4: uuidv4 } = await import('uuid')
+    const sessionId = uuidv4()
 
     // Create session record
     const { data: sessionRecord, error: insertError } = await supabaseAdmin
