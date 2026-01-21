@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-import { Web, Inviter, UserAgent, Registerer, SessionState, Session } from 'sip.js'
+import { Inviter, UserAgent, Registerer, SessionState, Session } from 'sip.js'
 
 /**
  * WebRTC Hook (SIP.js Version)
@@ -157,7 +157,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const uri = UserAgent.makeURI(`sip:${sip_username}@${sip_domain}`)
       if (!uri) throw new Error('Invalid SIP URI')
 
-      const userAgent = new Web.UserAgent({
+      const userAgent = new UserAgent({
         uri,
         transportOptions: {
           server: websocket_url
@@ -267,11 +267,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
             // Audio Handling
             if (remoteAudioRef.current) {
               const remoteStream = new MediaStream()
-              inviter.sessionDescriptionHandler?.peerConnection?.getReceivers().forEach((receiver) => {
-                if (receiver.track) {
-                  remoteStream.addTrack(receiver.track)
-                }
-              })
+              // Access peerConnection safely by casting to any as SessionDescriptionHandler is generic
+              const sdh = inviter.sessionDescriptionHandler as any
+              if (sdh && sdh.peerConnection) {
+                sdh.peerConnection.getReceivers().forEach((receiver: any) => {
+                  if (receiver.track) {
+                    remoteStream.addTrack(receiver.track)
+                  }
+                })
+              }
               remoteAudioRef.current.srcObject = remoteStream
               remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
             }
@@ -303,7 +307,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
           if (sessionRef.current instanceof Inviter) {
             await sessionRef.current.cancel()
           } else {
-            await sessionRef.current.reject()
+            // Incoming invitation (Invitation class) has reject()
+            const invitation = sessionRef.current as any
+            if (typeof invitation.reject === 'function') {
+              await invitation.reject()
+            }
           }
           break
         case SessionState.Established:
