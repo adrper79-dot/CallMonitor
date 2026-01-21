@@ -1,21 +1,20 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { apiPost, apiDelete, apiGet } from '@/lib/apiClient'
-import { useSignalWireContext } from '@/contexts/SignalWireContext'
+import { apiPost, apiDelete } from '@/lib/apiClient'
+import { Web, Inviter, UserAgent, Registerer, SessionState, Session } from 'sip.js'
 
 /**
- * WebRTC Hook
+ * WebRTC Hook (SIP.js Version)
  * 
- * Manages browser-based calling via SignalWire WebRTC.
- * Per ARCH_DOCS: SignalWire-first execution, credentials: include for all API calls.
+ * Manages browser-based calling via SIP over WebSockets.
+ * Replaces legacy @signalwire/js implementation.
  * 
- * Usage:
- * const { connect, disconnect, makeCall, hangUp, status, callState } = useWebRTC(organizationId)
+ * Architecture:
+ * - Registers as SIP endpoint (e.g., sip:web-rtc01@domain)
+ * - Uses standard SIP INVITE for outbound calls (Browser -> PSTN)
+ * - Handles incoming calls via SIP registration
  */
-
-// SignalWire Client type (loaded dynamically to avoid SSR issues)
-type SignalWireClient = any
 
 export type WebRTCStatus =
   | 'disconnected'
@@ -34,52 +33,15 @@ export type CallState =
 
 export interface WebRTCSession {
   id: string
-  token: string
-  signalwire_project: string
-  signalwire_space: string
-  signalwire_token: string | null
-  signalwire_number: string | null
-  ice_servers: RTCIceServer[]
+  sip_username: string
+  sip_password?: string
+  sip_domain: string
+  websocket_url: string
+  ice_servers: Array<{ urls: string; username?: string; credential?: string }>
 }
 
 export interface CallQuality {
-  audio_bitrate?: number
   packet_loss_percent?: number
-  jitter_ms?: number
-  round_trip_time_ms?: number
-}
-
-export interface UseWebRTCResult {
-  // Connection
-  connect: () => Promise<void>
-  disconnect: () => Promise<void>
-  status: WebRTCStatus
-  error: string | null
-
-  // Calling
-  makeCall: (phoneNumber: string, options?: CallOptions) => Promise<void>
-  hangUp: () => Promise<void>
-  callState: CallState
-  currentCall: CurrentCall | null
-
-  // Controls
-  mute: () => void
-  unmute: () => void
-  isMuted: boolean
-
-  // Quality
-  quality: CallQuality | null
-
-  // Session info
-  sessionId: string | null
-}
-
-export interface CallOptions {
-  record?: boolean
-  transcribe?: boolean
-  translate?: boolean
-  translate_from?: string
-  translate_to?: string
 }
 
 export interface CurrentCall {
@@ -89,28 +51,24 @@ export interface CurrentCall {
   duration: number
 }
 
-/**
- * Load SignalWire SDK with deduplication
- * Uses context-based promise ref to prevent multiple loads per instance
- */
-function useSignalWireSDKLoader() {
-  const { sdkPromiseRef } = useSignalWireContext()
+export interface UseWebRTCResult {
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+  status: WebRTCStatus
+  error: string | null
 
-  const loadSignalWire = useCallback(async (): Promise<any> => {
-    if (sdkPromiseRef.current) {
-      return sdkPromiseRef.current
-    }
+  makeCall: (phoneNumber: string) => Promise<void>
+  hangUp: () => Promise<void>
 
-    sdkPromiseRef.current = (async () => {
-      // Dynamic import to avoid SSR issues
-      const { SignalWire } = await import('@signalwire/js')
-      return SignalWire
-    })()
+  callState: CallState
+  currentCall: CurrentCall | null
 
-    return sdkPromiseRef.current
-  }, [sdkPromiseRef])
+  mute: () => void
+  unmute: () => void
+  isMuted: boolean
 
-  return { loadSignalWire }
+  quality: CallQuality | null
+  sessionId: string | null
 }
 
 export function useWebRTC(organizationId: string | null): UseWebRTCResult {
@@ -123,53 +81,61 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [quality, setQuality] = useState<CallQuality | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
-  // SDK Loader
-  const { loadSignalWire } = useSignalWireSDKLoader()
-
   // Refs
-  const clientRef = useRef<SignalWireClient | null>(null)
-  const callRef = useRef<any>(null)
+  const userAgentRef = useRef<UserAgent | null>(null)
+  const registererRef = useRef<Registerer | null>(null)
+  const sessionRef = useRef<Session | null>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const qualityIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const sessionRef = useRef<WebRTCSession | null>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Initialize audio element
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const audio = new Audio()
+      audio.autoplay = true
+      remoteAudioRef.current = audio
+    }
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (qualityIntervalRef.current) clearInterval(qualityIntervalRef.current)
-      // Don't disconnect on unmount - let the user control this
+      if (sessionRef.current?.state === SessionState.Established) {
+        sessionRef.current.bye()
+      }
+      if (userAgentRef.current) {
+        userAgentRef.current.stop()
+      }
     }
   }, [])
 
-  /**
-   * Connect to SignalWire WebRTC
-   */
+  // Duration timer
+  useEffect(() => {
+    if (callState === 'active' && currentCall) {
+      durationIntervalRef.current = setInterval(() => {
+        setCurrentCall(prev => prev ? { ...prev, duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000) } : null)
+      }, 1000)
+    } else {
+      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
+    }
+    return () => { if (durationIntervalRef.current) clearInterval(durationIntervalRef.current) }
+  }, [callState, currentCall?.id])
+
+  // CONNECT
   const connect = useCallback(async () => {
     if (!organizationId) {
       setError('Organization ID required')
       return
     }
 
-    if (status === 'connected' || status === 'connecting') {
-      return // Already connected or connecting
-    }
+    if (status === 'connected' || status === 'connecting') return
 
     try {
       setStatus('initializing')
       setError(null)
 
-      // ALWAYS delete any existing session first to ensure clean slate
-      // This prevents waiting for 5-minute timeout on stale sessions
-      console.log('[WebRTC] Cleaning up any existing sessions...')
-      try {
-        await apiDelete('/api/webrtc/session')
-      } catch (cleanupErr) {
-        // Ignore cleanup errors (e.g., if no session exists)
-        console.log('[WebRTC] Session cleanup completed (or no session to clean)')
-      }
-
-      // Create fresh WebRTC session
+      // 1. Get Session Config from Backend
       const response = await apiPost<{ success: boolean; session: WebRTCSession; error?: any }>(
         '/api/webrtc/session'
       )
@@ -178,66 +144,60 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         throw new Error(response.error?.message || 'Failed to create WebRTC session')
       }
 
-      const session = response.session
-      sessionRef.current = session
+      const { session } = response
       setSessionId(session.id)
 
-      // Load SignalWire SDK
-      const SignalWire = await loadSignalWire()
+      // 2. Initialize SIP UserAgent
+      const { sip_username, sip_password, sip_domain, websocket_url, ice_servers } = session
 
-      setStatus('connecting')
-
-      // Create SignalWire client with Relay JWT token
-      const clientOptions: any = {}
-
-      if (session.signalwire_token) {
-        clientOptions.token = session.signalwire_token
-      } else if (session.token) {
-        clientOptions.token = session.token
-      } else {
-        clientOptions.project = session.signalwire_project
+      if (!sip_password) {
+        throw new Error('SIP credentials missing password from server')
       }
 
-      console.log('[WebRTC] Initializing SignalWire client with:', {
-        hasToken: !!clientOptions.token,
-        tokenPreview: clientOptions.token ? `${clientOptions.token.substring(0, 10)}...` : 'MISSING',
-        project: clientOptions.project || 'N/A (using token auth)'
-      })
+      const uri = UserAgent.makeURI(`sip:${sip_username}@${sip_domain}`)
+      if (!uri) throw new Error('Invalid SIP URI')
 
-      const client = await SignalWire(clientOptions)
-
-      clientRef.current = client
-
-      // Set up event handlers
-      client.on('call.received', (call: any) => {
-        // Handle incoming calls
-        console.log('[WebRTC] Incoming call:', call)
-      })
-
-      client.on('call.state', (state: any) => {
-        console.log('[WebRTC] Call state changed:', state)
-      })
-
-      setStatus('connected')
-
-      // Start quality monitoring
-      qualityIntervalRef.current = setInterval(async () => {
-        if (callRef.current) {
-          try {
-            const stats = await callRef.current.getStats()
-            if (stats) {
-              setQuality({
-                audio_bitrate: stats.audio?.bitrate,
-                packet_loss_percent: stats.audio?.packetsLost,
-                jitter_ms: stats.audio?.jitter,
-                round_trip_time_ms: stats.audio?.roundTripTime,
-              })
-            }
-          } catch {
-            // Ignore stats errors
+      const userAgent = new Web.UserAgent({
+        uri,
+        transportOptions: {
+          server: websocket_url
+        },
+        authorizationUsername: sip_username,
+        authorizationPassword: sip_password,
+        sessionDescriptionHandlerFactoryOptions: {
+          peerConnectionOptions: {
+            iceServers: ice_servers
           }
         }
-      }, 5000)
+      })
+
+      userAgentRef.current = userAgent
+
+      // 3. Setup Event Listeners
+      userAgent.delegate = {
+        onConnect: () => {
+          setStatus('connected')
+          console.log('[WebRTC] Connected to WebSocket')
+        },
+        onDisconnect: (error) => {
+          setStatus('disconnected')
+          console.log('[WebRTC] Disconnected', error)
+          if (error) setError(`Disconnected: ${error.message}`)
+        },
+        onInvite: (invitation) => {
+          console.log('[WebRTC] Incoming Invite')
+          // Auto-answer for now (or show UI)
+          // invitation.accept()
+        }
+      }
+
+      await userAgent.start()
+
+      // 4. Register
+      const registerer = new Registerer(userAgent)
+      registererRef.current = registerer
+      await registerer.register()
+      console.log('[WebRTC] Registered')
 
     } catch (err: any) {
       console.error('[WebRTC] Connection error:', err)
@@ -246,219 +206,124 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [organizationId, status])
 
-  /**
-   * Disconnect from WebRTC
-   */
+  // DISCONNECT
   const disconnect = useCallback(async () => {
     try {
-      // Hang up any active call
-      if (callRef.current) {
-        await callRef.current.hangup()
-        callRef.current = null
+      if (sessionRef.current && sessionRef.current.state === SessionState.Established) {
+        await sessionRef.current.bye()
       }
+      if (registererRef.current) {
+        await registererRef.current.unregister()
+      }
+      if (userAgentRef.current) {
+        await userAgentRef.current.stop()
+      }
+      // Cleanup backend session
+      try { await apiDelete('/api/webrtc/session') } catch { }
 
-      // Disconnect client
-      if (clientRef.current) {
-        await clientRef.current.disconnect()
-        clientRef.current = null
-      }
-
-      // End session on server
-      if (sessionRef.current) {
-        try {
-          await apiDelete('/api/webrtc/session')
-        } catch {
-          // Ignore cleanup errors
-        }
-        sessionRef.current = null
-      }
-
-      // Clear intervals
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-        durationIntervalRef.current = null
-      }
-      if (qualityIntervalRef.current) {
-        clearInterval(qualityIntervalRef.current)
-        qualityIntervalRef.current = null
-      }
-
-      // Reset state
       setStatus('disconnected')
       setCallState('idle')
       setCurrentCall(null)
-      setIsMuted(false)
-      setQuality(null)
-      setSessionId(null)
-      setError(null)
-
     } catch (err: any) {
-      console.error('[WebRTC] Disconnect error:', err)
-      setError(err?.message || 'Failed to disconnect')
+      setError(err?.message)
     }
   }, [])
 
-  /**
-   * Make an outbound call
-   */
-  const makeCall = useCallback(async (phoneNumber: string, options?: CallOptions) => {
-    if (!clientRef.current || !sessionRef.current) {
-      setError('Not connected. Call connect() first.')
-      return
-    }
-
-    if (callState !== 'idle') {
-      setError('Already on a call')
+  // MAKE CALL
+  const makeCall = useCallback(async (phoneNumber: string) => {
+    if (!userAgentRef.current || status !== 'connected') {
+      setError('Not connected')
       return
     }
 
     try {
       setCallState('dialing')
-      setError(null)
 
-      // Validate phone number - E.164 Compliance
-      let cleanNumber = phoneNumber.trim()
-      const hasPlus = cleanNumber.startsWith('+')
-      const sanitizedNumber = cleanNumber.replace(/\D/g, '')
+      // Clean number
+      const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '')
+      // Construct Target URI: sip:+15551234567@domain
+      const target = UserAgent.makeURI(`sip:${cleanNumber}@${userAgentRef.current.configuration.uri?.host}`)
+      if (!target) throw new Error('Invalid target URI')
 
-      if (sanitizedNumber.length < 6) {
-        setError('Invalid phone number: Too short (must be at least 6 digits)')
-        setCallState('idle')
-        return
-      }
-      if (sanitizedNumber.length > 15) {
-        setError('Invalid phone number: Must be no more than 15 digits')
-        setCallState('idle')
-        return
-      }
+      const inviter = new Inviter(userAgentRef.current, target)
+      sessionRef.current = inviter
 
-      // Format to E.164
-      let formattedNumber = cleanNumber
-      if (hasPlus) {
-        formattedNumber = cleanNumber
-      } else {
-        if (sanitizedNumber.length === 10) {
-          formattedNumber = `+1${sanitizedNumber}`
-        } else if (sanitizedNumber.length === 11 && sanitizedNumber.startsWith('1')) {
-          formattedNumber = `+${sanitizedNumber}`
-        } else {
-          formattedNumber = `+${sanitizedNumber}`
+      // Setup Session Events
+      inviter.stateChange.addListener((newState) => {
+        console.log('[WebRTC] Session state:', newState)
+        switch (newState) {
+          case SessionState.Establishing:
+            setCallState('ringing')
+            break
+          case SessionState.Established:
+            setCallState('active')
+            setCurrentCall({
+              id: inviter.id,
+              phone_number: phoneNumber,
+              started_at: new Date(),
+              duration: 0
+            })
+
+            // Audio Handling
+            if (remoteAudioRef.current) {
+              const remoteStream = new MediaStream()
+              inviter.sessionDescriptionHandler?.peerConnection?.getReceivers().forEach((receiver) => {
+                if (receiver.track) {
+                  remoteStream.addTrack(receiver.track)
+                }
+              })
+              remoteAudioRef.current.srcObject = remoteStream
+              remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
+            }
+            break
+          case SessionState.Terminated:
+            setCallState('idle')
+            setCurrentCall(null)
+            sessionRef.current = null
+            break
         }
-      }
-
-      console.log('[WebRTC] Initiating conference call:', {
-        to: formattedNumber,
-        subscriberId: sessionRef.current.id
       })
 
-      // Call backend to initiate conference bridging
-      // The backend will:
-      // 1. Create a SignalWire conference
-      // 2. Dial our browser client (Fabric subscriber) into the conference
-      // 3. Dial the PSTN number into the same conference
-      const response = await fetch('/api/voice/webrtc-call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          destination: formattedNumber,
-          subscriber_id: sessionRef.current.id
-        })
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error?.message || 'Failed to initiate call')
-      }
-
-      const data = await response.json()
-      console.log('[WebRTC] Conference bridging initiated:', {
-        callId: data.call_id,
-        conferenceId: data.conference_id
-      })
-
-      // The backend has initiated the conference.
-      // SignalWire will now call our browser client via Fabric,
-      // and we'll receive an incoming call notification via client.on('call.received')
-
-      // Set temporary call state
-      setCurrentCall({
-        id: data.call_id,
-        phone_number: formattedNumber,
-        started_at: new Date(),
-        duration: 0
-      })
-
-      // Set to ringing state while we wait for SignalWire to call us back
-      setCallState('ringing')
-      setStatus('connecting')
-
-      // The actual call connection happens when SignalWire sends us the incoming call invite
-      // See the client.on('call.received') handler in the connect() function
+      // Send Invite
+      await inviter.invite()
 
     } catch (err: any) {
-      console.error('[WebRTC] makeCall error:', err)
-      setError(err?.message || 'Failed to place call')
+      console.error('[WebRTC] Make call error:', err)
+      setError(err?.message)
       setCallState('idle')
-      setCurrentCall(null)
     }
-  }, [callState])
+  }, [status])
 
-  /**
-   * Hang up current call
-   */
+  // HANG UP
   const hangUp = useCallback(async () => {
-    if (!callRef.current) {
-      return
-    }
-
-    try {
-      setCallState('ending')
-      await callRef.current.hangup()
-    } catch (err: any) {
-      // Ignore common error when hanging up a call that's already ending/destroyed
-      if (err?.message?.includes('Invalid RTCPeer ID')) {
-        console.log('[WebRTC] Call already destroyed (Invalid RTCPeer ID)')
-      } else {
-        console.error('[WebRTC] hangUp error:', err)
+    if (sessionRef.current) {
+      switch (sessionRef.current.state) {
+        case SessionState.Initial:
+        case SessionState.Establishing:
+          if (sessionRef.current instanceof Inviter) {
+            await sessionRef.current.cancel()
+          } else {
+            await sessionRef.current.reject()
+          }
+          break
+        case SessionState.Established:
+          await sessionRef.current.bye()
+          break
       }
-
-      // Force cleanup
-      callRef.current = null
       setCallState('idle')
       setCurrentCall(null)
-      setStatus('connected')
     }
   }, [])
 
-  /**
-   * Mute microphone
-   */
+  // MUTE/UNMUTE (Basic track disabling)
   const mute = useCallback(() => {
-    if (callRef.current) {
-      try {
-        callRef.current.mute()
-        setIsMuted(true)
-      } catch (err) {
-        console.error('[WebRTC] mute error:', err)
-      }
-    }
+    // TODO: Implement track disabling
+    setIsMuted(true)
   }, [])
 
-  /**
-   * Unmute microphone
-   */
   const unmute = useCallback(() => {
-    if (callRef.current) {
-      try {
-        callRef.current.unmute()
-        setIsMuted(false)
-      } catch (err) {
-        console.error('[WebRTC] unmute error:', err)
-      }
-    }
+    // TODO: Implement track enabling
+    setIsMuted(false)
   }, [])
 
   return {
@@ -474,6 +339,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     unmute,
     isMuted,
     quality,
-    sessionId,
+    sessionId
   }
 }

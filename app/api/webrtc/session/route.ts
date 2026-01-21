@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
       session: {
         id: sessionId,
         sip_username: sipUsername,
+        sip_password: process.env.SIGNALWIRE_SIP_PASSWORD, // Required for SIP.js registration
         sip_domain: sipDomain,
         websocket_url: websocketUrl,
         // ICE servers for peer connection
