@@ -64,12 +64,13 @@ export async function requireRole(role: UserRole | UserRole[]): Promise<RBACSess
 
   const userRole = membership.role as UserRole
 
-  // Role hierarchy: owner > admin > operator > viewer
+  // Role hierarchy: owner > admin > operator > analyst > viewer
   // Higher roles have all permissions of lower roles
   const roleHierarchy: Record<UserRole, number> = {
-    'owner': 4,
-    'admin': 3,
-    'operator': 2,
+    'owner': 5,
+    'admin': 4,
+    'operator': 3,
+    'analyst': 2,
     'viewer': 1
   }
 

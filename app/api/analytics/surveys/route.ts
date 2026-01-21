@@ -106,7 +106,7 @@ export async function GET() {
       .from('ai_runs')
       .select('output, created_at, status, call_id')
       .in('call_id', callIds.length > 0 ? callIds : ['00000000-0000-0000-0000-000000000000'])
-      .in('model', ['laml-dtmf-survey', 'signalwire-ai-survey'])
+      .in('model', ['laml-dtmf-survey', 'signalwire-ai-survey', 'assemblyai-survey'])
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(500)

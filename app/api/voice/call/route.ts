@@ -22,28 +22,28 @@ async function handlePOST(req: Request) {
   try {
     // Import utilities
     const { requireAuth, Errors, success } = await import('@/lib/api/utils')
-    
+
     // Use requireAuth helper for consistent authentication
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) {
       // Authentication failed - return the error response
       return ctx
     }
-    
+
     const userId = ctx.userId
-    
+
     const body = await req.json()
     const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
-    
+
     // SYSTEM OF RECORD COMPLIANCE (Requirement 1):
     // Reject any client-supplied call_id - IDs must be server-generated only
     if (body.call_id || body.callId || body.id) {
       return Errors.badRequest('Client-supplied call IDs are not permitted. Call IDs are generated server-side only.')
     }
-    
+
     // Determine phone number to call
     let phoneNumber = body.phone_to || body.phone_number || body.to || body.to_number
-    
+
     // If target_id provided, look up phone number from voice_targets
     if (!phoneNumber && body.target_id) {
       const { data: target, error: targetError } = await supabaseAdmin
@@ -51,18 +51,18 @@ async function handlePOST(req: Request) {
         .select('phone_number')
         .eq('id', body.target_id)
         .single()
-      
+
       if (targetError || !target) {
         return Errors.notFound('Target not found')
       }
-      
+
       phoneNumber = target.phone_number
     }
-    
+
     if (!phoneNumber) {
       return Errors.badRequest('No phone number provided. Enter a number or select a target.')
     }
-    
+
     // Call the existing startCallHandler with actor_id
     const result = await startCallHandler(
       {
@@ -78,11 +78,19 @@ async function handlePOST(req: Request) {
       }
     )
 
+
+    interface StartCallError {
+      id?: string
+      code?: string
+      message?: string
+      user_message?: string
+    }
+
     if (result.success) {
       return success(result)
     } else {
       // Handler returned structured error - preserve error classification for KPI fidelity
-      const handlerError = (result as any).error
+      const handlerError = result.error as StartCallError
       if (handlerError?.code) {
         // Use appropriate HTTP status based on error code (per ERROR_HANDLING_PLAN.txt)
         const statusMap: Record<string, number> = {
@@ -104,7 +112,7 @@ async function handlePOST(req: Request) {
   } catch (err: any) {
     const { logger } = await import('@/lib/logger')
     const { AppError } = await import('@/types/app-error')
-    
+
     // Create structured error for logging and response (per ERROR_HANDLING_PLAN.txt)
     const appError = err instanceof AppError ? err : new AppError({
       code: 'CALL_EXECUTION_FAILED',
@@ -113,12 +121,12 @@ async function handlePOST(req: Request) {
       severity: 'HIGH',
       retriable: true
     })
-    
-    logger.error('POST /api/voice/call failed', appError, { 
+
+    logger.error('POST /api/voice/call failed', appError, {
       errorCode: appError.code,
-      errorId: appError.id 
+      errorId: appError.id
     })
-    
+
     return NextResponse.json(
       { success: false, error: { id: appError.id, code: appError.code, message: appError.user_message } },
       { status: 500 }

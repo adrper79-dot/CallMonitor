@@ -90,4 +90,22 @@ All tasks from both `finalization-prompts` and `LANDING_FEASIBILITY_ASSESSMENT` 
 - [x] Settings shows "AI can be disabled, evidence remains"
 - [x] Positioning says "system of record" explicitly
 
-**The bird has landed.**
+
+## Deep Codebase Hunt & Integrity Fixes (Jan 20 2026)
+
+**Goal:** Pivot WebRTC protocol, refactor UI, and close functional gaps in Execution/Analytics.
+
+### Key Fixes
+1. **WebRTC Protocol Pivot**: Switched from SignalWire Fabric (SAT) to Legacy Relay (JWT) for reliable PSTN dialing.
+2. **AI Pipeline Zombie Fix**: `signalwire` webhook now claims "queued" intent records from `startCallHandler` instead of creating duplicates.
+3. **Analytics Blind Spot**: Updated `/api/analytics/surveys` to include `assemblyai-survey` models.
+4. **UI Refactor**: 
+   - `MobileBottomNav` properly conditionally renders.
+   - `ProtectedGate` handles loading states cleaner.
+   - `VoiceOperationsClient` removed imperative scrolling.
+   - `lucide-react` imports standardized.
+
+### Status
+- **Architecture**: Enforced `MASTER_ARCHITECTURE` alignment (Event-driven AI).
+- **Security**: Validated no client-side `supabaseAdmin` leakage.
+- **Health**: `api/health` passed all checks.

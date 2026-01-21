@@ -49,10 +49,10 @@ function getSignalWireDomain(): string | null {
 /**
  * Get SignalWire WebRTC token
  * 
- * Creates a Subscriber Access Token (SAT) for browser-based WebRTC calls.
- * Uses SignalWire Fabric API for token generation.
+ * Creates a JWT Access Token for browser-based WebRTC calls.
+ * Uses SignalWire Relay REST API (Legacy) to ensure compatibility with LAML 'client:' dialing.
  * 
- * @see https://developer.signalwire.com/sdks/reference/browser-sdk/
+ * @see https://docs.signalwire.com/topics/relay-rest/#jwt-token-resource
  */
 async function getSignalWireWebRTCToken(sessionId: string, userId: string, organizationId: string): Promise<{
   token?: string
@@ -70,78 +70,9 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string, organ
   const authHeader = `Basic ${Buffer.from(`${SIGNALWIRE_PROJECT_ID}:${SIGNALWIRE_TOKEN}`).toString('base64')}`
 
   try {
-    // Use the Fabric Subscriber Access Token (SAT) endpoint
-    const satResponse = await fetch(
-      `https://${signalwireDomain}/api/fabric/subscribers/tokens`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader
-        },
-        body: JSON.stringify({
-          reference: `org-${organizationId}`, // Use organization ID to ensure 1 subscriber per org, not per user
-          expires_in: 3600
-        })
-      }
-    )
-
-    if (satResponse.ok) {
-      const data = await satResponse.json()
-
-      // DEBUG: Log what SignalWire actually returns for ICE servers
-      logger.info('[webrtc] SAT token response', {
-        hasToken: !!data.token,
-        hasIceServers: !!data.ice_servers,
-        iceServerCount: data.ice_servers?.length || 0,
-        iceServers: data.ice_servers
-      })
-
-      // Build ICE servers with fallback TURN servers
-      const iceServers: RTCIceServer[] = [
-        // SignalWire STUN
-        { urls: `stun:${signalwireDomain}:3478` },
-        // Google STUN servers (public, reliable)
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ]
-
-      // Add SignalWire's ICE servers if provided
-      if (data.ice_servers && Array.isArray(data.ice_servers) && data.ice_servers.length > 0) {
-        iceServers.push(...data.ice_servers)
-        logger.info('[webrtc] Using SignalWire ICE servers', { count: data.ice_servers.length })
-      } else {
-        // CRITICAL: If SignalWire doesn't provide TURN servers, add public fallback
-        // This is necessary for ICE gathering to complete through firewalls/NAT
-        logger.warn('[webrtc] No ICE servers from SignalWire, adding public TURN fallback')
-        // @ts-ignore - RTCIceServer type doesn't include username/credential but they're valid
-        iceServers.push({
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        })
-      }
-
-      return {
-        token: data.token,
-        iceServers
-      }
-    }
-
-    // Check for specific errors
-    const errorText = await satResponse.text()
-    let errorJson: any = {}
-    try { errorJson = JSON.parse(errorText) } catch (e) { }
-
-    // Check for insufficient balance
-    if (errorJson?.errors?.some((e: any) => e.code === 'insufficient_balance') || errorText.includes('insufficient_balance')) {
-      logger.warn('[webrtc] SignalWire insufficient balance', { organization_id: 'system' })
-      return { error: 'INSUFFICIENT_FUNDS' }
-    }
-
-    logger.warn('[webrtc] SignalWire Fabric SAT endpoint returned non-OK', { status: satResponse.status, errorText })
-
-    // Fallback: Try legacy Relay JWT endpoint (for older SignalWire accounts)
+    // 1. Get JWT Token (Legacy Relay)
+    // We use this because we need to define the 'resource' name (sessionId) explicitly
+    // so that we can dial 'client:{sessionId}' from the LAML API.
     const jwtResponse = await fetch(
       `https://${signalwireDomain}/api/relay/rest/jwt`,
       {
@@ -151,42 +82,54 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string, organ
           'Authorization': authHeader
         },
         body: JSON.stringify({
-          resource: sessionId,
+          resource: sessionId, // CRITICAL: This allows us to dial "client:{sessionId}"
           expires_in: 3600
         })
       }
     )
 
+    const iceServers: RTCIceServer[] = [
+      { urls: `stun:${signalwireDomain}:3478` },
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]
+
+    // Always add public TURN fallback for reliability
+    iceServers.push({
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    })
+
     if (jwtResponse.ok) {
       const data = await jwtResponse.json()
-      logger.info('[webrtc] Got SignalWire JWT token from legacy Relay endpoint')
+      logger.info('[webrtc] Got SignalWire JWT token', { sessionId })
+
       return {
         token: data.jwt_token,
-        iceServers: [
-          { urls: `stun:${signalwireDomain}:3478` },
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ]
+        iceServers
       }
     }
 
-    logger.warn('[webrtc] Both SAT and JWT endpoints failed')
+    // Handle Errors
+    const errorText = await jwtResponse.text()
+    logger.warn('[webrtc] Failed to get JWT token', { status: jwtResponse.status, errorText })
+
+    if (errorText.includes('insufficient_balance')) {
+      return { error: 'INSUFFICIENT_FUNDS' }
+    }
 
     return {
       token: '',
-      iceServers: [
-        { urls: `stun:${signalwireDomain}:3478` },
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ]
+      iceServers
     }
+
   } catch (error) {
     logger.error('[webrtc] Error getting SignalWire token', error)
     return {
       token: '',
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
       ]
     }
   }

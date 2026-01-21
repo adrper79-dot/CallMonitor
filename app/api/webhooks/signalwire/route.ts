@@ -416,9 +416,20 @@ async function triggerTranscriptionIfEnabled(callId: string, recordingId: string
         // If queued/failed, retry using same ID
         aiRunId = existingForRecording.id
         shouldCreate = false
+      } else {
+        // Look for a generic placeholder run created by startCallHandler (status='queued', no output or empty output)
+        const placeholder = aiRows.find(run =>
+          run.status === 'queued' &&
+          (!run.output || Object.keys(run.output).length === 0 || run.output.pending === true)
+        )
+
+        if (placeholder) {
+          logger.info('SignalWire webhook: Claiming placeholder ai_run', { aiRunId: placeholder.id })
+          aiRunId = placeholder.id
+          shouldCreate = false
+        }
       }
-      // If we found runs but NONE for this recording, we proceed to create a new one (shouldCreate = true)
-      // This allows multiple recordings (legs) to be transcribed separately
+      // If we found runs but NONE for this recording AND no placeholder, we proceed to create a new one (shouldCreate = true)
     }
 
     const { data: systemsRows } = await supabaseAdmin

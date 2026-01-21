@@ -12,9 +12,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import { emitDispositionSet } from '@/lib/webhookDelivery'
 import { CallDisposition } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
-
 export const dynamic = 'force-dynamic'
 
 const VALID_DISPOSITIONS: CallDisposition[] = [
@@ -42,18 +42,18 @@ export async function GET(
 ) {
   try {
     const { id: callId } = await params
-    
+
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return NextResponse.json(
@@ -61,21 +61,21 @@ export async function GET(
         { status: 400 }
       )
     }
-    
+
     // Get user's organization
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('organization_id')
       .eq('id', userId)
       .single()
-    
+
     if (userError || !user) {
       return NextResponse.json(
         { success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found' } },
         { status: 404 }
       )
     }
-    
+
     // Get call with disposition (verify org access)
     const { data: call, error: callError } = await supabaseAdmin
       .from('calls')
@@ -83,14 +83,14 @@ export async function GET(
       .eq('id', callId)
       .eq('organization_id', user.organization_id)
       .single()
-    
+
     if (callError || !call) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
       )
     }
-    
+
     return NextResponse.json({
       success: true,
       disposition: {
@@ -120,18 +120,18 @@ export async function PUT(
 ) {
   try {
     const { id: callId } = await params
-    
+
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return NextResponse.json(
@@ -139,25 +139,25 @@ export async function PUT(
         { status: 400 }
       )
     }
-    
+
     // Parse request body
     const body = await request.json()
     const { disposition, disposition_notes } = body
-    
+
     // Validate disposition value
     if (!disposition || !VALID_DISPOSITIONS.includes(disposition)) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_DISPOSITION', 
-            message: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_DISPOSITION',
+            message: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}`
+          }
         },
         { status: 400 }
       )
     }
-    
+
     // Validate notes length
     if (disposition_notes && disposition_notes.length > 500) {
       return NextResponse.json(
@@ -165,21 +165,21 @@ export async function PUT(
         { status: 400 }
       )
     }
-    
+
     // Get user's organization and role
     const { data: member, error: memberError } = await supabaseAdmin
       .from('org_members')
       .select('organization_id, role')
       .eq('user_id', userId)
       .single()
-    
+
     if (memberError || !member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Check RBAC: Owner, Admin, Operator can set disposition
     if (!['owner', 'admin', 'operator'].includes(member.role)) {
       return NextResponse.json(
@@ -187,7 +187,7 @@ export async function PUT(
         { status: 403 }
       )
     }
-    
+
     // Verify call belongs to user's org
     const { data: existingCall, error: existingError } = await supabaseAdmin
       .from('calls')
@@ -195,14 +195,14 @@ export async function PUT(
       .eq('id', callId)
       .eq('organization_id', member.organization_id)
       .single()
-    
+
     if (existingError || !existingCall) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
       )
     }
-    
+
     // Update disposition
     const { data: updatedCall, error: updateError } = await supabaseAdmin
       .from('calls')
@@ -215,7 +215,7 @@ export async function PUT(
       .eq('id', callId)
       .select('id, disposition, disposition_set_at, disposition_set_by, disposition_notes')
       .single()
-    
+
     if (updateError) {
       logger.error('[disposition PUT] Update error', updateError, { callId })
       return NextResponse.json(
@@ -223,9 +223,9 @@ export async function PUT(
         { status: 500 }
       )
     }
-    
+
     // Log to audit (fire and forget)
-    ;(async () => {
+    ; (async () => {
       try {
         await supabaseAdmin.from('audit_logs').insert({
           id: crypto.randomUUID(),
@@ -241,9 +241,21 @@ export async function PUT(
         logger.error('[disposition PUT] Audit log error', err, { callId })
       }
     })()
-    
-    // TODO: Trigger webhook event call.disposition_set
-    
+
+      // Emit webhook event (fire and forget)
+      ; (async () => {
+        try {
+          await emitDispositionSet({
+            id: updatedCall.id,
+            organization_id: member.organization_id,
+            disposition: updatedCall.disposition,
+            set_by: updatedCall.disposition_set_by || userId
+          })
+        } catch (err) {
+          logger.error('[disposition PUT] Webhook emit error', err, { callId })
+        }
+      })()
+
     return NextResponse.json({
       success: true,
       disposition: {

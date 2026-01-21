@@ -112,15 +112,24 @@ async function handleCallPlace(
       supabaseAdmin
     })
 
+
+    interface StartCallError {
+      code?: string
+      message?: string
+      user_message?: string
+    }
+
     if (!result.success) {
+      const error = result.error as StartCallError
+
       logger.warn('WebRPC call.place failed via orchestration', {
         error: result.error,
         params: { to_number, from_number }
       })
 
       return {
-        code: (result.error as any)?.code || 'CALL_START_FAILED',
-        message: (result.error as any)?.user_message || (result.error as any)?.message || 'Failed to start call'
+        code: error.code || 'CALL_START_FAILED',
+        message: error.user_message || error.message || 'Failed to start call'
       }
     }
 
