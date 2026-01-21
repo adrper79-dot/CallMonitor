@@ -187,37 +187,20 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
       setStatus('connecting')
 
-      // Create SignalWire client
-      // For Fabric API subscribers, we need both the token AND subscriber ID
-      // The SDK expects this format for Fabric authentication
+      // Create SignalWire client with Relay JWT token
       const clientOptions: any = {}
 
       if (session.signalwire_token) {
-        // Fabric token format - check if it starts with 'wrtc_' (Fabric subscriber token)
-        if (session.signalwire_token.startsWith('wrtc_')) {
-          // For Fabric tokens, we need the subscriber name/ID as well
-          clientOptions.fabric = {
-            subscriber: sessionRef.current!.id, // Use session ID as subscriber name
-            token: session.signalwire_token
-          }
-          console.log('[WebRTC] Using Fabric subscriber authentication')
-        } else {
-          // Legacy JWT format (starts with 'eyJ')
-          clientOptions.token = session.signalwire_token
-          console.log('[WebRTC] Using legacy JWT authentication')
-        }
+        clientOptions.token = session.signalwire_token
       } else if (session.token) {
-        // Fallback: Use the session token as the auth token
         clientOptions.token = session.token
       } else {
-        // Last resort: Project credentials
         clientOptions.project = session.signalwire_project
       }
 
       console.log('[WebRTC] Initializing SignalWire client with:', {
-        hasToken: !!(clientOptions.token || clientOptions.fabric),
-        authType: clientOptions.fabric ? 'Fabric' : (clientOptions.token ? 'JWT' : 'Project'),
-        tokenPreview: (clientOptions.fabric?.token || clientOptions.token || 'N/A').substring(0, 10) + '...',
+        hasToken: !!clientOptions.token,
+        tokenPreview: clientOptions.token ? `${clientOptions.token.substring(0, 10)}...` : 'MISSING',
         project: clientOptions.project || 'N/A (using token auth)'
       })
 

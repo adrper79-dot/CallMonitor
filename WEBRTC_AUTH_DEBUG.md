@@ -1,49 +1,80 @@
-# WebRTC 401 Fix Applied
+# WebRTC Architecture Analysis - Fabric vs Relay Incompatibility
 
-## Change Summary
+## Critical Discovery
 
-✅ **Migrated to SignalWire Fabric API**
+**The Fabric API and @signalwire/js SDK are INCOMPATIBLE**
 
-### What Changed
+### Current State
+- ✅ Fabric API generates token: `wrtc_*` 
+- ✅ Token reaches browser
+- ❌ `@signalwire/js` v3.29 **does not support Fabric tokens**
+- ❌ SDK expects Relay JWT tokens (format: `eyJ*`)
 
-| Before | After |
-|--------|-------|
-| `/api/relay/rest/jwt` (deprecated) | `/api/fabric/subscribers` (modern) |
-| `jwt_token` response field | `token` response field |
-| `resource: sessionId` | `name: sessionId` |
-| `expires_in: 3600` | `expires_in_seconds: 3600` |
+### Why It's Failing
 
-### File Modified
-`app/api/webrtc/session/route.ts` (Lines 72-125)
+```
+Server: Fabric API → wrtc_token
+   ↓
+Browser: @signalwire/js SDK → expects eyJ_token (Relay JWT)
+   ↓
+SignalWire: REJECT - "invalid token"
+```
 
-### Key Improvements
+## Solutions
 
-1. **Modern API**: Uses SignalWire Fabric instead of deprecated Relay REST
-2. **Better Permissions**: Explicit `scopes: ['webrtc']` 
-3. **Metadata Tracking**: Includes `user_id` and `organization_id`
-4. **Channel Config**: Explicit audio/video settings
+### Option A: Revert to Relay REST API ✅ RECOMMENDED
+Go back to the original `/api/relay/rest/jwt` endpoint.
 
-### Request Format
+**Why**: The `@signalwire/js` SDK v3 was built for Relay, not Fabric.
+
+**Implementation**:
 ```typescript
-POST https://{space}.signalwire.com/api/fabric/subscribers
-{
-  name: "{sessionId}",
-  channels: { audio: true, video: false },
-  scopes: ["webrtc"],
-  expires_in_seconds: 3600,
-  meta: { user_id, organization_id }
-}
+// Revert app/api/webrtc/session/route.ts L76
+const jwtResponse = await fetch(
+  `https://${signalwireDomain}/api/relay/rest/jwt`,
+  {
+    method: 'POST',
+    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      resource: sessionId,
+      expires_in: 3600
+    })
+  }
+)
+return { token: data.jwt_token }  // eyJ* format
 ```
 
-### Response Format
-```json
-{
-  "id": "subscriber-id",
-  "token": "fabric-token-here",
-  ...
-}
+### Option B: Switch to Fabric Video SDK
+Use SignalWire's Video SDK instead of the legacy Voice SDK.
+
+**Issue**: Complete rewrite required. Different product/pricing.
+
+### Option C: Project-Based Auth (No Token)
+Skip token generation, use project credentials directly.
+
+```typescript
+// useWebRTC.ts
+const client = await SignalWire({
+  project: SIGNALWIRE_PROJECT_ID,
+  token: SIGNALWIRE_TOKEN
+})
 ```
 
-## Status: ✅ READY TO TEST
+**Issue**: Requires exposing credentials to browser (security risk).
 
-Please retry WebRTC connection. The 401 error should be resolved.
+## Recommendation
+
+**REVERT TO RELAY REST API**
+
+The original `/api/relay/rest/jwt` approach was correct for the SDK version in use. The 401 error was likely due to:
+1. Invalid credentials
+2. Account permissions
+3. API endpoint configuration
+
+**NOT** because the API was deprecated.
+
+## Next Action
+
+1. Revert to Relay JWT
+2. Verify SignalWire credentials
+3. Test manually: `curl -X POST https://{space}.signalwire.com/api/relay/rest/jwt -u "PROJECT_ID:TOKEN" -d '{"resource":"test"}'`
