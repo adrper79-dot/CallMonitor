@@ -88,16 +88,43 @@ async function getSignalWireWebRTCToken(sessionId: string, userId: string): Prom
 
     if (satResponse.ok) {
       const data = await satResponse.json()
-      logger.info('[webrtc] Got SignalWire SAT token from Fabric API')
+
+      // DEBUG: Log what SignalWire actually returns for ICE servers
+      logger.info('[webrtc] SAT token response', {
+        hasToken: !!data.token,
+        hasIceServers: !!data.ice_servers,
+        iceServerCount: data.ice_servers?.length || 0,
+        iceServers: data.ice_servers
+      })
+
+      // Build ICE servers with fallback TURN servers
+      const iceServers: RTCIceServer[] = [
+        // SignalWire STUN
+        { urls: `stun:${signalwireDomain}:3478` },
+        // Google STUN servers (public, reliable)
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ]
+
+      // Add SignalWire's ICE servers if provided
+      if (data.ice_servers && Array.isArray(data.ice_servers) && data.ice_servers.length > 0) {
+        iceServers.push(...data.ice_servers)
+        logger.info('[webrtc] Using SignalWire ICE servers', { count: data.ice_servers.length })
+      } else {
+        // CRITICAL: If SignalWire doesn't provide TURN servers, add public fallback
+        // This is necessary for ICE gathering to complete through firewalls/NAT
+        logger.warn('[webrtc] No ICE servers from SignalWire, adding public TURN fallback')
+        // @ts-ignore - RTCIceServer type doesn't include username/credential but they're valid
+        iceServers.push({
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        })
+      }
 
       return {
         token: data.token,
-        iceServers: [
-          { urls: `stun:${signalwireDomain}:3478` },
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          ...(data.ice_servers || [])
-        ]
+        iceServers
       }
     }
 
