@@ -117,8 +117,7 @@ export async function POST(request: NextRequest) {
                 phone_number: destination,
                 from_number: swNumber,
                 status: 'initiating',
-                flow_type: 'webrtc_conference',
-                created_at: new Date().toISOString()
+                flow_type: 'webrtc_conference'
             })
             .select()
             .single()
@@ -224,8 +223,7 @@ export async function POST(request: NextRequest) {
             .from('calls')
             .update({
                 call_sid: pstnCallSid,  // Primary SID is PSTN leg
-                status: 'ringing',
-                updated_at: new Date().toISOString()
+                status: 'ringing'
             })
             .eq('id', callId)
 
@@ -244,8 +242,7 @@ export async function POST(request: NextRequest) {
                 browser_sid: browserCallSid,
                 pstn_sid: pstnCallSid,
                 destination
-            },
-            created_at: new Date().toISOString()
+            }
         })
 
         logger.info('[webrtc-call] Conference bridging initiated', {
@@ -277,8 +274,7 @@ export async function POST(request: NextRequest) {
                 actor_label: userId,
                 after: {
                     error: error instanceof AppError ? error.toJSON() : { message: error?.message }
-                },
-                created_at: new Date().toISOString()
+                }
             })
         }
 
