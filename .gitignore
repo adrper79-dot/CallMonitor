@@ -5,7 +5,7 @@ node_modules/
 dist/
 .vercel
 .env*.local
-./ARCH_DOCS/*
+ARCH_DOCS/
 ./TROUBLESHOOTING_LOG.md
 # Next.js build outputs
 .next/
