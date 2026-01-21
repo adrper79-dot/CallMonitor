@@ -187,15 +187,21 @@ export async function POST(request: NextRequest) {
         ice_servers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          // Try OpenRelay on multiple ports/transports
           {
-            urls: `turn:${sipDomain}:443?transport=tcp`,
-            username: sipUsername,
-            credential: process.env.SIGNALWIRE_SIP_PASSWORD
+            urls: 'turn:openrelay.metered.ca:80?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
           },
           {
-            urls: `turn:${sipDomain}:443?transport=udp`,
-            username: sipUsername,
-            credential: process.env.SIGNALWIRE_SIP_PASSWORD
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:80?transport=udp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
           }
         ]
       }
