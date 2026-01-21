@@ -52,6 +52,41 @@ export interface VoiceConfigClient {
 /**
  * Parameters for placing a SignalWire call
  * All dependencies are explicit - no closures
+ * 
+ * @example Basic outbound call (no translation)
+ * ```typescript
+ * const result = await placeSignalWireCall({
+ *   toNumber: '+15551234567',
+ *   callId: '550e8400-e29b-41d4-a716-446655440000',
+ *   organizationId: 'org-uuid',
+ *   config: extractSignalWireConfig(process.env),
+ *   voiceConfigClient: createVoiceConfigClient(supabase),
+ *   onAuditError: async (resource, id, payload) => { await logAuditError(...) }
+ * })
+ * ```
+ * 
+ * @example Live translation call (Spanish → English)
+ * ```typescript
+ * const result = await placeSignalWireCall({
+ *   toNumber: '+15551234567',
+ *   callId: 'call-uuid',
+ *   organizationId: 'org-uuid',
+ *   useLiveTranslation: true,
+ *   translateFrom: 'es',
+ *   translateTo: 'en',
+ *   config: extractSignalWireConfig(process.env),
+ *   voiceConfigClient: createVoiceConfigClient(supabase),
+ *   onAuditError: writeAuditError
+ * })
+ * ```
+ * 
+ * @example Bridge call (connect two parties via conference)
+ * ```typescript
+ * // Leg A (agent)
+ * await placeSignalWireCall({ ...params, conference: 'bridge-uuid', leg: '1' })
+ * // Leg B (customer)
+ * await placeSignalWireCall({ ...params, conference: 'bridge-uuid', leg: '2' })
+ * ```
  */
 export interface PlaceCallParams {
     // Required identifiers
@@ -61,6 +96,10 @@ export interface PlaceCallParams {
 
     // Optional call configuration
     useLiveTranslation?: boolean
+    /** Required if useLiveTranslation=true. Pre-validated by handler per MASTER_ARCHITECTURE. */
+    translateFrom?: string
+    /** Required if useLiveTranslation=true. Pre-validated by handler per MASTER_ARCHITECTURE. */
+    translateTo?: string
     conference?: string
     leg?: string
 
@@ -119,6 +158,8 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         callId,
         organizationId,
         useLiveTranslation = false,
+        translateFrom,
+        translateTo,
         conference,
         leg,
         config,
@@ -184,26 +225,14 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
 
     // Route to SWML endpoint for live translation, LaML for regular calls
     if (useLiveTranslation && callId) {
-        // Get translation language settings from voice_configs
-        // MASTER_ARCHITECTURE compliance: Translation requires explicit language codes, no inference
-        let translateFrom: string | null = null
-        let translateTo: string | null = null
-
-        try {
-            const langData = await voiceConfigClient.getTranslationLanguages(organizationId)
-            translateFrom = langData?.translate_from || null
-            translateTo = langData?.translate_to || null
-        } catch (e) {
-            logger.warn('Failed to fetch translation languages', e as Error)
-        }
-
-        // Fail if language codes are not configured (per MASTER_ARCHITECTURE - no inference)
+        // MASTER_ARCHITECTURE compliance: Translation languages pre-validated by handler
+        // Fail-safe check in case caller bypasses handler validation
         if (!translateFrom || !translateTo) {
             const e = new AppError({
                 code: 'TRANSLATION_LANGUAGES_REQUIRED',
-                message: 'Translation requires source and target languages to be configured',
-                user_message: 'Please configure translation languages before placing a translated call',
-                severity: 'HIGH'
+                message: 'Translation languages must be provided when useLiveTranslation is true',
+                user_message: 'Translation configuration error',
+                severity: 'CRITICAL'
             })
             await onAuditError('calls', callId, e.toJSON())
             return { success: false, error: e.toJSON() }

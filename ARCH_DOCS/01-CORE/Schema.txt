@@ -102,6 +102,55 @@ CREATE TABLE public.artifacts (
   evidence_manifest jsonb,
   CONSTRAINT artifacts_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.attention_decisions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  attention_event_id uuid NOT NULL,
+  decision text NOT NULL CHECK (decision = ANY (ARRAY['escalate'::text, 'suppress'::text, 'include_in_digest'::text, 'needs_review'::text])),
+  reason text NOT NULL,
+  policy_id uuid,
+  confidence integer CHECK (confidence >= 0 AND confidence <= 100),
+  uncertainty_notes text,
+  produced_by text NOT NULL CHECK (produced_by = ANY (ARRAY['system'::text, 'human'::text, 'model'::text])),
+  produced_by_model text,
+  produced_by_user_id uuid,
+  input_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT attention_decisions_pkey PRIMARY KEY (id),
+  CONSTRAINT attention_decisions_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT attention_decisions_event_fkey FOREIGN KEY (attention_event_id) REFERENCES public.attention_events(id),
+  CONSTRAINT attention_decisions_policy_fkey FOREIGN KEY (policy_id) REFERENCES public.attention_policies(id),
+  CONSTRAINT attention_decisions_user_fkey FOREIGN KEY (produced_by_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.attention_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  event_type text NOT NULL CHECK (event_type = ANY (ARRAY['call_completed'::text, 'alert_triggered'::text, 'webhook_failed'::text, 'carrier_degraded'::text, 'campaign_ended'::text, 'evidence_generated'::text, 'system_error'::text])),
+  source_table text NOT NULL,
+  source_id uuid NOT NULL,
+  occurred_at timestamp with time zone NOT NULL,
+  payload_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+  input_refs jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT attention_events_pkey PRIMARY KEY (id),
+  CONSTRAINT attention_events_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.attention_policies (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  policy_type text NOT NULL CHECK (policy_type = ANY (ARRAY['quiet_hours'::text, 'threshold'::text, 'recurring_suppress'::text, 'keyword_escalate'::text, 'custom'::text])),
+  policy_config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  priority integer NOT NULL DEFAULT 100,
+  is_enabled boolean NOT NULL DEFAULT true,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT attention_policies_pkey PRIMARY KEY (id),
+  CONSTRAINT attention_policies_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT attention_policies_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.audit_logs (
   id uuid NOT NULL,
   organization_id uuid,
@@ -213,6 +262,26 @@ CREATE TABLE public.call_notes (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT call_notes_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.caller_id_default_rules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  scope_type text NOT NULL CHECK (scope_type = ANY (ARRAY['organization'::text, 'user'::text, 'role'::text])),
+  user_id uuid,
+  role_scope text,
+  caller_id_number_id uuid NOT NULL,
+  priority integer NOT NULL DEFAULT 100,
+  is_active boolean NOT NULL DEFAULT true,
+  effective_from timestamp with time zone NOT NULL DEFAULT now(),
+  effective_until timestamp with time zone,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT caller_id_default_rules_pkey PRIMARY KEY (id),
+  CONSTRAINT caller_id_default_rules_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT caller_id_default_rules_user_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT caller_id_default_rules_caller_id_fkey FOREIGN KEY (caller_id_number_id) REFERENCES public.caller_id_numbers(id),
+  CONSTRAINT caller_id_default_rules_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.caller_id_numbers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
@@ -227,9 +296,35 @@ CREATE TABLE public.caller_id_numbers (
   last_used_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   created_by uuid,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'retired'::text])),
+  retired_at timestamp with time zone,
+  retired_by uuid,
+  notes text,
   CONSTRAINT caller_id_numbers_pkey PRIMARY KEY (id),
   CONSTRAINT caller_id_numbers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT caller_id_numbers_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+  CONSTRAINT caller_id_numbers_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT caller_id_numbers_retired_by_fkey FOREIGN KEY (retired_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.caller_id_permissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  caller_id_number_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  permission_type text NOT NULL DEFAULT 'use'::text CHECK (permission_type = ANY (ARRAY['use'::text, 'manage'::text, 'full'::text])),
+  is_active boolean NOT NULL DEFAULT true,
+  granted_at timestamp with time zone NOT NULL DEFAULT now(),
+  granted_by uuid NOT NULL,
+  revoked_at timestamp with time zone,
+  revoked_by uuid,
+  revoke_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT caller_id_permissions_pkey PRIMARY KEY (id),
+  CONSTRAINT caller_id_permissions_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT caller_id_permissions_caller_id_fkey FOREIGN KEY (caller_id_number_id) REFERENCES public.caller_id_numbers(id),
+  CONSTRAINT caller_id_permissions_user_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT caller_id_permissions_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.users(id),
+  CONSTRAINT caller_id_permissions_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.calls (
   id uuid NOT NULL CHECK (id IS NOT NULL AND id::text ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'::text),
@@ -260,12 +355,15 @@ CREATE TABLE public.calls (
   disclosure_given boolean DEFAULT false,
   disclosure_timestamp timestamp with time zone,
   disclosure_text text,
+  caller_id_number_id uuid,
+  caller_id_used text,
   CONSTRAINT calls_pkey PRIMARY KEY (id),
   CONSTRAINT calls_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT calls_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.systems(id),
   CONSTRAINT calls_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT calls_disposition_set_by_fkey FOREIGN KEY (disposition_set_by) REFERENCES public.users(id),
-  CONSTRAINT calls_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id)
+  CONSTRAINT calls_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id),
+  CONSTRAINT calls_caller_id_number_id_fkey FOREIGN KEY (caller_id_number_id) REFERENCES public.caller_id_numbers(id)
 );
 CREATE TABLE public.campaign_audit_log (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -404,6 +502,76 @@ CREATE TABLE public.confirmation_templates (
   CONSTRAINT confirmation_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT confirmation_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.crm_object_links (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  integration_id uuid NOT NULL,
+  call_id uuid NOT NULL,
+  crm_object_type text NOT NULL CHECK (crm_object_type = ANY (ARRAY['contact'::text, 'company'::text, 'deal'::text, 'lead'::text, 'account'::text, 'opportunity'::text])),
+  crm_object_id text NOT NULL,
+  crm_object_name text,
+  crm_object_url text,
+  synced_at timestamp with time zone,
+  sync_direction text NOT NULL CHECK (sync_direction = ANY (ARRAY['inbound'::text, 'outbound'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT crm_object_links_pkey PRIMARY KEY (id),
+  CONSTRAINT crm_object_links_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT crm_object_links_integration_id_fkey FOREIGN KEY (integration_id) REFERENCES public.integrations(id),
+  CONSTRAINT crm_object_links_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id)
+);
+CREATE TABLE public.crm_sync_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  integration_id uuid NOT NULL,
+  operation text NOT NULL CHECK (operation = ANY (ARRAY['oauth_connect'::text, 'oauth_disconnect'::text, 'oauth_refresh'::text, 'push_evidence'::text, 'push_note'::text, 'push_engagement'::text, 'pull_contact'::text, 'pull_company'::text, 'pull_deal'::text, 'link_object'::text, 'unlink_object'::text, 'error'::text, 'rate_limited'::text])),
+  status text NOT NULL CHECK (status = ANY (ARRAY['pending'::text, 'success'::text, 'failed'::text, 'rate_limited'::text, 'skipped'::text])),
+  call_id uuid,
+  export_bundle_id uuid,
+  crm_object_link_id uuid,
+  idempotency_key text,
+  request_summary jsonb,
+  response_summary jsonb,
+  error_details jsonb,
+  started_at timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  triggered_by text NOT NULL CHECK (triggered_by = ANY (ARRAY['user'::text, 'system'::text, 'webhook'::text, 'scheduler'::text])),
+  triggered_by_user_id uuid,
+  CONSTRAINT crm_sync_log_pkey PRIMARY KEY (id),
+  CONSTRAINT crm_sync_log_export_bundle_id_fkey FOREIGN KEY (export_bundle_id) REFERENCES public.call_export_bundles(id),
+  CONSTRAINT crm_sync_log_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT crm_sync_log_integration_id_fkey FOREIGN KEY (integration_id) REFERENCES public.integrations(id),
+  CONSTRAINT crm_sync_log_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id)
+);
+CREATE TABLE public.digest_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  digest_id uuid NOT NULL,
+  attention_decision_id uuid NOT NULL,
+  item_order integer NOT NULL,
+  is_highlighted boolean NOT NULL DEFAULT false,
+  highlight_reason text,
+  CONSTRAINT digest_items_pkey PRIMARY KEY (id),
+  CONSTRAINT digest_items_digest_fkey FOREIGN KEY (digest_id) REFERENCES public.digests(id),
+  CONSTRAINT digest_items_decision_fkey FOREIGN KEY (attention_decision_id) REFERENCES public.attention_decisions(id)
+);
+CREATE TABLE public.digests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  digest_type text NOT NULL CHECK (digest_type = ANY (ARRAY['overnight'::text, 'weekly'::text, 'on_demand'::text])),
+  period_start timestamp with time zone NOT NULL,
+  period_end timestamp with time zone NOT NULL,
+  summary_text text NOT NULL,
+  total_events integer NOT NULL DEFAULT 0,
+  escalated_count integer NOT NULL DEFAULT 0,
+  suppressed_count integer NOT NULL DEFAULT 0,
+  needs_review_count integer NOT NULL DEFAULT 0,
+  generated_at timestamp with time zone NOT NULL DEFAULT now(),
+  generated_by text NOT NULL DEFAULT 'system'::text,
+  generated_by_user_id uuid,
+  CONSTRAINT digests_pkey PRIMARY KEY (id),
+  CONSTRAINT digests_org_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT digests_user_fkey FOREIGN KEY (generated_by_user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.disclosure_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
@@ -502,6 +670,78 @@ CREATE TABLE public.export_compliance_log (
   CONSTRAINT export_compliance_log_bundle_id_fkey FOREIGN KEY (bundle_id) REFERENCES public.evidence_bundles(id),
   CONSTRAINT export_compliance_log_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.external_entities (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  display_name text,
+  entity_type text NOT NULL DEFAULT 'contact'::text CHECK (entity_type = ANY (ARRAY['contact'::text, 'company'::text, 'location'::text, 'other'::text])),
+  notes text,
+  tags ARRAY,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_by uuid,
+  CONSTRAINT external_entities_pkey PRIMARY KEY (id),
+  CONSTRAINT external_entities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT external_entities_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.external_entity_identifiers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  entity_id uuid,
+  identifier_type text NOT NULL CHECK (identifier_type = ANY (ARRAY['phone'::text, 'email_domain'::text, 'email'::text, 'crm_object'::text, 'other'::text])),
+  identifier_value text NOT NULL,
+  identifier_normalized text NOT NULL,
+  first_observed_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_observed_at timestamp with time zone NOT NULL DEFAULT now(),
+  observation_count integer NOT NULL DEFAULT 1,
+  first_observed_source text,
+  first_observed_source_id uuid,
+  is_verified boolean NOT NULL DEFAULT false,
+  verified_at timestamp with time zone,
+  verified_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT external_entity_identifiers_pkey PRIMARY KEY (id),
+  CONSTRAINT external_entity_identifiers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT external_entity_identifiers_entity_id_fkey FOREIGN KEY (entity_id) REFERENCES public.external_entities(id),
+  CONSTRAINT external_entity_identifiers_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.external_entity_links (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  link_type text NOT NULL CHECK (link_type = ANY (ARRAY['identifier_to_entity'::text, 'entity_merge'::text, 'entity_split'::text, 'identifier_transfer'::text])),
+  source_entity_id uuid,
+  target_entity_id uuid,
+  identifier_id uuid,
+  created_by uuid NOT NULL,
+  reason text,
+  is_active boolean NOT NULL DEFAULT true,
+  revoked_at timestamp with time zone,
+  revoked_by uuid,
+  revoke_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT external_entity_links_pkey PRIMARY KEY (id),
+  CONSTRAINT external_entity_links_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT external_entity_links_source_entity_id_fkey FOREIGN KEY (source_entity_id) REFERENCES public.external_entities(id),
+  CONSTRAINT external_entity_links_target_entity_id_fkey FOREIGN KEY (target_entity_id) REFERENCES public.external_entities(id),
+  CONSTRAINT external_entity_links_identifier_id_fkey FOREIGN KEY (identifier_id) REFERENCES public.external_entity_identifiers(id),
+  CONSTRAINT external_entity_links_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT external_entity_links_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.external_entity_observations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  identifier_id uuid NOT NULL,
+  source_type text NOT NULL CHECK (source_type = ANY (ARRAY['call'::text, 'target'::text, 'campaign_call'::text, 'booking'::text, 'manual'::text])),
+  source_id uuid NOT NULL,
+  role text CHECK (role = ANY (ARRAY['caller'::text, 'callee'::text, 'participant'::text, 'target'::text, 'other'::text])),
+  direction text CHECK (direction = ANY (ARRAY['inbound'::text, 'outbound'::text])),
+  observed_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT external_entity_observations_pkey PRIMARY KEY (id),
+  CONSTRAINT external_entity_observations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT external_entity_observations_identifier_id_fkey FOREIGN KEY (identifier_id) REFERENCES public.external_entity_identifiers(id)
+);
 CREATE TABLE public.generated_reports (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   template_id uuid NOT NULL,
@@ -549,6 +789,26 @@ CREATE TABLE public.incidents (
   CONSTRAINT incidents_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT incidents_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.calls(id),
   CONSTRAINT incidents_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.integrations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  provider text NOT NULL CHECK (provider = ANY (ARRAY['hubspot'::text, 'salesforce'::text, 'zoho'::text, 'pipedrive'::text])),
+  provider_account_id text,
+  provider_account_name text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'active'::text, 'disconnected'::text, 'error'::text, 'expired'::text])),
+  error_message text,
+  last_error_at timestamp with time zone,
+  settings jsonb DEFAULT '{}'::jsonb,
+  sync_enabled boolean NOT NULL DEFAULT true,
+  connected_at timestamp with time zone,
+  disconnected_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  connected_by uuid,
+  CONSTRAINT integrations_pkey PRIMARY KEY (id),
+  CONSTRAINT integrations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT integrations_connected_by_fkey FOREIGN KEY (connected_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.invoices (
   id uuid NOT NULL,
@@ -687,6 +947,23 @@ CREATE TABLE public.number_kpi_snapshot (
   CONSTRAINT number_kpi_snapshot_pkey PRIMARY KEY (id),
   CONSTRAINT number_kpi_snapshot_monitored_number_id_fkey FOREIGN KEY (monitored_number_id) REFERENCES public.monitored_numbers(id),
   CONSTRAINT number_kpi_snapshot_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.oauth_tokens (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  integration_id uuid NOT NULL UNIQUE,
+  access_token_encrypted text NOT NULL,
+  refresh_token_encrypted text,
+  token_type text DEFAULT 'Bearer'::text,
+  expires_at timestamp with time zone,
+  refresh_expires_at timestamp with time zone,
+  scopes ARRAY,
+  instance_url text,
+  last_refreshed_at timestamp with time zone,
+  refresh_count integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT oauth_tokens_pkey PRIMARY KEY (id),
+  CONSTRAINT oauth_tokens_integration_id_fkey FOREIGN KEY (integration_id) REFERENCES public.integrations(id)
 );
 CREATE TABLE public.org_feature_flags (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -952,6 +1229,46 @@ CREATE TABLE public.scored_recordings (
   CONSTRAINT scored_recordings_recording_id_fkey FOREIGN KEY (recording_id) REFERENCES public.recordings(id),
   CONSTRAINT scored_recordings_scorecard_id_fkey FOREIGN KEY (scorecard_id) REFERENCES public.scorecards(id),
   CONSTRAINT scored_recordings_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.search_documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  source_type text NOT NULL CHECK (source_type = ANY (ARRAY['call'::text, 'recording'::text, 'transcript'::text, 'evidence'::text, 'note'::text])),
+  source_id uuid NOT NULL,
+  version integer NOT NULL DEFAULT 1,
+  is_current boolean NOT NULL DEFAULT true,
+  superseded_by uuid,
+  title text,
+  content text NOT NULL,
+  content_hash text NOT NULL,
+  call_id uuid,
+  phone_number text,
+  domain text,
+  tags ARRAY,
+  source_created_at timestamp with time zone,
+  indexed_at timestamp with time zone NOT NULL DEFAULT now(),
+  indexed_by text NOT NULL DEFAULT 'system'::text,
+  indexed_by_user_id uuid,
+  CONSTRAINT search_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT search_documents_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT search_documents_indexed_by_user_id_fkey FOREIGN KEY (indexed_by_user_id) REFERENCES public.users(id),
+  CONSTRAINT search_documents_superseded_by_fkey FOREIGN KEY (superseded_by) REFERENCES public.search_documents(id)
+);
+CREATE TABLE public.search_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  event_type text NOT NULL CHECK (event_type = ANY (ARRAY['indexed'::text, 'reindexed'::text, 'rebuild_started'::text, 'rebuild_completed'::text])),
+  document_id uuid,
+  source_type text,
+  source_id uuid,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  actor_type text NOT NULL CHECK (actor_type = ANY (ARRAY['system'::text, 'human'::text, 'automation'::text])),
+  actor_id uuid,
+  actor_label text,
+  CONSTRAINT search_events_pkey PRIMARY KEY (id),
+  CONSTRAINT search_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT search_events_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.search_documents(id)
 );
 CREATE TABLE public.shopper_campaigns_archive (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

@@ -1,0 +1,341 @@
+/**
+ * Tests for Governed Caller ID
+ * 
+ * Verifies:
+ * 1. Operator cannot use unassigned caller ID
+ * 2. Admin can use any org caller ID
+ * 3. Permission grant creates audit log
+ * 4. Reassignment does not break historical call records
+ * 5. Retired numbers cannot be used for new calls
+ */
+
+import { createClient } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
+import { CallerIdService } from '@/lib/services/callerIdService'
+
+// Test setup
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
+)
+
+const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
+const TEST_ADMIN_USER = uuidv4()
+const TEST_OPERATOR_USER = uuidv4()
+const TEST_CALLER_ID_1 = uuidv4()
+const TEST_CALLER_ID_2 = uuidv4()
+
+describe('Governed Caller ID', () => {
+    let callerIdService: CallerIdService
+
+    beforeAll(async () => {
+        callerIdService = new CallerIdService(supabase)
+
+        // Create test organization
+        await supabase.from('organizations').upsert({
+            id: TEST_ORG_ID,
+            name: 'Test Org for Caller ID',
+            slug: 'test-caller-id-org'
+        })
+
+        // Create test users
+        await supabase.from('users').upsert([
+            { id: TEST_ADMIN_USER, email: 'admin-cid@test.com', name: 'Test Admin' },
+            { id: TEST_OPERATOR_USER, email: 'operator-cid@test.com', name: 'Test Operator' }
+        ])
+
+        // Create org memberships
+        await supabase.from('org_members').upsert([
+            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_ADMIN_USER, role: 'admin' },
+            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_OPERATOR_USER, role: 'operator' }
+        ])
+
+        // Create test caller ID numbers
+        await supabase.from('caller_id_numbers').upsert([
+            {
+                id: TEST_CALLER_ID_1,
+                organization_id: TEST_ORG_ID,
+                phone_number: '+15551234567',
+                display_name: 'Test Number 1',
+                is_verified: true,
+                status: 'active'
+            },
+            {
+                id: TEST_CALLER_ID_2,
+                organization_id: TEST_ORG_ID,
+                phone_number: '+15559876543',
+                display_name: 'Test Number 2',
+                is_verified: true,
+                status: 'active'
+            }
+        ])
+    })
+
+    describe('Permission Validation', () => {
+        test('admin can use any org caller ID without explicit permission', async () => {
+            const result = await callerIdService.validateCallerIdForUser(
+                TEST_ORG_ID,
+                TEST_ADMIN_USER,
+                '+15551234567'
+            )
+
+            expect(result.allowed).toBe(true)
+            expect(result.callerIdNumberId).toBe(TEST_CALLER_ID_1)
+        })
+
+        test('operator cannot use caller ID without permission', async () => {
+            const result = await callerIdService.validateCallerIdForUser(
+                TEST_ORG_ID,
+                TEST_OPERATOR_USER,
+                '+15551234567'
+            )
+
+            expect(result.allowed).toBe(false)
+            expect(result.reason).toContain('permission')
+        })
+
+        test('operator CAN use caller ID after permission granted', async () => {
+            // Grant permission
+            await callerIdService.grantPermission(
+                TEST_ORG_ID,
+                TEST_CALLER_ID_1,
+                TEST_OPERATOR_USER,
+                'use',
+                TEST_ADMIN_USER
+            )
+
+            // Now validate
+            const result = await callerIdService.validateCallerIdForUser(
+                TEST_ORG_ID,
+                TEST_OPERATOR_USER,
+                '+15551234567'
+            )
+
+            expect(result.allowed).toBe(true)
+            expect(result.callerIdNumberId).toBe(TEST_CALLER_ID_1)
+        })
+
+        test('cannot use unverified caller ID', async () => {
+            // Create unverified number
+            const unverifiedId = uuidv4()
+            await supabase.from('caller_id_numbers').insert({
+                id: unverifiedId,
+                organization_id: TEST_ORG_ID,
+                phone_number: '+15550000000',
+                is_verified: false,
+                status: 'active'
+            })
+
+            const result = await callerIdService.validateCallerIdForUser(
+                TEST_ORG_ID,
+                TEST_ADMIN_USER,
+                '+15550000000'
+            )
+
+            expect(result.allowed).toBe(false)
+            expect(result.reason).toContain('not verified')
+        })
+
+        test('cannot use retired caller ID', async () => {
+            // Retire caller ID 2
+            await callerIdService.retireNumber(TEST_CALLER_ID_2, TEST_ADMIN_USER, 'Test retirement')
+
+            const result = await callerIdService.validateCallerIdForUser(
+                TEST_ORG_ID,
+                TEST_ADMIN_USER,
+                '+15559876543'
+            )
+
+            expect(result.allowed).toBe(false)
+            expect(result.reason).toContain('retired')
+        })
+    })
+
+    describe('Permission Management', () => {
+        test('grant permission creates audit log entry', async () => {
+            const newUserId = uuidv4()
+
+            // Create user and membership
+            await supabase.from('users').insert({ id: newUserId, email: 'new-user@test.com' })
+            await supabase.from('org_members').insert({
+                id: uuidv4(),
+                organization_id: TEST_ORG_ID,
+                user_id: newUserId,
+                role: 'operator'
+            })
+
+            // Grant permission
+            const result = await callerIdService.grantPermission(
+                TEST_ORG_ID,
+                TEST_CALLER_ID_1,
+                newUserId,
+                'use',
+                TEST_ADMIN_USER
+            )
+
+            expect(result.success).toBe(true)
+
+            // Check audit log
+            const { data: auditLogs } = await supabase
+                .from('audit_logs')
+                .select('*')
+                .eq('resource_type', 'caller_id_permission')
+                .eq('resource_id', result.permissionId)
+                .eq('action', 'grant')
+
+            expect(auditLogs?.length).toBe(1)
+            expect(auditLogs?.[0].after.target_user_id).toBe(newUserId)
+        })
+
+        test('revoke permission creates audit log entry', async () => {
+            const result = await callerIdService.revokePermission(
+                TEST_ORG_ID,
+                TEST_CALLER_ID_1,
+                TEST_OPERATOR_USER,
+                TEST_ADMIN_USER,
+                'Testing revocation'
+            )
+
+            expect(result.success).toBe(true)
+
+            // Check audit log
+            const { data: auditLogs } = await supabase
+                .from('audit_logs')
+                .select('*')
+                .eq('resource_type', 'caller_id_permission')
+                .eq('action', 'revoke')
+                .order('created_at', { ascending: false })
+                .limit(1)
+
+            expect(auditLogs?.length).toBe(1)
+            expect(auditLogs?.[0].after.reason).toBe('Testing revocation')
+        })
+    })
+
+    describe('Available Caller IDs', () => {
+        test('admin sees all active caller IDs', async () => {
+            const available = await callerIdService.getAvailableCallerIds(
+                TEST_ORG_ID,
+                TEST_ADMIN_USER
+            )
+
+            // Should see at least the non-retired one
+            expect(available.length).toBeGreaterThanOrEqual(1)
+            expect(available.every(cid => cid.permission_type === 'full')).toBe(true)
+        })
+
+        test('operator only sees permitted caller IDs', async () => {
+            // Create fresh operator
+            const freshOperatorId = uuidv4()
+            await supabase.from('users').insert({ id: freshOperatorId, email: 'fresh-op@test.com' })
+            await supabase.from('org_members').insert({
+                id: uuidv4(),
+                organization_id: TEST_ORG_ID,
+                user_id: freshOperatorId,
+                role: 'operator'
+            })
+
+            // No permissions yet
+            const availableBefore = await callerIdService.getAvailableCallerIds(
+                TEST_ORG_ID,
+                freshOperatorId
+            )
+            expect(availableBefore.length).toBe(0)
+
+            // Grant permission
+            await callerIdService.grantPermission(
+                TEST_ORG_ID,
+                TEST_CALLER_ID_1,
+                freshOperatorId,
+                'use',
+                TEST_ADMIN_USER
+            )
+
+            // Now should see 1
+            const availableAfter = await callerIdService.getAvailableCallerIds(
+                TEST_ORG_ID,
+                freshOperatorId
+            )
+            expect(availableAfter.length).toBe(1)
+            expect(availableAfter[0].id).toBe(TEST_CALLER_ID_1)
+        })
+    })
+
+    describe('Default Rules', () => {
+        test('org default rule provides fallback caller ID', async () => {
+            // Create default rule
+            await callerIdService.setDefaultRule(
+                TEST_ORG_ID,
+                TEST_CALLER_ID_1,
+                'organization',
+                TEST_ADMIN_USER
+            )
+
+            // Create user with no explicit permission
+            const noPermUserId = uuidv4()
+            await supabase.from('users').insert({ id: noPermUserId, email: 'no-perm@test.com' })
+            await supabase.from('org_members').insert({
+                id: uuidv4(),
+                organization_id: TEST_ORG_ID,
+                user_id: noPermUserId,
+                role: 'admin'  // Admin to bypass permission check
+            })
+
+            // Validate with no from_number (should use default)
+            const defaultCallerId = await callerIdService.getDefaultCallerId(
+                TEST_ORG_ID,
+                noPermUserId
+            )
+
+            expect(defaultCallerId).not.toBeNull()
+            expect(defaultCallerId?.id).toBe(TEST_CALLER_ID_1)
+        })
+    })
+
+    describe('Historical Preservation', () => {
+        test('retirement does not break existing call records', async () => {
+            // Create a call with caller_id_number_id
+            const callId = uuidv4()
+            await supabase.from('calls').insert({
+                id: callId,
+                organization_id: TEST_ORG_ID,
+                status: 'completed',
+                caller_id_number_id: TEST_CALLER_ID_1,
+                caller_id_used: '+15551234567'
+            })
+
+            // Retire the number (TEST_CALLER_ID_1 was used, create a new one to retire)
+            const retirableId = uuidv4()
+            await supabase.from('caller_id_numbers').insert({
+                id: retirableId,
+                organization_id: TEST_ORG_ID,
+                phone_number: '+15551111111',
+                is_verified: true,
+                status: 'active'
+            })
+
+            // Create call with this number
+            const callId2 = uuidv4()
+            await supabase.from('calls').insert({
+                id: callId2,
+                organization_id: TEST_ORG_ID,
+                status: 'completed',
+                caller_id_number_id: retirableId,
+                caller_id_used: '+15551111111'
+            })
+
+            // Retire
+            await callerIdService.retireNumber(retirableId, TEST_ADMIN_USER)
+
+            // Historical call should still have the link
+            const { data: historicalCall } = await supabase
+                .from('calls')
+                .select('caller_id_number_id, caller_id_used')
+                .eq('id', callId2)
+                .single()
+
+            expect(historicalCall?.caller_id_number_id).toBe(retirableId)
+            expect(historicalCall?.caller_id_used).toBe('+15551111111')
+        })
+    })
+})

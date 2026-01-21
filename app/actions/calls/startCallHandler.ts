@@ -5,6 +5,7 @@ import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
 import { bestEffortAuditLog, logAuditError } from '@/lib/monitoring/auditLogMonitor'
 import { trackUsage, checkUsageLimits } from '@/lib/services/usageTracker'
+import { CallerIdService } from '@/lib/services/callerIdService'
 import {
   placeSignalWireCall as placeSignalWireCallExternal,
   extractSignalWireConfig,
@@ -70,6 +71,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   const placeSignalWireCall = async (
     toNumber: string,
     useLiveTranslation: boolean = false,
+    translateFrom?: string,
+    translateTo?: string,
     conference?: string,
     leg?: string
   ): Promise<string | null> => {
@@ -105,6 +108,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       callId,
       organizationId: organization_id,
       useLiveTranslation,
+      translateFrom,
+      translateTo,
       conference,
       leg,
       config,
@@ -248,6 +253,36 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw err
     }
 
+    // CALLER ID VALIDATION per GOVERNED_CALLER_ID spec
+    // Validates user has permission to use the specified caller ID
+    let callerIdValidation: { allowed: boolean; callerIdNumberId: string | null; phoneNumber: string | null; reason?: string } | null = null
+    const callerIdService = new CallerIdService(supabaseAdmin)
+    callerIdValidation = await callerIdService.validateCallerIdForUser(
+      organization_id,
+      actorId,
+      from_number
+    )
+
+    if (!callerIdValidation.allowed) {
+      const err = new AppError({
+        code: 'CALLER_ID_NOT_PERMITTED',
+        message: callerIdValidation.reason || 'Caller ID not permitted',
+        user_message: callerIdValidation.reason || 'You do not have permission to use this caller ID.',
+        severity: 'HIGH',
+        retriable: false,
+        details: { requested_from_number: '[REDACTED]' }
+      })
+      await writeAuditError('caller_id_permissions', null, { ...err.toJSON(), reason: callerIdValidation.reason })
+      throw err
+    }
+
+    // Use validated caller ID (may have been resolved from default rule)
+    from_number = callerIdValidation.phoneNumber || from_number
+    logger.info('startCallHandler: caller ID validated', {
+      callerId: '[REDACTED]',
+      callerIdNumberId: callerIdValidation.callerIdNumberId
+    })
+
     // phone validation
     if (!E164_REGEX.test(phone_number)) {
       const err = new AppError({ code: 'CALL_START_INVALID_PHONE', message: 'Invalid phone number format', user_message: 'The phone number provided is invalid. Please verify and try again.', severity: 'MEDIUM', retriable: false })
@@ -287,7 +322,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       status: 'pending',
       started_at: null,
       ended_at: null,
-      created_by: actorId
+      created_by: actorId,
+      // GOVERNED_CALLER_ID: Record caller ID used for this call
+      caller_id_number_id: callerIdValidation?.callerIdNumberId || null,
+      caller_id_used: from_number || null
     }
 
     const { error: insertErr } = await supabaseAdmin.from('calls').insert(callRow)
@@ -363,9 +401,23 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         const conferenceName = `bridge-${callId}`
 
         // Call leg A (your agent/number) - joins conference
-        const sidA = await placeSignalWireCall(from_number, shouldUseLiveTranslation, conferenceName, '1')
+        const sidA = await placeSignalWireCall(
+          from_number,
+          shouldUseLiveTranslation,
+          effectiveModulations.translate_from,
+          effectiveModulations.translate_to,
+          conferenceName,
+          '1'
+        )
         // Call leg B (destination) - joins same conference
-        const sidB = await placeSignalWireCall(phone_number, shouldUseLiveTranslation, conferenceName, '2')
+        const sidB = await placeSignalWireCall(
+          phone_number,
+          shouldUseLiveTranslation,
+          effectiveModulations.translate_from,
+          effectiveModulations.translate_to,
+          conferenceName,
+          '2'
+        )
         call_sid = sidB
         logger.info('startCallHandler: signalwire bridge created', {
           conference: conferenceName,
@@ -374,7 +426,12 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
           liveTranslation: shouldUseLiveTranslation
         })
       } else {
-        call_sid = await placeSignalWireCall(phone_number, shouldUseLiveTranslation)
+        call_sid = await placeSignalWireCall(
+          phone_number,
+          shouldUseLiveTranslation,
+          effectiveModulations.translate_from,
+          effectiveModulations.translate_to
+        )
         logger.info('startCallHandler: signalwire call placed', { call_sid: call_sid ? '[REDACTED]' : null, liveTranslation: shouldUseLiveTranslation })
       }
     }
