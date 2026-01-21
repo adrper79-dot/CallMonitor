@@ -26,6 +26,10 @@ export type CallState =
   | 'active'
   | 'ending'
 
+export interface WebRTCSession {
+  id: string
+}
+
 export interface UseWebRTCResult {
   connect: () => Promise<void>
   disconnect: () => Promise<void>
