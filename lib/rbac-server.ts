@@ -40,7 +40,7 @@ export interface RBACSession {
 export async function requireRole(role: UserRole | UserRole[]): Promise<RBACSession> {
   // Get NextAuth session
   const session = await getServerSession(authOptions)
-  
+
   if (!session?.user) {
     throw new AppError('Unauthorized', 401, 'AUTH_REQUIRED')
   }
@@ -64,9 +64,25 @@ export async function requireRole(role: UserRole | UserRole[]): Promise<RBACSess
 
   const userRole = membership.role as UserRole
 
-  // Check if user has required role
+  // Role hierarchy: owner > admin > operator > viewer
+  // Higher roles have all permissions of lower roles
+  const roleHierarchy: Record<UserRole, number> = {
+    'owner': 4,
+    'admin': 3,
+    'operator': 2,
+    'viewer': 1
+  }
+
+  const userRoleLevel = roleHierarchy[userRole] || 0
+
+  // Check if user has required role (or higher)
   const requiredRoles = Array.isArray(role) ? role : [role]
-  if (!requiredRoles.includes(userRole)) {
+  const meetsRequirement = requiredRoles.some(r => {
+    const requiredLevel = roleHierarchy[r] || 0
+    return userRoleLevel >= requiredLevel
+  })
+
+  if (!meetsRequirement) {
     throw new AppError('Insufficient permissions', 403, 'INSUFFICIENT_ROLE')
   }
 

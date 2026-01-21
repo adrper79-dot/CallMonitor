@@ -36,7 +36,27 @@ export async function GET(req: NextRequest) {
     const ctx = await requireRole(['owner', 'admin', 'analyst'])
     if (ctx instanceof NextResponse) return ctx
 
-    // Parallel queries for performance
+    // First, fetch org call IDs to use in subqueries
+    const { data: orgCalls } = await supabaseAdmin
+      .from('calls')
+      .select('id')
+      .eq('organization_id', ctx.orgId)
+      .limit(2000)
+
+    const callIds = (orgCalls || []).map(c => c.id)
+    const safeCallIds = callIds.length > 0 ? callIds : ['00000000-0000-0000-0000-000000000000']
+
+    // Fetch webhook subscription IDs for this org
+    const { data: orgSubs } = await supabaseAdmin
+      .from('webhook_subscriptions')
+      .select('id')
+      .eq('organization_id', ctx.orgId)
+      .limit(500)
+
+    const subIds = (orgSubs || []).map(s => s.id)
+    const safeSubIds = subIds.length > 0 ? subIds : ['00000000-0000-0000-0000-000000000000']
+
+    // Parallel queries for performance (using pre-fetched IDs)
     const [callsResult, recordingsResult, aiRunsResult, webhooksResult] = await Promise.all([
       // Get total calls
       supabaseAdmin
@@ -45,26 +65,24 @@ export async function GET(req: NextRequest) {
         .eq('organization_id', ctx.orgId),
 
       // Get recordings with transcription data
-      // Use organization_id directly on recordings table
       supabaseAdmin
         .from('recordings')
         .select('call_id, transcript_json, created_at')
         .eq('organization_id', ctx.orgId)
         .not('transcript_json', 'is', null),
 
-      // Get AI runs via calls join
-      // ai_runs has call_id FK, so we filter by fetching call_ids for this org first
+      // Get AI runs for this org's calls
       supabaseAdmin
         .from('ai_runs')
         .select('model, status, call_id')
-        .in('call_id', supabaseAdmin.from('calls').select('id').eq('organization_id', ctx.orgId) as any)
+        .in('call_id', safeCallIds)
         .eq('status', 'completed'),
 
-      // Get webhook deliveries via subscription
+      // Get webhook deliveries for this org's subscriptions
       supabaseAdmin
         .from('webhook_deliveries')
         .select('id', { count: 'exact', head: true })
-        .in('subscription_id', supabaseAdmin.from('webhook_subscriptions').select('id').eq('organization_id', ctx.orgId) as any)
+        .in('subscription_id', safeSubIds)
     ])
 
     if (callsResult.error) {
