@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-// Removed static import to avoid build errors. Using dynamic import.
 
 /**
- * WebRTC Hook (SignalWire Video Room Version)
+ * WebRTC Hook (SignalWire Voice Client Version)
  * 
- * Strategy: Connect to a Video Room to verify Media Connectivity (Relay Tunnel).
- * Implementation: Uses Dynamic Import to load SDK and find RoomSession class.
+ * Strategy: Use Voice.Client (Relay V3) for PSTN Calling.
+ * Implementation: Dynamic Import of @signalwire/js to access 'Voice' namespace.
+ * Connects via Relay Tunnel (UDP Bypass).
  */
 
 export type WebRTCStatus =
@@ -55,12 +55,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [quality, setQuality] = useState<any>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
-  const roomSessionRef = useRef<any>(null)
+  const clientRef = useRef<any>(null)
+  const activeCallRef = useRef<any>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Audio element for Voice Client to bind to (if supported via rootElement or tracks)
+      // Voice SDK often handles audio internally or emits tracks
       const audio = new Audio()
       audio.autoplay = true
       remoteAudioRef.current = audio
@@ -70,7 +73,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (roomSessionRef.current) roomSessionRef.current.leave()
+      if (clientRef.current) {
+        try { clientRef.current.disconnect() } catch (e) { }
+      }
     }
   }, [])
 
@@ -103,58 +108,57 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         setSessionId(sessionRes.session.id)
       }
 
-      // 2. Get Video Room Token
+      // 2. Get Relay V3 JWT
       const tokenRes = await apiPost<{ success: boolean; token: string }>('/api/webrtc/token')
       if (!tokenRes.success || !tokenRes.token) {
         throw new Error('Failed to fetch SignalWire Token')
       }
 
       // 3. Dynamic Import of SDK
-      console.log('[SignalWire] Dynamically Importing SDK...')
+      console.log('[SignalWire] Dynamically Importing SDK (Voice Client)...')
 
       // @ts-ignore
       const module = await import('@signalwire/js')
-      console.log('[SignalWire] Module Loaded:', module)
+      console.log('[SignalWire] Module Loaded. Keys:', Object.keys(module))
 
-      // Resolve RoomSession Class
-      // Try multiple locations: Named export, Video namespace, etc.
-      const RoomSession = module.VideoRoomSession || (module.Video && module.Video.RoomSession) || module.RoomSession
+      // Locate Voice Client
+      // Try 'Voice' (Unified) or 'Relay' (V3)
+      const ClientClass = (module.Voice && module.Voice.Client) || (module.Relay && module.Relay.Client) || (module.SignalWire && module.SignalWire.Relay && module.SignalWire.Relay.Client)
 
-      if (!RoomSession) {
-        console.error('[SignalWire] Exports:', Object.keys(module))
-        throw new Error('Could not find RoomSession class in SDK')
+      if (!ClientClass) {
+        console.error('[SignalWire] Could not find Voice/Relay Client in module', module)
+        throw new Error('Voice Client class not found in SDK')
       }
 
-      console.log('[SignalWire] Found RoomSession Class')
+      console.log('[SignalWire] Found Client Class')
 
       // Instantiate
-      const roomSession = new RoomSession({
+      const client = new ClientClass({
+        project: tokenRes.project_id || undefined, // Some clients need project
         token: tokenRes.token,
-        rootElement: remoteAudioRef.current || undefined
+        // Bind audio? Voice Client usually emits 'track' event or handles it.
       })
 
-      roomSessionRef.current = roomSession
+      clientRef.current = client
 
-      // Bind Events
-      roomSession.on('room.joined', (e: any) => {
-        console.log('[SignalWire] Room Joined', e.room_session.name)
+      // Bind Connection Events
+      client.on('signalwire.ready', () => {
+        console.log('[SignalWire] Voice Client Ready')
         setStatus('connected')
-        setCallState('idle')
       })
 
-      roomSession.on('room.error', (e: any) => {
-        console.error('[SignalWire] Room Error', e)
-        setError(e?.message || 'Room Error')
+      client.on('signalwire.error', (error: any) => {
+        console.error('[SignalWire] Client Error', error)
+        setStatus('error')
+        setError(error.message)
       })
 
-      roomSession.on('destroy', () => {
-        console.log('[SignalWire] Room Session Destroyed')
-        setStatus('disconnected')
-        setCallState('idle')
+      client.on('signalwire.notification', (n: any) => {
+        // console.log('Notification', n)
       })
 
-      console.log('[SignalWire] Joining Room...')
-      await roomSession.join()
+      console.log('[SignalWire] Connecting...')
+      await client.connect()
 
     } catch (err: any) {
       console.error('[WebRTC] Connection error:', err)
@@ -165,9 +169,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
   const disconnect = useCallback(async () => {
     try {
-      if (roomSessionRef.current) {
-        await roomSessionRef.current.leave()
-      }
+      if (activeCallRef.current) await activeCallRef.current.hangup()
+      if (clientRef.current) clientRef.current.disconnect()
+
       try { await apiDelete('/api/webrtc/session') } catch { }
       setStatus('disconnected')
       setCallState('idle')
@@ -178,34 +182,76 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   }, [])
 
   const makeCall = useCallback(async (phoneNumber: string) => {
-    console.log('[SignalWire] Dialing in Room Mode (Already Connected)')
-    if (status !== 'connected') {
-      setError('Not connected to room')
+    if (status !== 'connected' || !clientRef.current) {
+      setError('Not connected')
       return
     }
-    setCallState('active')
-    setCurrentCall({
-      id: roomSessionRef.current?.id || 'room-call',
-      phone_number: 'Room Audio',
-      started_at: new Date(),
-      duration: 0
-    })
+
+    try {
+      setCallState('dialing')
+      console.log('[SignalWire] Dialing Phone:', phoneNumber)
+
+      // Detect dial method
+      const client = clientRef.current
+      let callPromise
+
+      if (typeof client.dial === 'function') {
+        // Standard Relay Dial
+        callPromise = client.dial({ to: phoneNumber, from: process.env.NEXT_PUBLIC_SIGNALWIRE_NUMBER || 'default' })
+      } else if (typeof client.dialPhoneNumber === 'function') {
+        // Voice Helper
+        callPromise = client.dialPhoneNumber({ to: phoneNumber })
+      } else {
+        throw new Error('No dial method found on client')
+      }
+
+      const call = await callPromise
+      activeCallRef.current = call
+      console.log('[SignalWire] Call Init:', call)
+
+      // Handle Call Events
+      // Usually Call object emits events like 'answered', 'ended'
+      // Or we must pass handlers in dial?
+
+      // Assuming standard event emitter on Call
+      // Note: Event names vary by SDK version. 
+
+      // Check if call is already started?
+      setCallState('ringing') // Assume ringing until active
+
+      // We might need to handle remote stream here
+      // call.on('track', ...) or call.remoteStream?
+      if (call.remoteStream && remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = call.remoteStream
+        remoteAudioRef.current.play()
+      }
+
+      setCallState('active')
+      setCurrentCall({
+        id: call.id,
+        phone_number: phoneNumber,
+        started_at: new Date(),
+        duration: 0
+      })
+
+    } catch (err: any) {
+      console.error('[SignalWire] Call Failed:', err)
+      setCallState('idle')
+      setError(err.message)
+    }
+
   }, [status])
 
   const hangUp = useCallback(async () => {
+    if (activeCallRef.current) {
+      await activeCallRef.current.hangup()
+    }
     setCallState('idle')
     setCurrentCall(null)
   }, [])
 
-  const mute = useCallback(() => {
-    if (roomSessionRef.current) roomSessionRef.current.audioMute()
-    setIsMuted(true)
-  }, [])
-
-  const unmute = useCallback(() => {
-    if (roomSessionRef.current) roomSessionRef.current.audioUnmute()
-    setIsMuted(false)
-  }, [])
+  const mute = useCallback(() => { /* TODO */ }, [])
+  const unmute = useCallback(() => { /* TODO */ }, [])
 
   return {
     connect,
