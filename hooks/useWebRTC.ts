@@ -42,6 +42,9 @@ export interface WebRTCSession {
 
 export interface CallQuality {
   packet_loss_percent?: number
+  audio_bitrate?: number
+  jitter_ms?: number
+  round_trip_time_ms?: number
 }
 
 export interface CurrentCall {
