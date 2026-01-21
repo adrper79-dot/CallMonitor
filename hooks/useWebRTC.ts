@@ -55,7 +55,7 @@ export interface UseWebRTCResult {
   hangUp: () => Promise<void>
 
   callState: CallState
-  currentCall: any
+  currentCall: CurrentCall | null
 
   mute: () => void
   unmute: () => void
@@ -69,7 +69,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [status, setStatus] = useState<WebRTCStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [callState, setCallState] = useState<CallState>('idle')
-  const [currentCall, setCurrentCall] = useState<any>(null)
+  const [currentCall, setCurrentCall] = useState<CurrentCall | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [quality, setQuality] = useState<any>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -91,7 +91,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     if (callState === 'active' && currentCall) {
       // Timer logic
       durationIntervalRef.current = setInterval(() => {
-        setCurrentCall((prev: any) => prev ? { ...prev, duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000) } : null)
+        setCurrentCall((prev) => prev ? { ...prev, duration: Math.floor((Date.now() - prev.started_at.getTime()) / 1000) } : null)
       }, 1000)
     } else {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
@@ -125,7 +125,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       // 2. Dynamic Import (Video sdk)
       console.log('[SignalWire] Importing SDK...')
       // @ts-ignore
-      const module = await import('@signalwire/js')
+      const module: any = await import('@signalwire/js')
 
       // Find RoomSession or Video.RoomSession
       const RoomSession = module.VideoRoomSession || (module.Video && module.Video.RoomSession) || module.RoomSession
@@ -157,7 +157,9 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       // Audio handling often automatic with rootElement or track event
       roomSession.on('track', (e: any) => {
         if (e.track.kind === 'audio' && remoteAudioRef.current) {
-          // ...
+          const stream = e.streams?.[0] || new MediaStream([e.track])
+          remoteAudioRef.current.srcObject = stream
+          remoteAudioRef.current.play().catch(e => console.error(e))
         }
       })
 
