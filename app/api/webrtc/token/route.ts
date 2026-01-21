@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/webrtc/token
- * Generate a SignalWire Relay V3 JWT
+ * Generate a SignalWire Video Room Token
  * 
- * Required for Voice.Client (PSTN Calling).
- * Replaces Video Room Tokens logic as we pivot to Voice-First architecture.
+ * Architecture: Server-Side Dialing
+ * Browser joins a Room. Server dials PSTN into the Room.
  */
 export async function POST(request: NextRequest) {
     try {
@@ -36,9 +36,10 @@ export async function POST(request: NextRequest) {
         }
 
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
+        const endpoint = `https://${spaceUrl}/api/video/room_tokens`
 
-        // Relay V3 JWT Endpoint
-        const endpoint = `https://${spaceUrl}/api/relay/rest/jwt`
+        // Create token for room-userID
+        const roomName = `room-${userId}`
 
         const response = await fetch(endpoint, {
             method: 'POST',
@@ -47,16 +48,21 @@ export async function POST(request: NextRequest) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                resource: `user-${userId}`, // Unique resource ID for this user's client
-                expires_in: 3600 // 1 hour
+                room_name: roomName,
+                user_name: `user-${userId.substring(0, 8)}`,
+                permissions: [
+                    'room.self.audio_mute',
+                    'room.self.audio_unmute',
+                    'room.member.audio.publish',
+                    'room.member.audio.subscribe'
+                ]
             })
         })
 
         if (!response.ok) {
             const errorText = await response.text()
-            logger.error('Failed to mint Relay JWT', { status: response.status, error: errorText })
             return NextResponse.json(
-                { success: false, error: { code: 'TOKEN_ERROR', message: 'Failed to mint token' } },
+                { success: false, error: { code: 'TOKEN_ERROR', message: 'Failed to mint video token' } },
                 { status: 502 }
             )
         }
@@ -65,7 +71,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            token: data.jwt_token, // Relay V3 returns 'jwt_token'
+            token: data.token,
+            room_name: roomName, // Inform client of room name
             project_id: projectId
         })
 
