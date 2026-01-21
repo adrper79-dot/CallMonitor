@@ -106,11 +106,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
     })
 
     try {
-      await makeCall(targetNumber, {
-        record: config?.record || false,
-        transcribe: config?.transcribe || false,
-        translate: config?.translate || false,
-      })
+      await makeCall(targetNumber)
 
       // Notify parent - use a generated ID since WebRTC doesn't have call_id yet
       if (currentCall?.id) {
