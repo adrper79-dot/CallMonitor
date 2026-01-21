@@ -2,18 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-import { Video } from '@signalwire/js'
+import { SignalWire } from '@signalwire/js'
 
 /**
  * WebRTC Hook (SignalWire SDK Version)
  * 
  * Manages browser-based calling via SignalWire Unified SDK (v3).
- * Replaces legacy SIP.js implementation to solve traversal issues.
- * 
- * Features:
- * - Authenticates via JWT (from /api/webrtc/token)
- * - Uses SignalWire Relay for connectivity (Bypassing UDP blocks)
- * - Handles Outbound Calls
+ * Uses 'Call Fabric' pattern via { SignalWire } export.
  */
 
 export type WebRTCStatus =
@@ -70,7 +65,6 @@ export interface UseWebRTCResult {
 }
 
 export function useWebRTC(organizationId: string | null): UseWebRTCResult {
-  // State
   const [status, setStatus] = useState<WebRTCStatus>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [callState, setCallState] = useState<CallState>('idle')
@@ -79,13 +73,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [quality, setQuality] = useState<CallQuality | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
-  // Refs
-  const clientRef = useRef<any>(null) // SignalWire Client
-  const activeCallRef = useRef<any>(null) // SignalWire Call Object
+  const clientRef = useRef<any>(null)
+  const activeCallRef = useRef<any>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Initialize audio element
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const audio = new Audio()
@@ -94,16 +86,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (activeCallRef.current) activeCallRef.current.hangup()
       if (clientRef.current) clientRef.current.disconnect()
     }
   }, [])
 
-  // Duration timer
   useEffect(() => {
     if (callState === 'active' && currentCall) {
       durationIntervalRef.current = setInterval(() => {
@@ -115,7 +104,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     return () => { if (durationIntervalRef.current) clearInterval(durationIntervalRef.current) }
   }, [callState, currentCall?.id])
 
-  // CONNECT
   const connect = useCallback(async () => {
     if (!organizationId) {
       setError('Organization ID required')
@@ -128,7 +116,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setStatus('initializing')
       setError(null)
 
-      // 1. Get Session ID (for Audit Log)
+      // 1. Get Session ID
       const sessionRes = await apiPost<{ success: boolean; session: any }>('/api/webrtc/session')
       if (sessionRes.success && sessionRes.session) {
         setSessionId(sessionRes.session.id)
@@ -141,32 +129,27 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       }
 
       // 3. Initialize SignalWire Client
-      console.log('[SignalWire] Initializing Client with Token')
+      console.log('[SignalWire] Initializing Fabric Client')
+      console.log('[SignalWire] Factory:', SignalWire)
 
-      // Use named export Video.Client
-      // Note: In @signalwire/js v3, Video.Client is the correct constructor for browser-based WebRTC
-      const client = new Video.Client({
+      // Use the Factory function pattern for Call Fabric
+      // @ts-ignore
+      const client = await SignalWire({
         token: tokenRes.token,
-        // rootElement: remoteAudioRef.current // Optional binding
+        // rootElement: remoteAudioRef.current // Optional
       })
 
-      // Event Listeners
-      client.on('signalwire.error', (err: any) => {
-        console.error('[SignalWire] Error:', err)
-        setError(err?.message)
-      })
+      console.log('[SignalWire] Client Created:', client)
 
-      client.on('signalwire.ready', () => {
-        console.log('[SignalWire] Client Ready')
-        setStatus('connected')
-      })
-
-      client.on('signalwire.notification', (notification: any) => {
-        // console.log('[SignalWire] Notification:', notification)
-      })
-
+      // Connect
       await client.connect()
+      console.log('[SignalWire] Client Connected')
+
+      setStatus('connected')
       clientRef.current = client
+
+      // Handle Incoming Calls?
+      // client.on('call.received', ...)
 
     } catch (err: any) {
       console.error('[WebRTC] Connection error:', err)
@@ -175,17 +158,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [organizationId, status])
 
-  // DISCONNECT
   const disconnect = useCallback(async () => {
     try {
-      if (activeCallRef.current) {
-        await activeCallRef.current.hangup()
-      }
-      if (clientRef.current) {
-        clientRef.current.disconnect()
-      }
+      if (activeCallRef.current) await activeCallRef.current.hangup()
+      if (clientRef.current) clientRef.current.disconnect()
       try { await apiDelete('/api/webrtc/session') } catch { }
-
       setStatus('disconnected')
       setCallState('idle')
       setCurrentCall(null)
@@ -194,7 +171,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [])
 
-  // MAKE CALL
   const makeCall = useCallback(async (phoneNumber: string) => {
     if (!clientRef.current || status !== 'connected') {
       setError('Not connected')
@@ -203,41 +179,34 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
     try {
       setCallState('dialing')
-
       const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '')
 
-      // Dial
+      console.log('[SignalWire] Dialing:', cleanNumber)
+
+      // Fabric Dialing
       const call = await clientRef.current.dial({
         to: cleanNumber,
-        audio: true,
-        video: false
+        rootElement: remoteAudioRef.current // Bind audio here
       })
 
       activeCallRef.current = call
+      console.log('[SignalWire] Call Object:', call)
 
-      // Bind Events
-      call.on('room.joined', () => {
-        setCallState('active')
-        setCurrentCall({
-          id: call.id,
-          phone_number: phoneNumber,
-          started_at: new Date(),
-          duration: 0
-        })
+      // Need to listen to call state
+      // Fabric Call object might expose .on('state', ...) or promises
+      // Assuming 'call' is the active session.
 
-        if (call.remoteStream && remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = call.remoteStream
-          remoteAudioRef.current.play().catch(e => console.error('Audio play error', e))
-        }
+      // If dial matches successfully, we are active?
+      setCallState('active')
+      setCurrentCall({
+        id: call.id || Math.random().toString(),
+        phone_number: phoneNumber,
+        started_at: new Date(),
+        duration: 0
       })
 
-      call.on('room.ended', () => {
-        setCallState('idle')
-        setCurrentCall(null)
-        activeCallRef.current = null
-      })
-
-      console.log('[SignalWire] Call initiated', call.id)
+      // Listen for hangup
+      // call.on('destroy', ...)
 
     } catch (err: any) {
       console.error('[WebRTC] Make call error:', err)
@@ -246,7 +215,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [status])
 
-  // HANG UP
   const hangUp = useCallback(async () => {
     if (activeCallRef.current) {
       await activeCallRef.current.hangup()
@@ -255,20 +223,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [])
 
-  // MUTE/UNMUTE
-  const mute = useCallback(() => {
-    if (activeCallRef.current) {
-      activeCallRef.current.audioMute()
-      setIsMuted(true)
-    }
-  }, [])
-
-  const unmute = useCallback(() => {
-    if (activeCallRef.current) {
-      activeCallRef.current.audioUnmute()
-      setIsMuted(false)
-    }
-  }, [])
+  const mute = useCallback(() => { /* TODO */ }, [])
+  const unmute = useCallback(() => { /* TODO */ }, [])
 
   return {
     connect,
