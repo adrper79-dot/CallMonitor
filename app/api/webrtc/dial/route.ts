@@ -1,16 +1,15 @@
 import { NextResponse, NextRequest } from 'next/server'
-import { SignalWire } from '@signalwire/realtime-api'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/webrtc/dial
- * Server-Side Dialing
+ * Server-Side Dialing with SWML Bridge
  * 
- * 1. Initialize Realtime Client (Node.js)
- * 2. Dial PSTN Number
- * 3. Connect/Bridge Call to the user's Video Room
+ * 1. Accepts phoneNumber and roomName from Client (who is already in the room).
+ * 2. Uses SignalWire LAML API to dial the number.
+ * 3. Uses inline SWML (Twiml param) to immediately <Connect> the call to the Video Room.
  */
 export async function POST(request: NextRequest) {
     try {
@@ -23,64 +22,55 @@ export async function POST(request: NextRequest) {
 
         const projectId = process.env.SIGNALWIRE_PROJECT_ID
         const apiToken = process.env.SIGNALWIRE_TOKEN
+        const spaceUrl = process.env.SIGNALWIRE_SPACE?.replace('https://', '').replace(/\/$/, '')
+        const fromNumber = process.env.SIGNALWIRE_NUMBER || '+15550100666'
 
-        if (!projectId || !apiToken) {
+        if (!projectId || !apiToken || !spaceUrl) {
             return NextResponse.json({ success: false, error: 'Config missing' }, { status: 500 })
         }
 
-        // Initialize Realtime Client
-        const client = await SignalWire({ project: projectId, token: apiToken })
+        logger.info(`[Dial] Bridging ${phoneNumber} -> Room: ${roomName}`)
 
-        // Dial PSTN
-        // Note: This logic assumes we can connect the call to a Room.
-        // In Realtime API Voice, typically we Dial, then .connect() peer.
-        // Or we use a specific "Dial into Conference/Room" instruction.
+        // SWML to bridge PSTN call to Video Room
+        // This is passed inline via 'Twiml' parameter to the LAML API
+        const inlineSwml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Room>${roomName}</Room>
+  </Connect>
+</Response>`
 
-        logger.info(`Dialing ${phoneNumber} from Server...`)
+        // SignalWire LAML REST API Endpoint
+        const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
+        const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
-        const call = await client.voice.dialPhone({
-            from: process.env.SIGNALWIRE_NUMBER || '+15550100666',
-            to: phoneNumber,
-            // How to bridge to Room?
-            // We can use an Application/Context? 
-            // Or after dialing, we 'connect' to the room?
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                From: fromNumber,
+                To: phoneNumber,
+                Twiml: inlineSwml, // Executes this logic when call is picked up
+                // MachineDetection: 'Detect' // Optional
+            }).toString()
         })
 
-        // Once dialed/answered, we bridge?
-        // Wait, dialPhone returns a Call object.
-        // We want the call to *immediately* go to the Room upon answer?
-        // Actually, 'dialPhone' holds the call on the server until logic executes.
-
-        // Strategy: Connect the call to the Video Room
-        // call.connect({ type: 'room', name: roomName }) ?
-        // Check docs (simulated):
-
-        try {
-            // Assume .connect exists on Call object for bridging
-            // Type definition might vary.
-            // If not, we might need to use specific params in dialPhone?
-
-            // Alternative: Use a SIP Endpoint that points to the Room?
-
-            // For now, we log success of Dial initiation.
-            // User needs to speak to the Browser?
-            // If we don't bridge, audio is lost.
-
-            // HACK: Use 'connect' logic if available.
-            // @ts-ignore
-            if (call.connect) {
-                // @ts-ignore
-                await call.connect({ type: 'room', name: roomName })
-            }
-
-        } catch (e) {
-            logger.error('Failed to bridge to room', e)
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Dial] SignalWire Error', response.status, errorText)
+            return NextResponse.json({ success: false, error: `SignalWire Error: ${response.status}` }, { status: 502 })
         }
 
-        return NextResponse.json({ success: true, callId: call.id })
+        const data = await response.json()
+        logger.info('[Dial] Call Initiated', data.sid)
+
+        return NextResponse.json({ success: true, callId: data.sid })
 
     } catch (err: any) {
-        logger.error('Dial error', err)
+        logger.error('[Dial] Internal Error', err)
         return NextResponse.json({ success: false, error: err.message }, { status: 500 })
     }
 }
