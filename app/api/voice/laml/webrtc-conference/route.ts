@@ -36,11 +36,17 @@ export async function GET(request: NextRequest) {
 
     logger.info('[webrtc-conference] Joining conference', { conferenceId, leg })
 
-    // LaML to join conference
-    // - beep="false": No beep when participants join
-    // - startConferenceOnEnter="true": Start conference immediately
-    // - endConferenceOnExit="true": End conference when last person leaves
-    // - waitUrl="": No hold music (optional, can add)
+    // Smart conference termination:
+    // - If PSTN leg exits → end conference (user hung up intentionally)
+    // - If browser leg exits → keep conference open (might reconnect)
+    // This prevents wasting money on abandoned conferences while allowing browser reconnects
+    const endOnExit = leg === 'pstn' ? 'true' : 'false'
+
+    logger.info('[webrtc-conference] Conference settings', {
+        conferenceId,
+        leg,
+        endConferenceOnExit: endOnExit
+    })
 
     const laml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -48,8 +54,10 @@ export async function GET(request: NextRequest) {
     <Conference 
       beep="false"
       startConferenceOnEnter="true"
-      endConferenceOnExit="true"
-      maxParticipants="2">${conferenceId}</Conference>
+      endConferenceOnExit="${endOnExit}"
+      maxParticipants="2"
+      statusCallback="${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire?conferenceEvent=true&amp;conferenceId=${conferenceId}"
+      statusCallbackEvent="start end join leave">${conferenceId}</Conference>
   </Dial>
 </Response>`
 

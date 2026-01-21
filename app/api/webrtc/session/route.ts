@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     const ONE_HOUR_AGO = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const { data: staleSessions } = await supabaseAdmin
       .from('webrtc_sessions')
-      .select('id')
+      .select('id, created_at')
       .eq('user_id', userId)
       .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
 
