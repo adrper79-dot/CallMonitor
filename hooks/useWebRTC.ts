@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiPost, apiDelete } from '@/lib/apiClient'
-// Use VideoRoomSession for Room Token connectivity
-import { VideoRoomSession } from '@signalwire/js'
+// Use RoomSession directly from the underlying package to avoid 'not exported' errors
+import { RoomSession } from '@signalwire/webrtc'
 
 /**
  * WebRTC Hook (SignalWire Video Room Version)
  * 
  * Strategy: Connect to a Video Room to verify Media Connectivity (Relay Tunnel).
  * Fabric API was unavailable (404), so we use the robust Room Token API.
+ * 
+ * Update: Importing from @signalwire/webrtc directly to ensuring named exports work.
  */
 
 export type WebRTCStatus =
@@ -130,10 +132,10 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         throw new Error('Failed to fetch SignalWire Token')
       }
 
-      // 3. Initialize VideoRoomSession
-      console.log('[SignalWire] Initializing Room Session')
+      // 3. Initialize RoomSession
+      console.log('[SignalWire] Initializing Room Session (Direct WebRTC Package)')
 
-      const roomSession = new VideoRoomSession({
+      const roomSession = new RoomSession({
         token: tokenRes.token,
         rootElement: remoteAudioRef.current || undefined
       })
@@ -141,15 +143,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       roomSessionRef.current = roomSession
 
       // Bind Events
-      roomSession.on('room.joined', (e) => {
+      roomSession.on('room.joined', (e: any) => {
         console.log('[SignalWire] Room Joined', e.room_session.name)
         setStatus('connected')
         setCallState('idle') // Connected but not "calling" anyone yet
-
-        // If we want to treat "Joined Room" as "Connected" (State: Connected)
       })
 
-      roomSession.on('room.error', (e) => {
+      roomSession.on('room.error', (e: any) => {
         console.error('[SignalWire] Room Error', e)
       })
 
@@ -158,12 +158,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         setStatus('disconnected')
         setCallState('idle')
       })
-
-      // We explicitly JOIN now?
-      // Or we wait for makeCall?
-      // Since the Token is for a specific room, connecting usually means joining.
-      // But we can hold the instance.
-      // Let's JOIN immediately to prove connectivity.
 
       console.log('[SignalWire] Joining Room...')
       await roomSession.join()
@@ -191,8 +185,6 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
 
   const makeCall = useCallback(async (phoneNumber: string) => {
     // In "Room Mode", 'makeCall' is simulated or disabled.
-    // We are likely already connected to the room.
-    // We can update UI to show "In Room".
     console.log('[SignalWire] Dialing in Room Mode (Already Connected)')
 
     if (status !== 'connected') {
@@ -210,10 +202,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   }, [status])
 
   const hangUp = useCallback(async () => {
-    // Just update state, don't leave room (disconnect does that)
     setCallState('idle')
     setCurrentCall(null)
-    // Optionally leave room if we interpret hangup as disconnect
   }, [])
 
   const mute = useCallback(() => {
@@ -231,8 +221,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     disconnect,
     status,
     error,
-    makeCall, // Re-purposed to start timer/UI state
-    hangUp, // Re-purposed
+    makeCall,
+    hangUp,
     callState,
     currentCall,
     mute,
