@@ -118,25 +118,14 @@ export async function POST(request: NextRequest) {
         const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
-        // TwiML to put first caller into conference, then dial second number into same conference
-        // This creates a proper audio bridge between both PSTN numbers
-        // If translation is enabled, add live_translate INSIDE the Conference tag
+        // SWML endpoint for conference bridge with translation
+        // live_translate requires SWML (JSON), not LAML (XML)
         const conferenceName = `bridge-${callId}`
+        const swmlUrl = `${appUrl}/api/voice/swml/bridge?callId=${callId}&conferenceName=${encodeURIComponent(conferenceName)}&leg=first`
 
-        // Translation XML goes INSIDE <Conference>, not after </Dial>
-        const translationXml = translationEnabled
-            ? `<live_translate source_language="${voiceConfig.translate_from}" target_language="${voiceConfig.translate_to}" />`
-            : ''
+        logger.info('[Bridge] Using SWML for translation support', { swmlUrl })
 
-        const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>${translationEnabled ? 'Connecting your call with real-time translation.' : 'Connecting your call. Please wait.'}</Say>
-  <Dial>
-    <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true" record="record-from-start" recordingStatusCallback="${appUrl}/api/webhooks/signalwire">${conferenceName}${translationXml}</Conference>
-  </Dial>
-</Response>`
-
-        // Dial first number (fromNumber) - when answered, they join conference
+        // Dial first number (fromNumber) - SignalWire will fetch SWML from our endpoint
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -146,7 +135,7 @@ export async function POST(request: NextRequest) {
             body: new URLSearchParams({
                 From: callerIdToUse,
                 To: fromNumber,
-                Twiml: bridgeTwiml
+                Url: swmlUrl  // Use Url instead of Twiml for SWML
             }).toString()
         })
 
@@ -165,13 +154,9 @@ export async function POST(request: NextRequest) {
         const firstLegData = await response.json()
 
         // Now dial second number (toNumber) into the same conference
-        // Use same translation settings for symmetry
-        const secondLegTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Dial>
-    <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true">${conferenceName}${translationXml}</Conference>
-  </Dial>
-</Response>`
+        const swmlUrl2 = `${appUrl}/api/voice/swml/bridge?callId=${callId}&conferenceName=${encodeURIComponent(conferenceName)}&leg=second`
+
+        logger.info('[Bridge] Dialing second leg with SWML', { swmlUrl: swmlUrl2 })
 
         const response2 = await fetch(endpoint, {
             method: 'POST',
@@ -182,7 +167,7 @@ export async function POST(request: NextRequest) {
             body: new URLSearchParams({
                 From: callerIdToUse,
                 To: toNumber,
-                Twiml: secondLegTwiml
+                Url: swmlUrl2
             }).toString()
         })
 

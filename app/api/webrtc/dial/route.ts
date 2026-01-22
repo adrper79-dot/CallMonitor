@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         // - action: Webhook called when dial completes (for status updates)
         const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" record="record-from-answer" recordingStatusCallback="${appUrl}/api/webhooks/signalwire" action="${appUrl}/api/webhooks/signalwire">
+  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" record="record-from-answer" recordingStatusCallback="${appUrl}/api/webhooks/signalwire?callId=${callId}" action="${appUrl}/api/webhooks/signalwire?callId=${callId}">
     <Number>${formattedNumber}</Number>
     <Sip>sip:${sipUsername}@${sipDomain}</Sip>
   </Dial>

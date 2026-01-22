@@ -239,7 +239,7 @@ async function generateBridgeLaML(conferenceName: string, callId: string, leg?: 
     voiceConfig = vcRows?.[0]
   }
 
-  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
+  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire?callId=${callId}`
   const elements: string[] = []
 
   // Dial/Conference Block

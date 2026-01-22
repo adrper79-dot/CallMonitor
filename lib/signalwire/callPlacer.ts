@@ -238,7 +238,16 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
             return { success: false, error: e.toJSON() }
         }
 
-        const swmlUrl = `${appUrl}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
+        let swmlUrl = `${appUrl}/api/voice/swml/translation?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
+
+        // Append conference params if present (CRITICAL for bridge flows)
+        if (conference) {
+            swmlUrl += `&conference=${encodeURIComponent(conference)}`
+            if (leg) {
+                swmlUrl += `&leg=${encodeURIComponent(leg)}`
+            }
+        }
+
         urlParams.append('Url', swmlUrl)
         logger.info('placeSignalWireCall: routing to SWML endpoint for live translation', {
             callId,

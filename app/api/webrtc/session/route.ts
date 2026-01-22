@@ -115,20 +115,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate session ID (must be UUID format for database)
-    const { v4: uuidv4 } = await import('uuid')
-    const sessionId = uuidv4()
-
-    const sessionToken = uuidv4()
+    // Generate session ID
+    const sessionId = `webrtc-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
     // Create session record
     const { data: sessionRecord, error: insertError } = await supabaseAdmin
       .from('webrtc_sessions')
       .insert({
         id: sessionId,
-        organization_id: member.organization_id,
         user_id: userId,
-        session_token: sessionToken,
         status: 'initializing',
         created_at: new Date().toISOString()
       })
@@ -149,11 +144,7 @@ export async function POST(request: NextRequest) {
     const websocketUrl = process.env.SIGNALWIRE_WEBSOCKET_URL
 
     if (!sipUsername || !sipDomain || !websocketUrl) {
-      logger.error('[webrtc] SIP credentials not configured', undefined, {
-        hasSipUsername: !!sipUsername,
-        hasSipDomain: !!sipDomain,
-        hasWebsocketUrl: !!websocketUrl
-      })
+      logger.error('[webrtc] SIP credentials not configured')
       return NextResponse.json(
         { success: false, error: { code: 'CONFIG_ERROR', message: 'WebRTC not configured' } },
         { status: 500 }
@@ -180,26 +171,14 @@ export async function POST(request: NextRequest) {
       session: {
         id: sessionId,
         sip_username: sipUsername,
-        sip_password: process.env.SIGNALWIRE_SIP_PASSWORD, // Required for SIP.js registration
         sip_domain: sipDomain,
         websocket_url: websocketUrl,
         // ICE servers for peer connection
         ice_servers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          // Try OpenRelay on multiple ports/transports
           {
-            urls: 'turn:openrelay.metered.ca:80?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          },
-          {
-            urls: 'turn:openrelay.metered.ca:80?transport=udp',
+            urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
             credential: 'openrelayproject'
           }
