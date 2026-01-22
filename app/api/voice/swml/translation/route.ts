@@ -80,24 +80,30 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
     const postPromptUrl = `${baseUrl}/api/webhooks/signalwire?type=ai_agent_complete&callId=${callId}`
 
-    // LaML with AI Agent using Connect verb
-    // This is the correct XML format for SignalWire's LaML API
+    // IMPORTANT: <Connect><AI> is not supported in Compatibility API for outbound calls
+    // Fallback to basic call without AI translation for now
+    // TODO: Implement via Realtime API + AI Agent SDK for server-side orchestration
+
+    logger.warn('AI Agent translation not supported in outbound LAML - using fallback', {
+      callId,
+      agentId: agentId.substring(0, 8) + '...'
+    })
+
+    // Return basic LaML that announces translation is unavailable
+    // The call will still connect via the Dial bridge
     const laml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Connect>
-    <AI agent="${agentId}">
-      <Prompt>IMPORTANT: At the start of the call, announce: "This call includes AI-powered real-time translation. Translation is provided to assist communication and may not capture every nuance. Please confirm understanding of important terms directly with the other party."
-
-Then proceed to translate between ${translateFrom} and ${translateTo}. You are a neutral translation service - you translate what is said but do not add opinions, negotiate, or make commitments on behalf of any party.</Prompt>
-      <PostPromptURL>${postPromptUrl}</PostPromptURL>
-    </AI>
-  </Connect>
+  <Say voice="Polly.Joanna">This call will connect without real-time translation. Translation features are being configured.</Say>
 </Response>`
 
-    // Return LaML as XML
-    return new Response(laml, {
+    // Return LaML as XML with proper headers
+    // Ensure no extra whitespace or content before/after XML
+    return new Response(laml.trim(), {
       status: 200,
-      headers: { 'Content-Type': 'application/xml' }
+      headers: {
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'no-cache'
+      }
     })
 
   } catch (err: any) {

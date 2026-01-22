@@ -110,10 +110,11 @@ export async function POST(request: NextRequest) {
         // Key attributes:
         // - answerOnBridge="true": Don't bridge audio until both legs answer
         // - timeout="30": Wait up to 30s for endpoints to answer
+        // - record="record-from-answer": Record call for transcription/translation
         // - action: Webhook called when dial completes (for status updates)
         const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" action="${appUrl}/api/webhooks/signalwire">
+  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" record="record-from-answer" recordingStatusCallback="${appUrl}/api/webhooks/signalwire" action="${appUrl}/api/webhooks/signalwire">
     <Number>${formattedNumber}</Number>
     <Sip>sip:${sipUsername}@${sipDomain}</Sip>
   </Dial>
