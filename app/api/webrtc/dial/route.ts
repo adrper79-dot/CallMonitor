@@ -99,11 +99,22 @@ export async function POST(request: NextRequest) {
         const cleanNumber = phoneNumber.replace(/\D/g, '')
         const formattedNumber = cleanNumber.startsWith('1') ? `+${cleanNumber}` : `+1${cleanNumber}`
 
-        // LAML to connect PSTN call to the SIP endpoint
-        // When the PSTN party answers, <Dial> connects them to the SIP user
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+
+        // LAML to bridge PSTN and SIP endpoint
+        // Structure:
+        // - <Number>: Primary PSTN target
+        // - <Sip>: Browser/WebRTC endpoint
+        // Both are dialed simultaneously; when both answer, audio is bridged
+        // 
+        // Key attributes:
+        // - answerOnBridge="true": Don't bridge audio until both legs answer
+        // - timeout="30": Wait up to 30s for endpoints to answer
+        // - action: Webhook called when dial completes (for status updates)
         const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${callerId}">
+  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" action="${appUrl}/api/webhooks/signalwire">
+    <Number>${formattedNumber}</Number>
     <Sip>sip:${sipUsername}@${sipDomain}</Sip>
   </Dial>
 </Response>`
@@ -112,7 +123,8 @@ export async function POST(request: NextRequest) {
         const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
-        // Dial the PSTN number, when answered connect to our SIP endpoint
+        // Initiate the call (LAML controls who gets dialed via <Number> and <Sip>)
+        // Note: No 'To' param needed - LAML handles both dial targets
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -121,8 +133,11 @@ export async function POST(request: NextRequest) {
             },
             body: new URLSearchParams({
                 From: callerId,
-                To: formattedNumber,
-                Twiml: bridgeTwiml
+                Twiml: bridgeTwiml,
+                // AMD: Detect voicemail vs human (AnsweredBy in webhook)
+                MachineDetection: 'Enable',
+                MachineDetectionTimeout: '5',
+                AsyncAmd: 'true',  // Non-blocking - don't wait for detection
             }).toString()
         })
 
@@ -175,27 +190,47 @@ export async function DELETE(request: NextRequest) {
         const userId = (session?.user as any)?.id
 
         if (!userId) {
-            return NextResponse.json({ success: true })
+            return NextResponse.json(
+                { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
+                { status: 401 }
+            )
         }
 
         const { searchParams } = new URL(request.url)
         const callId = searchParams.get('callId')
 
-        if (callId) {
-            await supabaseAdmin
-                .from('calls')
-                .update({
-                    status: 'completed',
-                    ended_at: new Date().toISOString()
-                })
-                .eq('id', callId)
-                .eq('created_by', userId)
+        if (!callId) {
+            return NextResponse.json(
+                { success: false, error: { code: 'MISSING_PARAMS', message: 'callId required' } },
+                { status: 400 }
+            )
+        }
+
+        const { error: updateError } = await supabaseAdmin
+            .from('calls')
+            .update({
+                status: 'completed',
+                ended_at: new Date().toISOString()
+            })
+            .eq('id', callId)
+            .eq('created_by', userId)
+
+        if (updateError) {
+            logger.error('[WebRTC Dial] Failed to end call', { callId, error: updateError })
+            return NextResponse.json(
+                { success: false, error: { code: 'DB_ERROR', message: 'Failed to end call' } },
+                { status: 500 }
+            )
         }
 
         logger.info('[WebRTC Dial] Call ended', { callId })
 
         return NextResponse.json({ success: true })
-    } catch (err) {
-        return NextResponse.json({ success: true })
+    } catch (err: any) {
+        logger.error('[WebRTC Dial] DELETE error', err)
+        return NextResponse.json(
+            { success: false, error: { code: 'INTERNAL_ERROR', message: err.message } },
+            { status: 500 }
+        )
     }
 }
