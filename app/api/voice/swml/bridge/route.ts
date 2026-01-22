@@ -136,28 +136,6 @@ export async function GET(request: NextRequest) {
         )
     }
 }
-            {
-                record_call: {
-                    format: 'wav',
-                    stereo: true
-                }
-            }
-        ]
-
-        // Add greeting for first leg only
-        if (leg === 'first') {
-            sections.push({
-                play: {
-                    url: translationEnabled
-                        ? 'say:Connecting your call with real-time translation.'
-                        : 'say:Connecting your call. Please wait.'
-                }
-            })
-        }
-
-        // Add live translation if enabled
-        if (translationEnabled) {
-            sections.push({
                 live_translate: {
                     action: {
                         start: {
