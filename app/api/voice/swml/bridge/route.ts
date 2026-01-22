@@ -136,28 +136,6 @@ export async function GET(request: NextRequest) {
         )
     }
 }
-            .select('live_translate, translate_from, translate_to')
-            .eq('organization_id', call.organization_id)
-            .single()
-
-        const translationEnabled = voiceConfig?.live_translate === true &&
-            voiceConfig?.translate_from &&
-            voiceConfig?.translate_to
-
-        logger.info('[SWML Bridge] Generating SWML', {
-            callId,
-            conferenceName,
-            leg,
-            translationEnabled,
-            languages: translationEnabled ? `${voiceConfig.translate_from} → ${voiceConfig.translate_to}` : 'none'
-        })
-
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
-        const webhookUrl = `${appUrl}/api/webhooks/signalwire?callId=${callId}&type=live_translate`
-
-        // Build SWML sections
-        const sections: any[] = [
-            { answer: {} },
             {
                 record_call: {
                     format: 'wav',
