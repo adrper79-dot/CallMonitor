@@ -223,7 +223,7 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
     urlParams.append('From', fromNumber)
     urlParams.append('To', toNumber)
 
-    // Route to SWML endpoint for live translation, LaML for regular calls
+    // Route to SWML endpoint for all calls (replaces LaML)
     if (useLiveTranslation && callId) {
         // MASTER_ARCHITECTURE compliance: Translation languages pre-validated by handler
         // Fail-safe check in case caller bypasses handler validation
@@ -255,19 +255,23 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
             translateTo
         })
     } else {
-        // Build LaML URL with parameters
+        // Build SWML URL with parameters (v2 - replaces LaML)
         const callIdParam = callId || ''
-        let lamlUrl = `${appUrl}/api/voice/laml/outbound?callId=${encodeURIComponent(callIdParam)}`
+        let swmlUrl = `${appUrl}/api/voice/swml/outbound-v2?callId=${encodeURIComponent(callIdParam)}`
 
         // Add conference parameters for bridge calls
         if (conference) {
-            lamlUrl += `&conference=${encodeURIComponent(conference)}`
+            swmlUrl += `&conference=${encodeURIComponent(conference)}`
             if (leg) {
-                lamlUrl += `&leg=${encodeURIComponent(leg)}`
+                swmlUrl += `&leg=${encodeURIComponent(leg)}`
             }
         }
 
-        urlParams.append('Url', lamlUrl)
+        urlParams.append('Url', swmlUrl)
+        logger.info('placeSignalWireCall: routing to SWML outbound-v2 endpoint', {
+            callId: callIdParam ? '[REDACTED]' : null,
+            hasConference: !!conference
+        })
     }
 
     // Status callback URLs

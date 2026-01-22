@@ -109,7 +109,7 @@ describe('Call Execution Integration Flow', () => {
     expect(json.call_id).toBeDefined()
   })
 
-  it('should generate LaML with modulations', async () => {
+  it('should generate SWML with modulations', async () => {
     // Use the same orgId from beforeEach
     const testOrgId = '5f64d900-e212-42ab-bf41-7518f0bbcd4f'
     
@@ -152,17 +152,18 @@ describe('Call Execution Integration Flow', () => {
       }))
     })
 
-    const req = new Request('http://localhost/api/voice/laml/outbound?callSid=CA123', {
+    const req = new Request('http://localhost/api/voice/swml/outbound-v2?callSid=CA123', {
       method: 'POST',
       body: JSON.stringify({ CallSid: 'CA123', To: '+1234567890' })
     })
 
-    const { POST } = await import('@/app/api/voice/laml/outbound/route')
+    const { POST } = await import('@/app/api/voice/swml/outbound-v2/route')
     const response = await POST(req)
     
     expect(response.status).toBe(200)
-    const xml = await response.text()
-    expect(xml).toContain('<?xml')
-    expect(xml).toContain('<Response')
+    const json = await response.json()
+    expect(json.version).toBe('1.0.0')
+    expect(json.sections).toBeDefined()
+    expect(json.sections.main).toBeInstanceOf(Array)
   })
 })
