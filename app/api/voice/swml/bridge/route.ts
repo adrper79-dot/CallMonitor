@@ -1,63 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { logger } from '@/lib/logger'
+import { NextResponse, NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * GET /api/voice/swml/bridge
- * Returns SWML for conference bridge with optional live translation
- * 
- * Query params:
- * - callId: Call ID for tracking
- * - conferenceName: Conference room name
- * - leg: 'first' or 'second' (determines if greeting is played)
- */
 export async function GET(request: NextRequest) {
-    try {
-        const { searchParams } = new URL(request.url)
-        const callId = searchParams.get('callId')
-        const conferenceName = searchParams.get('conferenceName')
-        const leg = searchParams.get('leg') || 'first'
+    const { searchParams } = new URL(request.url)
 
-        if (!callId || !conferenceName) {
-            return NextResponse.json(
-                { error: 'Missing callId or conferenceName' },
-                { status: 400 }
-            )
+    const callId        = searchParams.get('callId')
+    const conferenceName = searchParams.get('conferenceName')
+    const leg            = searchParams.get('leg') // 'first' or 'second'
+    const toNumber       = searchParams.get('toNumber') // only needed for first leg
+
+    if (!callId || !conferenceName || !leg) {
+        return NextResponse.json({ error: 'Missing required params' }, { status: 400 })
+    }
+
+    const translationEnabled = searchParams.get('translationEnabled') === 'true'
+    const fromLang = searchParams.get('fromLang') || 'en'
+    const toLang   = searchParams.get('toLang')   || 'es'
+
+    // Base SWML structure
+    const swml = {
+        version: "1.0.0",
+        sections: {
+            main: [
+                { answer: {} },
+                {
+                    say: {
+                        text: translationEnabled
+                            ? "Connecting your call with real-time translation. Please wait."
+                            : "Connecting your call. Please wait."
+                    }
+                },
+                { record_call: { format: "wav", stereo: true } },
+            ]
         }
+    }
 
-        // Get call record to find organization
-        const { data: call } = await supabaseAdmin
-            .from('calls')
-            .select('organization_id')
-            .eq('id', callId)
-            .single()
-
-        if (!call) {
-            logger.warn('[SWML Bridge] Call not found', { callId })
-            // Return basic SWML without translation
-            return NextResponse.json({
-                version: '1.0.0',
-                sections: {
-                    main: [
-                        { answer: {} },
-                        {
-                            connect: {
-                                to: `conference:${conferenceName}`,
-                                beep: false,
-                                startConferenceOnEnter: true,
-                                endConferenceOnExit: true
-                            }
-                        }
-                    ]
+    // Add translation if enabled (SWML supports this natively)
+    if (translationEnabled) {
+        swml.sections.main.push({
+            live_translate: {
+                action: {
+                    start: {
+                        webhook: `https://${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/live-translate?callId=${callId}`,
+                        from_lang: fromLang,
+                        to_lang: toLang,
+                        direction: ["local-caller", "remote-caller"],
+                        live_events: true,
+                        ai_summary: true
+                    }
                 }
-            })
-        }
+            }
+        })
+    }
 
-        // Check if translation is enabled
-        const { data: voiceConfig } = await supabaseAdmin
-            .from('voice_configs')
+    // Leg-specific logic
+    if (leg === 'first') {
+        // Agent leg: connect to customer
+        if (!toNumber) {
+            return NextResponse.json({ error: 'toNumber required for first leg' }, { status: 400 })
+        }
+        swml.sections.main.push({
+            connect: {
+                from: process.env.SIGNALWIRE_NUMBER || '+15550100666',
+                to: decodeURIComponent(toNumber)
+            }
+        })
+    } else if (leg === 'second') {
+        // Customer leg: just answer and join conference (if using conference model)
+        swml.sections.main.push({
+            say: { text: "Connecting you now." }
+        })
+        // If using conference instead of connect, add:
+        // { conference: { name: decodeURIComponent(conferenceName), ... } }
+    }
+
+    return NextResponse.json(swml, {
+        headers: { 'Content-Type': 'application/json' }
+    })
+}
             .select('live_translate, translate_from, translate_to')
             .eq('organization_id', call.organization_id)
             .single()

@@ -118,10 +118,17 @@ export async function POST(request: NextRequest) {
         const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
+
         // SWML endpoint for conference bridge with translation
         // live_translate requires SWML (JSON), not LAML (XML)
-        const conferenceName = `bridge-${callId}`
-        const swmlUrl = `${appUrl}/api/voice/swml/bridge?callId=${callId}&conferenceName=${encodeURIComponent(conferenceName)}&leg=first`
+        const conferenceName = `bridge-${callId}`;
+        const swmlUrl = `${appUrl}/api/voice/swml/bridge?` +
+          `callId=${callId}&` +
+          `conferenceName=${encodeURIComponent(conferenceName)}&` +
+          `leg=first&` +
+          `toNumber=${encodeURIComponent(toNumber)}&` +
+          `translationEnabled=${translationEnabled}` +
+          (translationEnabled ? `&fromLang=${voiceConfig.translate_from}&toLang=${voiceConfig.translate_to}` : '');
 
         logger.info('[Bridge] Using SWML for translation support', { swmlUrl })
 
@@ -153,8 +160,14 @@ export async function POST(request: NextRequest) {
 
         const firstLegData = await response.json()
 
+
         // Now dial second number (toNumber) into the same conference
-        const swmlUrl2 = `${appUrl}/api/voice/swml/bridge?callId=${callId}&conferenceName=${encodeURIComponent(conferenceName)}&leg=second`
+        const swmlUrl2 = `${appUrl}/api/voice/swml/bridge?` +
+          `callId=${callId}&` +
+          `conferenceName=${encodeURIComponent(conferenceName)}&` +
+          `leg=second&` +
+          `translationEnabled=${translationEnabled}` +
+          (translationEnabled ? `&fromLang=${voiceConfig.translate_from}&toLang=${voiceConfig.translate_to}` : '');
 
         logger.info('[Bridge] Dialing second leg with SWML', { swmlUrl: swmlUrl2 })
 
