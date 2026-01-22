@@ -206,10 +206,14 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
           onInvite: (invitation: any) => {
             console.log('[SIP.js] Incoming call from:', invitation.remoteIdentity?.uri?.toString())
 
-            // Accept the call (this is from our server-side dial)
+            // CRITICAL: Accept with local stream for bidirectional audio
             invitation.accept({
               sessionDescriptionHandlerOptions: {
-                constraints: { audio: true, video: false }
+                constraints: { audio: true, video: false },
+                // Attach local microphone stream
+                peerConnectionConfiguration: {
+                  iceServers: ice_servers
+                }
               }
             }).then(() => {
               console.log('[SIP.js] Call accepted')
@@ -217,10 +221,19 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
               setCallState('active')
               setStatus('on_call')
 
-              // Setup remote audio
+              // Setup bidirectional audio
               const setupAudio = () => {
                 const sdh = invitation.sessionDescriptionHandler as any
                 if (sdh?.peerConnection) {
+                  // Add local stream to peer connection
+                  if (localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach(track => {
+                      sdh.peerConnection.addTrack(track, localStreamRef.current!)
+                      console.log('[SIP.js] Added local track:', track.kind)
+                    })
+                  }
+
+                  // Setup remote audio playback
                   sdh.peerConnection.ontrack = (event: RTCTrackEvent) => {
                     if (event.track.kind === 'audio' && remoteAudioRef.current) {
                       console.log('[SIP.js] Got remote audio track')
@@ -229,6 +242,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
                       remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
                     }
                   }
+
                   // Check if tracks are already there
                   const receivers = sdh.peerConnection.getReceivers()
                   receivers.forEach((receiver: RTCRtpReceiver) => {

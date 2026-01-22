@@ -94,22 +94,50 @@ export async function POST(request: NextRequest) {
             caller_id_used: callerIdToUse
         })
 
-        logger.info('[Bridge] Creating bridge call', { callId, fromNumber, toNumber })
+        // Check if live translation is enabled
+        const { data: voiceConfig } = await supabaseAdmin
+            .from('voice_configs')
+            .select('live_translate, translate_from, translate_to')
+            .eq('organization_id', member.organization_id)
+            .single()
+
+        const translationEnabled = voiceConfig?.live_translate === true &&
+            voiceConfig?.translate_from &&
+            voiceConfig?.translate_to
+
+        logger.info('[Bridge] Creating bridge call', {
+            callId,
+            fromNumber,
+            toNumber,
+            translationEnabled,
+            languages: translationEnabled ? `${voiceConfig.translate_from} → ${voiceConfig.translate_to}` : 'none'
+        })
 
         // Step 1: Dial the first leg (typically agent/operator)
         // When answered, it will fetch TwiML that dials the second leg
         const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
-        // TwiML to dial second number and bridge
+        // TwiML to put first caller into conference, then dial second number into same conference
+        // This creates a proper audio bridge between both PSTN numbers
+        // If translation is enabled, add live_translate verb
+        const conferenceName = `bridge-${callId}`
+
+        const translationXml = translationEnabled ? `
+  <live_translate>
+    <source_language>${voiceConfig.translate_from}</source_language>
+    <target_language>${voiceConfig.translate_to}</target_language>
+  </live_translate>` : ''
+
         const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Connecting your call. Please wait.</Say>
-  <Dial callerId="${callerIdToUse}" record="record-from-answer" recordingStatusCallback="${appUrl}/api/webhooks/signalwire">
-    <Number>${toNumber}</Number>
-  </Dial>
+  <Say>${translationEnabled ? 'Connecting your call with real-time translation.' : 'Connecting your call. Please wait.'}</Say>
+  <Dial>
+    <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true" record="record-from-start" recordingStatusCallback="${appUrl}/api/webhooks/signalwire">${conferenceName}</Conference>
+  </Dial>${translationXml}
 </Response>`
 
+        // Dial first number (fromNumber) - when answered, they join conference
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -125,7 +153,7 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
             const errorText = await response.text()
-            logger.error('[Bridge] SignalWire Error', { status: response.status, error: errorText })
+            logger.error('[Bridge] SignalWire Error (first leg)', { status: response.status, error: errorText })
 
             await supabaseAdmin.from('calls').update({ status: 'failed' }).eq('id', callId)
 
@@ -135,12 +163,42 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const data = await response.json()
+        const firstLegData = await response.json()
 
-        // Update call record
+        // Now dial second number (toNumber) into the same conference
+        const secondLegTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Dial>
+    <Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true">${conferenceName}</Conference>
+  </Dial>
+</Response>`
+
+        const response2 = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${authString}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                From: callerIdToUse,
+                To: toNumber,
+                Twiml: secondLegTwiml
+            }).toString()
+        })
+
+        if (!response2.ok) {
+            const errorText = await response2.text()
+            logger.error('[Bridge] SignalWire Error (second leg)', { status: response2.status, error: errorText })
+            // First leg is already connected, log but don't fail the whole bridge
+            logger.warn('[Bridge] Second leg failed but first leg connected', { callId })
+        }
+
+        const secondLegData = await response2.json()
+
+        // Update call record with first leg SID
         await supabaseAdmin.from('calls').update({
             status: 'in-progress',
-            call_sid: data.sid,
+            call_sid: firstLegData.sid,
             started_at: new Date().toISOString()
         }).eq('id', callId)
 
@@ -153,16 +211,29 @@ export async function POST(request: NextRequest) {
             action: 'voice:bridge.initiated',
             actor_type: 'human',
             actor_label: userId,
-            after: { from: fromNumber, to: toNumber, call_sid: data.sid }
+            after: {
+                from: fromNumber,
+                to: toNumber,
+                first_leg_sid: firstLegData.sid,
+                second_leg_sid: secondLegData.sid,
+                conference: conferenceName
+            }
         })
 
-        logger.info('[Bridge] Call initiated', { callId, callSid: data.sid })
+        logger.info('[Bridge] Both legs initiated', {
+            callId,
+            firstLegSid: firstLegData.sid,
+            secondLegSid: secondLegData.sid,
+            conference: conferenceName
+        })
 
         return NextResponse.json({
             success: true,
             callId,
-            callSid: data.sid,
-            message: 'Bridge call initiated'
+            firstLegSid: firstLegData.sid,
+            secondLegSid: secondLegData.sid,
+            conference: conferenceName,
+            message: 'Bridge call initiated - both parties will be connected in conference'
         })
 
     } catch (err: any) {
