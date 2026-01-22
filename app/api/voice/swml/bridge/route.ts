@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
                 voiceConfig?.translate_from &&
                 voiceConfig?.translate_to
 
-            if (translationEnabled) {
+            if (translationEnabled && voiceConfig) {
                 fromLang = voiceConfig.translate_from
                 toLang   = voiceConfig.translate_to
             }
@@ -89,31 +89,42 @@ export async function GET(request: NextRequest) {
             })
         }
 
-        // Add live translation if enabled
-        if (translationEnabled) {
+        // --- TEMP: Disable live_translate for testing ---
+        // if (translationEnabled) {
+        //     sections.push({
+        //         live_translate: {
+        //             action: {
+        //                 start: {
+        //                     webhook: webhookUrl,
+        //                     from_lang: fromLang,
+        //                     to_lang: toLang,
+        //                     direction: ["local-caller", "remote-caller"],
+        //                     live_events: true,
+        //                     ai_summary: true
+        //                 }
+        //             }
+        //         }
+        //     })
+        // }
+
+        // Add hold music for first leg (agent)
+        if (leg === 'first') {
             sections.push({
-                live_translate: {
-                    action: {
-                        start: {
-                            webhook: webhookUrl,
-                            from_lang: fromLang,
-                            to_lang: toLang,
-                            direction: ["local-caller", "remote-caller"],
-                            live_events: true,
-                            ai_summary: true
-                        }
-                    }
+                play: {
+                    url: 'https://cdn.signalwire.com/default-music/waiting.wav'
                 }
             })
         }
 
-        // Join the conference (both legs)
+        // Dedicated conference verb for both legs
         sections.push({
             conference: {
                 name: decodeURIComponent(conferenceName),
                 beep: false,
                 start_conference_on_enter: true,
-                end_conference_on_exit: true
+                end_conference_on_exit: true,
+                record: true,
+                recording_status_callback: webhookUrl
             }
         })
 
@@ -124,56 +135,14 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        return NextResponse.json(swml, {
-            headers: { 'Content-Type': 'application/json' }
-        })
-
-    } catch (err: any) {
-        logger.error('[SWML Bridge] Error generating SWML', err)
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        )
-    }
-}
-                live_translate: {
-                    action: {
-                        start: {
-                            webhook: webhookUrl,
-                            from_lang: voiceConfig.translate_from,
-                            to_lang: voiceConfig.translate_to,
-                            direction: ['local-caller', 'remote-caller'],
-                            live_events: true,
-                            ai_summary: true
-                        }
-                    }
-                }
-            })
-        }
-
-        // Connect to conference
-        sections.push({
-            connect: {
-                to: `conference:${conferenceName}`,
-                beep: false,
-                startConferenceOnEnter: true,
-                endConferenceOnExit: true
-            }
-        })
-
-        const swml = {
-            version: '1.0.0',
-            sections: {
-                main: sections
-            }
-        }
-
-        return NextResponse.json(swml, {
+        // Force Content-Type, pretty-print, and no-cache for debugging
+        return new NextResponse(JSON.stringify(swml, null, 2), {
+            status: 200,
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache, no-store'
             }
         })
-
     } catch (err: any) {
         logger.error('[SWML Bridge] Error generating SWML', err)
         return NextResponse.json(

@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
  * 3. When PSTN answers, we bridge audio back to the SIP endpoint
  * 
  * This is necessary because SIP endpoint doesn't have a PSTN dial plan.
- * We use LAML to dial PSTN and connect to the SIP user.
+ * Uses SWML (SignalWire Markup Language) via Url for call control.
  */
 export async function POST(request: NextRequest) {
     try {
@@ -93,63 +93,62 @@ export async function POST(request: NextRequest) {
                 .eq('id', sessionId)
         }
 
+
         logger.info('[WebRTC Dial] Initiating PSTN call', { callId, phoneNumber, sipUsername })
 
-        // Format phone number
+        // Format and validate phone number
         const cleanNumber = phoneNumber.replace(/\D/g, '')
         const formattedNumber = cleanNumber.startsWith('1') ? `+${cleanNumber}` : `+1${cleanNumber}`
+        if (!formattedNumber.match(/^\+\d{10,15}$/)) {
+            logger.error('[WebRTC Dial] Invalid phone number format', { phoneNumber, formattedNumber })
+            return NextResponse.json(
+                { success: false, error: { code: 'INVALID_PHONE', message: 'Invalid phone number format' } },
+                { status: 400 }
+            )
+        }
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
 
-        // LAML to bridge PSTN and SIP endpoint
-        // Structure:
-        // - <Number>: Primary PSTN target
-        // - <Sip>: Browser/WebRTC endpoint
-        // Both are dialed simultaneously; when both answer, audio is bridged
-        // 
-        // Key attributes:
-        // - answerOnBridge="true": Don't bridge audio until both legs answer
-        // - timeout="30": Wait up to 30s for endpoints to answer
-        // - record="record-from-answer": Record call for transcription/translation
-        // - action: Webhook called when dial completes (for status updates)
-        const bridgeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Dial callerId="${callerId}" answerOnBridge="true" timeout="30" record="record-from-answer" recordingStatusCallback="${appUrl}/api/webhooks/signalwire?callId=${callId}" action="${appUrl}/api/webhooks/signalwire?callId=${callId}">
-    <Number>${formattedNumber}</Number>
-    <Sip>sip:${sipUsername}@${sipDomain}</Sip>
-  </Dial>
-</Response>`
+        // SWML endpoint for outbound PSTN dial + SIP bridge
+        const swmlUrl = `${appUrl}/api/voice/swml/dial?callId=${callId}&phoneNumber=${encodeURIComponent(formattedNumber)}&sessionId=${sessionId || ''}`
 
-        // REST API endpoint
         const endpoint = `https://${spaceUrl}/api/laml/2010-04-01/Accounts/${projectId}/Calls.json`
         const authString = Buffer.from(`${projectId}:${apiToken}`).toString('base64')
 
-        // Initiate the call (LAML controls who gets dialed via <Number> and <Sip>)
-        // Note: No 'To' param needed - LAML handles both dial targets
+        const requestBody = {
+            From: callerId,
+            To: formattedNumber,
+            Url: swmlUrl,
+            MachineDetection: 'Enable',
+            MachineDetectionTimeout: '5',
+            AsyncAmd: 'true',
+        }
+
+        logger.info('[WebRTC Dial] Sending outbound request', { requestBody })
+
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Authorization': `Basic ${authString}`,
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({
-                From: callerId,
-                Twiml: bridgeTwiml,
-                // AMD: Detect voicemail vs human (AnsweredBy in webhook)
-                MachineDetection: 'Enable',
-                MachineDetectionTimeout: '5',
-                AsyncAmd: 'true',  // Non-blocking - don't wait for detection
-            }).toString()
+            body: new URLSearchParams(requestBody).toString()
         })
+
 
         if (!response.ok) {
             const errorText = await response.text()
-            logger.error('[WebRTC Dial] SignalWire Error', { status: response.status, error: errorText })
+            let parsedError = {};
+            try { parsedError = JSON.parse(errorText || '{}'); } catch {}
+            if ((parsedError as any).code === '21211') {
+                logger.error('[WebRTC Dial] Missing To parameter', { requestBody });
+            }
+            logger.error('[WebRTC Dial] SignalWire Error', { status: response.status, error: errorText, requestBody })
 
             await supabaseAdmin.from('calls').update({ status: 'failed' }).eq('id', callId)
 
             return NextResponse.json(
-                { success: false, error: { code: 'SIGNALWIRE_ERROR', message: `Dial failed: ${response.status}` } },
+                { success: false, error: { code: 'SIGNALWIRE_ERROR', message: `Dial failed: ${response.status}`, details: parsedError } },
                 { status: 502 }
             )
         }

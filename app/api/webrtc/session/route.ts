@@ -1,9 +1,11 @@
+
 import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +26,9 @@ export async function POST(request: NextRequest) {
     const userId = (session?.user as any)?.id
 
     if (!userId) {
+      logger.error('[webrtc] No userId found in session', { session });
       return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
+        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required', details: { session } } },
         { status: 401 }
       )
     }
@@ -35,13 +38,14 @@ export async function POST(request: NextRequest) {
     const rateLimitCheck = await checkRateLimit(rateLimitKey, 30, 60 * 60 * 1000)
 
     if (!rateLimitCheck.allowed) {
-      logger.warn('WebRTC session rate limit exceeded', { userId })
+      logger.warn('[webrtc] WebRTC session rate limit exceeded', { userId, rateLimitCheck });
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'RATE_LIMIT_EXCEEDED',
-            message: `Too many session requests. Try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.`
+            message: `Too many session requests. Try again in ${Math.ceil(rateLimitCheck.resetIn / 1000)}s.`,
+            details: { rateLimitCheck }
           }
         },
         { status: 429 }
@@ -53,34 +57,35 @@ export async function POST(request: NextRequest) {
       .from('org_members')
       .select('organization_id, role')
       .eq('user_id', userId)
-      .single()
-
+      .single();
     if (memberError || !member) {
+      logger.error('[webrtc] Organization membership not found', { userId, memberError, member });
       return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
+        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found', details: { memberError, member } } },
         { status: 403 }
       )
     }
 
     // RBAC: Owner, Admin, Operator can use WebRTC
     if (!['owner', 'admin', 'operator'].includes(member.role)) {
+      logger.error('[webrtc] Insufficient permissions', { userId, role: member.role });
       return NextResponse.json(
-        { success: false, error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Insufficient permissions' } },
+        { success: false, error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Insufficient permissions', details: { role: member.role } } },
         { status: 403 }
       )
     }
 
     // Check feature flag
-    const { data: featureFlag } = await supabaseAdmin
+    const { data: featureFlag, error: featureFlagError } = await supabaseAdmin
       .from('org_feature_flags')
       .select('enabled')
       .eq('organization_id', member.organization_id)
       .eq('feature', 'voice_operations')
-      .single()
-
-    if (featureFlag?.enabled === false) {
+      .single();
+    if (featureFlagError || featureFlag?.enabled === false) {
+      logger.error('[webrtc] Voice operations feature flag disabled or error', { userId, featureFlag, featureFlagError });
       return NextResponse.json(
-        { success: false, error: { code: 'FEATURE_DISABLED', message: 'Voice operations disabled' } },
+        { success: false, error: { code: 'FEATURE_DISABLED', message: 'Voice operations disabled', details: { featureFlag, featureFlagError } } },
         { status: 403 }
       )
     }
@@ -115,38 +120,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate session ID
-    const sessionId = `webrtc-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
-    // Create session record
+    // Generate secure session token
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+
+    // Create session record (let Supabase auto-generate UUID)
     const { data: sessionRecord, error: insertError } = await supabaseAdmin
       .from('webrtc_sessions')
       .insert({
-        id: sessionId,
         user_id: userId,
+        organization_id: member.organization_id,
+        session_token: sessionToken,
         status: 'initializing',
         created_at: new Date().toISOString()
       })
       .select()
-      .single()
-
+      .single();
     if (insertError) {
-      logger.error('[webrtc] Failed to create session', insertError)
+      logger.error('[webrtc] Failed to create session', { insertError });
       return NextResponse.json(
-        { success: false, error: { code: 'DB_ERROR', message: 'Session creation failed' } },
+        { success: false, error: { code: 'DB_ERROR', message: 'Session creation failed', details: { insertError } } },
         { status: 500 }
       )
     }
+    const sessionId = sessionRecord.id;
+
 
     // Get SIP credentials from environment
     const sipUsername = process.env.SIGNALWIRE_SIP_USERNAME
     const sipDomain = process.env.SIGNALWIRE_SIP_DOMAIN
     const websocketUrl = process.env.SIGNALWIRE_WEBSOCKET_URL
+    const sipPassword = process.env.SIGNALWIRE_SIP_PASSWORD
 
-    if (!sipUsername || !sipDomain || !websocketUrl) {
-      logger.error('[webrtc] SIP credentials not configured')
+    if (!sipUsername || !sipDomain || !websocketUrl || !sipPassword) {
+      logger.error('[webrtc] SIP credentials not configured', { sipUsername, sipDomain, websocketUrl, sipPassword });
       return NextResponse.json(
-        { success: false, error: { code: 'CONFIG_ERROR', message: 'WebRTC not configured' } },
+        { success: false, error: { code: 'CONFIG_ERROR', message: 'WebRTC not configured', details: { sipUsername, sipDomain, websocketUrl, sipPassword } } },
         { status: 500 }
       )
     }
@@ -166,11 +175,14 @@ export async function POST(request: NextRequest) {
     logger.info('[webrtc] SIP session created', { sessionId, userId })
 
     // Return SIP configuration
+
     return NextResponse.json({
       success: true,
       session: {
         id: sessionId,
+        token: sessionToken,
         sip_username: sipUsername,
+        sip_password: sipPassword,
         sip_domain: sipDomain,
         websocket_url: websocketUrl,
         // ICE servers for peer connection
@@ -186,10 +198,10 @@ export async function POST(request: NextRequest) {
       }
     })
 
-  } catch (err) {
-    logger.error('[webrtc] Session creation error', err)
+  } catch (err: any) {
+    logger.error('[webrtc] Session creation error', { error: err, stack: err?.stack });
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal error' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: err?.message || 'Internal error', details: { error: String(err), stack: err?.stack } } },
       { status: 500 }
     )
   }

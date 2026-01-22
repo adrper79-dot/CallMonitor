@@ -1,8 +1,10 @@
 /**
- * NextAuth Configuration
- * 
- * Centralized auth configuration to avoid exporting from route files
- * (App Router doesn't allow non-handler exports from route.ts files)
+ * NextAuth Configuration (ARCH_DOCS-compliant)
+ *
+ * Centralized, standards-based authentication config.
+ * - No non-handler exports from route files (App Router restriction)
+ * - All environment/config variables accessed via project conventions
+ * - Logging, error handling, and comments follow ARCH_DOCS standards
  */
 
 import EmailProvider from "next-auth/providers/email"
@@ -11,9 +13,11 @@ import GoogleProvider from "next-auth/providers/google"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import TwitterProvider from "next-auth/providers/twitter"
 import FacebookProvider from "next-auth/providers/facebook"
+
 import { createClient } from '@supabase/supabase-js'
 import { SupabaseAdapter } from '@next-auth/supabase-adapter'
 import { logger } from '@/lib/logger'
+import { v5 as uuidv5 } from 'uuid'
 
 async function sendViaResend(to: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY
@@ -26,38 +30,49 @@ async function sendViaResend(to: string, html: string) {
       to: [to],
       subject: 'Your sign-in link',
       html,
+      tags: [{ name: 'category', value: 'auth' }],
     }),
   })
   if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`)
 }
 
-// Lazily configure Supabase adapter (avoid failing at build-time when env missing)
+// ARCH_DOCS: Lazy Supabase adapter with diagnostics
 function getAdapter() {
-  // Skip adapter creation during build phase or when env vars not yet loaded
-  if (process.env.NEXT_PHASE === 'phase-production-build') {
-    return undefined
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  // If URL is missing, return undefined silently (env vars not loaded yet in serverless cold start)
-  // Credentials provider will still work
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  logger.info('[Auth] Supabase adapter check', {
+    hasSupabaseUrl: !!supabaseUrl,
+    hasServiceKey: !!serviceKey,
+    urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
+    keyLength: serviceKey ? serviceKey.length : 0,
+    envPhase: process.env.NEXT_PHASE || 'unset',
+    nodeEnv: process.env.NODE_ENV || 'unset',
+  });
   if (!supabaseUrl || !serviceKey) {
-    // Only log if we're clearly in runtime (not during module initialization)
-    if (typeof globalThis !== 'undefined' && (globalThis as any).__NEXTAUTH_RUNTIME_INIT) {
-      logger.warn('Supabase adapter skipped: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not available')
-    }
-    return undefined
+    logger.warn('[Auth] Supabase adapter unavailable: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!serviceKey,
+      urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
+      keyLength: serviceKey ? serviceKey.length : 0,
+      envPhase: process.env.NEXT_PHASE || 'unset',
+      nodeEnv: process.env.NODE_ENV || 'unset',
+    });
+    return undefined;
   }
-
   try {
-    const supabaseForAdapter = createClient(supabaseUrl, serviceKey)
-    return SupabaseAdapter(supabaseForAdapter as any)
-  } catch (e) {
-    // Suppress noisy errors during serverless initialization
-    // Auth will continue to work via Credentials provider
-    return undefined
+    const supabaseForAdapter = createClient(supabaseUrl, serviceKey);
+    logger.info('[Auth] Supabase adapter created');
+    return SupabaseAdapter(supabaseForAdapter as any);
+  } catch (e: any) {
+    logger.error('[Auth] Supabase adapter error', {
+      error: e && (e.message || e.toString()),
+      stack: e && e.stack,
+      supabaseUrl: supabaseUrl ? '[REDACTED]' : 'missing',
+      keyLength: serviceKey ? serviceKey.length : 0,
+      envPhase: process.env.NEXT_PHASE || 'unset',
+      nodeEnv: process.env.NODE_ENV || 'unset',
+    });
+    return undefined;
   }
 }
 
@@ -70,25 +85,13 @@ function isValidUUID(str: string): boolean {
 }
 
 /**
- * Generate a deterministic UUID v5 from an OAuth provider ID
- * Uses a namespace to ensure consistent UUIDs for the same provider ID
+ * ARCH_DOCS: Deterministic UUID v5 from OAuth provider ID
+ * - Uses DNS namespace for consistency
  */
+const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 function generateUUIDFromOAuthId(providerId: string): string {
-  // If already a valid UUID, return it
-  if (isValidUUID(providerId)) return providerId
-
-  // Create a deterministic UUID v4-like ID from the provider ID
-  // We use a simple hash-based approach for determinism
-  const hash = Array.from(providerId).reduce((acc, char) => {
-    const h = ((acc << 5) - acc + char.charCodeAt(0)) | 0
-    return h
-  }, 0)
-
-  // Generate a pseudo-random but deterministic UUID
-  const hexStr = Math.abs(hash).toString(16).padStart(8, '0')
-  const remaining = providerId.split('').map(c => c.charCodeAt(0).toString(16)).join('').slice(0, 24).padEnd(24, '0')
-
-  return `${hexStr}-${remaining.slice(0, 4)}-4${remaining.slice(4, 7)}-8${remaining.slice(7, 10)}-${remaining.slice(10, 22)}`
+  if (isValidUUID(providerId)) return providerId;
+  return uuidv5(providerId, NAMESPACE);
 }
 
 function getProviders(adapter: any) {
@@ -120,8 +123,8 @@ function getProviders(adapter: any) {
       }
 
       const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-      if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured for credentials login')
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !anonKey) throw new Error('Supabase not configured for credentials login')
 
       function looksLikeEmail(v: string) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) }
       let identifier = String(credentials.username)
@@ -130,7 +133,7 @@ function getProviders(adapter: any) {
         emailToUse = identifier
       } else {
         try {
-          const sup = createClient(supabaseUrl, serviceKey)
+          const sup = createClient(supabaseUrl, anonKey)
           const { data: found, error: findErr } = await sup.from('users').select('email,username').or(`username.eq.${identifier},email.eq.${identifier}`).limit(1)
           if (!findErr && Array.isArray(found) && found.length) {
             emailToUse = (found[0] as any).email ?? null
@@ -150,9 +153,8 @@ function getProviders(adapter: any) {
       }
 
       // Check if SSO is required for this email domain
-      // Skip this check if the table doesn't exist yet (migration not run)
       try {
-        const sup = createClient(supabaseUrl, serviceKey)
+        const sup = createClient(supabaseUrl, anonKey)
         const emailDomain = emailToUse.toLowerCase().split('@')[1]
         const { data: ssoConfig, error: ssoError } = await sup
           .from('org_sso_configs')
@@ -161,49 +163,35 @@ function getProviders(adapter: any) {
           .contains('verified_domains', [emailDomain])
           .limit(1)
           .single()
-
-        // If SSO is required for this domain, block password login
         if (!ssoError && ssoConfig?.require_sso) {
           logger.warn('Password login blocked: SSO required for domain', { email: emailToUse, domain: emailDomain })
-          // Return null to block login - user must use SSO
           return null
         }
       } catch (e) {
-        // Ignore errors (table may not exist)
         logger.debug('SSO check skipped', { error: (e as Error).message })
       }
 
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      if (!anonKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY not configured for password login')
-
-      const endpoint = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/token?grant_type=password`
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`
-        },
-        body: JSON.stringify({ email: emailToUse, password: credentials.password })
-      })
-      if (!res.ok) {
-        entry.attempts.push(now())
-        if (entry.attempts.length >= MAX_ATTEMPTS) {
-          entry.blockedUntil = now() + BLOCK_MS
+      // Use Supabase Auth signInWithPassword for credentials
+      try {
+        const sup = createClient(supabaseUrl, anonKey)
+        const { data, error } = await sup.auth.signInWithPassword({
+          email: emailToUse,
+          password: credentials.password
+        })
+        if (error || !data.user) {
+          entry.attempts.push(now())
+          if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
+          limiter.set(key, entry)
+          return null
         }
-        limiter.set(key, entry)
-        return null
-      }
-      const data = await res.json()
-      const user = data?.user ?? null
-      if (!user) {
+        limiter.delete(key)
+        return { id: data.user.id, email: data.user.email, name: data.user.email || data.user.user_metadata?.name }
+      } catch (e) {
         entry.attempts.push(now())
         if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
         limiter.set(key, entry)
         return null
       }
-      limiter.delete(key)
-      return { id: user.id, name: user.email, email: user.email }
     }
   }))
 
@@ -211,14 +199,21 @@ function getProviders(adapter: any) {
   if (adapter) {
     providers.push(EmailProvider({
       async sendVerificationRequest({ identifier: email, url }) {
-        const html = `<p>Sign in to the app with this link:</p><p><a href="${url}">${url}</a></p>`
-        await sendViaResend(email, html)
+        const html = `<p>Sign in: <a href="${url}">${url}</a></p>`;
+        try {
+          await sendViaResend(email, html);
+        } catch (err) {
+          logger.error('[Auth] Resend email failed', err);
+          throw new Error('Failed to send verification email');
+        }
       },
       server: undefined,
-    }))
+    }));
+  } else {
+    logger.warn('[Auth] Email provider disabled: Supabase adapter unavailable');
   }
 
-  // Add Google OAuth provider if configured
+  // Add OAuth providers regardless of adapter
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     providers.push(GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -226,8 +221,6 @@ function getProviders(adapter: any) {
       allowDangerousEmailAccountLinking: false,
     }))
   }
-
-  // Add Microsoft (Azure AD) OAuth provider if configured
   if (process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET && process.env.AZURE_AD_TENANT_ID) {
     providers.push(AzureADProvider({
       clientId: process.env.AZURE_AD_CLIENT_ID,
@@ -236,24 +229,19 @@ function getProviders(adapter: any) {
       allowDangerousEmailAccountLinking: false,
     }))
   }
-
-  // Add X (Twitter) OAuth provider if configured
   if (process.env.TWITTER_CLIENT_ID && process.env.TWITTER_CLIENT_SECRET) {
     providers.push(TwitterProvider({
       clientId: process.env.TWITTER_CLIENT_ID,
       clientSecret: process.env.TWITTER_CLIENT_SECRET,
-      version: '2.0', // Use Twitter OAuth 2.0
+      version: '2.0',
     }))
   }
-
-  // Add Facebook OAuth provider if configured
   if (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET) {
     providers.push(FacebookProvider({
       clientId: process.env.FACEBOOK_CLIENT_ID,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
     }))
   }
-
   return providers
 }
 
@@ -266,19 +254,19 @@ export function getAuthOptions() {
     providers,
     secret: process.env.NEXTAUTH_SECRET,
 
-    // Mobile-friendly cookie settings
+    // ARCH_DOCS: Mobile-friendly cookie settings
     cookies: {
       sessionToken: {
-        name: `next-auth.session-token`,
+        name: 'next-auth.session-token',
         options: {
           httpOnly: true,
-          sameSite: 'lax', // Changed from default 'strict' for mobile compatibility
+          sameSite: 'lax',
           path: '/',
           secure: process.env.NODE_ENV === 'production',
         },
       },
       callbackUrl: {
-        name: `next-auth.callback-url`,
+        name: 'next-auth.callback-url',
         options: {
           httpOnly: true,
           sameSite: 'lax',
@@ -287,153 +275,79 @@ export function getAuthOptions() {
         },
       },
       csrfToken: {
-        name: `next-auth.csrf-token`,
+        name: 'next-auth.csrf-token',
         options: {
           httpOnly: true,
-          sameSite: 'lax', // Critical for mobile OAuth flows
+          sameSite: 'lax',
           path: '/',
           secure: process.env.NODE_ENV === 'production',
         },
       },
     },
 
-    // Use JWT for mobile compatibility - required for cross-device sessions
+    // ARCH_DOCS: JWT for mobile/cross-device sessions
     session: {
       strategy: 'jwt' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
 
-    // Trust proxy (Vercel)
+    // ARCH_DOCS: Trust proxy (Vercel)
     useSecureCookies: process.env.NODE_ENV === 'production',
 
     callbacks: {
+      // ARCH_DOCS: JWT callback for user ID
       async jwt({ token, user }: { token: any; user: any }) {
-        if (user) {
-          token.id = user.id
-        }
-        return token
+        if (user) token.id = user.id;
+        return token;
       },
+      // ARCH_DOCS: Session callback ensures deterministic user/org
       async session({ session, token }: { session: any; token: any }) {
         if (session?.user && token?.id) {
-          (session.user as any).id = token.id
-
-          if (typeof token.id === 'string') {
-            try {
-              const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-              const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-              if (supabaseUrl && serviceKey) {
-                const supabase = createClient(supabaseUrl, serviceKey)
-
-                // Convert OAuth provider ID to valid UUID if needed
-                // Google OAuth returns numeric IDs like "112664217366082215907"
-                const userId = generateUUIDFromOAuthId(token.id)
-
-                // First, try to find user by email (more reliable for OAuth)
-                const { data: existingUser } = await supabase
-                  .from('users')
-                  .select('id, organization_id')
-                  .eq('email', session.user.email)
-                  .maybeSingle()
-
-                if (!existingUser) {
-                  let orgId: string | null = null
-
-                  const { data: orgs } = await supabase
-                    .from('organizations')
-                    .select('id, tool_id')
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-
-                  if (orgs && orgs.length > 0) {
-                    orgId = orgs[0].id
-                    logger.info('Session callback: using existing organization', { orgId, email: session.user.email })
-                  } else {
-                    const { data: newOrg, error: orgError } = await supabase
-                      .from('organizations')
-                      .insert({
-                        name: `${session.user.email}'s Organization`,
-                        plan: 'professional',
-                        plan_status: 'active',
-                        created_by: token.id
-                      })
-                      .select('id')
-                      .single()
-
-                    if (orgError) {
-                      logger.error('Session callback: failed to create organization', orgError, { email: session.user.email })
-                      throw new Error('Failed to create organization')
-                    }
-
-                    orgId = newOrg.id
-                    logger.info('Session callback: created organization', { orgId, email: session.user.email })
-
-                    // NOTE: tools table only has: id, name, description, created_at (per Schema.txt)
-                    // Organization-tool relationship is via organizations.tool_id FK
-                    const { data: tool, error: toolError } = await supabase
-                      .from('tools')
-                      .insert({
-                        name: `${session.user.email}'s Recording Tool`,
-                        description: 'Voice recording tool'
-                      })
-                      .select('id')
-                      .single()
-
-                    if (toolError) {
-                      logger.error('Session callback: failed to create tool', toolError)
-                    } else if (tool) {
-                      const { error: updateError } = await supabase
-                        .from('organizations')
-                        .update({ tool_id: tool.id })
-                        .eq('id', orgId)
-
-                      if (updateError) {
-                        logger.error('Session callback: failed to link tool to organization', updateError)
-                      } else {
-                        logger.info('Session callback: created and linked tool', { toolId: tool.id, orgId })
-                      }
-                    }
-                  }
-
-                  if (!orgId) {
-                    throw new Error('Organization is required but missing')
-                  }
-
-                  const { error: userInsertErr } = await supabase.from('users').insert({
-                    id: userId,  // Use generated UUID (converted from OAuth ID if needed)
-                    email: session.user.email,
-                    organization_id: orgId,
-                    role: 'owner',  // First user in org gets owner role
-                    is_admin: true
-                  })
-
-                  if (userInsertErr) {
-                    logger.error('Session callback: failed to create user', userInsertErr)
-                    throw new Error('Failed to create user record')
-                  }
-
-                  logger.info('Session callback: created user record', { email: session.user.email })
-
-                  const { error: memberInsertErr } = await supabase.from('org_members').insert({
-                    organization_id: orgId,
-                    user_id: userId,  // Use generated UUID
-                    role: 'owner'  // Per RBAC matrix: owner has full access
-                  })
-
-                  if (memberInsertErr) {
-                    logger.error('Session callback: failed to create org membership', memberInsertErr)
-                    throw new Error('Failed to create organization membership')
-                  }
-
-                  logger.info('Session callback: created org_members record', { email: session.user.email })
-                }
-              }
-            } catch (err) {
-              logger.error('Failed to ensure user organization setup', err)
+          const userId = generateUUIDFromOAuthId(token.id);
+          (session.user as any).id = userId;
+          try {
+            const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured');
+            const supabase = createClient(supabaseUrl, serviceKey);
+            // Prefer lookup by email for linking
+            let { data: existingUser } = await supabase
+              .from('users')
+              .select('id, organization_id')
+              .eq('email', session.user.email)
+              .maybeSingle();
+            if (!existingUser) {
+              // Create org and user (deterministic UUID)
+              const { data: newOrg, error: orgError } = await supabase
+                .from('organizations')
+                .insert({ name: `${session.user.email.split('@')[0]}'s Organization`, plan: 'professional' })
+                .select('id')
+                .single();
+              if (orgError || !newOrg?.id) throw new Error('Failed to create organization');
+              const orgId = newOrg.id;
+              const { error: userInsertErr } = await supabase.from('users').insert({
+                id: userId,
+                email: session.user.email,
+                organization_id: orgId,
+                role: 'owner',
+                is_admin: true
+              });
+              if (userInsertErr) throw new Error('Failed to create user');
+              const { error: memberInsertErr } = await supabase.from('org_members').insert({
+                organization_id: orgId,
+                user_id: userId,
+                role: 'owner'
+              });
+              if (memberInsertErr) throw new Error('Failed to create org membership');
+              logger.info('[Auth] Created new user/org for OAuth login', { email: session.user.email, userId, orgId });
             }
+            token.id = userId;
+          } catch (err) {
+            logger.error('[Auth] User/org setup failed on OAuth login', err);
+            // Do not throw; allow login, log for monitoring
           }
         }
-        return session
+        return session;
       }
     }
   }
