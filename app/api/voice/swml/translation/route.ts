@@ -25,11 +25,15 @@ export async function POST(req: NextRequest) {
       logger.warn('SWML translation endpoint missing params', {
         callId, translateFrom, translateTo, organizationId
       })
-      // Return basic SWML hangup
+      // Return basic SWML hangup with best practices
       return NextResponse.json({
         version: '1.0.0',
         sections: {
-          main: [{ answer: {} }, { say: 'Configuration error.' }, { hangup: {} }]
+          main: [
+            { answer: {} },
+            { say: { text: 'Configuration error.' } },
+            { hangup: {} }
+          ]
         }
       })
     }
@@ -80,8 +84,8 @@ export async function POST(req: NextRequest) {
         connect: {
           to: `conference:${conference}`,
           beep: false,
-          startConferenceOnEnter: true,
-          endConferenceOnExit: true
+          start_conference_on_enter: true,
+          end_conference_on_exit: true
         }
       })
     } else {
@@ -111,7 +115,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       version: '1.0.0',
       sections: {
-        main: [{ say: 'System error.' }, { hangup: {} }]
+        main: [
+          { say: { text: 'System error.' } },
+          { hangup: {} }
+        ]
       }
     }, { status: 500 })
   }

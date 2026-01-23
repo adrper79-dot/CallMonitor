@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const FALLBACK_SWML = {
   version: '1.0.0',
-  sections: { main: [{ answer: {} }, { hangup: {} }] }
+  sections: { main: [ { answer: {} }, { hangup: {} } ] }
 }
 
 /**

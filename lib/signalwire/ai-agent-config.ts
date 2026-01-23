@@ -1,13 +1,10 @@
 /**
  * SignalWire AI Agent Configuration Builder
- * 
- * Builds SWML (SignalWire Markup Language) configuration for AI Agents
- * to enable live translation during calls.
- * 
- * Architecture Note:
- * - AI Agent provides LIVE translation (1-3 second latency)
- * - AssemblyAI still provides CANONICAL transcript post-call
- * - AI Agent output is ephemeral and non-authoritative
+// ARCH_DOCS COMPLIANCE: LAML redirect builder is deprecated. Use SWML endpoints directly.
+// If called, throw migration error.
+export function buildLaMLRedirectToSWML(swmlEndpointUrl: string): never {
+  throw new Error('LAML redirect builder is deprecated. Use SWML endpoints directly. See ARCH_DOCS.')
+}
  * 
  * AI Role Compliance (WORD_IS_BOND_AI_ROLE_IMPLEMENTATION_PLAN.md):
  * - Translation is a NEUTRAL SERVICE (accessibility support)

@@ -91,191 +91,25 @@ async function generateLaML(callSid: string | undefined, toNumber: string | unde
   //
   // NOTE: Surveys are NOT supported in this flow because there's no way to
   // keep the callee on the line after the caller hangs up. For surveys:
-  // - Use BRIDGE mode which connects both parties to a conference
-  // - Or use inbound IVR where caller calls in
-  //
-  // Secret Shopper mode IS supported - the system speaks a script TO the callee
-  // ============================================================================
 
-  // PHASE 1: RECORDING DISCLOSURE (AI Role Compliance)
-  if (voiceConfig?.record === true) {
-    // Recording disclosure - callee hears this when they answer
-    elements.push('<Say voice="alice">This call may be recorded for quality assurance and compliance purposes. By continuing, you consent to recording.</Say>')
-    elements.push('<Pause length="1"/>')
+  // ARCH_DOCS COMPLIANCE: This endpoint is deprecated. Please use /api/voice/swml/outbound for all outbound call logic.
+  // If called, respond with migration notice and SWML fallback.
+  import { NextResponse } from 'next/server'
+
+  export const dynamic = 'force-dynamic'
+
+  export async function POST() {
+    return NextResponse.json({
+      error: 'This endpoint is deprecated. Use /api/voice/swml/outbound for outbound calls.',
+      migration: 'All outbound call logic must use SWML. See ARCH_DOCS for standards.'
+    }, { status: 410 })
   }
 
-  // Enable recording via LaML <Record> verb if record=true in voice_configs
-  // This is a backup to the REST API Record=true parameter
-  if (voiceConfig?.record === true) {
-    logger.info('LaML outbound: enabling recording via LaML', { callId, organizationId })
-    // Record the entire call - maxLength 3600 seconds (1 hour), send callback when done
-    elements.push(`<Record maxLength="3600" recordingStatusCallback="${escapeXml(recordingCallbackUrl)}" recordingStatusCallbackEvent="completed" playBeep="false" trim="trim-silence"/>`)
+  export async function GET() {
+    return NextResponse.json({
+      ok: false,
+      route: '/api/voice/laml/outbound',
+      migration: 'This endpoint is deprecated. Use /api/voice/swml/outbound.'
+    }, { status: 410 })
   }
-
   // Secret Shopper script - System speaks TO the callee
-  if (voiceConfig?.synthetic_caller) {
-    const script = 'Hello, I\'m calling to inquire about your services. Do you have any availability this week?'
-    const scriptLines = script.split(/\n|\|/).filter(line => line.trim())
-
-    for (let i = 0; i < scriptLines.length; i++) {
-      const line = scriptLines[i].trim()
-      if (line) {
-        elements.push(`<Say voice="alice">${escapeXml(line)}</Say>`)
-        if (i < scriptLines.length - 1) {
-          elements.push('<Pause length="2"/>')
-        }
-      }
-    }
-    elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
-    elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
-    // For secret shopper, we can add survey since it's automated end-to-end
-    if (voiceConfig?.survey) {
-      appendSurveyToLaML(elements, voiceConfig, callId, organizationId)
-    }
-    elements.push('<Hangup/>')
-  } else if (voiceConfig?.survey && !voiceConfig?.synthetic_caller) {
-    // Survey enabled but NOT secret shopper - log warning
-    // Surveys don't work for regular outbound calls because the callee
-    // doesn't stay on the line after the caller hangs up
-    logger.warn('LaML outbound: Survey enabled but surveys only work with secret_shopper or bridge mode', {
-      callId,
-      organizationId,
-      hint: 'Enable synthetic_caller for automated surveys, or use bridge mode'
-    })
-    // Fall through to normal pause behavior
-  }
-
-  // For non-secret-shopper calls, just pause to allow conversation
-  if (!voiceConfig?.synthetic_caller) {
-    elements.push('<Pause length="3600"/>')
-    elements.push('<Hangup/>')
-  }
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-${elements.map(el => `  ${el}`).join('\n')}
-</Response>`
-}
-
-function resolveSurveyPrompts(voiceConfig: any): { prompts: string[]; locale: string } {
-  const promptLocale = voiceConfig?.translate_to || 'en'
-  const localized = voiceConfig?.survey_prompts_locales?.[promptLocale]
-  if (Array.isArray(localized) && localized.length > 0) {
-    return { prompts: localized, locale: promptLocale }
-  }
-
-  const defaultPrompts = Array.isArray(voiceConfig?.survey_prompts) ? voiceConfig.survey_prompts : []
-  return { prompts: defaultPrompts, locale: promptLocale }
-}
-
-function appendSurveyToLaML(elements: string[], voiceConfig: any, callId: string | null | undefined, organizationId: string | null) {
-  if (!voiceConfig?.survey) return
-
-  const { prompts: surveyPrompts, locale: promptLocale } = resolveSurveyPrompts(voiceConfig)
-  const resolvedPrompts = surveyPrompts.length > 0
-    ? surveyPrompts
-    : ['On a scale of 1 to 5, how satisfied were you with this interaction?']
-
-  const totalQuestions = resolvedPrompts.length
-  logger.info('LaML outbound: adding survey to call', {
-    callId,
-    organizationId,
-    totalQuestions,
-    promptLocale
-  })
-
-  elements.push('<Pause length="1"/>')
-  elements.push(`<Say voice="alice">Before you go, I have ${totalQuestions > 1 ? totalQuestions + ' quick questions' : 'a quick question'} for you.</Say>`)
-  elements.push('<Pause length="1"/>')
-
-  const surveyBaseUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/survey`
-  const callParam = callId ? `callId=${encodeURIComponent(callId)}` : ''
-  const orgParam = organizationId ? `orgId=${encodeURIComponent(organizationId)}` : ''
-
-  for (let i = 0; i < resolvedPrompts.length; i++) {
-    const prompt = resolvedPrompts[i]
-    const questionIdx = i + 1
-
-    if (totalQuestions > 1) {
-      elements.push(`<Say voice="alice">Question ${questionIdx} of ${totalQuestions}:</Say>`)
-      elements.push('<Pause length="0.5"/>')
-    }
-
-    elements.push(`<Say voice="alice">${escapeXml(prompt)}</Say>`)
-
-    const actionParams = [callParam, orgParam, `q=${questionIdx}`, `total=${totalQuestions}`].filter(Boolean).join('&')
-    const actionUrl = surveyBaseUrl + (actionParams ? `?${actionParams}` : '')
-
-    elements.push(`<Gather numDigits="1" action="${escapeXml(actionUrl)}" method="POST" timeout="10" finishOnKey="#">`)
-    elements.push('  <Say voice="alice">Please press a number from 1 to 5.</Say>')
-    elements.push('</Gather>')
-
-    if (i < resolvedPrompts.length - 1) {
-      elements.push('<Say voice="alice">Let me move to the next question.</Say>')
-      elements.push('<Pause length="0.5"/>')
-    }
-  }
-
-  elements.push('<Say voice="alice">Thank you for completing our survey. Your feedback is valuable to us.</Say>')
-}
-
-async function generateBridgeLaML(conferenceName: string, callId: string, leg?: number): Promise<string> {
-  const { data: callRows } = await supabaseAdmin
-    .from('calls')
-    .select('organization_id')
-    .eq('id', callId)
-    .limit(1)
-
-  const organizationId = callRows?.[0]?.organization_id
-  let voiceConfig: any = null
-
-  if (organizationId) {
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('record, survey, survey_prompts, survey_prompts_locales, translate_to')
-      .eq('organization_id', organizationId)
-      .limit(1)
-
-    voiceConfig = vcRows?.[0]
-  }
-
-  const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire?callId=${callId}`
-  const elements: string[] = []
-
-  // Dial/Conference Block
-  // Dial/Conference Block
-  // CRITICAL FIX: startConferenceOnEnter="true" ensures participants connect immediately
-  // without waiting for a moderator. endConferenceOnExit="true" ensures call ends when one party leaves.
-  elements.push('<Dial>')
-  const confAttrs = 'startConferenceOnEnter="true" endConferenceOnExit="true" beep="false" maxParticipants="2"'
-
-  if (voiceConfig?.record === true) {
-    elements.push(`  <Conference ${confAttrs} record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">${escapeXml(conferenceName)}</Conference>`)
-  } else {
-    elements.push(`  <Conference ${confAttrs}>${escapeXml(conferenceName)}</Conference>`)
-  }
-  elements.push('</Dial>')
-
-  // Survey Logic - Executed when the Dial ends (e.g. Agent hangs up)
-  if (voiceConfig?.survey) {
-    appendSurveyToLaML(elements, voiceConfig, callId, organizationId || null)
-  }
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-${elements.map(el => `  ${el}`).join('\n')}
-</Response>`
-}
-
-function escapeXml(text: string): string {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
-
-export async function GET() {
-  return NextResponse.json({ ok: true, route: '/api/voice/laml/outbound', method: 'Use POST for LaML generation' })
-}

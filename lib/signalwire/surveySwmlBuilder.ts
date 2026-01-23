@@ -188,21 +188,13 @@ export function buildSurveySWML(config: SurveyConfig): SurveySWMLConfig {
  */
 export function buildFallbackSWML(message?: string): SurveySWMLConfig {
   const mainSection: Array<any> = [{ answer: {} }]
-  
+
   if (message) {
-    mainSection.push({
-      ai: {
-        prompt: { text: `Say: "${message}" then hang up.` },
-        voice: 'rime.spore',
-        model: 'gpt-4o-mini',
-        temperature: 0.1,
-        max_tokens: 50
-      }
-    })
+    mainSection.push({ say: { text: message } })
   }
-  
+
   mainSection.push({ hangup: {} })
-  
+
   return {
     version: '1.0.0',
     sections: { main: mainSection }
