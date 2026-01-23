@@ -1,11 +1,32 @@
 /**
+ * Create a SignalWire LaML / SWML XML response
+ * Sets correct Content-Type and status
+ */
+import { NextResponse } from 'next/server'
+export function swmlResponse(
+  xml: string,
+  status = 200,
+  headers: Record<string, string> = {}
+): NextResponse {
+  return new NextResponse(xml, {
+    status,
+    headers: {
+      'Content-Type': 'application/xml',
+      ...headers,
+    },
+  });
+}
+
+// Optional alias for legacy imports
+export const xmlResponse = swmlResponse;
+/**
  * Shared API Utilities
  * 
  * Common patterns extracted to reduce duplication across API routes.
  * Use these instead of copy-pasting the same code.
  */
 
-import { NextResponse } from 'next/server'
+// ...existing code...
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
