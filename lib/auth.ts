@@ -288,8 +288,8 @@ export function getAuthOptions() {
     },
 
     // ARCH_DOCS: Database strategy for SupabaseAdapter compatibility
-    session: {
-      strategy: 'database' as const,
+        session: {
+      strategy: adapter ? 'database' as const : 'jwt' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
 
@@ -386,7 +386,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
         const fallback = {
       providers: [],
       secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
-      session: { strategy: 'database' as const, maxAge: 30 * 24 * 60 * 60 },
+      session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
       cookies: {
         sessionToken: { name: 'next-auth.session-token', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
         callbackUrl: { name: 'next-auth.callback-url', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
