@@ -17,41 +17,51 @@ import { logger } from '@/lib/logger'
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Parse form-encoded or JSON request body
- * Handles SignalWire webhooks which may send either format
+ * Parse form-encoded or JSON request body (SignalWire webhooks may send either format)
+ * Consumes body only once. Supports multi-value form keys.
  */
-export async function parseRequestBody(req: Request): Promise<Record<string, any>> {
-  const ct = String(req.headers.get('content-type') || '')
-  
+export async function parseRequestBody(req: Request): Promise<Record<string, string | string[] | any>> {
+  const ct = String(req.headers.get('content-type') || '').toLowerCase()
   try {
-    if (ct.includes('application/json')) {
+    if (ct.includes('application/json') || ct.includes('text/json')) {
       return await req.json()
-    } else {
-      const text = await req.text()
-      return parseFormEncoded(text)
     }
-  } catch {
-    // Fallback: try JSON anyway
+    // Assume form-encoded (SignalWire style) or fallback
+    const text = await req.text()
     try {
-      return await req.json()
+      return parseFormEncoded(text)
     } catch {
-      return {}
+      // Last-ditch: maybe it's JSON despite content-type
+      try {
+        return JSON.parse(text)
+      } catch {
+        return {}
+      }
     }
+  } catch (err) {
+    logger.warn('Failed to parse request body', { error: (err as Error).message })
+    return {}
   }
 }
 
 /**
- * Parse URL-encoded form data to object
+ * Parse URL-encoded form data to object, supporting multi-value keys (SignalWire webhooks)
  */
-export function parseFormEncoded(text: string): Record<string, string> {
-  try {
-    const params = new URLSearchParams(text)
-    const obj: Record<string, string> = {}
-    params.forEach((v, k) => { obj[k] = v })
-    return obj
-  } catch {
-    return {}
-  }
+export function parseFormEncoded(text: string): Record<string, string | string[]> {
+  const params = new URLSearchParams(text)
+  const obj: Record<string, string | string[]> = {}
+  params.forEach((value, key) => {
+    if (key in obj) {
+      if (Array.isArray(obj[key])) {
+        (obj[key] as string[]).push(value)
+      } else {
+        obj[key] = [obj[key] as string, value]
+      }
+    } else {
+      obj[key] = value
+    }
+  })
+  return obj
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +83,7 @@ export function errorResponse(
     code, 
     message, 
     user_message: userMessage, 
-    severity: status >= 500 ? 'CRITICAL' : 'HIGH' 
+    severity: status >= 500 ? 'CRITICAL' : status >= 400 ? 'HIGH' : 'MEDIUM' 
   })
   
   // Only log server errors (5xx) and unexpected client errors
@@ -130,31 +140,19 @@ export async function getAuthUser(): Promise<{ id: string; email?: string } | nu
 }
 
 /**
- * Get user's organization ID
+ * Get user's organization ID and role in a single query
  * Per ARCH_DOCS: org_members is the source of truth for user-org relationships
  */
-export async function getUserOrg(userId: string): Promise<string | null> {
+export async function getUserOrgAndRole(userId: string): Promise<{ orgId: string | null; role: string | null }> {
   const { data } = await supabaseAdmin
     .from('org_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', userId)
     .limit(1)
-  
-  return data?.[0]?.organization_id || null
-}
-
-/**
- * Get user's role in organization
- */
-export async function getUserRole(userId: string, orgId: string): Promise<string | null> {
-  const { data } = await supabaseAdmin
-    .from('org_members')
-    .select('role')
-    .eq('organization_id', orgId)
-    .eq('user_id', userId)
-    .limit(1)
-  
-  return data?.[0]?.role || null
+  return {
+    orgId: data?.[0]?.organization_id || null,
+    role: data?.[0]?.role || null
+  }
 }
 
 /**
@@ -177,19 +175,17 @@ export interface AuthContext {
 }
 
 /**
- * Get full auth context (user + org + role)
+ * Get full auth context (user + org + role) in a single query
  * Returns error response if any check fails
  */
 export async function requireAuth(): Promise<AuthContext | NextResponse> {
   const user = await getAuthUser()
-  if (!user) return Errors.authRequired()
-  
-  const orgId = await getUserOrg(user.id)
+  if (!user?.id) return Errors.authRequired()
+
+  const { orgId, role } = await getUserOrgAndRole(user.id)
   if (!orgId) return Errors.orgNotFound()
-  
-  const role = await getUserRole(user.id, orgId)
   if (!role) return Errors.unauthorized('Not a member of this organization')
-  
+
   return { userId: user.id, orgId, role }
 }
 
@@ -199,11 +195,11 @@ export async function requireAuth(): Promise<AuthContext | NextResponse> {
 export async function requireRole(roles: string | string[]): Promise<AuthContext | NextResponse> {
   const ctx = await requireAuth()
   if (ctx instanceof NextResponse) return ctx
-  
+
   if (!hasRole(ctx.role, roles)) {
     return Errors.unauthorized(`Requires role: ${Array.isArray(roles) ? roles.join(' or ') : roles}`)
   }
-  
+
   return ctx
 }
 
@@ -215,22 +211,6 @@ export async function requireRole(roles: string | string[]): Promise<AuthContext
  * Success JSON response
  */
 export function success<T>(data: T, status = 200): NextResponse {
-  return NextResponse.json({ success: true, ...data }, { status })
+  return NextResponse.json({ success: true, data }, { status })
 }
 
-/**
- * SWML/XML response for SignalWire
- */
-export function swmlResponse(swml: object): NextResponse {
-  return NextResponse.json(swml, { 
-    status: 200, 
-    headers: { 'Content-Type': 'application/json' } 
-  })
-}
-
-export function xmlResponse(xml: string): NextResponse {
-  return new NextResponse(xml, { 
-    status: 200, 
-    headers: { 'Content-Type': 'application/xml' } 
-  })
-}

@@ -211,6 +211,8 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         if (callerIdMask && (isVerified || callerIdMask.startsWith('+1'))) {
             fromNumber = callerIdMask
             logger.info('placeSignalWireCall: using caller ID mask', {
+                fromNumber,
+                original: swNumber,
                 masked: true,
                 verified: isVerified
             })
@@ -222,7 +224,9 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
 
     urlParams.append('From', fromNumber)
     urlParams.append('To', toNumber)
-    // ARCH_DOCS COMPLIANCE: Route all calls to SWML endpoints only. LAML endpoints are deprecated.
+
+
+    // Early return if callId is missing
     if (!callId) {
         const e = new AppError({
             code: 'CALL_ID_REQUIRED',
@@ -234,6 +238,22 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         return { success: false, error: e.toJSON() }
     }
 
+    // Strictly validate translation params if live translation is requested
+    if (useLiveTranslation) {
+        if (!translateFrom || !translateTo) {
+            const e = new AppError({
+                code: 'TRANSLATION_PARAMS_MISSING',
+                message: 'translateFrom and translateTo required when useLiveTranslation=true',
+                user_message: 'Invalid call configuration',
+                severity: 'HIGH',
+                retriable: false
+            })
+            await onAuditError('calls', callId, e.toJSON())
+            return { success: false, error: e.toJSON() }
+        }
+    }
+
+    // Build SWML URL once, completely
     let swmlUrl = `${appUrl}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}`
 
     // Translation parameters
@@ -250,6 +270,7 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
     }
 
     urlParams.append('Url', swmlUrl)
+
     logger.info('placeSignalWireCall: routing to SWML endpoint', {
         callId,
         organizationId,
@@ -257,34 +278,8 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         translateFrom,
         translateTo,
         conference,
-        leg
-    })
-    }
-
-    let swmlUrl = `${appUrl}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}`
-
-    // Translation parameters
-    if (useLiveTranslation && translateFrom && translateTo) {
-        swmlUrl += `&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
-    }
-
-    // Conference parameters for bridge calls
-    if (conference) {
-        swmlUrl += `&conference=${encodeURIComponent(conference)}`
-        if (leg) {
-            swmlUrl += `&leg=${encodeURIComponent(leg)}`
-        }
-    }
-
-    urlParams.append('Url', swmlUrl)
-    logger.info('placeSignalWireCall: routing to SWML endpoint', {
-        callId,
-        organizationId,
-        useLiveTranslation,
-        translateFrom,
-        translateTo,
-        conference,
-        leg
+        leg,
+        swmlUrl
     })
 
     // Status callback URLs
@@ -368,9 +363,27 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         throw e
     }
 
-    const swData = await swRes.json()
+    let swData
+    try {
+        swData = await swRes.json()
+    } catch (parseErr) {
+        logger.error('placeSignalWireCall: Failed to parse SignalWire JSON response', parseErr, {
+            status: swRes.status,
+            contentType: swRes.headers.get('content-type')
+        })
+        const e = new AppError({
+            code: 'SIGNALWIRE_RESPONSE_PARSE_FAILED',
+            message: 'Invalid response from SignalWire',
+            user_message: 'Failed to place call - carrier response error',
+            severity: 'HIGH',
+            retriable: true
+        })
+        await onAuditError('calls', callId, e.toJSON())
+        throw e
+    }
+
     logger.info('placeSignalWireCall: SignalWire responded', {
-        sid: swData?.sid ? '[REDACTED]' : null
+        callSid: swData?.sid ? '[REDACTED_SID]' : null
     })
 
     const callSid = swData?.sid ?? null
