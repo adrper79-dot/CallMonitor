@@ -222,7 +222,6 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
 
     urlParams.append('From', fromNumber)
     urlParams.append('To', toNumber)
-
     // ARCH_DOCS COMPLIANCE: Route all calls to SWML endpoints only. LAML endpoints are deprecated.
     if (!callId) {
         const e = new AppError({
@@ -233,6 +232,33 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
         })
         await onAuditError('calls', null, e.toJSON())
         return { success: false, error: e.toJSON() }
+    }
+
+    let swmlUrl = `${appUrl}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}`
+
+    // Translation parameters
+    if (useLiveTranslation && translateFrom && translateTo) {
+        swmlUrl += `&from=${encodeURIComponent(translateFrom)}&to=${encodeURIComponent(translateTo)}`
+    }
+
+    // Conference parameters for bridge calls
+    if (conference) {
+        swmlUrl += `&conference=${encodeURIComponent(conference)}`
+        if (leg) {
+            swmlUrl += `&leg=${encodeURIComponent(leg)}`
+        }
+    }
+
+    urlParams.append('Url', swmlUrl)
+    logger.info('placeSignalWireCall: routing to SWML endpoint', {
+        callId,
+        organizationId,
+        useLiveTranslation,
+        translateFrom,
+        translateTo,
+        conference,
+        leg
+    })
     }
 
     let swmlUrl = `${appUrl}/api/voice/swml/outbound?callId=${encodeURIComponent(callId)}&orgId=${encodeURIComponent(organizationId)}`
