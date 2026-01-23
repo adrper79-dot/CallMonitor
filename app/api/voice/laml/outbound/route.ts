@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -12,9 +11,13 @@ export async function POST() {
   }, { status: 410 })
 }
 
+// ... existing code ...
+
 export async function GET() {
   return NextResponse.json({
     ok: false,
     route: '/api/voice/laml/outbound',
     migration: 'This endpoint is deprecated. Use /api/voice/swml/outbound.'
   }, { status: 410 })
+}
+
