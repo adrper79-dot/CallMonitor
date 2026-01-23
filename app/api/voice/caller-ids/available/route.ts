@@ -9,6 +9,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { CallerIdService } from '@/lib/services/callerIdService'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user?.orgId || !session?.user?.id) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+            return ApiErrors.unauthorized()
         }
 
         const callerIdService = new CallerIdService(supabaseAdmin)
@@ -43,6 +44,6 @@ export async function GET(req: NextRequest) {
         })
     } catch (err: unknown) {
         logger.error('Failed to list available caller IDs', err instanceof Error ? err : new Error(String(err)))
-        return NextResponse.json({ success: false, error: 'Failed to list caller IDs' }, { status: 500 })
+        return ApiErrors.internal('Failed to list caller IDs')
     }
 }

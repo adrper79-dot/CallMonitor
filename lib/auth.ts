@@ -60,9 +60,11 @@ function getAdapter() {
     return undefined;
   }
   try {
-    const supabaseForAdapter = createClient(supabaseUrl, serviceKey);
     logger.info('[Auth] Supabase adapter created');
-    return SupabaseAdapter(supabaseForAdapter as any);
+    return SupabaseAdapter({
+      url: supabaseUrl,
+      secret: serviceKey,
+    });
   } catch (e: any) {
     logger.error('[Auth] Supabase adapter error', {
       error: e && (e.message || e.toString()),
@@ -108,8 +110,8 @@ function getProviders(adapter: any) {
       if (!credentials || !credentials.username || !credentials.password) return null
 
       const key = String(credentials.username).toLowerCase()
-      if (!(global as any).__loginRateLimiter) (global as any).__loginRateLimiter = new Map()
-      const limiter: Map<string, any> = (global as any).__loginRateLimiter
+        if (!(globalThis as any).__loginRateLimiter) (globalThis as any).__loginRateLimiter = new Map()
+  const limiter: Map<string, { attempts: number[]; blockedUntil: number }> = (globalThis as any).__loginRateLimiter
       const MAX_ATTEMPTS = 5
       const WINDOW_MS = 15 * 60 * 1000
       const BLOCK_MS = 15 * 60 * 1000
@@ -136,7 +138,7 @@ function getProviders(adapter: any) {
           const sup = createClient(supabaseUrl, anonKey)
           const { data: found, error: findErr } = await sup.from('users').select('email,username').or(`username.eq.${identifier},email.eq.${identifier}`).limit(1)
           if (!findErr && Array.isArray(found) && found.length) {
-            emailToUse = (found[0] as any).email ?? null
+            emailToUse = found[0]?.email ?? null
           }
         } catch (e) {
           // ignore lookup errors
@@ -285,9 +287,9 @@ export function getAuthOptions() {
       },
     },
 
-    // ARCH_DOCS: JWT for mobile/cross-device sessions
+    // ARCH_DOCS: Database strategy for SupabaseAdapter compatibility
     session: {
-      strategy: 'jwt' as const,
+      strategy: 'database' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
 
@@ -295,39 +297,36 @@ export function getAuthOptions() {
     useSecureCookies: process.env.NODE_ENV === 'production',
 
     callbacks: {
-      // ARCH_DOCS: JWT callback for user ID
-      async jwt({ token, user }: { token: any; user: any }) {
-        if (user) token.id = user.id;
-        return token;
-      },
-      // ARCH_DOCS: Session callback ensures deterministic user/org
-      async session({ session, token }: { session: any; token: any }) {
-        if (session?.user && token?.id) {
-          const userId = generateUUIDFromOAuthId(token.id);
-          (session.user as any).id = userId;
+      // ARCH_DOCS: SignIn callback for OAuth user/org setup (runs only on login)
+      async signIn({ user, account }: { user: any; account: any }) {
+        if (account && ['google', 'azure-ad', 'twitter', 'facebook'].includes(account.provider)) {
           try {
             const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
             const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
             if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured');
             const supabase = createClient(supabaseUrl, serviceKey);
-            // Prefer lookup by email for linking
+
+            const userId = generateUUIDFromOAuthId(user.id);
+
+            // Check if user exists
             let { data: existingUser } = await supabase
               .from('users')
               .select('id, organization_id')
-              .eq('email', session.user.email)
+              .eq('email', user.email)
               .maybeSingle();
+
             if (!existingUser) {
               // Create org and user (deterministic UUID)
               const { data: newOrg, error: orgError } = await supabase
                 .from('organizations')
-                .insert({ name: `${session.user.email.split('@')[0]}'s Organization`, plan: 'professional' })
+                .insert({ name: `${user.email.split('@')[0]}'s Organization`, plan: 'professional' })
                 .select('id')
                 .single();
               if (orgError || !newOrg?.id) throw new Error('Failed to create organization');
               const orgId = newOrg.id;
               const { error: userInsertErr } = await supabase.from('users').insert({
                 id: userId,
-                email: session.user.email,
+                email: user.email,
                 organization_id: orgId,
                 role: 'owner',
                 is_admin: true
@@ -339,13 +338,24 @@ export function getAuthOptions() {
                 role: 'owner'
               });
               if (memberInsertErr) throw new Error('Failed to create org membership');
-              logger.info('[Auth] Created new user/org for OAuth login', { email: session.user.email, userId, orgId });
+              logger.info('[Auth] Created new user/org for OAuth login', { email: user.email, userId, orgId });
             }
-            token.id = userId;
           } catch (err) {
             logger.error('[Auth] User/org setup failed on OAuth login', err);
             // Do not throw; allow login, log for monitoring
           }
+        }
+        return true;
+      },
+      // ARCH_DOCS: JWT callback for user ID
+      async jwt({ token, user }: { token: any; user: any }) {
+        if (user) token.id = user.id;
+        return token;
+      },
+      // ARCH_DOCS: Session callback ensures user ID in session
+      async session({ session, token }: { session: any; token: any }) {
+        if (session?.user && token?.id) {
+          ;(session.user as any).id = token.id;
         }
         return session;
       }
@@ -373,10 +383,10 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
   } catch (e) {
     logger.error('[auth] Failed to initialize auth options', e)
     // Return minimal fallback to prevent crashes
-    const fallback = {
-      providers: [] as any[],
+        const fallback = {
+      providers: [],
       secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
-      session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
+      session: { strategy: 'database' as const, maxAge: 30 * 24 * 60 * 60 },
       cookies: {
         sessionToken: { name: 'next-auth.session-token', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
         callbackUrl: { name: 'next-auth.callback-url', options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production' } },
@@ -390,7 +400,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
         },
         session: async ({ session, token }: any) => {
           if (session?.user && token?.id) {
-            (session.user as any).id = token.id
+            ;(session.user as any).id = token.id
           }
           return session
         }
@@ -406,8 +416,9 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
  * Uses a Proxy to lazily initialize and delegate all operations to the real options object.
  * This handles property access, iteration, spread, and other operations correctly.
  */
-export const authOptions: ReturnType<typeof getAuthOptions> = new Proxy(
-  {} as ReturnType<typeof getAuthOptions>,
+export const authOptions: Awaited<ReturnType<typeof getAuthOptions>> = new Proxy(
+  {} as Awaited<ReturnType<typeof getAuthOptions>>,
+
   {
     get(target, prop, receiver) {
       const opts = getAuthOptionsLazy()

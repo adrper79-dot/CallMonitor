@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { parseRequestBody, swmlResponse } from '@/lib/api/utils'
+import { parseRequestBody, swmlResponse, swmlJsonResponse } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,14 +19,28 @@ export const dynamic = 'force-dynamic'
  * - Modern SignalWire features
  */
 export async function POST(req: Request) {
+    // Feature flag check for live translation preview
+    if (!isLiveTranslationPreviewEnabled()) {
+      logger.warn('SWML outbound-v2: Live translation preview feature is disabled')
+      return swmlJsonResponse({
+        version: '1.0.0',
+        sections: {
+          main: [
+            { answer: {} },
+            { say: { text: 'Live translation is not available for your plan.' } },
+            { hangup: {} }
+          ]
+        }
+      })
+    }
   const url = new URL(req.url)
   const callId = url.searchParams.get('callId')
   const conference = url.searchParams.get('conference')
   const leg = url.searchParams.get('leg')
 
   if (conference && callId) {
-    const swml = await generateBridgeSWML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
-    return swmlResponse(swml)
+        const swml = await generateBridgeSWML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
+    return swmlJsonResponse(swml)
   }
 
   const payload = await parseRequestBody(req)
@@ -37,9 +52,9 @@ export async function POST(req: Request) {
 
   const swml = await generateSWML(callSid, to, callId)
 
-  logger.debug('SWML outbound: generated JSON', { sectionCount: swml.sections.main.length, callId })
+    logger.debug('SWML outbound: generated JSON', { sectionCount: swml.sections.main.length, callId })
 
-  return swmlResponse(swml)
+  return swmlJsonResponse(swml)
 }
 
 async function generateSWML(callSid: string | undefined, toNumber: string | undefined, callId?: string | null) {

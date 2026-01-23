@@ -6,6 +6,7 @@ import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -27,23 +28,20 @@ export async function GET(req: Request) {
     userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
-      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+        return ApiErrors.unauthorized()
     }
 
     const url = new URL(req.url)
     organizationId = url.searchParams.get('orgId') || url.searchParams.get('organization_id')
 
     if (!organizationId) {
-      const err = new AppError({ code: 'ORG_REQUIRED', message: 'Organization ID required', user_message: 'Organization ID required', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return ApiErrors.badRequest('Organization ID required')
     }
 
     // RBAC check
     const rbacContext = await getRBACContext(organizationId, userId)
     if (!rbacContext) {
-      const err = new AppError({ code: 'UNAUTHORIZED', message: 'Not authorized', user_message: 'Not authorized for this organization', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     // Fetch voice targets
@@ -65,8 +63,7 @@ export async function GET(req: Request) {
       }
       
       logger.error('Failed to fetch voice_targets', targetsErr, { organizationId, userId })
-      const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch voice targets', user_message: 'Could not retrieve voice targets', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
+        return ApiErrors.internal('Failed to fetch voice targets')
     }
 
     return NextResponse.json({
@@ -75,8 +72,7 @@ export async function GET(req: Request) {
     })
   } catch (err: any) {
     logger.error('GET /api/voice/targets failed', err, { organizationId, userId })
-    const e = err instanceof AppError ? err : new AppError({ code: 'VOICE_TARGETS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to fetch voice targets', severity: 'HIGH' })
-    return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
+      return ApiErrors.internal('Internal server error')
   }
 }
 
@@ -89,40 +85,34 @@ export async function POST(req: Request) {
     const userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
-      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const body = await req.json()
     const { organization_id, phone_number, name, description } = body
 
     if (!organization_id) {
-      const err = new AppError({ code: 'ORG_REQUIRED', message: 'Organization ID required', user_message: 'Organization ID required', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return ApiErrors.badRequest('Organization ID required')
     }
 
     if (!phone_number) {
-      const err = new AppError({ code: 'VALIDATION_ERROR', message: 'Phone number required', user_message: 'Phone number is required', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return ApiErrors.badRequest('Phone number is required')
     }
 
     // Validate E.164 format
     const e164Regex = /^\+[1-9]\d{1,14}$/
     if (!e164Regex.test(phone_number)) {
-      const err = new AppError({ code: 'VALIDATION_ERROR', message: 'Invalid phone format', user_message: 'Phone number must be in E.164 format (e.g., +12025551234)', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return ApiErrors.badRequest('Phone number must be in E.164 format (e.g., +12025551234)')
     }
 
     // RBAC check - require owner or admin
     const rbacContext = await getRBACContext(organization_id, userId)
     if (!rbacContext) {
-      const err = new AppError({ code: 'UNAUTHORIZED', message: 'Not authorized', user_message: 'Not authorized for this organization', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     if (!['owner', 'admin'].includes(rbacContext.role)) {
-      const err = new AppError({ code: 'FORBIDDEN', message: 'Insufficient permissions', user_message: 'Only owners and admins can add targets', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 403 })
+      return ApiErrors.forbidden()
     }
 
     // Create voice target
@@ -143,8 +133,7 @@ export async function POST(req: Request) {
 
     if (insertErr) {
       logger.error('Failed to create voice target', insertErr)
-      const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to create voice target', user_message: 'Could not create voice target', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
+      return ApiErrors.internal('Failed to create voice target')
     }
 
     return NextResponse.json({
@@ -152,8 +141,7 @@ export async function POST(req: Request) {
       target
     })
   } catch (err: any) {
-    const e = err instanceof AppError ? err : new AppError({ code: 'VOICE_TARGETS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to create voice target', severity: 'HIGH' })
-    return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
+    return ApiErrors.internal(err)
   }
 }
 
@@ -166,8 +154,7 @@ export async function DELETE(req: Request) {
     const userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
-      const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Authentication required', user_message: 'Authentication required', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     const url = new URL(req.url)
@@ -175,20 +162,17 @@ export async function DELETE(req: Request) {
     const organizationId = url.searchParams.get('orgId') || url.searchParams.get('organization_id')
 
     if (!targetId || !organizationId) {
-      const err = new AppError({ code: 'VALIDATION_ERROR', message: 'Target ID and Organization ID required', user_message: 'Missing required parameters', severity: 'MEDIUM' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
+      return ApiErrors.badRequest('Target ID and Organization ID required')
     }
 
     // RBAC check - require owner or admin
     const rbacContext = await getRBACContext(organizationId, userId)
     if (!rbacContext) {
-      const err = new AppError({ code: 'UNAUTHORIZED', message: 'Not authorized', user_message: 'Not authorized for this organization', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 401 })
+      return ApiErrors.unauthorized()
     }
 
     if (!['owner', 'admin'].includes(rbacContext.role)) {
-      const err = new AppError({ code: 'FORBIDDEN', message: 'Insufficient permissions', user_message: 'Only owners and admins can delete targets', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 403 })
+      return ApiErrors.forbidden()
     }
 
     // Delete voice target
@@ -200,15 +184,13 @@ export async function DELETE(req: Request) {
 
     if (deleteErr) {
       logger.error('Failed to delete voice target', deleteErr)
-      const err = new AppError({ code: 'DB_DELETE_FAILED', message: 'Failed to delete voice target', user_message: 'Could not delete voice target', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
+      return ApiErrors.internal('Failed to delete voice target')
     }
 
     return NextResponse.json({
       success: true
     })
   } catch (err: any) {
-    const e = err instanceof AppError ? err : new AppError({ code: 'VOICE_TARGETS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to delete voice target', severity: 'HIGH' })
-    return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
+    return ApiErrors.internal(err)
   }
 }

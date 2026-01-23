@@ -1,17 +1,37 @@
 /**
- * Create a SignalWire LaML / SWML XML response
+ * Create a SignalWire SWML JSON response
  * Sets correct Content-Type and status
  */
 import { NextResponse } from 'next/server'
+
 export function swmlResponse(
-  xml: string,
+  swml: string | object,
   status = 200,
   headers: Record<string, string> = {}
 ): NextResponse {
-  return new NextResponse(xml, {
+  const body = typeof swml === 'string' ? swml : JSON.stringify(swml);
+  return new NextResponse(body, {
     status,
     headers: {
-      'Content-Type': 'application/xml',
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+  });
+}
+
+export /**
+ * Create a SignalWire SWML JSON response (modern)
+ * Serializes SWML object to JSON with correct Content-Type
+ */
+function swmlJsonResponse(
+  swml: { version: string; sections: { main: any[] } },
+  status = 200,
+  headers: Record<string, string> = {}
+): NextResponse {
+  return new NextResponse(JSON.stringify(swml), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
       ...headers,
     },
   });

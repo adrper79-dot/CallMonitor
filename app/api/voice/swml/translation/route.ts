@@ -5,33 +5,49 @@
  * Supports both direct calls and conference bridges.
  */
 
+
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  // Feature flag
+  if (!isLiveTranslationPreviewEnabled()) {
+    logger.warn('SWML translation: Live translation preview is disabled')
+    return NextResponse.json({
+      version: '1.0.0',
+      sections: {
+        main: [
+          { answer: {} },
+          { say: { text: 'Live translation is not available for your plan.' } },
+          { hangup: {} }
+        ]
+      }
+    })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
-    const callId = searchParams.get('callId')
-    const translateFrom = searchParams.get('from')
-    const translateTo = searchParams.get('to')
-    const organizationId = searchParams.get('orgId')
-    const conference = searchParams.get('conference')
-    const leg = searchParams.get('leg')
+    const callId        = searchParams.get('callId')
+    const from          = searchParams.get('from')
+    const to            = searchParams.get('to')
+    const orgId         = searchParams.get('orgId')
+    const conference    = searchParams.get('conference')
+    const leg           = searchParams.get('leg') // optional: '1', '2', 'agent', 'customer'
 
-    // Validate required params
-    if (!callId || !translateFrom || !translateTo || !organizationId) {
-      logger.warn('SWML translation endpoint missing params', {
-        callId, translateFrom, translateTo, organizationId
+    // Required params validation
+    if (!callId || !from || !to || !orgId) {
+      logger.warn('SWML translation endpoint missing required params', {
+        callId, from, to, orgId, conference, leg
       })
-      // Return basic SWML hangup with best practices
       return NextResponse.json({
         version: '1.0.0',
         sections: {
           main: [
             { answer: {} },
-            { say: { text: 'Configuration error.' } },
+            { say: { text: 'Invalid configuration. Ending call.' } },
             { hangup: {} }
           ]
         }
@@ -39,84 +55,94 @@ export async function POST(req: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
-    const webhookUrl = `${appUrl}/api/webhooks/signalwire?callId=${callId}&type=live_translate`
+    const translationWebhook = `${appUrl}/api/webhooks/signalwire?callId=${callId}&type=live_translate`
 
-    const sections: any[] = []
+    const isFirstLeg = !leg || leg === '1' || leg === 'agent' || leg === 'first'
 
-    // 1. Answer and Record
-    sections.push({ answer: {} })
-    sections.push({
-      record_call: {
-        format: 'wav',
-        stereo: true
+    const sections: any[] = [
+      { answer: {} },
+      {
+        record_call: {
+          format: 'wav',
+          stereo: true
+        }
       }
-    })
+    ]
 
-    // 2. Play greeting (only for first leg of bridge, or all direct calls)
-    if (!leg || leg === '1' || leg === 'first') {
+    // Greeting (only first leg / agent side)
+    if (isFirstLeg) {
       sections.push({
-        play: {
-          url: 'say:Connecting your call with real-time translation.'
+        say: {
+          text: 'Connecting your call with real-time translation. Please hold.'
         }
       })
     }
 
-    // 3. Start Live Translation
+    // Start live translation (correct structure)
     sections.push({
       live_translate: {
-        action: {
-          start: {
-            webhook: webhookUrl,
-            from_lang: translateFrom,
-            to_lang: translateTo,
-            direction: ['local-caller', 'remote-caller'],
-            live_events: true,
-            ai_summary: true
-          }
-        }
+        action: 'start',
+        webhook: translationWebhook,
+        from_lang: from,
+        to_lang: to,
+        // from_voice: 'elevenlabs.rachel', // optional, recommended for quality
+        // to_voice: 'elevenlabs.matthew',
+        direction: ['local-caller', 'remote-caller'],
+        live_events: true,
+        ai_summary: true
       }
     })
 
-    // 4. Connect logic
+    // Connect / join logic
     if (conference) {
-      // Bridge mode: Connect to conference
+      // Join existing conference (bridge mode)
       sections.push({
-        connect: {
-          to: `conference:${conference}`,
+        conference: {
+          name: decodeURIComponent(conference),
           beep: false,
           start_conference_on_enter: true,
-          end_conference_on_exit: true
+          end_conference_on_exit: true,
+          record: true,
+          recording_status_callback: `${appUrl}/api/webhooks/signalwire?callId=${callId}&type=recording`
         }
       })
     } else {
-      // Standard mode: Just keep call open (or other logic?)
-      // For outbound calls from callPlacer, the 'connect' usually implies connecting TO the user.
-      // But if this script is running, the user has already answered.
-      // We might need to execute specific logic here.
-      // For now, we'll placeholder generic behavior or just hold.
-      // But wait, if this is a "Secret Shopper" or AI call, it relies on this script.
-      // We'll leave it as a simple hold/pause for now if no conference.
-      sections.push({
-        play: {
-          url: 'silence:3600'
-        }
-      })
+      // No conference → direct outbound/AI/secret shopper call
+      sections.push(
+        { say: { text: 'Connected. This call is being monitored with translation.' } },
+        { pause: { length: 5 } },
+        { hangup: {} }
+      )
     }
 
-    return NextResponse.json({
+    const swml = {
       version: '1.0.0',
       sections: {
         main: sections
       }
+    }
+
+    logger.info('SWML translation generated', {
+      callId,
+      languages: `${from} → ${to}`,
+      conference: conference || 'none',
+      leg,
+      webhook: translationWebhook
     })
 
+    return NextResponse.json(swml)
+
   } catch (err: any) {
-    logger.error('Error serving SWML translation', err)
+    logger.error('Error generating translation SWML', {
+      error: err.message,
+      stack: err.stack
+    })
     return NextResponse.json({
       version: '1.0.0',
       sections: {
         main: [
-          { say: { text: 'System error.' } },
+          { answer: {} },
+          { say: { text: 'System error. Ending call.' } },
           { hangup: {} }
         ]
       }

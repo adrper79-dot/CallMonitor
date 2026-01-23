@@ -9,6 +9,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { CallerIdService } from '@/lib/services/callerIdService'
 import { logger } from '@/lib/logger'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     try {
         const session = await getServerSession(authOptions)
         if (!session?.user?.orgId || !session?.user?.id) {
-            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+            return ApiErrors.unauthorized()
         }
 
         // Check admin role
@@ -33,17 +34,14 @@ export async function POST(req: NextRequest) {
             .single()
 
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
-            return NextResponse.json({ success: false, error: 'Admin role required' }, { status: 403 })
+            return ApiErrors.forbidden()
         }
 
         const body = await req.json()
         const { caller_id_number_id, user_id, reason } = body
 
         if (!caller_id_number_id || !user_id) {
-            return NextResponse.json({
-                success: false,
-                error: 'caller_id_number_id and user_id required'
-            }, { status: 400 })
+            return ApiErrors.badRequest('caller_id_number_id and user_id required')
         }
 
         const callerIdService = new CallerIdService(supabaseAdmin)
@@ -56,7 +54,7 @@ export async function POST(req: NextRequest) {
         )
 
         if (!result.success) {
-            return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+            return ApiErrors.badRequest(result.error)
         }
 
         logger.info('Caller ID permission revoked', {
@@ -71,6 +69,6 @@ export async function POST(req: NextRequest) {
         })
     } catch (err: unknown) {
         logger.error('Failed to revoke caller ID', err instanceof Error ? err : new Error(String(err)))
-        return NextResponse.json({ success: false, error: 'Failed to revoke caller ID' }, { status: 500 })
+        return ApiErrors.internal('Failed to revoke caller ID')
     }
 }

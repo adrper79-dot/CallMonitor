@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { swmlResponse } from '@/lib/api/utils'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses request.url
 export const dynamic = 'force-dynamic'
 
 /**
- * Dynamic LaML Script Endpoint
- * 
- * Returns dynamic LaML XML for a specific call based on callSid.
- * This endpoint is referenced by the LaML outbound handler as a fallback
+ * Dynamic SWML Script Endpoint
+ *
+ * Returns dynamic SWML JSON for a specific call based on callSid.
+ * This endpoint is referenced by the SWML outbound handler as a fallback
  * for dynamic script generation.
- * 
+ *
  * Per MASTER_ARCHITECTURE.txt: SignalWire calls this endpoint to get
- * call-specific LaML instructions.
- * 
+ * call-specific SWML instructions.
+ *
  * Query params:
  * - callSid: SignalWire call SID
  */
@@ -24,10 +26,7 @@ export async function GET(req: Request) {
     const callSid = searchParams.get('callSid')
 
     if (!callSid) {
-      return NextResponse.json(
-        { success: false, error: { code: 'MISSING_CALL_SID', message: 'callSid query parameter required' } },
-        { status: 400 }
-      )
+      return ApiErrors.badRequest('callSid query parameter required')
     }
 
     // Find call by call_sid to get organization_id
@@ -53,9 +52,12 @@ export async function GET(req: Request) {
 
     const voiceConfig = vcRows?.[0] || null
 
-    // Generate LaML XML based on voice_configs
-    // This is similar to the logic in /api/voice/laml/outbound but can be customized
-    const elements: string[] = []
+    // Generate SWML JSON based on voice_configs
+    // This replaces the legacy LaML XML generation
+    const sections: any[] = []
+
+    // Answer the call
+    sections.push({ answer: {} })
 
     // Secret Shopper script
     if (voiceConfig?.synthetic_caller) {
@@ -67,9 +69,14 @@ export async function GET(req: Request) {
       for (let i = 0; i < scriptLines.length; i++) {
         const line = scriptLines[i].trim()
         if (line) {
-          elements.push(`<Say voice="alice">${escapeXml(line)}</Say>`)
+          sections.push({
+            say: {
+              text: line,
+              voice: 'alice'
+            }
+          })
           if (i < scriptLines.length - 1) {
-            elements.push('<Pause length="2"/>')
+            sections.push({ pause: { length: 2 } })
           }
         }
       }
@@ -77,10 +84,26 @@ export async function GET(req: Request) {
 
     // Survey prompts
     if (voiceConfig?.survey) {
-      elements.push('<Say voice="alice">Thank you for your time. Before we end, I have a quick survey.</Say>')
-      elements.push('<Pause length="1"/>')
-      elements.push('<Say>On a scale of 1 to 5, how satisfied were you with this call?</Say>')
-      elements.push('<Gather numDigits="1" action="/api/webhooks/survey" method="POST" timeout="10"/>')
+      sections.push({
+        say: {
+          text: 'Thank you for your time. Before we end, I have a quick survey.',
+          voice: 'alice'
+        }
+      })
+      sections.push({ pause: { length: 1 } })
+      sections.push({
+        say: {
+          text: 'On a scale of 1 to 5, how satisfied were you with this call?'
+        }
+      })
+      sections.push({
+        gather: {
+          num_digits: 1,
+          action: '/api/webhooks/survey',
+          method: 'POST',
+          timeout: 10
+        }
+      })
     }
 
     // Main call flow - Dial to destination (from call data)
@@ -97,47 +120,61 @@ export async function GET(req: Request) {
       const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`
 
       if (recordingEnabled) {
-        elements.push(`<Dial record="record-from-answer" recordingStatusCallback="${recordingStatusCallback}" recordingStatusCallbackEvent="completed">`)
-        elements.push(`<Number>${escapeXml(toNumber)}</Number>`)
-        elements.push('</Dial>')
+        sections.push({
+          dial: {
+            record: 'record-from-answer',
+            recording_status_callback: recordingStatusCallback,
+            recording_status_callback_event: 'completed',
+            number: toNumber
+          }
+        })
       } else {
-        elements.push(`<Dial><Number>${escapeXml(toNumber)}</Number></Dial>`)
+        sections.push({
+          dial: {
+            number: toNumber
+          }
+        })
       }
     } else {
       // Fallback: conference bridge
       const confName = callSid || `conf-${Date.now()}`
-      elements.push(`<Dial><Conference>${escapeXml(confName)}</Conference></Dial>`)
+      sections.push({
+        conference: {
+          name: confName
+        }
+      })
     }
 
     // Closing message for secret shopper
     if (voiceConfig?.synthetic_caller) {
-      elements.push('<Say voice="alice">Thank you for your time. Goodbye.</Say>')
+      sections.push({
+        say: {
+          text: 'Thank you for your time. Goodbye.',
+          voice: 'alice'
+        }
+      })
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-${elements.map(el => `  ${el}`).join('\n')}
-</Response>`
+    const swml = {
+      version: '1.0.0',
+      sections: {
+        main: sections
+      }
+    }
 
-    return new NextResponse(xml, {
-      status: 200,
-      headers: { 'Content-Type': 'application/xml' }
-    })
+    return swmlResponse(swml)
 
   } catch (err: any) {
     logger.error('voice/script endpoint error', err)
-    return new NextResponse('', { status: 500 })
+    return swmlResponse({
+      version: '1.0.0',
+      sections: {
+        main: [
+          { answer: {} },
+          { say: { text: 'System error. Please try again.' } },
+          { hangup: {} }
+        ]
+      }
+    })
   }
-}
-
-/**
- * Escape XML special characters
- */
-function escapeXml(text: string): string {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
 }

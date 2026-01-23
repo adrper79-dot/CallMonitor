@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { buildSurveySWML, buildFallbackSWML } from '@/lib/signalwire/surveySwmlBuilder'
-import { parseRequestBody, swmlResponse } from '@/lib/api/utils'
+import { parseRequestBody, swmlJsonResponse } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     if (!voiceConfig || !voiceConfig.survey) {
       logger.warn('SWML survey: not enabled or config not found', { configId, orgId })
-      return swmlResponse(buildFallbackSWML('Sorry, this survey is not currently available. Goodbye.'))
+      return swmlJsonResponse(buildFallbackSWML('Sorry, this survey is not currently available. Goodbye.'))
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.callmonitor.com'
@@ -88,10 +88,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return swmlResponse(swml)
+    return swmlJsonResponse(swml)
   } catch (err: any) {
     logger.error('SWML survey error', err)
-    return swmlResponse(buildFallbackSWML('We encountered an error. Please try again later. Goodbye.'))
+    return swmlJsonResponse(buildFallbackSWML('We encountered an error. Please try again later. Goodbye.'))
   }
 }
 

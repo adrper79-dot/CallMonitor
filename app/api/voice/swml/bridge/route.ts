@@ -1,38 +1,67 @@
+
 import { NextResponse, NextRequest } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { swmlJsonResponse } from '@/lib/api/utils'
+import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+    // Feature flag check for live translation preview
+    if (!isLiveTranslationPreviewEnabled()) {
+        logger.warn('[SWML Bridge] Live translation preview disabled')
+        return swmlJsonResponse({
+            version: '1.0.0',
+            sections: {
+                main: [
+                    { answer: {} },
+                    { say: { text: 'Live translation is not available for your plan.' } },
+                    { hangup: {} }
+                ]
+            }
+        })
+    }
+
     try {
         const { searchParams } = new URL(request.url)
-
-        const callId        = searchParams.get('callId')
+        const callId = searchParams.get('callId')
         const conferenceName = searchParams.get('conferenceName')
-        const leg            = searchParams.get('leg') // 'first' or 'second'
-        const toNumber       = searchParams.get('toNumber') // for first leg if needed
+        let leg = searchParams.get('leg') // '1', '2', 'agent', 'customer', etc.
+        const toNumber = searchParams.get('toNumber') // optional
 
         if (!callId || !conferenceName || !leg) {
-            return NextResponse.json({ error: 'Missing required params' }, { status: 400 })
+            return swmlJsonResponse({
+                version: '1.0.0',
+                sections: {
+                    main: [
+                        { answer: {} },
+                        { say: { text: 'Invalid call parameters. Hanging up.' } },
+                        { hangup: {} }
+                    ]
+                }
+            })
         }
 
-        // Fetch call to get organization_id
-        const { data: call } = await supabaseAdmin
+        // Normalize leg for readability
+        const isAgentLeg = leg === '1' || leg === 'agent' || leg === 'first'
+
+        // Fetch call → org
+        const { data: call, error: callErr } = await supabaseAdmin
             .from('calls')
             .select('organization_id')
             .eq('id', callId)
             .single()
 
-        if (!call?.organization_id) {
-            logger.warn('[SWML Bridge] Call not found or no org', { callId })
+        if (callErr || !call?.organization_id) {
+            logger.warn('[SWML Bridge] Call not found or no org', { callId, error: callErr?.message })
             // Proceed without translation
         }
 
-        // Fetch translation config
+        // Fetch voice config for translation
         let translationEnabled = false
-        let fromLang = 'en'
-        let toLang   = 'es'
+        let fromLang = 'en-US'
+        let toLang = 'es'
 
         if (call?.organization_id) {
             const { data: voiceConfig } = await supabaseAdmin
@@ -41,13 +70,13 @@ export async function GET(request: NextRequest) {
                 .eq('organization_id', call.organization_id)
                 .single()
 
-            translationEnabled = voiceConfig?.live_translate === true &&
-                voiceConfig?.translate_from &&
-                voiceConfig?.translate_to
+            translationEnabled = !!voiceConfig?.live_translate &&
+                !!voiceConfig?.translate_from &&
+                !!voiceConfig?.translate_to
 
             if (translationEnabled && voiceConfig) {
                 fromLang = voiceConfig.translate_from
-                toLang   = voiceConfig.translate_to
+                toLang = voiceConfig.translate_to
             }
         }
 
@@ -55,6 +84,7 @@ export async function GET(request: NextRequest) {
             callId,
             conferenceName,
             leg,
+            isAgentLeg,
             translationEnabled,
             languages: translationEnabled ? `${fromLang} → ${toLang}` : 'none'
         })
@@ -62,7 +92,7 @@ export async function GET(request: NextRequest) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
         const webhookUrl = `${appUrl}/api/webhooks/signalwire?callId=${callId}&type=live_translate`
 
-        // Build SWML sections
+        // Build main sections
         const sections: any[] = [
             { answer: {} },
             {
@@ -73,8 +103,8 @@ export async function GET(request: NextRequest) {
             }
         ]
 
-        // Greeting (first leg only)
-        if (leg === 'first') {
+        // Greeting
+        if (isAgentLeg) {
             sections.push({
                 say: {
                     text: translationEnabled
@@ -82,33 +112,32 @@ export async function GET(request: NextRequest) {
                         : "Connecting your call. Please wait."
                 }
             })
-        } else if (leg === 'second') {
-            // Customer leg: minimal greeting or hold
+        } else {
             sections.push({
                 say: { text: "Connecting you now. Please wait." }
             })
         }
 
-        // --- TEMP: Disable live_translate for testing ---
-        // if (translationEnabled) {
-        //     sections.push({
-        //         live_translate: {
-        //             action: {
-        //                 start: {
-        //                     webhook: webhookUrl,
-        //                     from_lang: fromLang,
-        //                     to_lang: toLang,
-        //                     direction: ["local-caller", "remote-caller"],
-        //                     live_events: true,
-        //                     ai_summary: true
-        //                 }
-        //             }
-        //         }
-        //     })
-        // }
+        // === LIVE TRANSLATION (top-level method) ===
+        if (translationEnabled) {
+            sections.push({
+                live_translate: {
+                    action: "start",
+                    webhook: webhookUrl,
+                    from_lang: fromLang,
+                    to_lang: toLang,
+                    // Optional: customize voices (ElevenLabs, etc.)
+                    // from_voice: "elevenlabs.rachel",
+                    // to_voice: "elevenlabs.matthew",
+                    direction: ["local-caller", "remote-caller"], // translate both directions
+                    live_events: true,
+                    ai_summary: true
+                }
+            })
+        }
 
-        // Add hold music for first leg (agent)
-        if (leg === 'first') {
+        // Hold music for agent leg
+        if (isAgentLeg) {
             sections.push({
                 play: {
                     url: 'https://cdn.signalwire.com/default-music/waiting.wav'
@@ -116,7 +145,7 @@ export async function GET(request: NextRequest) {
             })
         }
 
-        // Dedicated conference verb for both legs
+        // Join conference
         sections.push({
             conference: {
                 name: decodeURIComponent(conferenceName),
@@ -135,19 +164,19 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Force Content-Type, pretty-print, and no-cache for debugging
-        return new NextResponse(JSON.stringify(swml, null, 2), {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache, no-store'
-            }
-        })
+        return swmlJsonResponse(swml)
+
     } catch (err: any) {
         logger.error('[SWML Bridge] Error generating SWML', err)
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        )
+        return swmlJsonResponse({
+            version: '1.0.0',
+            sections: {
+                main: [
+                    { answer: {} },
+                    { say: { text: 'System error. Please try again.' } },
+                    { hangup: {} }
+                ]
+            }
+        })
     }
 }

@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
-import { swmlResponse } from '@/lib/api/utils'
+import { swmlJsonResponse } from '@/lib/api/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     if (!conferenceId) {
         logger.error('[webrtc-conference-swml] Missing conferenceId', null)
-        return swmlResponse({
+                return swmlJsonResponse({
             version: '1.0.0',
             sections: {
                 main: [
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         endConferenceOnExit: endOnExit
     })
 
-    const swml = {
+        const swml = {
         version: '1.0.0',
         sections: {
             main: [
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
         }
     }
 
-    return swmlResponse(swml)
+    return swmlJsonResponse(swml)
 }
 
 export async function POST(request: NextRequest) {
