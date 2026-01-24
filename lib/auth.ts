@@ -64,6 +64,7 @@ function getAdapter() {
     return SupabaseAdapter({
       url: supabaseUrl,
       secret: serviceKey,
+      schema: 'next_auth',
     });
   } catch (e: any) {
     logger.error('[Auth] Supabase adapter error', {
@@ -306,7 +307,8 @@ export function getAuthOptions() {
             if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured');
             const supabase = createClient(supabaseUrl, serviceKey);
 
-            const userId = generateUUIDFromOAuthId(user.id);
+            // Use the adapter-provided user id (do not generate a separate UUID)
+            const userId = user.id;
 
             // Check if user exists
             let { data: existingUser } = await supabase
