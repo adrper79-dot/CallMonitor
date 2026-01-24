@@ -7,7 +7,6 @@
  * - Logging, error handling, and comments follow ARCH_DOCS standards
  */
 
-import { Auth } from "@auth/core"
 import EmailProvider from "next-auth/providers/email"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
