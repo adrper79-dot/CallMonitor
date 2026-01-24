@@ -1,5 +1,171 @@
-It looks like the code you pasted is a NextAuth configuration for authentication—in TypeScript/JavaScript, not shell/CLI.
-The suggested edit:
+/**
+ * NextAuth Configuration (ARCH_DOCS-compliant)
+ *
+ * Centralized, standards-based authentication config.
+ * - No non-handler exports from route files (App Router restriction)
+ * - All environment/config variables accessed via project conventions
+ * - Logging, error handling, and comments follow ARCH_DOCS standards
+ */
+
+import { Auth } from "@auth/core"
+import EmailProvider from "next-auth/providers/email"
+import CredentialsProvider from "next-auth/providers/credentials"
+import GoogleProvider from "next-auth/providers/google"
+import AzureADProvider from "next-auth/providers/azure-ad"
+import TwitterProvider from "next-auth/providers/twitter"
+import FacebookProvider from "next-auth/providers/facebook"
+
+import { createClient } from '@supabase/supabase-js'
+import { SupabaseAdapter } from '@next-auth/supabase-adapter'
+import { logger } from '@/lib/logger'
+import { v5 as uuidv5 } from 'uuid'
+
+async function sendViaResend(to: string, html: string) {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('RESEND_API_KEY not configured')
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM || `no-reply@${process.env.NEXTAUTH_URL?.replace(/^https?:\/\//, '')}`,
+      to: [to],
+      subject: 'Your sign-in link',
+      html,
+      tags: [{ name: 'category', value: 'auth' }],
+    }),
+  })
+  if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`)
+}
+
+// ARCH_DOCS: Lazy Supabase adapter with diagnostics
+function getAdapter() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  logger.info('[Auth] Supabase adapter check', {
+    hasSupabaseUrl: !!supabaseUrl,
+    hasServiceKey: !!serviceKey,
+    urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
+    keyLength: serviceKey ? serviceKey.length : 0,
+    envPhase: process.env.NEXT_PHASE || 'unset',
+    nodeEnv: process.env.NODE_ENV || 'unset',
+  });
+  if (!supabaseUrl || !serviceKey) {
+    logger.warn('[Auth] Supabase adapter unavailable: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!serviceKey,
+      urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
+      keyLength: serviceKey ? serviceKey.length : 0,
+      envPhase: process.env.NEXT_PHASE || 'unset',
+      nodeEnv: process.env.NODE_ENV || 'unset',
+    });
+    return undefined;
+  }
+  try {
+    logger.info('[Auth] Supabase adapter created');
+    return SupabaseAdapter({
+      url: supabaseUrl,
+      secret: serviceKey,
+    });
+  } catch (e: any) {
+    logger.error('[Auth] Supabase adapter error', {
+      error: e && (e.message || e.toString()),
+      stack: e && e.stack,
+      supabaseUrl: supabaseUrl ? '[REDACTED]' : 'missing',
+      keyLength: serviceKey ? serviceKey.length : 0,
+      envPhase: process.env.NEXT_PHASE || 'unset',
+      nodeEnv: process.env.NODE_ENV || 'unset',
+    });
+    return undefined;
+  }
+}
+
+/**
+ * Check if a string is a valid UUID v4 format
+ */
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
+/**
+ * ARCH_DOCS: Deterministic UUID v5 from OAuth provider ID
+ * - Uses DNS namespace for consistency
+ */
+const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+function generateUUIDFromOAuthId(providerId: string): string {
+  if (isValidUUID(providerId)) return providerId;
+  return uuidv5(providerId, NAMESPACE);
+}
+
+function getProviders(adapter: any) {
+  const providers: any[] = []
+
+  // Always include credentials provider
+  providers.push(CredentialsProvider({
+    name: 'Credentials',
+    credentials: {
+      username: { label: 'Username or Email', type: 'text' },
+      password: { label: 'Password', type: 'password' }
+    },
+    async authorize(credentials) {
+      if (!credentials || !credentials.username || !credentials.password) return null
+
+      const key = String(credentials.username).toLowerCase()
+        if (!(globalThis as any).__loginRateLimiter) (globalThis as any).__loginRateLimiter = new Map()
+  const limiter: Map<string, { attempts: number[]; blockedUntil: number }> = (globalThis as any).__loginRateLimiter
+      const MAX_ATTEMPTS = 5
+      const WINDOW_MS = 15 * 60 * 1000
+      const BLOCK_MS = 15 * 60 * 1000
+
+      function now() { return Date.now() }
+
+      const entry = limiter.get(key) || { attempts: [] as number[], blockedUntil: 0 }
+      entry.attempts = entry.attempts.filter((t: number) => t > now() - WINDOW_MS)
+      if (entry.blockedUntil && entry.blockedUntil > now()) {
+        return null
+      }
+
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !anonKey) throw new Error('Supabase not configured for credentials login')
+
+      function looksLikeEmail(v: string) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) }
+      let identifier = String(credentials.username)
+      let emailToUse: string | null = null
+      if (looksLikeEmail(identifier)) {
+        emailToUse = identifier
+      } else {
+        try {
+          const sup = createClient(supabaseUrl, anonKey)
+          const { data: found, error: findErr } = await sup.from('users').select('email,username').or(`username.eq.${identifier},email.eq.${identifier}`).limit(1)
+          if (!findErr && Array.isArray(found) && found.length) {
+            emailToUse = found[0]?.email ?? null
+          }
+        } catch (e) {
+          // ignore lookup errors
+        }
+      }
+
+      if (!emailToUse) {
+        entry.attempts.push(now())
+        if (entry.attempts.length >= MAX_ATTEMPTS) {
+          entry.blockedUntil = now() + BLOCK_MS
+        }
+        limiter.set(key, entry)
+        return null
+      }
+
+      // Check if SSO is required for this email domain
+      try {
+        const sup = createClient(supabaseUrl, anonKey)
+        const emailDomain = emailToUse.toLowerCase().split('@')[1]
+        const { data: ssoConfig, error: ssoError } = await sup
+          .from('org_sso_configs')
+          .select('require_sso, provider_name')
+          .eq('is_enabled', true)
+          .contains('verified_domains', [emailDomain])
+          .limit(1)
+          .single()
         if (!ssoError && ssoConfig?.require_sso) {
           logger.warn('Password login blocked: SSO required for domain', { email: emailToUse, domain: emailDomain })
           return null
