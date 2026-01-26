@@ -4,9 +4,12 @@ compatibility_date = "2025-01-25"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# Placeholder variables for local development (wrangler pages dev)
-# Real values should be set in the Cloudflare Dashboard
-NEXT_PUBLIC_APP_URL = "http://localhost:3000"
+# Public Variables (Safe to commit)
+NEXT_PUBLIC_APP_URL = "https://voxsouth.online"
+NEXT_PUBLIC_SUPABASE_URL = "https://fiijrhpjpebevfavzlhu.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_lRUy5ZWTCzCNPTuOP9K9Rg_Nh-nEClF"
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_51SlCczAqCb48cFrqGdVN8sDwUYj7ZtlTpbS3bDXKXHPE7EkJYvEZGvOq9nDKQYxW5zP3xvQz8Rc4jY6U9fRiPs0000abcdefgh"
+TRANSLATION_LIVE_ASSIST_PREVIEW = "true"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
