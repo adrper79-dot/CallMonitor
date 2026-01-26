@@ -25,3 +25,5 @@ finalization-prompts
 /*.mp4
 *.uvz
 image (1).jpg
+
+scripts/set_cloudflare_secrets.ps1
