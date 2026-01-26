@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
                 if (legacyRes.rows?.[0]) defaultCallerId = legacyRes.rows[0]
             }
         } catch (e) {
-            logger.warn('Failed to resolve default caller id', e)
+            logger.warn('Failed to resolve default caller id', { error: e })
         }
 
         return NextResponse.json({ success: true, caller_ids: available, default_caller_id: defaultCallerId })

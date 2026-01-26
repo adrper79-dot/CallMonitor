@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { scoreShopperCall } from '@/app/services/shopperScoring'
+import { scoreShopperCall, ScoringResult } from '@/app/services/shopperScoring'
 import { v4 as uuidv4 } from 'uuid'
 import { parseRequestBody, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const recordingId = recRows?.[0]?.id
 
-    let scoringResult = null
+    let scoringResult: ScoringResult | null = null
     if (recordingId) {
       scoringResult = await scoreShopperCall(callId, recordingId, orgId, scriptId || undefined)
     }
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
     }
 
     const scores = (results || []).filter(r => r.overall_score !== null).map(r => r.overall_score)
-    const avgScore = scores.length > 0 
+    const avgScore = scores.length > 0
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : null
 

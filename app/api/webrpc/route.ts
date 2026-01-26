@@ -108,8 +108,6 @@ async function handleCallPlace(
       organization_id: organizationId,
       actor_id: userId,  // Actor attribution for RBAC
       modulations: modulations as any || { record: false, transcribe: false }
-    }, {
-      supabaseAdmin
     })
 
 

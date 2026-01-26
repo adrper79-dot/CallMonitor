@@ -26,7 +26,7 @@ async function main() {
     process.exit(1)
   }
 
-  const required = ['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SIGNALWIRE_PROJECT_ID','SIGNALWIRE_TOKEN','SIGNALWIRE_SPACE','SIGNALWIRE_NUMBER','NEXT_PUBLIC_APP_URL','TEST_ORG_ID','TEST_FROM_NUMBER','TEST_TO_NUMBER']
+  const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SIGNALWIRE_PROJECT_ID', 'SIGNALWIRE_TOKEN', 'SIGNALWIRE_SPACE', 'SIGNALWIRE_NUMBER', 'NEXT_PUBLIC_APP_URL', 'TEST_ORG_ID', 'TEST_FROM_NUMBER', 'TEST_TO_NUMBER']
   for (const k of required) {
     if (!process.env[k]) await fail(`Missing required env var ${k}`)
   }
@@ -64,7 +64,7 @@ async function main() {
   // import application handler only after confirmation and required envs are present
   const { default: startCallHandler } = await import('../app/actions/calls/startCallHandler')
 
-  const res = await startCallHandler(input as any, { supabaseAdmin: supabase as any, signalwireCall: signalwireCall as any, env: process.env })
+  const res = await startCallHandler(input as any, { signalwireCall: signalwireCall as any, env: process.env })
   console.log('prod startCall result:', res)
 }
 

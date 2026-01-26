@@ -10,6 +10,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { SearchBuilder } from '@/lib/services/searchBuilder'
 import { logger } from '@/lib/logger'
+import supabaseAdmin from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 

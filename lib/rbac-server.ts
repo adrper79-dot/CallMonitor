@@ -9,15 +9,13 @@
 
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { createClient } from '@supabase/supabase-js'
+
 import { AppError } from '@/types/app-error'
 import type { UserRole } from './rbac'
 
 // Create supabase admin client
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Use shared supabaseAdmin instance (lazy-initialized)
+import supabaseAdmin from '@/lib/supabaseAdmin'
 
 export interface RBACSession {
   user: {

@@ -122,7 +122,7 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
     const { projectId, token, space, number: swNumber, appUrl } = config
 
     if (!(projectId && token && space && swNumber)) {
-        const missing = []
+        const missing: string[] = []
         if (!projectId) missing.push('SIGNALWIRE_PROJECT_ID')
         if (!token) missing.push('SIGNALWIRE_TOKEN')
         if (!space) missing.push('SIGNALWIRE_SPACE')

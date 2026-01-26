@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -21,14 +21,7 @@ export async function POST(req: Request) {
       modulations: body.modulations || { record: false, transcribe: false }
     }
 
-    const deps = {
-      supabaseAdmin,
-      // return a fake authenticated session for testing
-      getSession: async () => ({ user: { id: '28d68e05-ab20-40ee-b935-b19e8927ae68' } }),
-      env: process.env
-    }
-
-    const result = await startCallHandler(input, deps as any)
+    const result = await startCallHandler(input)
     return NextResponse.json(result)
   } catch (e: any) {
     return NextResponse.json({ success: false, error: { code: 'DEBUG_ROUTE_ERROR', message: String(e?.message ?? e) } }, { status: 500 })

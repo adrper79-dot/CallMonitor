@@ -98,7 +98,7 @@ export async function POST(req: Request) {
         const { name, questions } = params
         const surveyId = uuidv4()
         try {
-          await pgClient.query(`INSERT INTO surveys (id, organization_id, name, questions, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [surveyId, organization_id, name || 'E2E Test Survey', questions || [ { type: 'scale', question: 'How satisfied were you? (1-5)', min: 1, max: 5 }, { type: 'yes_no', question: 'Would you recommend us?' }, { type: 'text', question: 'Any additional feedback?' } ], true, new Date().toISOString(), new Date().toISOString()])
+          await pgClient.query(`INSERT INTO surveys (id, organization_id, name, questions, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [surveyId, organization_id, name || 'E2E Test Survey', questions || [{ type: 'scale', question: 'How satisfied were you? (1-5)', min: 1, max: 5 }, { type: 'yes_no', question: 'Would you recommend us?' }, { type: 'text', question: 'Any additional feedback?' }], true, new Date().toISOString(), new Date().toISOString()])
           results.actions.push({ action: 'create_survey', success: true, survey: { id: surveyId } })
           results.survey_id = surveyId
         } catch (err: any) {
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
             from_number,
             modulations: modulations || { record: true, transcribe: true },
             actor_id: actorId
-          } as any, { supabaseAdmin })
+          } as any)
 
           if (callResult.success) {
             const successResult = callResult as any
@@ -297,7 +297,7 @@ export async function POST(req: Request) {
               translate: enableTranslation
             },
             actor_id: actorId
-          } as any, { supabaseAdmin })
+          } as any)
         } catch (callErr: any) {
           logger.error('Exception in startCallHandler', callErr)
           callResult = {
