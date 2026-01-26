@@ -19,14 +19,35 @@ import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
 import { writeAuditLegacy as writeAudit, writeAuditErrorLegacy as writeAuditError, writeSubscriptionAudit } from '@/lib/audit/auditLogger'
 
-// Initialize Stripe with API version
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover',
-  typescript: true,
+// Initialize Stripe lazily
+let stripeInstance: Stripe | null = null
+
+export function getStripe() {
+  if (!stripeInstance) {
+    const apiKey = process.env.STRIPE_SECRET_KEY
+    if (!apiKey) {
+      throw new Error('STRIPE_SECRET_KEY not configured')
+    }
+    stripeInstance = new Stripe(apiKey, {
+      apiVersion: '2025-12-15.clover',
+      typescript: true,
+    })
+  }
+  return stripeInstance
+}
+
+// Export a proxy for backward compatibility if needed, or update usages
+// Since we are updating the file, let's export the getter and update internal usages
+// But exporting 'stripe' as a const that is a Proxy is safer for existing external imports
+export const stripe = new Proxy({} as Stripe, {
+  get(target, prop) {
+    const client = getStripe()
+    return Reflect.get(client, prop)
+  }
 })
 
 // Price IDs from Stripe Dashboard (set these as env vars)
-const PRICE_IDS = {
+export const PRICE_IDS = {
   pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_pro_month',
   pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_pro_year',
   business_monthly: process.env.STRIPE_PRICE_BUSINESS_MONTHLY || 'price_business_month',
@@ -130,9 +151,9 @@ export async function createCheckoutSession(params: CreateCheckoutSessionParams)
     })
 
     logger.info('createCheckoutSession: session created', { organizationId, sessionId: session.id })
-    await writeAudit('organizations', organizationId, 'stripe_checkout_created', { 
-      session_id: session.id, 
-      price_id: priceId 
+    await writeAudit('organizations', organizationId, 'stripe_checkout_created', {
+      session_id: session.id,
+      price_id: priceId
     })
 
     return session.url!
@@ -174,7 +195,7 @@ export async function createBillingPortalSession(organizationId: string, returnU
   } catch (error: any) {
     logger.error('createBillingPortalSession: failed', error, { organizationId })
     await writeAuditError('organizations', organizationId, { message: 'Failed to create billing portal session', error: error.message })
-    
+
     if (error instanceof AppError) throw error
     throw new AppError('Failed to access billing portal', 500, 'STRIPE_PORTAL_ERROR', error)
   }
@@ -229,14 +250,14 @@ export async function cancelSubscription(organizationId: string): Promise<void> 
     })
 
     logger.info('cancelSubscription: subscription cancelled at period end', { organizationId, subscriptionId: sub.stripe_subscription_id })
-    await writeAudit('organizations', organizationId, 'subscription_cancelled', { 
+    await writeAudit('organizations', organizationId, 'subscription_cancelled', {
       subscription_id: sub.stripe_subscription_id,
-      cancel_at_period_end: true 
+      cancel_at_period_end: true
     })
   } catch (error: any) {
     logger.error('cancelSubscription: failed', error, { organizationId })
     await writeAuditError('organizations', organizationId, { message: 'Failed to cancel subscription', error: error.message })
-    
+
     if (error instanceof AppError) throw error
     throw new AppError('Failed to cancel subscription', 500, 'SUBSCRIPTION_CANCEL_ERROR', error)
   }
@@ -268,13 +289,13 @@ export async function reactivateSubscription(organizationId: string): Promise<vo
     })
 
     logger.info('reactivateSubscription: subscription reactivated', { organizationId, subscriptionId: sub.stripe_subscription_id })
-    await writeAudit('organizations', organizationId, 'subscription_reactivated', { 
-      subscription_id: sub.stripe_subscription_id 
+    await writeAudit('organizations', organizationId, 'subscription_reactivated', {
+      subscription_id: sub.stripe_subscription_id
     })
   } catch (error: any) {
     logger.error('reactivateSubscription: failed', error, { organizationId })
     await writeAuditError('organizations', organizationId, { message: 'Failed to reactivate subscription', error: error.message })
-    
+
     if (error instanceof AppError) throw error
     throw new AppError('Failed to reactivate subscription', 500, 'SUBSCRIPTION_REACTIVATE_ERROR', error)
   }
@@ -301,7 +322,7 @@ export async function updateSubscription(organizationId: string, newPriceId: str
 
     // Get subscription from Stripe to get the subscription item ID
     const subscription = await stripe.subscriptions.retrieve(sub.stripe_subscription_id)
-    
+
     if (!subscription.items.data[0]) {
       throw new AppError('Invalid subscription structure', 500, 'INVALID_SUBSCRIPTION')
     }
@@ -318,14 +339,14 @@ export async function updateSubscription(organizationId: string, newPriceId: str
     })
 
     logger.info('updateSubscription: subscription updated', { organizationId, subscriptionId: sub.stripe_subscription_id, newPriceId })
-    await writeAudit('organizations', organizationId, 'subscription_updated', { 
+    await writeAudit('organizations', organizationId, 'subscription_updated', {
       subscription_id: sub.stripe_subscription_id,
-      new_price_id: newPriceId 
+      new_price_id: newPriceId
     })
   } catch (error: any) {
     logger.error('updateSubscription: failed', error, { organizationId, newPriceId })
     await writeAuditError('organizations', organizationId, { message: 'Failed to update subscription', error: error.message })
-    
+
     if (error instanceof AppError) throw error
     throw new AppError('Failed to update subscription', 500, 'SUBSCRIPTION_UPDATE_ERROR', error)
   }
@@ -376,5 +397,4 @@ export async function getPaymentMethods(organizationId: string) {
   }
 }
 
-// Export Stripe instance for direct use in webhooks
-export { stripe, PRICE_IDS }
+
