@@ -37,7 +37,6 @@
     "csv-parse": "^6.1.0",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
-    "elevenlabs": "^1.59.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "next": "^14.2.15",
@@ -72,6 +71,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "wrangler": "^4.60.0"
   }
 }
