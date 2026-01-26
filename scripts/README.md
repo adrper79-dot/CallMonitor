@@ -1,3 +1,19 @@
+Run SQL non-interactively with psql
+
+Usage:
+
+PowerShell (example):
+
+```powershell
+# Create a SQL file with the statements you want to run, e.g. add_providerAccountId.sql
+$conn = 'postgresql://postgres:YOUR_PASSWORD@db.fiijrhpjpebevfavzlhu.supabase.co:5432/postgres'
+.
+\scripts\run_psql.ps1 -ConnString $conn -SqlFile .\add_providerAccountId.sql
+```
+
+Notes:
+- Do not commit credentials into the repository. Use environment variables or a secure vault in production.
+- The script prefers Postgres clients installed under `C:\Program Files\PostgreSQL` and falls back to `psql` on PATH.
 Seed/test scripts
 
 seed_test_users.ts

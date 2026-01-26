@@ -4,17 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { exchangeCodeForTokens } from '@/lib/services/crmProviders/hubspot'
-import { CRMService } from '@/lib/services/crmService'
+import pgClient from '@/lib/pgClient'
+import { encryptToken } from '@/lib/services/crmService'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -60,25 +57,37 @@ export async function GET(req: NextRequest) {
             )
         }
 
-        // Create/update integration
-        const crmService = new CRMService(supabaseAdmin)
-        const result = await crmService.createIntegration(
-            stateData.orgId,
-            'hubspot',
-            tokenResult.tokens,
-            tokenResult.accountInfo?.portalId,
-            tokenResult.accountInfo?.hubDomain,
-            stateData.userId
+        const upsertRes = await pgClient.query(
+            `INSERT INTO integrations (organization_id, provider, provider_account_id, provider_account_name, status, connected_at, connected_by, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+             ON CONFLICT (organization_id, provider)
+             DO UPDATE SET provider_account_id = EXCLUDED.provider_account_id, provider_account_name = EXCLUDED.provider_account_name, status = EXCLUDED.status, connected_at = EXCLUDED.connected_at, connected_by = EXCLUDED.connected_by, updated_at = EXCLUDED.updated_at
+             RETURNING *`,
+            [stateData.orgId, 'hubspot', tokenResult.accountInfo?.portalId ?? null, tokenResult.accountInfo?.hubDomain ?? null, 'active', new Date().toISOString(), stateData.userId, new Date().toISOString()]
         )
 
-        if (!result.success) {
-            return NextResponse.redirect(
-                `${appUrl}/settings/integrations?error=${encodeURIComponent(result.error || 'integration_failed')}`
-            )
+        const integration = upsertRes?.rows && upsertRes.rows.length ? upsertRes.rows[0] : null
+        if (!integration) {
+            return NextResponse.redirect(`${appUrl}/settings/integrations?error=integration_failed`)
         }
 
+        try {
+            await pgClient.query(
+                `INSERT INTO oauth_tokens (integration_id, access_token_encrypted, refresh_token_encrypted, token_type, expires_at, scopes, instance_url, updated_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                 ON CONFLICT (integration_id) DO UPDATE SET access_token_encrypted = EXCLUDED.access_token_encrypted, refresh_token_encrypted = EXCLUDED.refresh_token_encrypted, token_type = EXCLUDED.token_type, expires_at = EXCLUDED.expires_at, scopes = EXCLUDED.scopes, instance_url = EXCLUDED.instance_url, updated_at = EXCLUDED.updated_at`,
+                [integration.id, encryptToken(tokenResult.tokens.access_token), tokenResult.tokens.refresh_token ? encryptToken(tokenResult.tokens.refresh_token) : null, tokenResult.tokens.token_type ?? 'Bearer', tokenResult.tokens.expires_at ? tokenResult.tokens.expires_at.toISOString() : null, tokenResult.tokens.scopes ?? null, tokenResult.tokens.instance_url ?? null, new Date().toISOString()]
+            )
+        } catch (err) {
+            logger.error('Failed to store OAuth tokens', err)
+            return NextResponse.redirect(`${appUrl}/settings/integrations?error=token_store_failed`)
+        }
+
+        await pgClient.query(`INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, created_at) VALUES ($1,$2,$3,$4,$5,$6)`, [uuidv4(), stateData.orgId, integration.id, 'oauth_connect', 'success', new Date().toISOString()])
+        await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [uuidv4(), stateData.orgId, stateData.userId, 'integration', integration.id, 'connect', new Date().toISOString()])
+
         logger.info('HubSpot integration connected', {
-            integrationId: result.integrationId,
+            integrationId: integration.id,
             orgId: stateData.orgId
         })
 

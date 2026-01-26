@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { getRBACContext } from '@/lib/middleware/rbac'
-import { AppError } from '@/types/app-error'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
@@ -22,13 +21,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   let organizationId: string | null = null
   let userId: string | null = null
-  
+
   try {
     const session = await getServerSession(authOptions)
     userId = (session?.user as any)?.id ?? null
 
     if (!userId) {
-        return ApiErrors.unauthorized()
+      return ApiErrors.unauthorized()
     }
 
     const url = new URL(req.url)
@@ -46,14 +45,18 @@ export async function GET(req: Request) {
 
     // Fetch voice targets
     // Note: voice_targets table may not exist yet - return empty array if missing
-    const { data: targets, error: targetsErr } = await supabaseAdmin
-      .from('voice_targets')
-      .select('id, phone_number, name, description, is_active, created_at')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-
-    // If table doesn't exist (42P01 error), return empty array instead of failing
-    if (targetsErr) {
+    let targets: any[] = []
+    try {
+      const { rows } = await query(
+        `SELECT id, phone_number, name, description, is_active, created_at 
+             FROM voice_targets 
+             WHERE organization_id = $1 
+             ORDER BY created_at DESC`,
+        [organizationId]
+      )
+      targets = rows
+    } catch (targetsErr: any) {
+      // If table doesn't exist (42P01 error), return empty array instead of failing
       if (targetsErr.code === '42P01' || targetsErr.message?.includes('does not exist')) {
         logger.info('voice_targets table does not exist yet, returning empty array', { organizationId })
         return NextResponse.json({
@@ -61,9 +64,9 @@ export async function GET(req: Request) {
           targets: []
         })
       }
-      
+
       logger.error('Failed to fetch voice_targets', targetsErr, { organizationId, userId })
-        return ApiErrors.internal('Failed to fetch voice targets')
+      return ApiErrors.internal('Failed to fetch voice targets')
     }
 
     return NextResponse.json({
@@ -72,7 +75,7 @@ export async function GET(req: Request) {
     })
   } catch (err: any) {
     logger.error('GET /api/voice/targets failed', err, { organizationId, userId })
-      return ApiErrors.internal('Internal server error')
+    return ApiErrors.internal('Internal server error')
   }
 }
 
@@ -117,21 +120,17 @@ export async function POST(req: Request) {
 
     // Create voice target
     const targetId = uuidv4()
-    const { data: target, error: insertErr } = await supabaseAdmin
-      .from('voice_targets')
-      .insert({
-        id: targetId,
-        organization_id,
-        phone_number,
-        name: name || null,
-        description: description || null,
-        is_active: true,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single()
+    let target: any = null
 
-    if (insertErr) {
+    try {
+      const { rows } = await query(
+        `INSERT INTO voice_targets (id, organization_id, phone_number, name, description, is_active, created_at)
+             VALUES ($1, $2, $3, $4, $5, true, NOW())
+             RETURNING *`,
+        [targetId, organization_id, phone_number, name || null, description || null]
+      )
+      target = rows[0]
+    } catch (insertErr: any) {
       logger.error('Failed to create voice target', insertErr)
       return ApiErrors.internal('Failed to create voice target')
     }
@@ -176,13 +175,12 @@ export async function DELETE(req: Request) {
     }
 
     // Delete voice target
-    const { error: deleteErr } = await supabaseAdmin
-      .from('voice_targets')
-      .delete()
-      .eq('id', targetId)
-      .eq('organization_id', organizationId)
-
-    if (deleteErr) {
+    try {
+      await query(
+        `DELETE FROM voice_targets WHERE id = $1 AND organization_id = $2`,
+        [targetId, organizationId]
+      )
+    } catch (deleteErr: any) {
       logger.error('Failed to delete voice target', deleteErr)
       return ApiErrors.internal('Failed to delete voice target')
     }

@@ -12,6 +12,8 @@
  */
 
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
+import { query } from '@/lib/pgClient'
 
 export interface AuditFailureMetrics {
   failureCount: number
@@ -247,7 +249,7 @@ export const auditLogMonitor = new AuditLogMonitor()
  * import { writeAuditLogWithMonitoring } from '@/lib/monitoring/auditLogMonitor'
  * 
  * await writeAuditLogWithMonitoring(async () => {
- *   await supabaseAdmin.from('audit_logs').insert({...})
+ *   await query(`INSERT INTO ...`)
  * }, { resource: 'calls', action: 'create' })
  * ```
  */
@@ -273,7 +275,7 @@ export async function writeAuditLogWithMonitoring(
  * import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
  * 
  * await bestEffortAuditLog(async () => {
- *   await supabaseAdmin.from('audit_logs').insert({...})
+ *   await query(`INSERT INTO ...`)
  * }, { resource: 'calls', action: 'create' })
  * ```
  */
@@ -305,11 +307,7 @@ export function getAuditLogMetrics(): AuditFailureMetrics {
 }
 
 
-import { v4 as uuidv4 } from 'uuid'
-import { SupabaseClient } from '@supabase/supabase-js'
-
 export interface AuditErrorParams {
-  supabaseAdmin: SupabaseClient
   organizationId: string
   actorId: string | null
   systemId: string | null
@@ -327,7 +325,6 @@ export interface AuditErrorParams {
  */
 export async function logAuditError(params: AuditErrorParams): Promise<void> {
   const {
-    supabaseAdmin,
     organizationId,
     actorId,
     systemId,
@@ -338,20 +335,11 @@ export async function logAuditError(params: AuditErrorParams): Promise<void> {
   } = params
 
   await bestEffortAuditLog(
-    async () => await supabaseAdmin.from('audit_logs').insert({
-      id: uuidv4(),
-      organization_id: organizationId,
-      user_id: actorId,
-      system_id: systemId,
-      resource_type: resource,
-      resource_id: resourceId,
-      action: 'error',
-      actor_type: actorId ? 'human' : 'system',
-      actor_label: actorLabel || (actorId || 'system'),
-      before: null,
-      after: payload,
-      created_at: new Date().toISOString()
-    }),
+    async () => await query(
+      `INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'error', $7, $8, $9, NOW())`,
+      [uuidv4(), organizationId, actorId, systemId, resource, resourceId, actorId ? 'human' : 'system', actorLabel || (actorId || 'system'), JSON.stringify(payload)]
+    ),
     { resource, resourceId, action: 'error' }
   )
 }

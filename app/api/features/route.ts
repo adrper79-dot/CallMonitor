@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import pgClient from '@/lib/pgClient'
 import { FeatureFlag, FEATURE_FLAGS, FeatureStatus } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 
@@ -35,13 +36,9 @@ export async function GET(request: NextRequest) {
     }
     
     // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
+    const memberRes = await pgClient.query(`SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`, [userId])
+    const member = memberRes?.rows && memberRes.rows.length ? memberRes.rows[0] : null
+    if (!member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
@@ -49,23 +46,14 @@ export async function GET(request: NextRequest) {
     }
     
     // Get global feature flags
-    const { data: globalFlags } = await supabaseAdmin
-      .from('global_feature_flags')
-      .select('feature, enabled, disabled_reason')
-    
-    const globalFlagMap = new Map(
-      globalFlags?.map(f => [f.feature, f]) || []
-    )
+    const gfRes = await pgClient.query(`SELECT feature, enabled, disabled_reason FROM global_feature_flags`)
+    const globalFlags = gfRes?.rows || []
+    const globalFlagMap = new Map((globalFlags || []).map((f: any) => [f.feature, f]))
     
     // Get org-specific feature flags
-    const { data: orgFlags } = await supabaseAdmin
-      .from('org_feature_flags')
-      .select('*')
-      .eq('organization_id', member.organization_id)
-    
-    const orgFlagMap = new Map(
-      orgFlags?.map(f => [f.feature, f]) || []
-    )
+    const ofRes = await pgClient.query(`SELECT * FROM org_feature_flags WHERE organization_id = $1`, [member.organization_id])
+    const orgFlags = ofRes?.rows || []
+    const orgFlagMap = new Map((orgFlags || []).map((f: any) => [f.feature, f]))
     
     // Build feature status for all features
     const features: FeatureStatus[] = FEATURE_FLAGS.map(feature => {
@@ -178,12 +166,8 @@ export async function PUT(request: NextRequest) {
     
     // Check if global flag prevents enabling
     if (enabled) {
-      const { data: globalFlag } = await supabaseAdmin
-        .from('global_feature_flags')
-        .select('enabled')
-        .eq('feature', feature)
-        .single()
-      
+      const gf = await pgClient.query(`SELECT enabled FROM global_feature_flags WHERE feature = $1 LIMIT 1`, [feature])
+      const globalFlag = gf?.rows && gf.rows.length ? gf.rows[0] : null
       if (globalFlag?.enabled === false) {
         return NextResponse.json(
           { success: false, error: { code: 'GLOBALLY_DISABLED', message: 'This feature is disabled platform-wide' } },
@@ -193,25 +177,15 @@ export async function PUT(request: NextRequest) {
     }
     
     // Upsert feature flag
-    const { data: updatedFlag, error: upsertError } = await supabaseAdmin
-      .from('org_feature_flags')
-      .upsert({
-        organization_id: member.organization_id,
-        feature,
-        enabled,
-        disabled_reason: enabled ? null : (disabled_reason || null),
-        disabled_at: enabled ? null : new Date().toISOString(),
-        disabled_by: enabled ? null : userId,
-        daily_limit: daily_limit ?? null,
-        monthly_limit: monthly_limit ?? null,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'organization_id,feature'
-      })
-      .select()
-      .single()
-    
-    if (upsertError) {
+    let updatedFlag: any = null
+    try {
+      const now = new Date().toISOString()
+      const res = await pgClient.query(`INSERT INTO org_feature_flags (organization_id, feature, enabled, disabled_reason, disabled_at, disabled_by, daily_limit, monthly_limit, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id, feature) DO UPDATE SET enabled = EXCLUDED.enabled, disabled_reason = EXCLUDED.disabled_reason, disabled_at = EXCLUDED.disabled_at, disabled_by = EXCLUDED.disabled_by, daily_limit = EXCLUDED.daily_limit, monthly_limit = EXCLUDED.monthly_limit, updated_at = EXCLUDED.updated_at RETURNING *`, [member.organization_id, feature, enabled, enabled ? null : (disabled_reason || null), enabled ? null : now, enabled ? null : userId, daily_limit ?? null, monthly_limit ?? null, now])
+      updatedFlag = res?.rows && res.rows.length ? res.rows[0] : null
+      if (!updatedFlag) {
+        throw new Error('Upsert returned no rows')
+      }
+    } catch (upsertError: any) {
       logger.error('[features PUT] Upsert error', upsertError, { feature })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update feature flag' } },

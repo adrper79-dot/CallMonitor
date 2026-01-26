@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { SearchBuilder } from '@/lib/services/searchBuilder'
@@ -14,10 +13,6 @@ import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(req: NextRequest) {
     try {
@@ -40,7 +35,7 @@ export async function POST(req: NextRequest) {
 
         logger.info('Search rebuild initiated', { orgId: session.user.orgId, userId: session.user.id })
 
-        const builder = new SearchBuilder(supabaseAdmin)
+        const builder = new SearchBuilder()
         const result = await builder.rebuildForOrganization(session.user.orgId, session.user.id)
 
         return NextResponse.json({

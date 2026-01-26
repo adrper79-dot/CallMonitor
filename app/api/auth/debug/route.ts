@@ -39,14 +39,16 @@ export async function GET() {
       vercelEnv: process.env.VERCEL_ENV || 'not set',
     }
     
+    const sess = session as any
+
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       cookies: sessionCookies,
-      session: session ? {
-        hasUser: !!session.user,
-        userEmail: session.user?.email || null,
-        userId: (session.user as any)?.id || null,
-        expires: session.expires,
+      session: sess ? {
+        hasUser: !!sess.user,
+        userEmail: sess.user?.email || null,
+        userId: (sess.user as any)?.id || null,
+        expires: sess.expires,
       } : null,
       sessionError,
       authConfig: authConfigCheck,

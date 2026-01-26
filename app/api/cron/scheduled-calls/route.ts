@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { logger } from '@/lib/logger'
 
@@ -42,18 +42,20 @@ export async function GET(req: NextRequest) {
       windowEnd: windowEnd.toISOString()
     })
 
-    const { data: bookings, error: fetchError } = await supabaseAdmin
-      .from('booking_events')
-      .select('*, organizations(plan, tool_id)')
-      .eq('status', 'pending')
-      .gte('start_time', windowStart.toISOString())
-      .lte('start_time', windowEnd.toISOString())
-      .limit(10)
-
-    if (fetchError) {
-      logger.error('Cron: Failed to fetch bookings', fetchError)
-      return NextResponse.json({ success: false, error: 'Failed to fetch bookings' }, { status: 500 })
-    }
+    /*
+      Select bookings that are pending and within the time window.
+      Join organizations to get plan and tool_id.
+    */
+    const { rows: bookings } = await query(
+      `SELECT b.*, o.plan, o.tool_id 
+       FROM booking_events b
+       JOIN organizations o ON b.organization_id = o.id
+       WHERE b.status = 'pending' 
+         AND b.start_time >= $1 
+         AND b.start_time <= $2
+       LIMIT 10`,
+      [windowStart.toISOString(), windowEnd.toISOString()]
+    )
 
     if (!bookings || bookings.length === 0) {
       return NextResponse.json({ success: true, message: 'No scheduled calls due', processed: 0 })
@@ -65,17 +67,15 @@ export async function GET(req: NextRequest) {
 
     for (const booking of bookings) {
       try {
-        await supabaseAdmin
-          .from('booking_events')
-          .update({ status: 'calling' })
-          .eq('id', booking.id)
-          .eq('status', 'pending')
+        await query(
+          `UPDATE booking_events SET status = 'calling' WHERE id = $1 AND status = 'pending'`,
+          [booking.id]
+        )
 
-        const { data: vcRows } = await supabaseAdmin
-          .from('voice_configs')
-          .select('*')
-          .eq('organization_id', booking.organization_id)
-          .limit(1)
+        const { rows: vcRows } = await query(
+          `SELECT * FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+          [booking.organization_id]
+        )
 
         const voiceConfig = vcRows?.[0] || {}
 
@@ -101,19 +101,23 @@ export async function GET(req: NextRequest) {
           callInput.flow_type = 'bridge'
         }
 
-        const callResult = await startCallHandler(callInput, { supabaseAdmin })
+        // Updated signature: no longer passes { supabaseAdmin }
+        const callResult = await startCallHandler(callInput)
 
         if (callResult.success && (callResult as any).call) {
           const call = (callResult as any).call
-          await supabaseAdmin
-            .from('booking_events')
-            .update({ call_id: call.id, status: 'completed' })
-            .eq('id', booking.id)
+          await query(
+            `UPDATE booking_events SET call_id = $1, status = 'completed' WHERE id = $2`,
+            [call.id, booking.id]
+          )
 
           results.push({ bookingId: booking.id, success: true, callId: call.id })
           logger.info(`Cron: Call placed for booking ${booking.id}`, { callId: call.id })
         } else {
-          await supabaseAdmin.from('booking_events').update({ status: 'failed' }).eq('id', booking.id)
+          await query(
+            `UPDATE booking_events SET status = 'failed' WHERE id = $1`,
+            [booking.id]
+          )
           results.push({
             bookingId: booking.id,
             success: false,
@@ -122,7 +126,10 @@ export async function GET(req: NextRequest) {
           logger.error(`Cron: Call failed for booking ${booking.id}`, undefined, { result: callResult })
         }
       } catch (bookingError: any) {
-        await supabaseAdmin.from('booking_events').update({ status: 'failed' }).eq('id', booking.id)
+        await query(
+          `UPDATE booking_events SET status = 'failed' WHERE id = $1`,
+          [booking.id]
+        ).catch(() => { }) // Ignore update error
         results.push({ bookingId: booking.id, success: false, error: bookingError?.message || 'Processing error' })
         logger.error(`Cron: Error processing booking ${booking.id}`, bookingError)
       }

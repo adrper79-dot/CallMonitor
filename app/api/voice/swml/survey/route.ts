@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { buildSurveySWML, buildFallbackSWML } from '@/lib/signalwire/surveySwmlBuilder'
 import { parseRequestBody, swmlJsonResponse } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const configId = url.searchParams.get('configId')
     const orgId = url.searchParams.get('orgId')
 
-    logger.info('SWML survey: inbound call', { 
+    logger.info('SWML survey: inbound call', {
       callSid: callSid ? '[REDACTED]' : null,
       configId, orgId
     })
@@ -30,22 +31,22 @@ export async function POST(req: NextRequest) {
     let organizationId: string | null = null
 
     if (configId) {
-      const { data: vcRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email')
-        .eq('id', configId)
-        .limit(1)
+      const { rows } = await query(
+        `SELECT id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email
+         FROM voice_configs WHERE id = $1 LIMIT 1`,
+        [configId]
+      )
 
-      voiceConfig = vcRows?.[0]
+      voiceConfig = rows?.[0]
       organizationId = voiceConfig?.organization_id
     } else if (orgId) {
-      const { data: vcRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email')
-        .eq('organization_id', orgId)
-        .limit(1)
+      const { rows } = await query(
+        `SELECT id, organization_id, survey, survey_prompts, survey_prompts_locales, translate_to, survey_voice, survey_webhook_email
+         FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+        [orgId]
+      )
 
-      voiceConfig = vcRows?.[0]
+      voiceConfig = rows?.[0]
       organizationId = orgId
     }
 
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.callmonitor.com'
     const callId = callSid || `survey-${Date.now()}`
-    
+
     const { prompts: resolvedPrompts } = resolveSurveyPrompts(voiceConfig)
     const swml = buildSurveySWML({
       callId,
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       recordCall: true
     })
 
-    logger.info('SWML survey: generated SWML', { 
+    logger.info('SWML survey: generated SWML', {
       organizationId,
       configId: voiceConfig.id,
       promptCount: resolvedPrompts.length
@@ -75,14 +76,11 @@ export async function POST(req: NextRequest) {
 
     if (callSid && organizationId) {
       try {
-        const { v4: uuidv4 } = await import('uuid')
-        await supabaseAdmin.from('calls').insert({
-          id: uuidv4(),
-          organization_id: organizationId,
-          call_sid: callSid,
-          status: 'ringing',
-          started_at: new Date().toISOString()
-        })
+        await query(
+          `INSERT INTO calls (id, organization_id, call_sid, status, started_at)
+             VALUES ($1, $2, $3, 'ringing', NOW())`,
+          [uuidv4(), organizationId, callSid]
+        )
       } catch (insertErr) {
         logger.warn('SWML survey: could not create call record', { error: (insertErr as any)?.message })
       }
@@ -96,8 +94,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    ok: true, route: '/api/voice/swml/survey', 
+  return NextResponse.json({
+    ok: true, route: '/api/voice/swml/survey',
     method: 'Use POST for SWML generation',
     description: 'SWML endpoint for AI Survey Bot',
     params: { configId: 'voice_configs.id', orgId: 'organization_id (fallback)' }

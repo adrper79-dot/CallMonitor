@@ -1,0 +1,13 @@
+{
+  "runAt": "2026-01-25T02:04:43.351Z",
+  "results": [
+    {
+      "table": "public.kpi_logs",
+      "status": "OK"
+    },
+    {
+      "table": "public.org_sso_configs",
+      "status": "OK"
+    }
+  ]
+}

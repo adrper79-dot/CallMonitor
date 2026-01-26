@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -29,30 +29,30 @@ export async function GET(
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     const webhookId = params.id
-    
+
     // Get user's organization and verify access
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
+    const { rows: members } = await query(
+      `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    )
+    const member = members[0]
+
+    if (!member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Only owners and admins can view delivery logs
     if (!['owner', 'admin'].includes(member.role)) {
       return NextResponse.json(
@@ -60,59 +60,61 @@ export async function GET(
         { status: 403 }
       )
     }
-    
+
     // Verify webhook exists and belongs to organization
-    const { data: webhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('id')
-      .eq('id', webhookId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (fetchError || !webhook) {
+    const { rows: webhooks } = await query(
+      `SELECT id FROM webhook_subscriptions WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [webhookId, member.organization_id]
+    )
+    const webhook = webhooks[0]
+
+    if (!webhook) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Webhook not found' } },
         { status: 404 }
       )
     }
-    
+
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
     const offset = parseInt(searchParams.get('offset') || '0')
     const statusFilter = searchParams.get('status')
-    
+
     // Build query
-    let query = supabaseAdmin
-      .from('webhook_deliveries')
-      .select('*', { count: 'exact' })
-      .eq('subscription_id', webhookId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-    
-    // Apply status filter if provided
+    let sql = `SELECT * FROM webhook_deliveries WHERE subscription_id = $1`
+    const sqlParams: any[] = [webhookId]
+
     if (statusFilter && ['pending', 'processing', 'delivered', 'failed', 'retrying'].includes(statusFilter)) {
-      query = query.eq('status', statusFilter)
+      sql += ` AND status = $2`
+      sqlParams.push(statusFilter)
     }
-    
-    const { data: deliveries, error: deliveriesError, count } = await query
-    
-    if (deliveriesError) {
-      logger.error('[deliveries GET] Error', deliveriesError, { webhookId })
-      return NextResponse.json(
-        { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch deliveries' } },
-        { status: 500 }
-      )
+
+    // Get total count (separate query for count accuracy)
+    let countSql = `SELECT COUNT(*) as exact_count FROM webhook_deliveries WHERE subscription_id = $1`
+    let countParams = [webhookId]
+    if (statusFilter && ['pending', 'processing', 'delivered', 'failed', 'retrying'].includes(statusFilter)) {
+      countSql += ` AND status = $2`
+      countParams.push(statusFilter)
     }
-    
+
+    const { rows: countRows } = await query(countSql, countParams)
+    const totalCount = parseInt(countRows[0].exact_count)
+
+    // Add ordering and pagination
+    sql += ` ORDER BY created_at DESC LIMIT $${sqlParams.length + 1} OFFSET $${sqlParams.length + 2}`
+    sqlParams.push(limit, offset)
+
+    const { rows: deliveries } = await query(sql, sqlParams)
+
     return NextResponse.json({
       success: true,
       deliveries: deliveries || [],
       pagination: {
-        total: count || 0,
+        total: totalCount,
         limit,
         offset,
-        hasMore: count ? offset + limit < count : false
+        hasMore: offset + limit < totalCount
       }
     })
   } catch (error: any) {

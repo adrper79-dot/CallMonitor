@@ -1,0 +1,2 @@
+ERROR: column "tablename" does not exist
+SQL: select * from pg_policy order by tablename

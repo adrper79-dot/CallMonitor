@@ -6,17 +6,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { logger } from '@/lib/logger'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+
 
 export async function GET(req: NextRequest) {
     try {
@@ -34,41 +31,56 @@ export async function GET(req: NextRequest) {
         const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
         const offset = parseInt(searchParams.get('offset') || '0')
 
-        let query = supabaseAdmin
-            .from('search_documents')
-            .select('id, source_type, source_id, title, call_id, phone_number, domain, tags, indexed_at, version', { count: 'exact' })
-            .eq('organization_id', orgId)
-            .eq('is_current', true)
-            .order('indexed_at', { ascending: false })
-            .range(offset, offset + limit - 1)
+        // Build dynamic SQL with parameterized values
+        const clauses: string[] = ['organization_id = $1', 'is_current = true']
+        const params: any[] = [orgId]
+        let idx = 2
 
-        // Apply filters
-        if (sourceType) query = query.eq('source_type', sourceType)
-        if (phoneNumber) query = query.ilike('phone_number', `%${phoneNumber}%`)
-        if (domain) query = query.eq('domain', domain)
+        if (sourceType) {
+            clauses.push(`source_type = $${idx++}`)
+            params.push(sourceType)
+        }
+        if (phoneNumber) {
+            clauses.push(`phone_number ILIKE $${idx++}`)
+            params.push(`%${phoneNumber}%`)
+        }
+        if (domain) {
+            clauses.push(`domain = $${idx++}`)
+            params.push(domain)
+        }
 
-        // Full-text search using PostgreSQL text search
+        let ftClause = ''
         if (q) {
-            // Use websearch syntax for better UX
-            query = query.textSearch('content', q, { type: 'websearch', config: 'english' })
+            // Use websearch_to_tsquery for websearch-style queries
+            ftClause = `AND to_tsvector('english', coalesce(content, '')) @@ websearch_to_tsquery('english', $${idx})`
+            params.push(q)
+            idx++
         }
 
-        const { data, error, count } = await query
+        const where = clauses.length ? `WHERE ${clauses.join(' AND ')} ${ftClause}` : ''
 
-        if (error) {
-            logger.error('Search query failed', error)
-            return NextResponse.json({ success: false, error: 'Search failed' }, { status: 500 })
-        }
+        const dataSql = `
+            SELECT id, source_type, source_id, title, call_id, phone_number, domain, tags, indexed_at, version,
+                   COUNT(*) OVER() AS total_count
+            FROM search_documents
+            ${where}
+            ORDER BY indexed_at DESC
+            LIMIT $${idx} OFFSET $${idx + 1}
+        `
+        params.push(limit, offset)
+
+        const result = await pgClient.query(dataSql, params)
+        const rows = result.rows || []
+        const total = rows.length ? parseInt(rows[0].total_count, 10) : 0
 
         return NextResponse.json({
             success: true,
-            results: data,
+            results: rows,
             meta: {
-                total: count,
+                total,
                 limit,
                 offset,
                 query: q,
-                // Explicit disclaimer per ARCH_DOCS
                 disclaimer: 'Search results are non-authoritative. Fetch canonical data for source of truth.'
             }
         })

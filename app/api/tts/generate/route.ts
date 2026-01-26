@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateSpeech } from '@/app/services/elevenlabs'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import storage from '@/lib/storage'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/api/utils'
@@ -49,29 +50,16 @@ export async function POST(request: NextRequest) {
     const fileName = `${uuidv4()}.mp3`
     const filePath = `tts/${organization_id}/${fileName}`
 
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('recordings')
-      .upload(filePath, audioBuffer, { contentType: 'audio/mpeg', upsert: false })
-
-    if (uploadError) {
-      logger.error('Storage upload error', uploadError)
-      const errorMessage = uploadError.message?.includes('bucket')
-        ? 'Storage bucket not configured. Please create a "recordings" bucket in Supabase Storage.'
-        : `Failed to save audio: ${uploadError.message || 'Unknown storage error'}`
-      return ApiErrors.internal(errorMessage)
-    }
-
-    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
-      .from('recordings')
-      .createSignedUrl(filePath, 3600)
-
+    // Upload using storage adapter
+    await storage.upload('recordings', filePath, audioBuffer, 'audio/mpeg')
     let audioUrl: string
-    if (signedUrlError || !signedUrlData?.signedUrl) {
-      if (signedUrlError) logger.warn('Failed to create signed URL, falling back to public URL', signedUrlError)
-      const { data: urlData } = supabaseAdmin.storage.from('recordings').getPublicUrl(filePath)
-      audioUrl = urlData.publicUrl
-    } else {
-      audioUrl = signedUrlData.signedUrl
+    try {
+      const signed = await storage.createSignedUrl('recordings', filePath, 3600)
+      audioUrl = signed?.signedUrl || signed
+    } catch (e) {
+      logger.warn('Failed to create signed URL, falling back to public URL', e as any)
+      const pub = await storage.getPublicUrl('recordings', filePath)
+      audioUrl = pub.publicURL || pub.publicUrl
     }
 
     await supabaseAdmin.from('ai_runs').insert({

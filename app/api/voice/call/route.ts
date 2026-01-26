@@ -4,6 +4,7 @@ import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { isApiError } from '@/types/api'
+import { query } from '@/lib/pgClient'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -31,9 +32,9 @@ async function handlePOST(req: Request) {
     }
 
     const userId = ctx.userId
+    const organizationId = ctx.orgId
 
     const body = await req.json()
-    const supabaseAdmin = (await import('@/lib/supabaseAdmin')).default
 
     // SYSTEM OF RECORD COMPLIANCE (Requirement 1):
     // Reject any client-supplied call_id - IDs must be server-generated only
@@ -46,13 +47,18 @@ async function handlePOST(req: Request) {
 
     // If target_id provided, look up phone number from voice_targets
     if (!phoneNumber && body.target_id) {
-      const { data: target, error: targetError } = await supabaseAdmin
-        .from('voice_targets')
-        .select('phone_number')
-        .eq('id', body.target_id)
-        .single()
+      let target: any = null
+      try {
+        const { rows } = await query(
+          `SELECT phone_number FROM voice_targets WHERE id = $1 LIMIT 1`,
+          [body.target_id]
+        )
+        target = rows[0]
+      } catch (e) {
+        return Errors.notFound('Target not found')
+      }
 
-      if (targetError || !target) {
+      if (!target) {
         return Errors.notFound('Target not found')
       }
 
@@ -64,17 +70,15 @@ async function handlePOST(req: Request) {
     }
 
     // Call the existing startCallHandler with actor_id
+    // Dependency injection (supabaseAdmin) is no longer needed/supported in the new handler signature
     const result = await startCallHandler(
       {
-        organization_id: body.organization_id || body.orgId || ctx.orgId,
+        organization_id: body.organization_id || body.orgId || organizationId,
         phone_number: phoneNumber,
         from_number: body.from_number || undefined,  // Agent's phone for bridge calls
         flow_type: body.flow_type || (body.from_number ? 'bridge' : 'outbound'),
         modulations: body.modulations || {},
         actor_id: userId  // CRITICAL: Pass authenticated user ID
-      },
-      {
-        supabaseAdmin
       }
     )
 

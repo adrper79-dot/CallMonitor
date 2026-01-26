@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { swmlResponse } from '@/lib/api/utils'
 import { ApiErrors } from '@/lib/errors/apiHandler'
@@ -13,12 +13,6 @@ export const dynamic = 'force-dynamic'
  * Returns dynamic SWML JSON for a specific call based on callSid.
  * This endpoint is referenced by the SWML outbound handler as a fallback
  * for dynamic script generation.
- *
- * Per MASTER_ARCHITECTURE.txt: SignalWire calls this endpoint to get
- * call-specific SWML instructions.
- *
- * Query params:
- * - callSid: SignalWire call SID
  */
 export async function GET(req: Request) {
   try {
@@ -30,30 +24,28 @@ export async function GET(req: Request) {
     }
 
     // Find call by call_sid to get organization_id
-    const { data: callRows, error: callErr } = await supabaseAdmin
-      .from('calls')
-      .select('organization_id')
-      .eq('call_sid', callSid)
-      .limit(1)
+    const { rows: callRows } = await query(
+      `SELECT organization_id, to_number FROM calls WHERE call_sid = $1 LIMIT 1`,
+      [callSid]
+    )
 
-    if (callErr || !callRows || callRows.length === 0) {
-      // Call not found - return empty response (LaML handler will use fallback)
+    if (!callRows || callRows.length === 0) {
+      // Call not found - return empty response
       return new NextResponse('', { status: 404 })
     }
 
-    const organizationId = callRows[0].organization_id
+    const { organization_id: organizationId, to_number: toNumber } = callRows[0]
 
     // Get voice_configs for this organization
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, shopper_script')
-      .eq('organization_id', organizationId)
-      .limit(1)
+    const { rows: vcRows } = await query(
+      `SELECT record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, shopper_script 
+         FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
     const voiceConfig = vcRows?.[0] || null
 
     // Generate SWML JSON based on voice_configs
-    // This replaces the legacy LaML XML generation
     const sections: any[] = []
 
     // Answer the call
@@ -106,15 +98,7 @@ export async function GET(req: Request) {
       })
     }
 
-    // Main call flow - Dial to destination (from call data)
-    const { data: callData } = await supabaseAdmin
-      .from('calls')
-      .select('to_number')
-      .eq('call_sid', callSid)
-      .limit(1)
-
-    const toNumber = callData?.[0]?.to_number
-
+    // Main call flow - Dial to destination
     if (toNumber) {
       const recordingEnabled = voiceConfig?.record === true
       const recordingStatusCallback = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/signalwire`

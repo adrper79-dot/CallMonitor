@@ -4,18 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { ExternalEntityService } from '@/lib/services/externalEntityService'
 import { logger } from '@/lib/logger'
+import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(
     req: NextRequest,
@@ -31,49 +26,41 @@ export async function GET(
         const orgId = session.user.orgId
 
         // Fetch entity with identifiers
-        const { data: entity, error } = await supabaseAdmin
-            .from('external_entities')
-            .select(`
-        *,
-        external_entity_identifiers(id, identifier_type, identifier_value, observation_count, is_verified, first_observed_at, last_observed_at)
-      `)
-            .eq('id', entityId)
-            .eq('organization_id', orgId)
-            .single()
+        const entRes = await pgClient.query(`
+          SELECT e.*, COALESCE(json_agg(json_build_object('id', ei.id, 'identifier_type', ei.identifier_type, 'identifier_value', ei.identifier_value, 'observation_count', ei.observation_count, 'is_verified', ei.is_verified) ORDER BY ei.observation_count DESC) FILTER (WHERE ei.id IS NOT NULL), '[]') AS external_entity_identifiers
+          FROM external_entities e
+          LEFT JOIN external_entity_identifiers ei ON ei.entity_id = e.id
+          WHERE e.id = $1 AND e.organization_id = $2
+          GROUP BY e.id
+          LIMIT 1`, [entityId, orgId])
 
-        if (error || !entity) {
-            return NextResponse.json({ success: false, error: 'Entity not found' }, { status: 404 })
+        const entity = entRes?.rows && entRes.rows.length ? entRes.rows[0] : null
+        if (!entity) return NextResponse.json({ success: false, error: 'Entity not found' }, { status: 404 })
+
+        // Timeline: find identifiers, observations, calls, recordings
+        const idsRes = await pgClient.query(`SELECT id FROM external_entity_identifiers WHERE organization_id = $1 AND entity_id = $2`, [orgId, entityId])
+        const identifierIds = idsRes?.rows?.map((r: any) => r.id) || []
+        let timeline: any[] = []
+        if (identifierIds.length) {
+            const obsRes = await pgClient.query(`SELECT source_type, source_id, role, direction, observed_at FROM external_entity_observations WHERE organization_id = $1 AND identifier_id = ANY($2::uuid[]) ORDER BY observed_at DESC`, [orgId, identifierIds])
+            const callIds = Array.from(new Set((obsRes?.rows || []).filter((o: any) => o.source_type === 'call').map((o: any) => o.source_id)))
+            if (callIds.length) {
+                const callsRes = await pgClient.query(`SELECT id, status, started_at, ended_at, phone_number FROM calls WHERE organization_id = $1 AND id = ANY($2::uuid[]) ORDER BY started_at DESC`, [orgId, callIds])
+                const calls = callsRes?.rows || []
+                for (const call of calls) {
+                    const recRes = await pgClient.query(`SELECT id, url FROM recordings WHERE call_id = $1`, [call.id])
+                    timeline.push({ id: call.id, status: call.status, started_at: call.started_at, ended_at: call.ended_at, phone_number: call.phone_number, recordings: recRes?.rows || [] })
+                }
+            }
         }
 
-        // Fetch timeline
-        const service = new ExternalEntityService(supabaseAdmin)
-        const timeline = await service.getEntityTimeline(orgId, entityId)
+        // Unlinked observed identifiers
+        const observedRes = await pgClient.query(`SELECT id, identifier_type, identifier_value, observation_count FROM external_entity_identifiers WHERE organization_id = $1 AND entity_id IS NULL ORDER BY observation_count DESC LIMIT 10`, [orgId])
 
-        // Fetch unlinked identifiers with similar phone prefix (for suggestions)
-        const { data: observed } = await supabaseAdmin
-            .from('external_entity_identifiers')
-            .select('id, identifier_type, identifier_value, observation_count')
-            .eq('organization_id', orgId)
-            .is('entity_id', null)
-            .order('observation_count', { ascending: false })
-            .limit(10)
+        // Links for this entity
+        const linksRes = await pgClient.query(`SELECT id, link_type, reason, created_at, created_by, is_active FROM external_entity_links WHERE organization_id = $1 AND (source_entity_id = $2 OR target_entity_id = $2) ORDER BY created_at DESC`, [orgId, entityId])
 
-        // Fetch links for this entity
-        const { data: links } = await supabaseAdmin
-            .from('external_entity_links')
-            .select('id, link_type, reason, created_at, created_by, is_active')
-            .eq('organization_id', orgId)
-            .or(`source_entity_id.eq.${entityId},target_entity_id.eq.${entityId}`)
-            .order('created_at', { ascending: false })
-
-        return NextResponse.json({
-            success: true,
-            entity,
-            linked: entity.external_entity_identifiers || [],  // Linked identifiers
-            observed: observed || [],                          // Unlinked identifiers for UI suggestion
-            timeline,
-            links: links || []
-        })
+        return NextResponse.json({ success: true, entity, linked: entity.external_entity_identifiers || [], observed: observedRes?.rows || [], timeline, links: linksRes?.rows || [] })
     } catch (err: unknown) {
         logger.error('Entity fetch failed', err instanceof Error ? err : new Error(String(err)))
         return NextResponse.json({ success: false, error: 'Fetch failed' }, { status: 500 })

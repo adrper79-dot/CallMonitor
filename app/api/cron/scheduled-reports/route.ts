@@ -1,3 +1,4 @@
+
 /**
  * Scheduled Reports Cron Job
  * 
@@ -16,7 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { generateCallVolumeReport, generateCampaignPerformanceReport } from '@/lib/reports/generator'
 import { ApiErrors } from '@/lib/errors/apiHandler'
@@ -43,34 +44,25 @@ export async function GET(req: NextRequest) {
     const now = new Date().toISOString()
 
     // Get scheduled reports that are due
-    const { data: dueReports, error: queryError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .select(`
-        *,
-        report_templates (
-          id,
-          name,
-          report_type,
-          filters,
-          metrics,
-          dimensions
-        )
-      `)
-      .eq('is_active', true)
-      .lte('next_run_at', now)
-      .order('next_run_at', { ascending: true })
-
-    if (queryError) {
-      logger.error('scheduled-reports cron: query error', queryError)
-      return ApiErrors.internal('Database error')
-    }
+    // Join report_templates manually since we don't have supabase nested select
+    const { rows: dueReports } = await query(
+      `SELECT sr.*, 
+              rt.id as rt_id, rt.name as rt_name, rt.report_type as rt_type,
+              rt.filters as rt_filters, rt.metrics as rt_metrics, rt.dimensions as rt_dimensions
+       FROM scheduled_reports sr
+       LEFT JOIN report_templates rt ON sr.template_id = rt.id
+       WHERE sr.is_active = true 
+         AND sr.next_run_at <= $1
+       ORDER BY sr.next_run_at ASC`,
+      [now]
+    )
 
     if (!dueReports || dueReports.length === 0) {
       logger.info('scheduled-reports cron: no due reports')
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'No reports due',
-        processed: 0 
+        processed: 0
       })
     }
 
@@ -80,13 +72,26 @@ export async function GET(req: NextRequest) {
     let failed = 0
 
     // Process each due report
-    for (const scheduledReport of dueReports) {
+    for (const row of dueReports) {
+      // Reconstruct object structure for helper
+      const scheduledReport = {
+        ...row,
+        report_templates: {
+          id: row.rt_id,
+          name: row.rt_name,
+          report_type: row.rt_type,
+          filters: row.rt_filters,
+          metrics: row.rt_metrics,
+          dimensions: row.rt_dimensions
+        }
+      }
+
       try {
         await processScheduledReport(scheduledReport)
         processed++
       } catch (error: any) {
         logger.error('scheduled-reports cron: failed to process report', error, {
-          scheduledReportId: scheduledReport.id,
+          scheduledReportId: row.id,
         })
         failed++
       }
@@ -94,7 +99,7 @@ export async function GET(req: NextRequest) {
 
     logger.info('scheduled-reports cron: completed', { processed, failed })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       processed,
       failed,
@@ -102,9 +107,9 @@ export async function GET(req: NextRequest) {
     })
   } catch (error: any) {
     logger.error('scheduled-reports cron: unexpected error', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
-      message: error.message 
+      message: error.message
     }, { status: 500 })
   }
 }
@@ -143,28 +148,29 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
 
     // Create generated report record
     // Note: generated_reports schema requires 'name' and 'parameters' fields
-    const { data: generatedReport, error: insertError } = await supabaseAdmin
-      .from('generated_reports')
-      .insert({
+    const { rows: reportRows } = await query(
+      `INSERT INTO generated_reports (
+         organization_id, template_id, name, report_data, parameters, 
+         file_format, status, generated_by, generation_duration_ms, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       RETURNING *`,
+      [
         organization_id,
         template_id,
-        name: `${report_templates.name} - ${start_date.split('T')[0]}`, // Required
-        report_data: reportData,
-        parameters: { date_range: { start: start_date, end: end_date } }, // Store date range in parameters
-        file_format: 'json',
-        status: 'completed',
-        generated_by: scheduledReport.created_by, // Use schedule creator
-        generation_duration_ms: 0, // Not tracking for scheduled
-      })
-      .select()
-      .single()
+        `${report_templates.name} - ${start_date.split('T')[0]}`,
+        JSON.stringify(reportData),
+        JSON.stringify({ date_range: { start: start_date, end: end_date } }),
+        'json',
+        'completed',
+        scheduledReport.created_by,
+        0
+      ]
+    )
 
-    if (insertError) {
-      throw insertError
-    }
+    const generatedReport = reportRows[0]
 
-    logger.info('processScheduledReport: report generated', { 
-      reportId: generatedReport.id 
+    logger.info('processScheduledReport: report generated', {
+      reportId: generatedReport.id
     })
 
     // Send email if configured
@@ -176,17 +182,14 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     const nextRun = calculateNextRun(schedule_pattern)
 
     // Update scheduled report
-    // Note: last_report_id column doesn't exist in schema, using updated_at instead
-    await supabaseAdmin
-      .from('scheduled_reports')
-      .update({
-        last_run_at: new Date().toISOString(),
-        next_run_at: nextRun,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+    await query(
+      `UPDATE scheduled_reports 
+       SET last_run_at = NOW(), next_run_at = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [nextRun, id]
+    )
 
-    logger.info('processScheduledReport: completed', { 
+    logger.info('processScheduledReport: completed', {
       scheduledReportId: id,
       reportId: generatedReport.id,
       nextRun,
@@ -197,14 +200,13 @@ async function processScheduledReport(scheduledReport: any): Promise<void> {
     // Update with error timestamp only (last_error column doesn't exist in schema)
     // Calculate next run even on failure to prevent infinite retry loops
     const nextRun = calculateNextRun(schedule_pattern)
-    await supabaseAdmin
-      .from('scheduled_reports')
-      .update({
-        last_run_at: new Date().toISOString(),
-        next_run_at: nextRun,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
+
+    await query(
+      `UPDATE scheduled_reports 
+       SET last_run_at = NOW(), next_run_at = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [nextRun, id]
+    )
 
     throw error
   }
@@ -248,9 +250,9 @@ function getDateRangeForScheduledReport(scheduledReport: any): { start_date: str
 function calculateNextRun(cronPattern: string): string {
   // Simple implementation - runs hourly by default
   // In production, use a cron parser library like 'cron-parser'
-  
+
   const now = new Date()
-  
+
   // Parse basic patterns
   if (cronPattern.includes('0 0 * * *')) {
     // Daily at midnight
@@ -273,7 +275,7 @@ function calculateNextRun(cronPattern: string): string {
     nextMonth.setHours(0, 0, 0, 0)
     return nextMonth.toISOString()
   }
-  
+
   // Default: next hour
   const nextHour = new Date(now)
   nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0)
@@ -287,7 +289,7 @@ async function sendReportEmail(report: any, emailTo: string, reportName: string)
   try {
     // Use Resend email service
     const resendApiKey = process.env.RESEND_API_KEY
-    
+
     if (!resendApiKey) {
       logger.warn('sendReportEmail: RESEND_API_KEY not configured')
       return
@@ -310,7 +312,7 @@ async function sendReportEmail(report: any, emailTo: string, reportName: string)
           <h2>Your Scheduled Report is Ready</h2>
           <p><strong>Report:</strong> ${reportName}</p>
           <p><strong>Generated:</strong> ${new Date(report.created_at).toLocaleString()}</p>
-          <p><strong>Date Range:</strong> ${new Date(report.date_range_start).toLocaleDateString()} - ${new Date(report.date_range_end).toLocaleDateString()}</p>
+          <p><strong>Date Range:</strong> ${new Date(JSON.parse(report.parameters).date_range.start).toLocaleDateString()} - ${new Date(JSON.parse(report.parameters).date_range.end).toLocaleDateString()}</p>
           
           <p><a href="${reportUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px;">View Report</a></p>
           

@@ -1,6 +1,6 @@
+
 import { v4 as uuidv4 } from 'uuid'
 import { AppError } from '@/types/app-error'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
 import { bestEffortAuditLog, logAuditError } from '@/lib/monitoring/auditLogMonitor'
@@ -12,6 +12,7 @@ import {
   createVoiceConfigClient,
   type PlaceCallResponse
 } from '@/lib/signalwire/callPlacer'
+import { query } from '@/lib/pgClient'
 
 const E164_REGEX = /^\+?[1-9]\d{1,14}$/
 
@@ -35,7 +36,7 @@ export type StartCallInput = {
 }
 
 export type StartCallDeps = {
-  supabaseAdmin: SupabaseClient
+  // Deprecated: No longer needed with pgClient
   signalwireCall?: (params: { from: string; to: string; url: string; statusCallback: string }) => Promise<{ call_sid: string }>
   env?: Record<string, string | undefined>
 }
@@ -44,8 +45,8 @@ type ApiResponseSuccess = { success: true; call_id: string }
 type ApiResponseError = { success: false; error: unknown }
 type ApiResponse = ApiResponseSuccess | ApiResponseError
 
-export default async function startCallHandler(input: StartCallInput, deps: StartCallDeps): Promise<ApiResponse> {
-  const { supabaseAdmin, signalwireCall, env = process.env } = deps
+export default async function startCallHandler(input: StartCallInput, deps: StartCallDeps = {}): Promise<ApiResponse> {
+  const { signalwireCall, env = process.env } = deps
   let capturedActorId: string | null = null
   let capturedSystemCpidId: string | null = null
   let callId: string | null = null
@@ -56,7 +57,6 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   async function writeAuditError(resource: string, resourceId: string | null, payload: unknown) {
     // Use standardized monitored audit logging helper
     await logAuditError({
-      supabaseAdmin,
       organizationId: organization_id,
       actorId: capturedActorId,
       systemId: capturedSystemCpidId,
@@ -80,7 +80,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     const config = extractSignalWireConfig(env)
 
     if (!config) {
-      const missing = []
+      const missing: string[] = []
       if (!env.SIGNALWIRE_PROJECT_ID) missing.push('SIGNALWIRE_PROJECT_ID')
       if (!env.SIGNALWIRE_TOKEN && !env.SIGNALWIRE_API_TOKEN) missing.push('SIGNALWIRE_TOKEN')
       if (!env.SIGNALWIRE_SPACE) missing.push('SIGNALWIRE_SPACE')
@@ -99,8 +99,8 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
       throw e
     }
 
-    // Create voice config client from Supabase
-    const voiceConfigClient = createVoiceConfigClient(supabaseAdmin)
+    // Create voice config client (now using pgClient internally)
+    const voiceConfigClient = createVoiceConfigClient()
 
     // Call extracted function with explicit parameters
     const result: PlaceCallResponse = await placeSignalWireCallExternal({
@@ -160,19 +160,19 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
 
     // organization lookup
-    const { data: orgRows, error: orgErr } = await supabaseAdmin
-      .from('organizations')
-      .select('id,plan,tool_id')
-      .eq('id', organization_id)
-      .limit(1)
-
-    if (orgErr) {
+    let org: any = null
+    try {
+      const { rows } = await query(
+        `SELECT id, plan, tool_id FROM organizations WHERE id = $1 LIMIT 1`,
+        [organization_id]
+      )
+      org = rows[0]
+    } catch (orgErr: any) {
       const err = new AppError({ code: 'CALL_START_DB_ORG_LOOKUP', message: 'Organization lookup failed', user_message: 'Unable to verify organization.', severity: 'HIGH', retriable: true, details: { cause: orgErr.message } })
       await writeAuditError('organizations', null, err.toJSON())
       throw err
     }
 
-    const org = orgRows?.[0]
     if (!org) {
       const err = new AppError({ code: 'CALL_START_ORG_NOT_FOUND', message: 'Organization not found', user_message: 'Organization not found.', severity: 'HIGH', retriable: false })
       await writeAuditError('organizations', null, err.toJSON())
@@ -200,14 +200,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
 
     // membership check
-    const { data: membershipRows, error: membershipErr } = await supabaseAdmin
-      .from('org_members')
-      .select('id,role')
-      .eq('organization_id', organization_id)
-      .eq('user_id', actorId)
-      .limit(1)
-
-    if (membershipErr) {
+    let membershipRows: any[] = []
+    try {
+      const { rows } = await query(
+        `SELECT id, role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+        [organization_id, actorId]
+      )
+      membershipRows = rows
+    } catch (membershipErr: any) {
       const err = new AppError({ code: 'AUTH_MEMBERSHIP_LOOKUP_FAILED', message: 'Membership lookup failed', user_message: 'Unable to verify membership', severity: 'HIGH', retriable: true, details: { cause: membershipErr.message } })
       await writeAuditError('org_members', null, err.toJSON())
       throw err
@@ -217,9 +217,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // default to conservative (all false) when no config present
     let effectiveModulations: Modulations & { translate_from?: string | null; translate_to?: string | null } = { record: false, transcribe: false, translate: false }
     try {
-      const { data: vcRows, error: vcErr } = await supabaseAdmin.from('voice_configs').select('record,transcribe,live_translate,translate_from,translate_to,survey,synthetic_caller').eq('organization_id', organization_id).limit(1)
-      if (!vcErr && vcRows && vcRows[0]) {
-        const cfg = vcRows[0] as Record<string, unknown>
+      const { rows: vcRows } = await query(
+        `SELECT record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller 
+         FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+        [organization_id]
+      )
+
+      if (vcRows && vcRows[0]) {
+        const cfg = vcRows[0]
         effectiveModulations.record = !!cfg.record
         effectiveModulations.transcribe = !!cfg.transcribe
         effectiveModulations.translate = !!cfg.live_translate
@@ -256,7 +261,7 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // CALLER ID VALIDATION per GOVERNED_CALLER_ID spec
     // Validates user has permission to use the specified caller ID
     let callerIdValidation: { allowed: boolean; callerIdNumberId: string | null; phoneNumber: string | null; reason?: string } | null = null
-    const callerIdService = new CallerIdService(supabaseAdmin)
+    const callerIdService = new CallerIdService()
     callerIdValidation = await callerIdService.validateCallerIdForUser(
       organization_id,
       actorId,
@@ -291,12 +296,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
 
     // systems lookup
-    const { data: systemsRows, error: systemsErr } = await supabaseAdmin
-      .from('systems')
-      .select('id,key')
-      .in('key', ['system-cpid', 'system-ai'])
-
-    if (systemsErr) {
+    let systemsRows: any[] = []
+    try {
+      const { rows } = await query(
+        `SELECT id, key FROM systems WHERE key IN ('system-cpid', 'system-ai')`,
+        []
+      )
+      systemsRows = rows
+    } catch (systemsErr: any) {
       const e = new AppError({ code: 'CALL_START_SYS_LOOKUP_FAILED', message: 'System lookup failed', user_message: 'Service error', severity: 'HIGH', retriable: true, details: { cause: systemsErr.message } })
       await writeAuditError('systems', null, e.toJSON())
       throw e
@@ -315,21 +322,21 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
 
     // insert calls row
     callId = uuidv4()
-    const callRow = {
-      id: callId,
-      organization_id,
-      system_id: systemCpidId,
-      status: 'pending',
-      started_at: null,
-      ended_at: null,
-      created_by: actorId,
-      // GOVERNED_CALLER_ID: Record caller ID used for this call
-      caller_id_number_id: callerIdValidation?.callerIdNumberId || null,
-      caller_id_used: from_number || null
-    }
 
-    const { error: insertErr } = await supabaseAdmin.from('calls').insert(callRow)
-    if (insertErr) {
+    try {
+      await query(
+        `INSERT INTO calls (id, organization_id, system_id, status, started_at, ended_at, created_by, caller_id_number_id, caller_id_used)
+             VALUES ($1, $2, $3, 'pending', NULL, NULL, $4, $5, $6)`,
+        [
+          callId,
+          organization_id,
+          systemCpidId,
+          actorId,
+          callerIdValidation?.callerIdNumberId || null,
+          from_number || null
+        ]
+      )
+    } catch (insertErr: any) {
       logger.error('startCallHandler: failed to insert call row', undefined, { callId, error: insertErr?.message })
       const e = new AppError({ code: 'CALL_START_DB_INSERT', message: 'Failed to create call record', user_message: 'We encountered a system error while starting your call. Please try again.', severity: 'HIGH', retriable: true, details: { cause: insertErr.message } })
       await writeAuditError('calls', callId, e.toJSON())
@@ -339,25 +346,25 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     // Intent capture: Record intent:call_start BEFORE execution (ARCH_DOCS compliance)
     // "You initiate intent. We orchestrate execution."
     await bestEffortAuditLog(
-      async () => await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id,
-        user_id: capturedActorId,
-        system_id: capturedSystemCpidId,
-        resource_type: 'calls',
-        resource_id: callId,
-        action: 'intent:call_start',
-        actor_type: capturedActorId ? 'human' : 'system',
-        actor_label: capturedActorId || 'cpid-call-handler',
-        before: null,
-        after: {
-          flow_type,
-          modulations: effectiveModulations,
-          record_enabled: effectiveModulations?.record ?? false,
-          declared_at: new Date().toISOString()
-        },
-        created_at: new Date().toISOString()
-      }),
+      async () => await query(
+        `INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+         VALUES ($1, $2, $3, $4, 'calls', $5, 'intent:call_start', $6, $7, $8, NOW())`,
+        [
+          uuidv4(),
+          organization_id,
+          capturedActorId, // Assuming capturedActorId is correctly typed (string or null)
+          capturedSystemCpidId,
+          callId,
+          capturedActorId ? 'human' : 'system',
+          capturedActorId || 'cpid-call-handler',
+          JSON.stringify({
+            flow_type,
+            modulations: effectiveModulations,
+            record_enabled: effectiveModulations?.record ?? false,
+            declared_at: new Date().toISOString()
+          })
+        ]
+      ),
       { resource: 'calls', resourceId: callId, action: 'intent:call_start' }
     )
 
@@ -437,19 +444,19 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
     }
 
     // Update call with call_sid and status
-    // NOTE: TOOL_TABLE_ALIGNMENT doesn't list call_sid, but it's required for webhook processing
-    // Without call_sid, webhooks cannot find calls to update status/recordings/transcriptions
     // Use 'in_progress' (underscore) to match database enum and UI components
-    const updateData: { status: string; call_sid?: string } = { status: 'in_progress' }
+    let updateSql = `UPDATE calls SET status = 'in_progress'`
+    const updateParams: any[] = []
     if (call_sid) {
-      updateData.call_sid = call_sid
+      updateSql += `, call_sid = $1`
+      updateParams.push(call_sid)
     }
+    updateSql += ` WHERE id = $${updateParams.length + 1}`
+    updateParams.push(callId)
 
-    const { error: updateErr } = await supabaseAdmin.from('calls').update(updateData).eq('id', callId)
-    if (updateErr) {
-      logger.error('startCallHandler: failed to update call', undefined, { callId, error: updateErr?.message })
-      await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
-    } else {
+    try {
+      await query(updateSql, updateParams)
+
       // Track call usage (best-effort, don't fail call if tracking fails)
       try {
         await trackUsage({
@@ -468,6 +475,10 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         logger.error('startCallHandler: failed to track call usage', usageErr, { callId, organization_id })
       }
       logger.info('startCallHandler: updated call with call_sid', { callId, hasSid: !!call_sid })
+
+    } catch (updateErr: any) {
+      logger.error('startCallHandler: failed to update call', undefined, { callId, error: updateErr?.message })
+      await writeAuditError('calls', callId, { message: 'Failed to save call_sid', error: updateErr.message })
     }
 
     // enqueue ai run if requested (driven by voice_configs, not client input)
@@ -476,23 +487,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Transcription unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        const aiRow = {
-          id: aiId,
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'assemblyai-v1',
-          status: 'queued',
-          produced_by: 'model',
-          is_authoritative: true  // AssemblyAI is authoritative per ARCH_DOCS
-        }
         try {
-          const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
-          if (aiErr) {
-            logger.error('startCallHandler: failed to insert ai_run', undefined, { callId, error: aiErr?.message })
-            await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSC_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Transcription could not be started. The call will continue without transcription.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
-          }
-        } catch (e) {
-          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSC_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Transcription could not be started. The call will continue without transcription.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+          await query(
+            `INSERT INTO ai_runs (id, call_id, system_id, model, status, produced_by, is_authoritative)
+                 VALUES ($1, $2, $3, 'assemblyai-v1', 'queued', 'model', true)`,
+            [aiId, callId, systemAiId]
+          )
+        } catch (e: any) {
+          logger.error('startCallHandler: failed to insert ai_run', undefined, { callId, error: e?.message })
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSC_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Transcription could not be started. The call will continue without transcription.', severity: 'MEDIUM', retriable: true, details: { cause: e.message } }).toJSON())
         }
       }
     }
@@ -507,25 +510,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Translation unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        // Note: Using 'output' column for metadata since 'meta' doesn't exist in schema
-        const aiRow = {
-          id: aiId,
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'assemblyai-translation-v1',
-          status: 'queued',
-          produced_by: 'model',
-          is_authoritative: true,  // AssemblyAI is authoritative per ARCH_DOCS
-          output: { translate_from: fromLang, translate_to: toLang, pending: true }
-        }
         try {
-          const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
-          if (aiErr) {
-            logger.error('startCallHandler: failed to insert ai_run (translation)', undefined, { callId, error: aiErr?.message })
-            await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
-          }
-        } catch (e) {
-          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+          await query(
+            `INSERT INTO ai_runs (id, call_id, system_id, model, status, produced_by, is_authoritative, output)
+                 VALUES ($1, $2, $3, 'assemblyai-translation-v1', 'queued', 'model', true, $4)`,
+            [aiId, callId, systemAiId, JSON.stringify({ translate_from: fromLang, translate_to: toLang, pending: true })]
+          )
+        } catch (e: any) {
+          logger.error('startCallHandler: failed to insert ai_run (translation)', undefined, { callId, error: e?.message })
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_TRANSL_INSERT_FAILED', message: 'Failed to enqueue translation', user_message: 'Translation could not be started. The call will continue without translation.', severity: 'MEDIUM', retriable: true, details: { cause: e.message } }).toJSON())
         }
       }
     }
@@ -536,24 +529,15 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('systems', callId, new AppError({ code: 'CALL_START_AI_SYSTEM_MISSING', message: 'AI system not registered', user_message: 'Survey unavailable right now.', severity: 'MEDIUM', retriable: true }).toJSON())
       } else {
         const aiId = uuidv4()
-        const aiRow = {
-          id: aiId,
-          call_id: callId,
-          system_id: systemAiId,
-          model: 'assemblyai-survey',
-          status: 'queued',
-          produced_by: 'model',
-          is_authoritative: true,
-          output: { pending: true }
-        }
         try {
-          const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
-          if (aiErr) {
-            logger.error('startCallHandler: failed to insert ai_run (survey)', undefined, { callId, error: aiErr?.message })
-            await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_SURVEY_INSERT_FAILED', message: 'Failed to enqueue survey', user_message: 'Survey could not be started.', severity: 'MEDIUM', retriable: true, details: { cause: aiErr.message } }).toJSON())
-          }
-        } catch (e) {
-          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_SURVEY_INSERT_FAILED', message: 'Failed to enqueue survey', user_message: 'Survey could not be started.', severity: 'MEDIUM', retriable: true, details: { cause: (e as any).message } }).toJSON())
+          await query(
+            `INSERT INTO ai_runs (id, call_id, system_id, model, status, produced_by, is_authoritative, output)
+                VALUES ($1, $2, $3, 'assemblyai-survey', 'queued', 'model', true, $4)`,
+            [aiId, callId, systemAiId, JSON.stringify({ pending: true })]
+          )
+        } catch (e: any) {
+          logger.error('startCallHandler: failed to insert ai_run (survey)', undefined, { callId, error: e?.message })
+          await writeAuditError('ai_runs', callId, new AppError({ code: 'AI_SURVEY_INSERT_FAILED', message: 'Failed to enqueue survey', user_message: 'Survey could not be started.', severity: 'MEDIUM', retriable: true, details: { cause: e.message } }).toJSON())
         }
       }
     }
@@ -565,26 +549,62 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
         await writeAuditError('calls', callId, new AppError({ code: 'RECORDING_TOOL_NOT_FOUND', message: 'No recording tool available for organization', user_message: 'No recording tool available for your organization', severity: 'MEDIUM', retriable: false }).toJSON())
       } else {
         try {
-          await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'intent:recording_requested', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: { tool_id: orgToolId, requested_at: new Date().toISOString() }, created_at: new Date().toISOString() })
+          await query(
+            `INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+                 VALUES ($1, $2, $3, $4, 'calls', $5, 'intent:recording_requested', $6, $7, $8, NOW())`,
+            [
+              uuidv4(),
+              organization_id,
+              capturedActorId,
+              capturedSystemCpidId,
+              callId,
+              capturedActorId ? 'human' : 'system',
+              capturedActorId || 'cpid-call-handler',
+              JSON.stringify({ tool_id: orgToolId, requested_at: new Date().toISOString() })
+            ]
+          )
         } catch (e) { }
       }
     }
 
     // fetch canonical call
-    const { data: persistedCall, error: fetchCallErr } = await supabaseAdmin.from('calls').select('*').eq('id', callId).limit(1)
-    if (fetchCallErr || !persistedCall?.[0]) {
+    let persistedCall: any[] = []
+    try {
+      const { rows } = await query(`SELECT * FROM calls WHERE id = $1 LIMIT 1`, [callId])
+      persistedCall = rows
+    } catch (fetchCallErr: any) {
       logger.error('startCallHandler: failed to fetch persisted call', undefined, { callId, error: fetchCallErr?.message })
       const e = new AppError({ code: 'CALL_START_FETCH_PERSISTED_FAILED', message: 'Failed to read back persisted call', user_message: 'We started the call but could not verify its record. Please contact support.', severity: 'HIGH', retriable: true, details: { cause: fetchCallErr?.message } })
       await writeAuditError('calls', callId, e.toJSON())
       throw e
     }
 
+    if (!persistedCall?.[0]) {
+      // ... (error handling same as above)
+      const e = new AppError({ code: 'CALL_START_FETCH_PERSISTED_FAILED', message: 'Failed to read back persisted call', user_message: 'We started the call but could not verify its record. Please contact support.', severity: 'HIGH', retriable: true })
+      await writeAuditError('calls', callId, e.toJSON())
+      throw e
+    }
+
     const canonicalCall = persistedCall[0]
     try {
-      await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId, system_id: capturedSystemCpidId, resource_type: 'calls', resource_id: callId, action: 'create', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: { ...canonicalCall, config: effectiveModulations, call_sid }, created_at: new Date().toISOString() })
-    } catch (auditErr) {
+      await query(
+        `INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+             VALUES ($1, $2, $3, $4, 'calls', $5, 'create', $6, $7, $8, NOW())`,
+        [
+          uuidv4(),
+          organization_id,
+          capturedActorId,
+          capturedSystemCpidId,
+          callId,
+          capturedActorId ? 'human' : 'system',
+          capturedActorId || 'cpid-call-handler',
+          JSON.stringify({ ...canonicalCall, config: effectiveModulations, call_sid })
+        ]
+      )
+    } catch (auditErr: any) {
       logger.error('startCallHandler: failed to insert audit log', auditErr as Error, { callId })
-      await writeAuditError('audit_logs', callId, new AppError({ code: 'AUDIT_LOG_INSERT_FAILED', message: 'Failed to write audit log', user_message: 'Call started but an internal audit log could not be saved.', severity: 'MEDIUM', retriable: true, details: { cause: (auditErr as any).message } }).toJSON())
+      await writeAuditError('audit_logs', callId, new AppError({ code: 'AUDIT_LOG_INSERT_FAILED', message: 'Failed to write audit log', user_message: 'Call started but an internal audit log could not be saved.', severity: 'MEDIUM', retriable: true, details: { cause: auditErr.message } }).toJSON())
     }
 
     logger.info('startCallHandler: call flow completed', { callId })
@@ -592,14 +612,14 @@ export default async function startCallHandler(input: StartCallInput, deps: Star
   } catch (err: any) {
     if (err instanceof AppError) {
       const payload = err.toJSON()
-      try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: capturedActorId ?? null, system_id: capturedSystemCpidId ?? null, resource_type: 'calls', resource_id: callId ?? null, action: 'error', actor_type: capturedActorId ? 'human' : 'system', actor_label: capturedActorId || 'cpid-call-handler', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+      try { await query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at) VALUES ($1, $2, $3, $4, 'calls', $5, 'error', $6, $7, $8, NOW())`, [uuidv4(), organization_id, capturedActorId ?? null, capturedSystemCpidId ?? null, callId ?? null, capturedActorId ? 'human' : 'system', capturedActorId || 'cpid-call-handler', JSON.stringify(payload)]) } catch (e) { }
       return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
     }
     // log the unexpected error for debugging
     logger.error('startCallHandler unexpected error', err)
     const unexpected = new AppError({ code: 'CALL_START_UNEXPECTED', message: err?.message ?? 'Unexpected error', user_message: 'An unexpected error occurred while starting the call.', severity: 'CRITICAL', retriable: true, details: { stack: err?.stack } })
     const payload = unexpected.toJSON()
-    try { await supabaseAdmin.from('audit_logs').insert({ id: uuidv4(), organization_id, user_id: null, system_id: null, resource_type: 'calls', resource_id: null, action: 'error', actor_type: 'system', actor_label: 'cpid-call-handler', before: null, after: payload, created_at: new Date().toISOString() }) } catch (e) { }
+    try { await query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at) VALUES ($1, $2, null, null, 'calls', null, 'error', 'system', 'cpid-call-handler', $3, NOW())`, [uuidv4(), organization_id, JSON.stringify(payload)]) } catch (e) { }
     return { success: false, error: { id: payload.id, code: payload.code, message: payload.user_message ?? payload.message, severity: payload.severity } }
   }
 }

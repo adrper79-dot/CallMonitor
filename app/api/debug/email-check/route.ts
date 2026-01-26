@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
         // Test recording URL accessibility
         let recordingAccessible = false
-        let recordingError = null
+        let recordingError: string | null = null
         if (recording?.recording_url) {
             try {
                 const testResponse = await fetch(recording.recording_url, { method: 'HEAD' })

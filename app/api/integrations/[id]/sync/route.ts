@@ -4,20 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { CRMService } from '@/lib/services/crmService'
-import { HubSpotService } from '@/lib/services/crmProviders/hubspot'
-import { SalesforceService } from '@/lib/services/crmProviders/salesforce'
+import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(
     req: NextRequest,
@@ -38,9 +31,8 @@ export async function POST(
         }
 
         // Verify integration belongs to this org
-        const crmService = new CRMService(supabaseAdmin)
-        const integration = await crmService.getIntegration(integrationId)
-
+        const intRes = await pgClient.query('SELECT * FROM integrations WHERE id = $1 LIMIT 1', [integrationId])
+        const integration = intRes.rows?.[0]
         if (!integration || integration.organization_id !== session.user.orgId) {
             return NextResponse.json({ success: false, error: 'Integration not found' }, { status: 404 })
         }
@@ -50,40 +42,21 @@ export async function POST(
         }
 
         // Fetch call and export bundle
-        const { data: call } = await supabaseAdmin
-            .from('calls')
-            .select('id, phone_number, from_number, started_at, organization_id')
-            .eq('id', callId)
-            .eq('organization_id', session.user.orgId)
-            .single()
-
-        if (!call) {
-            return NextResponse.json({ success: false, error: 'Call not found' }, { status: 404 })
-        }
+        const callRes = await pgClient.query('SELECT id, phone_number, from_number, started_at, organization_id FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1', [callId, session.user.orgId])
+        const call = callRes.rows?.[0]
+        if (!call) return NextResponse.json({ success: false, error: 'Call not found' }, { status: 404 })
 
         // Get export bundle URL (evidence bundle)
         let bundleUrl: string | null = null
         if (exportBundleId) {
-            const { data: bundle } = await supabaseAdmin
-                .from('call_export_bundles')
-                .select('storage_path')
-                .eq('id', exportBundleId)
-                .eq('organization_id', session.user.orgId)
-                .single()
-
-            bundleUrl = bundle?.storage_path
+            const bundleRes = await pgClient.query('SELECT storage_path FROM call_export_bundles WHERE id = $1 AND organization_id = $2 LIMIT 1', [exportBundleId, session.user.orgId])
+            bundleUrl = bundleRes.rows?.[0]?.storage_path
         }
 
         // If no bundle provided, look for latest
         if (!bundleUrl) {
-            const { data: latestBundle } = await supabaseAdmin
-                .from('call_export_bundles')
-                .select('storage_path')
-                .eq('call_id', callId)
-                .order('created_at', { ascending: false })
-                .limit(1)
-
-            bundleUrl = latestBundle?.[0]?.storage_path
+            const latestRes = await pgClient.query('SELECT storage_path FROM call_export_bundles WHERE call_id = $1 ORDER BY created_at DESC LIMIT 1', [callId])
+            bundleUrl = latestRes.rows?.[0]?.storage_path
         }
 
         if (!bundleUrl) {
@@ -94,43 +67,8 @@ export async function POST(
         }
 
         // Push to CRM based on provider
-        let result: { success: boolean; error?: string }
-
-        if (integration.provider === 'hubspot') {
-            const hubspot = new HubSpotService(supabaseAdmin)
-            result = await hubspot.pushEvidenceBundle(
-                integrationId,
-                callId,
-                bundleUrl,
-                call.phone_number,
-                new Date(call.started_at),
-                session.user.id
-            )
-        } else if (integration.provider === 'salesforce') {
-            const salesforce = new SalesforceService(supabaseAdmin)
-            result = await salesforce.pushEvidenceBundle(
-                integrationId,
-                callId,
-                bundleUrl,
-                call.phone_number,
-                new Date(call.started_at),
-                session.user.id
-            )
-        } else {
-            return NextResponse.json({
-                success: false,
-                error: `Provider ${integration.provider} not supported`
-            }, { status: 400 })
-        }
-
-        if (!result.success) {
-            return NextResponse.json({ success: false, error: result.error }, { status: 400 })
-        }
-
-        return NextResponse.json({
-            success: true,
-            message: `Evidence bundle synced to ${integration.provider}`
-        })
+        // NOTE: provider-specific services must be refactored to use pgClient; returning 501 until implemented
+        return NextResponse.json({ success: false, error: 'Provider integration not yet converted to Neon (work in progress)' }, { status: 501 })
     } catch (err: unknown) {
         logger.error('Sync failed', err instanceof Error ? err : new Error(String(err)))
         return NextResponse.json({ success: false, error: 'Sync failed' }, { status: 500 })

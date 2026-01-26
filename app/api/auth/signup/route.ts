@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import pgClient from '@/lib/pgClient'
+import { v4 as uuidv4 } from 'uuid'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
 import { logger } from '@/lib/logger'
@@ -102,84 +103,57 @@ async function handleSignup(req: Request) {
       )
     }
 
-    // Create user in public.users and organization
-    const supabase = createClient(supabaseUrl, serviceKey)
-
-    // Check if user already exists in public.users
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', data.id)
-      .single()
+    // Create user in public.users and organization using Postgres
+    // Check if user already exists
+    const existingRes = await pgClient.query('SELECT id FROM users WHERE id = $1 LIMIT 1', [data.id])
+    const existingUser = existingRes.rows?.[0]
 
     if (!existingUser) {
-      // Get or create default organization
+      // Get most recent organization if exists
+      const orgsRes = await pgClient.query('SELECT id, name FROM organizations ORDER BY created_at DESC LIMIT 1')
+      const orgs = orgsRes.rows || []
       let orgId: string | null = null
 
-      // Try to find existing organizations
-      const { data: orgs } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (orgs && orgs.length > 0) {
-        // Use existing organization
+      if (orgs.length > 0) {
         orgId = orgs[0].id
         logger.info('Signup: Using existing organization', { orgId, email: '[REDACTED]' })
       } else {
-        // Create new organization for this user
-        const { data: newOrg, error: orgError } = await supabase
-          .from('organizations')
-          .insert({
-            name: `${name || email}'s Organization`,
-            plan: 'professional',
-            plan_status: 'active',
-            created_by: data.id
-          })
-          .select()
-          .single()
+        // Create organization
+        const newOrgRes = await pgClient.query(
+          `INSERT INTO organizations (id, name, plan, plan_status, created_by, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id`,
+          [uuidv4(), `${name || email}'s Organization`, 'professional', 'active', data.id, new Date().toISOString()]
+        )
 
-        if (orgError) {
-          logger.error('Signup: Failed to create organization', orgError, { email: '[REDACTED]' })
+        if (!newOrgRes.rows?.[0]) {
+          logger.error('Signup: Failed to create organization', undefined, { email: '[REDACTED]' })
           return NextResponse.json(
             { success: false, error: { code: 'ORG_CREATION_FAILED', message: 'Failed to create organization. Please try again.' } },
             { status: 500 }
           )
         }
 
-        orgId = newOrg.id
+        orgId = newOrgRes.rows[0].id
         logger.info('Signup: Created organization', { orgId, email: '[REDACTED]' })
 
         // Create default tool for this organization
-        const { data: tool, error: toolError } = await supabase
-          .from('tools')
-          .insert({
-            name: `Default Voice Tool`,
-            description: `Default tool for call recordings and AI services`
-          })
-          .select('id')
-          .single()
+        try {
+          const toolRes = await pgClient.query(
+            `INSERT INTO tools (id, name, description, created_at) VALUES ($1, $2, $3, $4) RETURNING id`,
+            [uuidv4(), 'Default Voice Tool', 'Default tool for call recordings and AI services', new Date().toISOString()]
+          )
 
-        if (toolError) {
-          logger.warn('Signup: Failed to create tool', { error: toolError.message, orgId })
-          // Continue without tool - organization will still work but recording might fail
-        } else if (tool) {
-          // Link tool to organization
-          const { error: updateError } = await supabase
-            .from('organizations')
-            .update({ tool_id: tool.id })
-            .eq('id', orgId)
-
-          if (updateError) {
-            logger.warn('Signup: Failed to link tool to organization', { error: updateError.message, orgId })
-          } else {
+          const tool = toolRes.rows?.[0]
+          if (tool) {
+            await pgClient.query('UPDATE organizations SET tool_id = $1 WHERE id = $2', [tool.id, orgId])
             logger.info('Signup: Created and linked tool', { toolId: tool.id, orgId })
           }
+        } catch (e: any) {
+          logger.warn('Signup: Failed to create tool', { error: e?.message, orgId })
         }
       }
 
-      // CRITICAL: Always create user in public.users (orgId is now guaranteed to exist)
       if (!orgId) {
         return NextResponse.json(
           { success: false, error: { code: 'ORG_REQUIRED', message: 'Organization is required but missing' } },
@@ -187,18 +161,15 @@ async function handleSignup(req: Request) {
         )
       }
 
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: data.id,
-          email: data.email,
-          organization_id: orgId,
-          role: 'member',
-          is_admin: false
-        })
-
-      if (userError) {
-        logger.error('Signup: Failed to create user in public.users', userError, { email: '[REDACTED]' })
+      // Insert user
+      try {
+        await pgClient.query(
+          `INSERT INTO users (id, email, organization_id, role, is_admin, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [data.id, data.email, orgId, 'member', false, new Date().toISOString()]
+        )
+      } catch (e: any) {
+        logger.error('Signup: Failed to create user in public.users', e, { email: '[REDACTED]' })
         return NextResponse.json(
           { success: false, error: { code: 'USER_CREATION_FAILED', message: 'Failed to create user record' } },
           { status: 500 }
@@ -207,18 +178,16 @@ async function handleSignup(req: Request) {
 
       logger.info('Signup: Created user in public.users', { userId: data.id, orgId })
 
-      // Create org membership (first user becomes owner, others are members)
-      const isFirstUser = !orgs || orgs.length === 0
-      const { error: memberError } = await supabase
-        .from('org_members')
-        .insert({
-          organization_id: orgId,
-          user_id: data.id,
-          role: isFirstUser ? 'owner' : 'member'
-        })
-
-      if (memberError) {
-        logger.error('Signup: Failed to create org membership', memberError, { email: '[REDACTED]' })
+      // Create org membership
+      const isFirstUser = orgs.length === 0
+      try {
+        await pgClient.query(
+          `INSERT INTO org_members (id, organization_id, user_id, role, created_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [uuidv4(), orgId, data.id, isFirstUser ? 'owner' : 'member', new Date().toISOString()]
+        )
+      } catch (e: any) {
+        logger.error('Signup: Failed to create org membership', e, { email: '[REDACTED]' })
         return NextResponse.json(
           { success: false, error: { code: 'MEMBER_CREATION_FAILED', message: 'Failed to create organization membership' } },
           { status: 500 }
@@ -231,24 +200,15 @@ async function handleSignup(req: Request) {
       })
 
       // Create default voice_configs for new organization
-      const { error: voiceConfigError } = await supabase
-        .from('voice_configs')
-        .insert({
-          organization_id: orgId,
-          record: true,
-          transcribe: true,
-          translate: false,
-          translation_from: 'en-US',
-          translate_to: 'es-ES',
-          survey: false,
-          synthetic_caller: false
-        })
-
-      if (voiceConfigError) {
-        logger.warn('Signup: Failed to create voice_configs', { error: voiceConfigError.message, orgId })
-        // Don't fail signup, but log the error
-      } else {
+      try {
+        await pgClient.query(
+          `INSERT INTO voice_configs (id, organization_id, record, transcribe, translate, translation_from, translate_to, survey, synthetic_caller, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [uuidv4(), orgId, true, true, false, 'en-US', 'es-ES', false, false, new Date().toISOString()]
+        )
         logger.info('Signup: Created voice_configs', { orgId })
+      } catch (e: any) {
+        logger.warn('Signup: Failed to create voice_configs', { error: e?.message, orgId })
       }
     }
 

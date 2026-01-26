@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { WebhookEventType, WEBHOOK_EVENT_TYPES, WebhookRetryPolicy } from '@/types/tier1-features'
 import crypto from 'crypto'
 import { logger } from '@/lib/logger'
@@ -41,30 +41,30 @@ export async function PATCH(
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     const webhookId = params.id
-    
+
     // Get user's organization and verify admin role
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
+    const { rows: members } = await query(
+      `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    )
+    const member = members[0]
+
+    if (!member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Only owners and admins can update webhooks
     if (!['owner', 'admin'].includes(member.role)) {
       return NextResponse.json(
@@ -72,26 +72,25 @@ export async function PATCH(
         { status: 403 }
       )
     }
-    
+
     // Verify webhook exists and belongs to organization
-    const { data: existingWebhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('*')
-      .eq('id', webhookId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (fetchError || !existingWebhook) {
+    const { rows: webhooks } = await query(
+      `SELECT * FROM webhook_subscriptions WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [webhookId, member.organization_id]
+    )
+    const existingWebhook = webhooks[0]
+
+    if (!existingWebhook) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Webhook not found' } },
         { status: 404 }
       )
     }
-    
+
     // Parse request body
     const body = await request.json()
     const updates: any = {}
-    
+
     // Validate and prepare updates
     if (body.name !== undefined) {
       if (typeof body.name !== 'string' || body.name.length < 1 || body.name.length > 100) {
@@ -102,7 +101,7 @@ export async function PATCH(
       }
       updates.name = body.name
     }
-    
+
     if (body.url !== undefined) {
       if (!isValidUrl(body.url)) {
         return NextResponse.json(
@@ -110,26 +109,23 @@ export async function PATCH(
           { status: 400 }
         )
       }
-      
+
       // Check for duplicate URL (excluding this webhook)
-      const { data: duplicate } = await supabaseAdmin
-        .from('webhook_subscriptions')
-        .select('id')
-        .eq('organization_id', member.organization_id)
-        .eq('url', body.url)
-        .neq('id', webhookId)
-        .single()
-      
-      if (duplicate) {
+      const { rows: duplicates } = await query(
+        `SELECT id FROM webhook_subscriptions WHERE organization_id = $1 AND url = $2 AND id != $3 LIMIT 1`,
+        [member.organization_id, body.url, webhookId]
+      )
+
+      if (duplicates.length > 0) {
         return NextResponse.json(
           { success: false, error: { code: 'DUPLICATE_URL', message: 'A webhook for this URL already exists' } },
           { status: 409 }
         )
       }
-      
+
       updates.url = body.url
     }
-    
+
     if (body.events !== undefined) {
       if (!Array.isArray(body.events) || body.events.length === 0) {
         return NextResponse.json(
@@ -137,25 +133,25 @@ export async function PATCH(
           { status: 400 }
         )
       }
-      
+
       // Validate event types
       const invalidEvents = body.events.filter((e: string) => !WEBHOOK_EVENT_TYPES.includes(e as WebhookEventType))
       if (invalidEvents.length > 0) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: { 
-              code: 'INVALID_EVENTS', 
-              message: `Invalid events: ${invalidEvents.join(', ')}` 
-            } 
+          {
+            success: false,
+            error: {
+              code: 'INVALID_EVENTS',
+              message: `Invalid events: ${invalidEvents.join(', ')}`
+            }
           },
           { status: 400 }
         )
       }
-      
+
       updates.events = body.events
     }
-    
+
     if (body.active !== undefined) {
       if (typeof body.active !== 'boolean') {
         return NextResponse.json(
@@ -165,7 +161,7 @@ export async function PATCH(
       }
       updates.active = body.active
     }
-    
+
     if (body.retry_policy !== undefined) {
       if (!['none', 'fixed', 'exponential'].includes(body.retry_policy)) {
         return NextResponse.json(
@@ -175,7 +171,7 @@ export async function PATCH(
       }
       updates.retry_policy = body.retry_policy
     }
-    
+
     if (body.max_retries !== undefined) {
       const maxRetries = parseInt(body.max_retries)
       if (isNaN(maxRetries) || maxRetries < 0 || maxRetries > 10) {
@@ -186,7 +182,7 @@ export async function PATCH(
       }
       updates.max_retries = maxRetries
     }
-    
+
     if (body.timeout_ms !== undefined) {
       const timeout = parseInt(body.timeout_ms)
       if (isNaN(timeout) || timeout < 1000 || timeout > 60000) {
@@ -197,7 +193,7 @@ export async function PATCH(
       }
       updates.timeout_ms = timeout
     }
-    
+
     if (body.headers !== undefined) {
       if (typeof body.headers !== 'object' || Array.isArray(body.headers)) {
         return NextResponse.json(
@@ -207,7 +203,7 @@ export async function PATCH(
       }
       updates.headers = body.headers
     }
-    
+
     // If no updates provided
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -215,52 +211,63 @@ export async function PATCH(
         { status: 400 }
       )
     }
-    
+
     // Add updated_at
     updates.updated_at = new Date().toISOString()
-    
-    // Update webhook
-    const { data: updatedWebhook, error: updateError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .update(updates)
-      .eq('id', webhookId)
-      .select()
-      .single()
-    
-    if (updateError) {
+
+    // Map keys for SQL update
+    // 'events' in body maps to 'event_types' in DB
+    if (updates.events) {
+      updates.event_types = JSON.stringify(updates.events) // Stringify for JSONB
+      delete updates.events
+    }
+    if (updates.headers) {
+      updates.headers = JSON.stringify(updates.headers) // Stringify for JSONB
+    }
+    if (updates.active !== undefined) {
+      updates.is_active = updates.active
+      delete updates.active
+    }
+
+    // Construct dynamic update query
+    const keys = Object.keys(updates)
+    const values = Object.values(updates)
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ')
+
+    let updatedWebhook: any
+    try {
+      const { rows } = await query(
+        `UPDATE webhook_subscriptions SET ${setClause} WHERE id = $${keys.length + 1} RETURNING *`,
+        [...values, webhookId]
+      )
+      updatedWebhook = rows[0]
+    } catch (updateError) {
       logger.error('Webhook PATCH update error', updateError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update webhook' } },
         { status: 500 }
       )
     }
-    
+
     // Log to audit (fire and forget)
-    ;(async () => {
+    ; (async () => {
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: member.organization_id,
-          user_id: userId,
-          resource_type: 'webhook_subscription',
-          resource_id: webhookId,
-          action: 'update',
-          actor_type: 'human',
-          actor_label: userId,
-          before: existingWebhook,
-          after: updatedWebhook
-        })
+        await query(
+          `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, before, after)
+            VALUES ($1, $2, $3, 'webhook_subscription', $4, 'update', 'human', $5, $6, $7)`,
+          [crypto.randomUUID(), member.organization_id, userId, webhookId, userId, JSON.stringify(existingWebhook), JSON.stringify(updatedWebhook)]
+        )
       } catch (err) {
         logger.error('Webhook PATCH audit log error', err, { webhookId })
       }
     })()
-    
+
     // Mask secret before returning
     const responseWebhook = {
       ...updatedWebhook,
       secret: `whsec_...${updatedWebhook.secret.slice(-4)}`
     }
-    
+
     return NextResponse.json({
       success: true,
       subscription: responseWebhook
@@ -286,30 +293,30 @@ export async function DELETE(
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     const webhookId = params.id
-    
+
     // Get user's organization and verify admin role
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
+    const { rows: members } = await query(
+      `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    )
+    const member = members[0]
+
+    if (!member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Only owners and admins can delete webhooks
     if (!['owner', 'admin'].includes(member.role)) {
       return NextResponse.json(
@@ -317,55 +324,45 @@ export async function DELETE(
         { status: 403 }
       )
     }
-    
+
     // Verify webhook exists and belongs to organization
-    const { data: existingWebhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('*')
-      .eq('id', webhookId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (fetchError || !existingWebhook) {
+    const { rows: webhooks } = await query(
+      `SELECT * FROM webhook_subscriptions WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [webhookId, member.organization_id]
+    )
+    const existingWebhook = webhooks[0]
+
+    if (!existingWebhook) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Webhook not found' } },
         { status: 404 }
       )
     }
-    
-    // Delete webhook (cascade will handle deliveries)
-    const { error: deleteError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .delete()
-      .eq('id', webhookId)
-    
-    if (deleteError) {
+
+    // Delete webhook
+    try {
+      await query(`DELETE FROM webhook_subscriptions WHERE id = $1`, [webhookId])
+    } catch (deleteError) {
       logger.error('Webhook DELETE error', deleteError, { webhookId })
       return NextResponse.json(
         { success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete webhook' } },
         { status: 500 }
       )
     }
-    
+
     // Log to audit (fire and forget)
-    ;(async () => {
+    ; (async () => {
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: member.organization_id,
-          user_id: userId,
-          resource_type: 'webhook_subscription',
-          resource_id: webhookId,
-          action: 'delete',
-          actor_type: 'human',
-          actor_label: userId,
-          before: existingWebhook
-        })
+        await query(
+          `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, before)
+            VALUES ($1, $2, $3, 'webhook_subscription', $4, 'delete', 'human', $5, $6)`,
+          [crypto.randomUUID(), member.organization_id, userId, webhookId, userId, JSON.stringify(existingWebhook)]
+        )
       } catch (err) {
         logger.error('Webhook DELETE audit log error', err, { webhookId })
       }
     })()
-    
+
     return NextResponse.json({
       success: true,
       message: 'Webhook deleted successfully'

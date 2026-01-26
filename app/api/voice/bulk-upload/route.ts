@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }) as Record<string, string>[]
 
     // Validate and process each record
-    const results = []
+    const results: any[] = []
 
     for (const record of records) {
       const phoneNumber = record.phone_number || record['Phone Number'] || record.PhoneNumber
@@ -76,9 +76,6 @@ export async function POST(request: NextRequest) {
               translate: false
             },
             actor_id: ctx.userId  // SECURITY: Pass authenticated user
-          },
-          {
-            supabaseAdmin: (await import('@/lib/supabaseAdmin')).default
           }
         )
 

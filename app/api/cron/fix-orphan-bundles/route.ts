@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { ensureEvidenceBundle } from '@/app/services/evidenceBundle'
 import { logger } from '@/lib/logger'
 
@@ -30,17 +30,12 @@ export async function GET(req: NextRequest) {
       }, { status: 500 })
     }
 
-    const { data: manifests, error } = await supabaseAdmin
-      .from('evidence_manifests')
-      .select('id')
-      .is('superseded_at', null)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    if (error) {
-      logger.error('Cron: Failed to fetch manifests', error)
-      return NextResponse.json({ success: false, error: 'Failed to fetch manifests' }, { status: 500 })
-    }
+    const { rows: manifests } = await query(
+      `SELECT id FROM evidence_manifests 
+       WHERE superseded_at IS NULL 
+       ORDER BY created_at DESC 
+       LIMIT 50`
+    )
 
     if (!manifests || manifests.length === 0) {
       return NextResponse.json({ success: true, processed: 0, fixed: 0 })
@@ -50,12 +45,12 @@ export async function GET(req: NextRequest) {
     const checked = manifests.length
 
     for (const manifest of manifests) {
-      const { data: bundleRows } = await supabaseAdmin
-        .from('evidence_bundles')
-        .select('id')
-        .eq('manifest_id', manifest.id)
-        .is('superseded_at', null)
-        .limit(1)
+      const { rows: bundleRows } = await query(
+        `SELECT id FROM evidence_bundles 
+         WHERE manifest_id = $1 AND superseded_at IS NULL 
+         LIMIT 1`,
+        [manifest.id]
+      )
 
       if (!bundleRows?.[0]) {
         await ensureEvidenceBundle(manifest.id)

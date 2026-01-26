@@ -56,7 +56,7 @@ export async function GET(
     }
 
     // Fetch recording if exists - try call_id first (per migration), fallback to call_sid
-    let recording = null
+    let recording: { [key: string]: any } | null = null
     
     // First try by call_id (the FK relationship per 20260118_schema_alignment.sql)
     const { data: recByCallId } = await (supabaseAdmin as any)

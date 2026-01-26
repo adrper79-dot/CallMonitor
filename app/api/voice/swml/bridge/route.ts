@@ -1,6 +1,6 @@
 
 import { NextResponse, NextRequest } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { swmlJsonResponse } from '@/lib/api/utils'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
@@ -28,7 +28,6 @@ export async function GET(request: NextRequest) {
         const callId = searchParams.get('callId')
         const conferenceName = searchParams.get('conferenceName')
         let leg = searchParams.get('leg') // '1', '2', 'agent', 'customer', etc.
-        const toNumber = searchParams.get('toNumber') // optional
 
         if (!callId || !conferenceName || !leg) {
             return swmlJsonResponse({
@@ -47,14 +46,18 @@ export async function GET(request: NextRequest) {
         const isAgentLeg = leg === '1' || leg === 'agent' || leg === 'first'
 
         // Fetch call → org
-        const { data: call, error: callErr } = await supabaseAdmin
-            .from('calls')
-            .select('organization_id')
-            .eq('id', callId)
-            .single()
-
-        if (callErr || !call?.organization_id) {
+        let call: any = null
+        try {
+            const { rows } = await query(
+                `SELECT organization_id FROM calls WHERE id = $1 LIMIT 1`,
+                [callId]
+            )
+            call = rows[0]
+        } catch (callErr: any) {
             logger.warn('[SWML Bridge] Call not found or no org', { callId, error: callErr?.message })
+        }
+
+        if (!call?.organization_id) {
             // Proceed without translation
         }
 
@@ -64,11 +67,11 @@ export async function GET(request: NextRequest) {
         let toLang = 'es'
 
         if (call?.organization_id) {
-            const { data: voiceConfig } = await supabaseAdmin
-                .from('voice_configs')
-                .select('live_translate, translate_from, translate_to')
-                .eq('organization_id', call.organization_id)
-                .single()
+            const { rows: voiceConfigRows } = await query(
+                `SELECT live_translate, translate_from, translate_to FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+                [call.organization_id]
+            )
+            const voiceConfig = voiceConfigRows?.[0]
 
             translationEnabled = !!voiceConfig?.live_translate &&
                 !!voiceConfig?.translate_from &&

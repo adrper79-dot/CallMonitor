@@ -1,0 +1,15 @@
+[r2]
+type = s3
+env_auth = false
+access_key_id = R2_ACCESS_KEY_ID_GOES_HERE
+secret_access_key = R2_SECRET_ACCESS_KEY_GOES_HERE
+endpoint = https://<account>.r2.cloudflarestorage.com
+region = auto
+
+# Example 'supabase' remote could be another S3 or local filesystem source
+#[supabase]
+#type = s3
+#access_key_id = SUPABASE_ACCESS_KEY
+#secret_access_key = SUPABASE_SECRET
+#endpoint = https://<supabase-storage-endpoint>
+#region = auto

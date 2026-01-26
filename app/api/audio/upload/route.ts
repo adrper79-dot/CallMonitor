@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import storage from '@/lib/storage'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/api/utils'
@@ -40,18 +41,12 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    const { data, error } = await supabaseAdmin.storage
-      .from('recordings')
-      .upload(filePath, buffer, { contentType: file.type, upsert: false })
+    // Upload using the storage adapter (R2 when configured, fallback to Supabase)
+    await storage.upload('recordings', filePath, buffer, file.type)
+    const publicUrlResult = await storage.getPublicUrl('recordings', filePath)
+    const publicUrl = publicUrlResult.publicURL || publicUrlResult.publicUrl || publicUrlResult.publicURL
 
-    if (error) {
-      logger.error('Upload error', error)
-      return ApiErrors.internal('Upload failed: ' + error.message)
-    }
-
-    const { data: urlData } = supabaseAdmin.storage.from('recordings').getPublicUrl(filePath)
-
-    return NextResponse.json({ success: true, url: urlData.publicUrl, path: filePath, filename: fileName })
+    return NextResponse.json({ success: true, url: publicUrl, path: filePath, filename: fileName })
   } catch (error: any) {
     logger.error('Audio upload error', error)
     return ApiErrors.internal(error.message || 'Upload failed')

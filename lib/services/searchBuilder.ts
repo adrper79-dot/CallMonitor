@@ -11,9 +11,9 @@
  */
 
 import { createHash } from 'crypto'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
+import pgClient from '@/lib/pgClient'
 
 export interface SearchDocumentInput {
     organizationId: string
@@ -36,7 +36,7 @@ export interface BuildSearchDocResult {
 }
 
 export class SearchBuilder {
-    constructor(private supabaseAdmin: SupabaseClient) { }
+    constructor() { }
 
     /**
      * Build a search document from a canonical source.
@@ -50,14 +50,13 @@ export class SearchBuilder {
         const contentHash = this.hashContent(input.content)
 
         // Check for existing current version
-        const { data: existing } = await this.supabaseAdmin
-            .from('search_documents')
-            .select('id, version, content_hash')
-            .eq('organization_id', input.organizationId)
-            .eq('source_type', input.sourceType)
-            .eq('source_id', input.sourceId)
-            .eq('is_current', true)
-            .limit(1)
+        const existingRes = await pgClient.query(
+            `SELECT id, version, content_hash FROM search_documents
+             WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 AND is_current = TRUE
+             LIMIT 1`,
+            [input.organizationId, input.sourceType, input.sourceId]
+        )
+        const existing = existingRes.rows || []
 
         // Skip if content unchanged
         if (existing?.[0]?.content_hash === contentHash) {
@@ -73,35 +72,34 @@ export class SearchBuilder {
 
         // 1. Mark previous version as not current
         if (existing?.[0]) {
-            await this.supabaseAdmin
-                .from('search_documents')
-                .update({ is_current: false, superseded_by: newDocId })
-                .eq('id', existing[0].id)
+            await pgClient.query('UPDATE search_documents SET is_current = FALSE, superseded_by = $1 WHERE id = $2', [newDocId, existing[0].id])
         }
 
         // 2. Insert new version
-        const { error: insertErr } = await this.supabaseAdmin
-            .from('search_documents')
-            .insert({
-                id: newDocId,
-                organization_id: input.organizationId,
-                source_type: input.sourceType,
-                source_id: input.sourceId,
-                version: newVersion,
-                is_current: true,
-                title: input.title,
-                content: input.content,
-                content_hash: contentHash,
-                call_id: input.callId,
-                phone_number: input.phoneNumber,
-                domain: input.domain,
-                tags: input.tags,
-                source_created_at: input.sourceCreatedAt,
-                indexed_by: actorId ? 'human' : 'system',
-                indexed_by_user_id: actorId
-            })
-
-        if (insertErr) {
+        try {
+            await pgClient.query(
+                `INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, title, content, content_hash, call_id, phone_number, domain, tags, source_created_at, indexed_by, indexed_by_user_id, created_at)
+                 VALUES ($1,$2,$3,$4,$5,TRUE,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+                [
+                    newDocId,
+                    input.organizationId,
+                    input.sourceType,
+                    input.sourceId,
+                    newVersion,
+                    input.title || null,
+                    input.content,
+                    contentHash,
+                    input.callId || null,
+                    input.phoneNumber || null,
+                    input.domain || null,
+                    input.tags ? JSON.stringify(input.tags) : null,
+                    input.sourceCreatedAt || null,
+                    actorId ? 'human' : 'system',
+                    actorId || null,
+                    new Date().toISOString()
+                ]
+            )
+        } catch (insertErr: any) {
             logger.error('SearchBuilder: failed to insert document', insertErr)
             return { success: false, error: insertErr.message }
         }
@@ -125,25 +123,17 @@ export class SearchBuilder {
      */
     async buildForCall(callId: string, actorId?: string): Promise<void> {
         // Fetch call with related data
-        const { data: call } = await this.supabaseAdmin
-            .from('calls')
-            .select('id, organization_id, phone_number, from_number, status, created_at')
-            .eq('id', callId)
-            .single()
-
+        const callRes = await pgClient.query('SELECT id, organization_id, phone_number, from_number, status, created_at FROM calls WHERE id = $1 LIMIT 1', [callId])
+        const call = callRes.rows?.[0]
         if (!call) return
 
         // Fetch call notes separately
-        const { data: callNotes } = await this.supabaseAdmin
-            .from('call_notes')
-            .select('id, note, created_at')
-            .eq('call_id', callId)
+        const callNotesRes = await pgClient.query('SELECT id, note, created_at FROM call_notes WHERE call_id = $1', [callId])
+        const callNotes = callNotesRes.rows || []
 
         // Fetch recordings
-        const { data: recordings } = await this.supabaseAdmin
-            .from('recordings')
-            .select('id')
-            .eq('call_id', callId)
+        const recordingsRes = await pgClient.query('SELECT id FROM recordings WHERE call_id = $1', [callId])
+        const recordings = recordingsRes.rows || []
 
         // Index call
         await this.buildDocument({
@@ -164,12 +154,8 @@ export class SearchBuilder {
         // Index recordings + transcripts
         for (const rec of recordings || []) {
             // Fetch latest transcript version
-            const { data: transcript } = await this.supabaseAdmin
-                .from('transcript_versions')
-                .select('id, transcript_json, created_at')
-                .eq('recording_id', rec.id)
-                .order('version', { ascending: false })
-                .limit(1)
+            const transcriptRes = await pgClient.query('SELECT id, transcript_json, created_at FROM transcript_versions WHERE recording_id = $1 ORDER BY version DESC LIMIT 1', [rec.id])
+            const transcript = transcriptRes.rows || []
 
             if (transcript?.[0]) {
                 const text = this.extractTranscriptText(transcript[0].transcript_json)
@@ -217,13 +203,10 @@ export class SearchBuilder {
         let totalIndexed = 0
 
         // Fetch all calls for org
-        const { data: calls } = await this.supabaseAdmin
-            .from('calls')
-            .select('id')
-            .eq('organization_id', organizationId)
-            .eq('is_deleted', false)
+        const callsRes = await pgClient.query('SELECT id FROM calls WHERE organization_id = $1 AND is_deleted = FALSE', [organizationId])
+        const calls = callsRes.rows || []
 
-        for (const call of calls || []) {
+        for (const call of calls) {
             await this.buildForCall(call.id, actorId)
             totalIndexed++
         }
@@ -272,17 +255,22 @@ export class SearchBuilder {
         actorLabel?: string
         metadata?: Record<string, unknown>
     }) {
-        await this.supabaseAdmin.from('search_events').insert({
-            id: uuidv4(),
-            organization_id: params.organizationId,
-            event_type: params.eventType,
-            document_id: params.documentId,
-            source_type: params.sourceType,
-            source_id: params.sourceId,
-            actor_type: params.actorId ? 'human' : 'system',
-            actor_id: params.actorId,
-            actor_label: params.actorLabel || (params.actorId ? 'user' : 'search-builder'),
-            metadata: params.metadata
-        })
+        await pgClient.query(
+            `INSERT INTO search_events (id, organization_id, event_type, document_id, source_type, source_id, actor_type, actor_id, actor_label, metadata, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+            [
+                uuidv4(),
+                params.organizationId,
+                params.eventType,
+                params.documentId || null,
+                params.sourceType || null,
+                params.sourceId || null,
+                params.actorId ? 'human' : 'system',
+                params.actorId || null,
+                params.actorLabel || (params.actorId ? 'user' : 'search-builder'),
+                params.metadata ? JSON.stringify(params.metadata) : null,
+                new Date().toISOString()
+            ]
+        )
     }
 }

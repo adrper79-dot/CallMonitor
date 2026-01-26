@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
@@ -29,13 +29,13 @@ export async function POST(
     const webhookId = params.id
 
     // Get webhook
-    const { data: webhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('*')
-      .eq('id', webhookId)
-      .single()
+    const { rows: webhooks } = await query(
+      `SELECT * FROM webhook_subscriptions WHERE id = $1 LIMIT 1`,
+      [webhookId]
+    )
+    const webhook = webhooks[0]
 
-    if (fetchError || !webhook) {
+    if (!webhook) {
       throw new AppError('Webhook not found', 404)
     }
 
@@ -74,13 +74,13 @@ export async function POST(
     const success = response.ok
 
     // Update stats
-    await supabaseAdmin
-      .from('webhook_subscriptions')
-      .update({
-        [success ? 'success_count' : 'failure_count']: webhook[success ? 'success_count' : 'failure_count'] + 1,
-        last_triggered_at: new Date().toISOString(),
-      })
-      .eq('id', webhookId)
+    const countField = success ? 'success_count' : 'failure_count'
+    await query(
+      `UPDATE webhook_subscriptions 
+       SET ${countField} = ${countField} + 1, last_triggered_at = NOW() 
+       WHERE id = $1`,
+      [webhookId]
+    )
 
     logger.info('Test webhook sent', {
       webhookId,

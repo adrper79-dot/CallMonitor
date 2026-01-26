@@ -140,7 +140,7 @@ export async function GET(
       .order('started_at', { ascending: true })
 
     // Fetch evidence manifest (current version)
-    let manifest = null
+    let manifest: { id: string; version: number; artifact_count: number; manifest_hash: string; created_at: string } | null = null
     if (recording) {
       const { data: manifestRow } = await supabaseAdmin
         .from('evidence_manifests')
@@ -163,7 +163,7 @@ export async function GET(
     }
 
     // Fetch score
-    let score = null
+    let score: { id: string; scorecard_id: string; total_score: number; has_manual_overrides: boolean } | null = null
     if (recording) {
       const { data: scoreRow } = await supabaseAdmin
         .from('scored_recordings')

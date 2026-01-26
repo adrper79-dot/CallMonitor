@@ -4,18 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { CRMService } from '@/lib/services/crmService'
+import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(
     req: NextRequest,
@@ -30,31 +26,32 @@ export async function POST(
         const { id: integrationId } = await params
 
         // Check admin role
-        const { data: membership } = await supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', session.user.orgId)
-            .eq('user_id', session.user.id)
-            .single()
+        const membershipRes = await pgClient.query(`SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`, [session.user.orgId, session.user.id])
+        const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
 
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
             return NextResponse.json({ success: false, error: 'Admin role required' }, { status: 403 })
         }
 
         // Verify integration belongs to this org
-        const crmService = new CRMService(supabaseAdmin)
-        const integration = await crmService.getIntegration(integrationId)
+        const intRes = await pgClient.query(`SELECT * FROM integrations WHERE id = $1 LIMIT 1`, [integrationId])
+        const integration = intRes?.rows && intRes.rows.length ? intRes.rows[0] : null
 
         if (!integration || integration.organization_id !== session.user.orgId) {
             return NextResponse.json({ success: false, error: 'Integration not found' }, { status: 404 })
         }
 
-        // Disconnect
-        const result = await crmService.disconnectIntegration(integrationId, session.user.id)
+        // Delete tokens
+        await pgClient.query(`DELETE FROM oauth_tokens WHERE integration_id = $1`, [integrationId])
 
-        if (!result.success) {
-            return NextResponse.json({ success: false, error: result.error }, { status: 500 })
-        }
+        // Update integration status to disconnected
+        await pgClient.query(`UPDATE integrations SET status = $1, disconnected_at = $2, updated_at = $3 WHERE id = $4`, ['disconnected', new Date().toISOString(), new Date().toISOString(), integrationId])
+
+        // Log sync operation
+        await pgClient.query(`INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, created_at) VALUES ($1,$2,$3,$4,$5,$6)`, [uuidv4(), integration.organization_id, integrationId, 'oauth_disconnect', 'success', new Date().toISOString()])
+
+        // Audit log
+        await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [uuidv4(), integration.organization_id, session.user.id, 'integration', integrationId, 'disconnect', new Date().toISOString()])
 
         logger.info('Integration disconnected', { integrationId, provider: integration.provider })
 

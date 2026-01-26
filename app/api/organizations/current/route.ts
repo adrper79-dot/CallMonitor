@@ -66,7 +66,7 @@ export async function GET() {
       .eq('organization_id', org.id)
 
     // Get subscription status from stripe_subscriptions if available
-    let subscription = null
+    let subscription: any = null
     try {
       const { data: sub } = await supabaseAdmin
         .from('stripe_subscriptions')
@@ -83,15 +83,18 @@ export async function GET() {
       // No subscription found - that's okay for free tier
     }
 
+    const planValue: any = subscription?.plan ?? (org as any).plan ?? 'free'
+    const planStatusValue: any = subscription?.status ?? (org as any).plan_status ?? 'active'
+
     return NextResponse.json({
       success: true,
       organization: {
         id: org.id,
         name: org.name,
-        plan: subscription?.plan || org.plan || 'free',
-        plan_status: subscription?.status || org.plan_status || 'active',
+        plan: planValue,
+        plan_status: planStatusValue,
         member_count: memberCount || 1,
-        created_at: org.created_at,
+        created_at: (org as any).created_at,
         subscription: subscription ? {
           status: subscription.status,
           current_period_end: subscription.current_period_end,

@@ -2,7 +2,8 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+
+import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
@@ -53,15 +54,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single();
-    if (memberError || !member) {
-      logger.error('[webrtc] Organization membership not found', { userId, memberError, member });
+    const memberRes = await pgClient.query(`SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`, [userId])
+    const member = memberRes?.rows && memberRes.rows.length ? memberRes.rows[0] : null
+    if (!member) {
+      logger.error('[webrtc] Organization membership not found', { userId, member });
       return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found', details: { memberError, member } } },
+        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found', details: { member } } },
         { status: 403 }
       )
     }
@@ -76,46 +74,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Check feature flag
-    const { data: featureFlag, error: featureFlagError } = await supabaseAdmin
-      .from('org_feature_flags')
-      .select('enabled')
-      .eq('organization_id', member.organization_id)
-      .eq('feature', 'voice_operations')
-      .single();
-    if (featureFlagError || featureFlag?.enabled === false) {
-      logger.error('[webrtc] Voice operations feature flag disabled or error', { userId, featureFlag, featureFlagError });
+    const flagRes = await pgClient.query(`SELECT enabled FROM org_feature_flags WHERE organization_id = $1 AND feature = $2 LIMIT 1`, [member.organization_id, 'voice_operations'])
+    const featureFlag = flagRes?.rows && flagRes.rows.length ? flagRes.rows[0] : null
+    if (featureFlag?.enabled === false) {
+      logger.error('[webrtc] Voice operations feature flag disabled', { userId, featureFlag });
       return NextResponse.json(
-        { success: false, error: { code: 'FEATURE_DISABLED', message: 'Voice operations disabled', details: { featureFlag, featureFlagError } } },
+        { success: false, error: { code: 'FEATURE_DISABLED', message: 'Voice operations disabled', details: { featureFlag } } },
         { status: 403 }
       )
     }
 
     // Cleanup stale sessions
     const ONE_HOUR_AGO = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const { data: staleSessions } = await supabaseAdmin
-      .from('webrtc_sessions')
-      .select('id, created_at')
-      .eq('user_id', userId)
-      .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
-
+    const staleRes = await pgClient.query(`SELECT id, created_at FROM webrtc_sessions WHERE user_id = $1 AND status = ANY($2)`, [userId, ['initializing', 'connecting', 'connected', 'on_call']])
+    const staleSessions = staleRes?.rows || []
     if (staleSessions && staleSessions.length > 0) {
       for (const staleSession of staleSessions) {
         const createdAt = new Date(staleSession.created_at)
         if (createdAt.toISOString() < ONE_HOUR_AGO) {
-          await supabaseAdmin
-            .from('webrtc_sessions')
-            .update({ status: 'disconnected' })
-            .eq('id', staleSession.id)
+          await pgClient.query(`UPDATE webrtc_sessions SET status = $1 WHERE id = $2`, ['disconnected', staleSession.id])
 
-          await supabaseAdmin.from('audit_logs').insert({
-            organization_id: member.organization_id,
-            user_id: userId,
-            resource_type: 'webrtc_session',
-            resource_id: staleSession.id,
-            action: 'webrtc:session.auto_cleanup',
-            actor_type: 'system',
-            actor_label: 'webrtc-session-cleanup'
-          })
+          await pgClient.query(`INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [member.organization_id, userId, 'webrtc_session', staleSession.id, 'webrtc:session.auto_cleanup', 'system', 'webrtc-session-cleanup', new Date().toISOString()])
         }
       }
     }
@@ -125,21 +104,12 @@ export async function POST(request: NextRequest) {
     const sessionToken = crypto.randomBytes(32).toString('hex');
 
     // Create session record (let Supabase auto-generate UUID)
-    const { data: sessionRecord, error: insertError } = await supabaseAdmin
-      .from('webrtc_sessions')
-      .insert({
-        user_id: userId,
-        organization_id: member.organization_id,
-        session_token: sessionToken,
-        status: 'initializing',
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-    if (insertError) {
-      logger.error('[webrtc] Failed to create session', { insertError });
+    const insertRes = await pgClient.query(`INSERT INTO webrtc_sessions (user_id, organization_id, session_token, status, created_at) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [userId, member.organization_id, sessionToken, 'initializing', new Date().toISOString()])
+    const sessionRecord = insertRes?.rows && insertRes.rows.length ? insertRes.rows[0] : null
+    if (!sessionRecord) {
+      logger.error('[webrtc] Failed to create session', { insertError: true });
       return NextResponse.json(
-        { success: false, error: { code: 'DB_ERROR', message: 'Session creation failed', details: { insertError } } },
+        { success: false, error: { code: 'DB_ERROR', message: 'Session creation failed', details: { insertError: true } } },
         { status: 500 }
       )
     }
@@ -161,16 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Audit log
-    await supabaseAdmin.from('audit_logs').insert({
-      organization_id: member.organization_id,
-      user_id: userId,
-      resource_type: 'webrtc_session',
-      resource_id: sessionId,
-      action: 'webrtc:session.created',
-      actor_type: 'human',
-      actor_label: userId,
-      after: { session_id: sessionId, sip_username: sipUsername }
-    })
+    await pgClient.query(`INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [member.organization_id, userId, 'webrtc_session', sessionId, 'webrtc:session.created', 'human', userId, { session_id: sessionId, sip_username: sipUsername }, new Date().toISOString()])
 
     logger.info('[webrtc] SIP session created', { sessionId, userId })
 
@@ -220,16 +181,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, session: null })
     }
 
-    const { data } = await supabaseAdmin
-      .from('webrtc_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    return NextResponse.json({ success: true, session: data || null })
+    const res = await pgClient.query(`SELECT * FROM webrtc_sessions WHERE user_id = $1 AND status = ANY($2) ORDER BY created_at DESC LIMIT 1`, [userId, ['initializing', 'connecting', 'connected', 'on_call']])
+    const sessionData = res?.rows && res.rows.length ? res.rows[0] : null
+    return NextResponse.json({ success: true, session: sessionData || null })
   } catch (err) {
     return NextResponse.json({ success: false, session: null })
   }
@@ -248,11 +202,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    await supabaseAdmin
-      .from('webrtc_sessions')
-      .update({ status: 'disconnected', updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
+    await pgClient.query(`UPDATE webrtc_sessions SET status = $1, updated_at = $2 WHERE user_id = $3 AND status = ANY($4)`, ['disconnected', new Date().toISOString(), userId, ['initializing', 'connecting', 'connected', 'on_call']])
 
     logger.info('[webrtc] Session disconnected', { userId })
     return NextResponse.json({ success: true })

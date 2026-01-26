@@ -1,0 +1,293 @@
+{
+  "query": "select n.nspname as schema, c.relname as table, t.tgname as trigger_name, pg_get_triggerdef(t.oid) as definition from pg_trigger t join pg_class c on t.tgrelid = c.oid join pg_namespace n on c.relnamespace = n.oid where NOT t.tgisinternal and n.nspname not in ('pg_catalog','information_schema') order by n.nspname, c.relname",
+  "rows": [
+    {
+      "schema": "auth",
+      "table": "users",
+      "trigger_name": "on_auth_user_created",
+      "definition": "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user()"
+    },
+    {
+      "schema": "next_auth",
+      "table": "sessions",
+      "trigger_name": "sessions_sessiontoken_sync",
+      "definition": "CREATE TRIGGER sessions_sessiontoken_sync BEFORE INSERT OR UPDATE ON next_auth.sessions FOR EACH ROW EXECUTE FUNCTION next_auth.sync_sessions_sessiontoken()"
+    },
+    {
+      "schema": "public",
+      "table": "ai_runs",
+      "trigger_name": "ai_runs_soft_delete",
+      "definition": "CREATE TRIGGER ai_runs_soft_delete BEFORE DELETE ON public.ai_runs FOR EACH ROW EXECUTE FUNCTION soft_delete_ai_run()"
+    },
+    {
+      "schema": "public",
+      "table": "artifact_provenance",
+      "trigger_name": "artifact_provenance_immutable",
+      "definition": "CREATE TRIGGER artifact_provenance_immutable BEFORE UPDATE ON public.artifact_provenance FOR EACH ROW EXECUTE FUNCTION prevent_artifact_provenance_update()"
+    },
+    {
+      "schema": "public",
+      "table": "attention_decisions",
+      "trigger_name": "attention_decisions_no_delete",
+      "definition": "CREATE TRIGGER attention_decisions_no_delete BEFORE DELETE ON public.attention_decisions FOR EACH ROW EXECUTE FUNCTION prevent_attention_decision_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "attention_decisions",
+      "trigger_name": "attention_decisions_immutable",
+      "definition": "CREATE TRIGGER attention_decisions_immutable BEFORE UPDATE ON public.attention_decisions FOR EACH ROW EXECUTE FUNCTION prevent_attention_decision_update()"
+    },
+    {
+      "schema": "public",
+      "table": "attention_events",
+      "trigger_name": "attention_events_immutable",
+      "definition": "CREATE TRIGGER attention_events_immutable BEFORE UPDATE ON public.attention_events FOR EACH ROW EXECUTE FUNCTION prevent_attention_event_update()"
+    },
+    {
+      "schema": "public",
+      "table": "attention_events",
+      "trigger_name": "attention_events_no_delete",
+      "definition": "CREATE TRIGGER attention_events_no_delete BEFORE DELETE ON public.attention_events FOR EACH ROW EXECUTE FUNCTION prevent_attention_event_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "audit_logs",
+      "trigger_name": "audit_logs_actor_type",
+      "definition": "CREATE TRIGGER audit_logs_actor_type BEFORE INSERT ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION set_audit_log_actor_type()"
+    },
+    {
+      "schema": "public",
+      "table": "booking_events",
+      "trigger_name": "booking_events_updated_at",
+      "definition": "CREATE TRIGGER booking_events_updated_at BEFORE UPDATE ON public.booking_events FOR EACH ROW EXECUTE FUNCTION update_booking_updated_at()"
+    },
+    {
+      "schema": "public",
+      "table": "call_confirmation_checklists",
+      "trigger_name": "set_confirmation_checklists_updated_at",
+      "definition": "CREATE TRIGGER set_confirmation_checklists_updated_at BEFORE UPDATE ON public.call_confirmation_checklists FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "call_confirmations",
+      "trigger_name": "set_call_confirmations_updated_at",
+      "definition": "CREATE TRIGGER set_call_confirmations_updated_at BEFORE UPDATE ON public.call_confirmations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "calls",
+      "trigger_name": "calls_soft_delete",
+      "definition": "CREATE TRIGGER calls_soft_delete BEFORE DELETE ON public.calls FOR EACH ROW EXECUTE FUNCTION soft_delete_call()"
+    },
+    {
+      "schema": "public",
+      "table": "campaign_calls",
+      "trigger_name": "update_campaign_calls_updated_at",
+      "definition": "CREATE TRIGGER update_campaign_calls_updated_at BEFORE UPDATE ON public.campaign_calls FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "campaigns",
+      "trigger_name": "update_campaigns_updated_at",
+      "definition": "CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON public.campaigns FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "confirmation_templates",
+      "trigger_name": "set_confirmation_templates_updated_at",
+      "definition": "CREATE TRIGGER set_confirmation_templates_updated_at BEFORE UPDATE ON public.confirmation_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "crm_sync_log",
+      "trigger_name": "crm_sync_log_no_delete",
+      "definition": "CREATE TRIGGER crm_sync_log_no_delete BEFORE DELETE ON public.crm_sync_log FOR EACH ROW EXECUTE FUNCTION prevent_crm_sync_log_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "crm_sync_log",
+      "trigger_name": "crm_sync_log_immutable",
+      "definition": "CREATE TRIGGER crm_sync_log_immutable BEFORE UPDATE ON public.crm_sync_log FOR EACH ROW EXECUTE FUNCTION prevent_crm_sync_log_update()"
+    },
+    {
+      "schema": "public",
+      "table": "digests",
+      "trigger_name": "digests_immutable",
+      "definition": "CREATE TRIGGER digests_immutable BEFORE UPDATE ON public.digests FOR EACH ROW EXECUTE FUNCTION prevent_digest_update()"
+    },
+    {
+      "schema": "public",
+      "table": "digests",
+      "trigger_name": "digests_no_delete",
+      "definition": "CREATE TRIGGER digests_no_delete BEFORE DELETE ON public.digests FOR EACH ROW EXECUTE FUNCTION prevent_digest_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "evidence_bundles",
+      "trigger_name": "evidence_bundles_immutable",
+      "definition": "CREATE TRIGGER evidence_bundles_immutable BEFORE UPDATE ON public.evidence_bundles FOR EACH ROW EXECUTE FUNCTION prevent_evidence_bundle_content_update()"
+    },
+    {
+      "schema": "public",
+      "table": "evidence_manifests",
+      "trigger_name": "evidence_manifests_immutable",
+      "definition": "CREATE TRIGGER evidence_manifests_immutable BEFORE UPDATE ON public.evidence_manifests FOR EACH ROW EXECUTE FUNCTION prevent_evidence_manifest_content_update()"
+    },
+    {
+      "schema": "public",
+      "table": "external_entity_observations",
+      "trigger_name": "external_entity_observations_immutable",
+      "definition": "CREATE TRIGGER external_entity_observations_immutable BEFORE UPDATE ON public.external_entity_observations FOR EACH ROW EXECUTE FUNCTION prevent_observation_update()"
+    },
+    {
+      "schema": "public",
+      "table": "external_entity_observations",
+      "trigger_name": "external_entity_observations_no_delete",
+      "definition": "CREATE TRIGGER external_entity_observations_no_delete BEFORE DELETE ON public.external_entity_observations FOR EACH ROW EXECUTE FUNCTION prevent_observation_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "legal_holds",
+      "trigger_name": "legal_hold_apply",
+      "definition": "CREATE TRIGGER legal_hold_apply AFTER INSERT OR UPDATE ON public.legal_holds FOR EACH ROW EXECUTE FUNCTION apply_legal_hold()"
+    },
+    {
+      "schema": "public",
+      "table": "recordings",
+      "trigger_name": "recordings_soft_delete",
+      "definition": "CREATE TRIGGER recordings_soft_delete BEFORE DELETE ON public.recordings FOR EACH ROW EXECUTE FUNCTION soft_delete_recording()"
+    },
+    {
+      "schema": "public",
+      "table": "report_templates",
+      "trigger_name": "update_report_templates_updated_at",
+      "definition": "CREATE TRIGGER update_report_templates_updated_at BEFORE UPDATE ON public.report_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "scheduled_reports",
+      "trigger_name": "update_scheduled_reports_updated_at",
+      "definition": "CREATE TRIGGER update_scheduled_reports_updated_at BEFORE UPDATE ON public.scheduled_reports FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "search_documents",
+      "trigger_name": "search_documents_immutable",
+      "definition": "CREATE TRIGGER search_documents_immutable BEFORE UPDATE ON public.search_documents FOR EACH ROW EXECUTE FUNCTION prevent_search_document_update()"
+    },
+    {
+      "schema": "public",
+      "table": "search_documents",
+      "trigger_name": "search_documents_no_delete",
+      "definition": "CREATE TRIGGER search_documents_no_delete BEFORE DELETE ON public.search_documents FOR EACH ROW EXECUTE FUNCTION prevent_search_document_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "search_events",
+      "trigger_name": "search_events_no_delete",
+      "definition": "CREATE TRIGGER search_events_no_delete BEFORE DELETE ON public.search_events FOR EACH ROW EXECUTE FUNCTION prevent_search_event_delete()"
+    },
+    {
+      "schema": "public",
+      "table": "search_events",
+      "trigger_name": "search_events_immutable",
+      "definition": "CREATE TRIGGER search_events_immutable BEFORE UPDATE ON public.search_events FOR EACH ROW EXECUTE FUNCTION prevent_search_event_update()"
+    },
+    {
+      "schema": "public",
+      "table": "sessions",
+      "trigger_name": "sessions_sessiontoken_sync",
+      "definition": "CREATE TRIGGER sessions_sessiontoken_sync BEFORE INSERT OR UPDATE ON public.sessions FOR EACH ROW EXECUTE FUNCTION sync_sessions_sessiontoken()"
+    },
+    {
+      "schema": "public",
+      "table": "stripe_invoices",
+      "trigger_name": "update_stripe_invoices_updated_at",
+      "definition": "CREATE TRIGGER update_stripe_invoices_updated_at BEFORE UPDATE ON public.stripe_invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "stripe_payment_methods",
+      "trigger_name": "update_stripe_payment_methods_updated_at",
+      "definition": "CREATE TRIGGER update_stripe_payment_methods_updated_at BEFORE UPDATE ON public.stripe_payment_methods FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "stripe_subscriptions",
+      "trigger_name": "update_stripe_subscriptions_updated_at",
+      "definition": "CREATE TRIGGER update_stripe_subscriptions_updated_at BEFORE UPDATE ON public.stripe_subscriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+    },
+    {
+      "schema": "public",
+      "table": "stripe_subscriptions",
+      "trigger_name": "sync_org_plan_on_subscription_change",
+      "definition": "CREATE TRIGGER sync_org_plan_on_subscription_change AFTER INSERT OR UPDATE ON public.stripe_subscriptions FOR EACH ROW EXECUTE FUNCTION sync_organization_plan()"
+    },
+    {
+      "schema": "public",
+      "table": "transcript_versions",
+      "trigger_name": "transcript_versions_immutable",
+      "definition": "CREATE TRIGGER transcript_versions_immutable BEFORE UPDATE ON public.transcript_versions FOR EACH ROW EXECUTE FUNCTION prevent_transcript_version_update()"
+    },
+    {
+      "schema": "public",
+      "table": "voice_configs",
+      "trigger_name": "log_ai_agent_config_trigger",
+      "definition": "CREATE TRIGGER log_ai_agent_config_trigger AFTER INSERT OR DELETE OR UPDATE ON public.voice_configs FOR EACH ROW EXECUTE FUNCTION log_ai_agent_config_change()"
+    },
+    {
+      "schema": "public",
+      "table": "voice_configs",
+      "trigger_name": "validate_ai_agent_config_trigger",
+      "definition": "CREATE TRIGGER validate_ai_agent_config_trigger BEFORE INSERT OR UPDATE ON public.voice_configs FOR EACH ROW EXECUTE FUNCTION validate_ai_agent_config()"
+    },
+    {
+      "schema": "realtime",
+      "table": "subscription",
+      "trigger_name": "tr_check_filters",
+      "definition": "CREATE TRIGGER tr_check_filters BEFORE INSERT OR UPDATE ON realtime.subscription FOR EACH ROW EXECUTE FUNCTION realtime.subscription_check_filters()"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger_name": "enforce_bucket_name_length_trigger",
+      "definition": "CREATE TRIGGER enforce_bucket_name_length_trigger BEFORE INSERT OR UPDATE OF name ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length()"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger_name": "objects_update_create_prefix",
+      "definition": "CREATE TRIGGER objects_update_create_prefix BEFORE UPDATE ON storage.objects FOR EACH ROW WHEN (((new.name <> old.name) OR (new.bucket_id <> old.bucket_id))) EXECUTE FUNCTION storage.objects_update_prefix_trigger()"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger_name": "update_objects_updated_at",
+      "definition": "CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.update_updated_at_column()"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger_name": "objects_delete_delete_prefix",
+      "definition": "CREATE TRIGGER objects_delete_delete_prefix AFTER DELETE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.delete_prefix_hierarchy_trigger()"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger_name": "objects_insert_create_prefix",
+      "definition": "CREATE TRIGGER objects_insert_create_prefix BEFORE INSERT ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.objects_insert_prefix_trigger()"
+    },
+    {
+      "schema": "storage",
+      "table": "prefixes",
+      "trigger_name": "prefixes_create_hierarchy",
+      "definition": "CREATE TRIGGER prefixes_create_hierarchy BEFORE INSERT ON storage.prefixes FOR EACH ROW WHEN ((pg_trigger_depth() < 1)) EXECUTE FUNCTION storage.prefixes_insert_trigger()"
+    },
+    {
+      "schema": "storage",
+      "table": "prefixes",
+      "trigger_name": "prefixes_delete_hierarchy",
+      "definition": "CREATE TRIGGER prefixes_delete_hierarchy AFTER DELETE ON storage.prefixes FOR EACH ROW EXECUTE FUNCTION storage.delete_prefix_hierarchy_trigger()"
+    }
+  ]
+}

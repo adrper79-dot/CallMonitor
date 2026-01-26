@@ -8,10 +8,10 @@
  * - No magic defaults without recorded rules
  */
 
-import { SupabaseClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
+import { query } from '@/lib/pgClient'
 
 // =============================================================================
 // TYPES
@@ -68,7 +68,8 @@ export interface AvailableCallerId {
 // =============================================================================
 
 export class CallerIdService {
-    constructor(private supabaseAdmin: SupabaseClient) { }
+    // Constructor updated to take no args for this simplified version, as we use global query
+    constructor() { }
 
     // ---------------------------------------------------------------------------
     // PERMISSION CHECKING
@@ -83,26 +84,22 @@ export class CallerIdService {
         callerIdNumberId: string
     ): Promise<boolean> {
         // Check for active permission
-        const { data } = await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .select('id, permission_type')
-            .eq('organization_id', organizationId)
-            .eq('user_id', userId)
-            .eq('caller_id_number_id', callerIdNumberId)
-            .eq('is_active', true)
-            .limit(1)
+        const { rows: perms } = await query(
+            `SELECT id, permission_type FROM caller_id_permissions 
+             WHERE organization_id = $1 AND user_id = $2 AND caller_id_number_id = $3 AND is_active = true
+             LIMIT 1`,
+            [organizationId, userId, callerIdNumberId]
+        )
 
-        if (data?.length) return true
+        if (perms?.length) return true
 
         // Check if user is admin (admins can use any org caller ID)
-        const { data: membership } = await this.supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', organizationId)
-            .eq('user_id', userId)
-            .single()
+        const { rows: membership } = await query(
+            `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+            [organizationId, userId]
+        )
 
-        return ['owner', 'admin'].includes(membership?.role || '')
+        return ['owner', 'admin'].includes(membership?.[0]?.role || '')
     }
 
     /**
@@ -136,12 +133,12 @@ export class CallerIdService {
         const normalized = this.normalizeE164(phoneNumber)
 
         // Find the caller ID number record
-        const { data: callerIdRecord } = await this.supabaseAdmin
-            .from('caller_id_numbers')
-            .select('id, phone_number, status, is_verified')
-            .eq('organization_id', organizationId)
-            .eq('phone_number', normalized)
-            .single()
+        const { rows: callerIdRecords } = await query(
+            `SELECT id, phone_number, status, is_verified FROM caller_id_numbers 
+             WHERE organization_id = $1 AND phone_number = $2 LIMIT 1`,
+            [organizationId, normalized]
+        )
+        const callerIdRecord = callerIdRecords[0]
 
         if (!callerIdRecord) {
             return {
@@ -207,56 +204,49 @@ export class CallerIdService {
         userId: string
     ): Promise<AvailableCallerId[]> {
         // Check if admin
-        const { data: membership } = await this.supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', organizationId)
-            .eq('user_id', userId)
-            .single()
+        const { rows: membership } = await query(
+            `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+            [organizationId, userId]
+        )
 
-        const isAdmin = ['owner', 'admin'].includes(membership?.role || '')
+        const isAdmin = ['owner', 'admin'].includes(membership?.[0]?.role || '')
 
         if (isAdmin) {
             // Admins see all active caller IDs
-            const { data } = await this.supabaseAdmin
-                .from('caller_id_numbers')
-                .select('id, phone_number, display_name, is_default')
-                .eq('organization_id', organizationId)
-                .eq('status', 'active')
-                .eq('is_verified', true)
-                .order('is_default', { ascending: false })
+            const { rows } = await query(
+                `SELECT id, phone_number, display_name, is_default FROM caller_id_numbers 
+                 WHERE organization_id = $1 AND status = 'active' AND is_verified = true 
+                 ORDER BY is_default DESC`,
+                [organizationId]
+            )
 
-            return (data || []).map(cid => ({
+            return (rows || []).map(cid => ({
                 ...cid,
                 permission_type: 'full' as const
             }))
         }
 
         // Non-admins see only permitted caller IDs
-        const { data: permissions } = await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .select(`
-        permission_type,
-        caller_id_numbers!inner(id, phone_number, display_name, is_default, status, is_verified)
-      `)
-            .eq('organization_id', organizationId)
-            .eq('user_id', userId)
-            .eq('is_active', true)
+        const { rows: permissions } = await query(
+            `SELECT p.permission_type, c.id, c.phone_number, c.display_name, c.is_default, c.status, c.is_verified
+             FROM caller_id_permissions p
+             JOIN caller_id_numbers c ON p.caller_id_number_id = c.id
+             WHERE p.organization_id = $1 AND p.user_id = $2 AND p.is_active = true`,
+            [organizationId, userId]
+        )
 
         if (!permissions?.length) return []
 
         return permissions
-            .filter(p => {
-                const cid = p.caller_id_numbers as unknown as CallerIdNumber
-                return cid.status === 'active' && cid.is_verified
+            .filter((p: any) => {
+                return p.status === 'active' && p.is_verified
             })
-            .map(p => {
-                const cid = p.caller_id_numbers as unknown as CallerIdNumber
+            .map((p: any) => {
                 return {
-                    id: cid.id,
-                    phone_number: cid.phone_number,
-                    display_name: cid.display_name,
-                    is_default: cid.is_default,
+                    id: p.id,
+                    phone_number: p.phone_number,
+                    display_name: p.display_name,
+                    is_default: p.is_default,
                     permission_type: p.permission_type as 'use' | 'manage' | 'full'
                 }
             })
@@ -275,59 +265,53 @@ export class CallerIdService {
         userId: string
     ): Promise<{ id: string; phone_number: string } | null> {
         // Get user's role for role-based defaults
-        const { data: membership } = await this.supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', organizationId)
-            .eq('user_id', userId)
-            .single()
-
-        const userRole = membership?.role
+        const { rows: membership } = await query(
+            `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+            [organizationId, userId]
+        )
+        const userRole = membership?.[0]?.role
 
         // Query all applicable default rules, ordered by priority
-        const { data: rules } = await this.supabaseAdmin
-            .from('caller_id_default_rules')
-            .select(`
-        id, scope_type, user_id, role_scope, priority,
-        caller_id_numbers!inner(id, phone_number, status, is_verified)
-      `)
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .or(`user_id.eq.${userId},user_id.is.null`)
-            .order('priority', { ascending: true })
+        // Using explicit joins instead of nested Supabase syntax
+        const { rows: rules } = await query(
+            `SELECT r.id, r.scope_type, r.user_id, r.role_scope, r.priority, 
+                    c.id as cid_id, c.phone_number, c.status, c.is_verified
+             FROM caller_id_default_rules r
+             JOIN caller_id_numbers c ON r.caller_id_number_id = c.id
+             WHERE r.organization_id = $1 AND r.is_active = true
+             AND (r.user_id = $2 OR r.user_id IS NULL)
+             ORDER BY r.priority ASC`,
+            [organizationId, userId]
+        )
 
         if (!rules?.length) {
             // Fallback: check for legacy is_default flag
-            const { data: legacyDefault } = await this.supabaseAdmin
-                .from('caller_id_numbers')
-                .select('id, phone_number')
-                .eq('organization_id', organizationId)
-                .eq('is_default', true)
-                .eq('status', 'active')
-                .eq('is_verified', true)
-                .limit(1)
+            const { rows: legacyDefault } = await query(
+                `SELECT id, phone_number FROM caller_id_numbers 
+                 WHERE organization_id = $1 AND is_default = true AND status = 'active' AND is_verified = true 
+                 LIMIT 1`,
+                [organizationId]
+            )
 
             return legacyDefault?.[0] || null
         }
 
         // Find first applicable rule
         for (const rule of rules) {
-            const cid = rule.caller_id_numbers as unknown as CallerIdNumber
-
             // Skip if caller ID not usable
-            if (cid.status !== 'active' || !cid.is_verified) continue
+            if (rule.status !== 'active' || !rule.is_verified) continue
 
             // Check scope applicability
             if (rule.scope_type === 'user' && rule.user_id === userId) {
-                return { id: cid.id, phone_number: cid.phone_number }
+                return { id: rule.cid_id, phone_number: rule.phone_number }
             }
 
             if (rule.scope_type === 'role' && rule.role_scope === userRole) {
-                return { id: cid.id, phone_number: cid.phone_number }
+                return { id: rule.cid_id, phone_number: rule.phone_number }
             }
 
             if (rule.scope_type === 'organization') {
-                return { id: cid.id, phone_number: cid.phone_number }
+                return { id: rule.cid_id, phone_number: rule.phone_number }
             }
         }
 
@@ -350,44 +334,28 @@ export class CallerIdService {
     ): Promise<{ success: boolean; permissionId?: string; error?: string }> {
         const permissionId = uuidv4()
 
-        const { error } = await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .upsert({
-                id: permissionId,
-                organization_id: organizationId,
-                caller_id_number_id: callerIdNumberId,
-                user_id: targetUserId,
-                permission_type: permissionType,
-                is_active: true,
-                granted_by: grantedByUserId,
-                granted_at: new Date().toISOString(),
-                revoked_at: null,
-                revoked_by: null
-            }, {
-                onConflict: 'organization_id,caller_id_number_id,user_id'
-            })
-
-        if (error) {
+        try {
+            await query(
+                `INSERT INTO caller_id_permissions (
+                    id, organization_id, caller_id_number_id, user_id, permission_type, 
+                    is_active, granted_by, granted_at
+                 ) VALUES ($1, $2, $3, $4, $5, true, $6, NOW())
+                 ON CONFLICT (organization_id, caller_id_number_id, user_id) 
+                 DO UPDATE SET is_active = true, permission_type = $5, granted_at = NOW(), revoked_at = NULL`,
+                [permissionId, organizationId, callerIdNumberId, targetUserId, permissionType, grantedByUserId]
+            )
+        } catch (error: any) {
             logger.error('Failed to grant caller ID permission', error)
             return { success: false, error: error.message }
         }
 
         // Audit log
         await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: organizationId,
-                user_id: grantedByUserId,
-                resource_type: 'caller_id_permission',
-                resource_id: permissionId,
-                action: 'grant',
-                actor_type: 'human',
-                after: {
-                    target_user_id: targetUserId,
-                    caller_id_number_id: callerIdNumberId,
-                    permission_type: permissionType
-                }
-            }),
+            async () => await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, after)
+                 VALUES ($1, $2, $3, 'caller_id_permission', $4, 'grant', 'human', $5)`,
+                [uuidv4(), organizationId, grantedByUserId, permissionId, JSON.stringify({ target_user_id: targetUserId, caller_id_number_id: callerIdNumberId, permission_type: permissionType })]
+            ),
             { resource: 'caller_id_permission', resourceId: permissionId, action: 'grant' }
         )
 
@@ -405,51 +373,35 @@ export class CallerIdService {
         reason?: string
     ): Promise<{ success: boolean; error?: string }> {
         // Find the active permission
-        const { data: existing } = await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .select('id')
-            .eq('organization_id', organizationId)
-            .eq('caller_id_number_id', callerIdNumberId)
-            .eq('user_id', targetUserId)
-            .eq('is_active', true)
-            .single()
+        const { rows: existing } = await query(
+            `SELECT id FROM caller_id_permissions 
+             WHERE organization_id = $1 AND caller_id_number_id = $2 AND user_id = $3 AND is_active = true LIMIT 1`,
+            [organizationId, callerIdNumberId, targetUserId]
+        )
 
-        if (!existing) {
+        if (!existing.length) {
             return { success: false, error: 'No active permission found' }
         }
+        const permId = existing[0].id
 
         // Soft revoke
-        const { error } = await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .update({
-                is_active: false,
-                revoked_at: new Date().toISOString(),
-                revoked_by: revokedByUserId,
-                revoke_reason: reason
-            })
-            .eq('id', existing.id)
-
-        if (error) {
+        try {
+            await query(
+                `UPDATE caller_id_permissions SET is_active = false, revoked_at = NOW(), revoked_by = $1, revoked_reason = $2 WHERE id = $3`,
+                [revokedByUserId, reason, permId]
+            )
+        } catch (error: any) {
             return { success: false, error: error.message }
         }
 
         // Audit log
         await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: organizationId,
-                user_id: revokedByUserId,
-                resource_type: 'caller_id_permission',
-                resource_id: existing.id,
-                action: 'revoke',
-                actor_type: 'human',
-                after: {
-                    target_user_id: targetUserId,
-                    caller_id_number_id: callerIdNumberId,
-                    reason
-                }
-            }),
-            { resource: 'caller_id_permission', resourceId: existing.id, action: 'revoke' }
+            async () => await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, after)
+                 VALUES ($1, $2, $3, 'caller_id_permission', $4, 'revoke', 'human', $5)`,
+                [uuidv4(), organizationId, revokedByUserId, permId, JSON.stringify({ target_user_id: targetUserId, caller_id_number_id: callerIdNumberId, reason })]
+            ),
+            { resource: 'caller_id_permission', resourceId: permId, action: 'revoke' }
         )
 
         return { success: true }
@@ -469,11 +421,11 @@ export class CallerIdService {
         reason?: string
     ): Promise<{ success: boolean; error?: string }> {
         // Get the number first
-        const { data: number } = await this.supabaseAdmin
-            .from('caller_id_numbers')
-            .select('id, organization_id, phone_number, status')
-            .eq('id', callerIdNumberId)
-            .single()
+        const { rows: numbers } = await query(
+            `SELECT id, organization_id, phone_number, status FROM caller_id_numbers WHERE id = $1 LIMIT 1`,
+            [callerIdNumberId]
+        )
+        const number = numbers[0]
 
         if (!number) {
             return { success: false, error: 'Caller ID number not found' }
@@ -484,54 +436,34 @@ export class CallerIdService {
         }
 
         // Update status to retired
-        const { error } = await this.supabaseAdmin
-            .from('caller_id_numbers')
-            .update({
-                status: 'retired',
-                retired_at: new Date().toISOString(),
-                retired_by: retiredByUserId,
-                notes: reason ? `Retired: ${reason}` : undefined
-            })
-            .eq('id', callerIdNumberId)
-
-        if (error) {
+        try {
+            await query(
+                `UPDATE caller_id_numbers SET status = 'retired', retired_at = NOW(), retired_by = $1, notes = $2 WHERE id = $3`,
+                [retiredByUserId, reason ? `Retired: ${reason}` : null, callerIdNumberId]
+            )
+        } catch (error: any) {
             return { success: false, error: error.message }
         }
 
         // Revoke all active permissions for this number
-        await this.supabaseAdmin
-            .from('caller_id_permissions')
-            .update({
-                is_active: false,
-                revoked_at: new Date().toISOString(),
-                revoked_by: retiredByUserId,
-                revoke_reason: 'Number retired'
-            })
-            .eq('caller_id_number_id', callerIdNumberId)
-            .eq('is_active', true)
+        await query(
+            `UPDATE caller_id_permissions SET is_active = false, revoked_at = NOW(), revoked_by = $1, revoked_reason = 'Number retired' WHERE caller_id_number_id = $2 AND is_active = true`,
+            [retiredByUserId, callerIdNumberId]
+        )
 
         // Deactivate default rules using this number
-        await this.supabaseAdmin
-            .from('caller_id_default_rules')
-            .update({
-                is_active: false
-            })
-            .eq('caller_id_number_id', callerIdNumberId)
-            .eq('is_active', true)
+        await query(
+            `UPDATE caller_id_default_rules SET is_active = false WHERE caller_id_number_id = $1 AND is_active = true`,
+            [callerIdNumberId]
+        )
 
         // Audit log
         await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: number.organization_id,
-                user_id: retiredByUserId,
-                resource_type: 'caller_id_number',
-                resource_id: callerIdNumberId,
-                action: 'retire',
-                actor_type: 'human',
-                before: { status: number.status },
-                after: { status: 'retired', reason }
-            }),
+            async () => await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, before, after)
+                 VALUES ($1, $2, $3, 'caller_id_number', $4, 'retire', 'human', $5, $6)`,
+                [uuidv4(), number.organization_id, retiredByUserId, callerIdNumberId, JSON.stringify({ status: number.status }), JSON.stringify({ status: 'retired', reason })]
+            ),
             { resource: 'caller_id_number', resourceId: callerIdNumberId, action: 'retire' }
         )
 
@@ -558,37 +490,25 @@ export class CallerIdService {
     ): Promise<{ success: boolean; ruleId?: string; error?: string }> {
         const ruleId = uuidv4()
 
-        const { error } = await this.supabaseAdmin
-            .from('caller_id_default_rules')
-            .insert({
-                id: ruleId,
-                organization_id: organizationId,
-                scope_type: scopeType,
-                user_id: options?.userId,
-                role_scope: options?.roleScope,
-                caller_id_number_id: callerIdNumberId,
-                priority: options?.priority || 100,
-                is_active: true,
-                created_by: createdByUserId
-            })
-
-        if (error) {
+        try {
+            await query(
+                `INSERT INTO caller_id_default_rules (
+                    id, organization_id, scope_type, user_id, role_scope, caller_id_number_id, priority, is_active, created_by
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)`,
+                [ruleId, organizationId, scopeType, options?.userId, options?.roleScope, callerIdNumberId, options?.priority || 100, createdByUserId]
+            )
+        } catch (error: any) {
             logger.error('Failed to set default rule', error)
             return { success: false, error: error.message }
         }
 
         // Audit log
         await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: organizationId,
-                user_id: createdByUserId,
-                resource_type: 'caller_id_default_rule',
-                resource_id: ruleId,
-                action: 'create',
-                actor_type: 'human',
-                after: { scope_type: scopeType, caller_id_number_id: callerIdNumberId }
-            }),
+            async () => await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, after)
+                 VALUES ($1, $2, $3, 'caller_id_default_rule', $4, 'create', 'human', $5)`,
+                [uuidv4(), organizationId, createdByUserId, ruleId, JSON.stringify({ scope_type: scopeType, caller_id_number_id: callerIdNumberId })]
+            ),
             { resource: 'caller_id_default_rule', resourceId: ruleId, action: 'create' }
         )
 

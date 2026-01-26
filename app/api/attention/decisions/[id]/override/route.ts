@@ -4,18 +4,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { AttentionService, DecisionType } from '@/lib/services/attentionService'
+import { DecisionType } from '@/lib/services/attentionService'
 import { logger } from '@/lib/logger'
+import pgClient from '@/lib/pgClient'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(
     req: NextRequest,
@@ -46,37 +43,30 @@ export async function POST(
             }, { status: 400 })
         }
 
-        // Verify event belongs to org
-        const { data: event } = await supabaseAdmin
-            .from('attention_events')
-            .select('organization_id')
-            .eq('id', eventId)
-            .single()
+        // Verify event belongs to org and fetch input_refs
+        const eventRes = await pgClient.query(`SELECT organization_id, input_refs FROM attention_events WHERE id = $1 LIMIT 1`, [eventId])
+        const event = eventRes?.rows && eventRes.rows.length ? eventRes.rows[0] : null
 
         if (!event || event.organization_id !== session.user.orgId) {
             return NextResponse.json({ success: false, error: 'Event not found' }, { status: 404 })
         }
 
-        const attentionService = new AttentionService(supabaseAdmin)
-        const result = await attentionService.humanOverride(
-            session.user.orgId,
-            eventId,
-            decision,
-            reason,
-            session.user.id
-        )
+        // Create new decision (append-only)
+        const decisionId = uuidv4()
+        await pgClient.query(`INSERT INTO attention_decisions (id, organization_id, attention_event_id, decision, reason, policy_id, confidence, uncertainty_notes, produced_by, produced_by_model, produced_by_user_id, input_refs, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, [decisionId, session.user.orgId, eventId, decision, reason, null, 100, null, 'human', null, session.user.id, event.input_refs, new Date().toISOString()])
 
-        if (!result.success) {
-            return NextResponse.json({ success: false, error: result.error }, { status: 400 })
+        // If escalate, write audit log (best-effort)
+        if (decision === 'escalate') {
+            try {
+                await pgClient.query(`INSERT INTO audit_logs (id, organization_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [uuidv4(), session.user.orgId, 'attention_decision', decisionId, 'escalate', 'human', session.user.id, { event_id: eventId, reason, policy_id: null }, new Date().toISOString()])
+            } catch (e) {
+                logger.warn('Failed to write audit log for escalation', e instanceof Error ? e : new Error(String(e)))
+            }
         }
 
         logger.info('Human override on attention event', { eventId, decision, userId: session.user.id })
 
-        return NextResponse.json({
-            success: true,
-            decision_id: result.decisionId,
-            message: 'Override applied'
-        })
+        return NextResponse.json({ success: true, decision_id: decisionId, message: 'Override applied' })
     } catch (err: unknown) {
         logger.error('Override failed', err instanceof Error ? err : new Error(String(err)))
         return NextResponse.json({ success: false, error: 'Override failed' }, { status: 500 })

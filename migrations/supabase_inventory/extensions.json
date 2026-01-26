@@ -1,0 +1,69 @@
+{
+  "query": "select * from pg_extension order by extname",
+  "rows": [
+    {
+      "oid": 16639,
+      "extname": "pg_graphql",
+      "extowner": 10,
+      "extnamespace": 16574,
+      "extrelocatable": false,
+      "extversion": "1.5.11",
+      "extconfig": null,
+      "extcondition": null
+    },
+    {
+      "oid": 16389,
+      "extname": "pg_stat_statements",
+      "extowner": 16384,
+      "extnamespace": 16388,
+      "extrelocatable": true,
+      "extversion": "1.11",
+      "extconfig": null,
+      "extcondition": null
+    },
+    {
+      "oid": 16443,
+      "extname": "pgcrypto",
+      "extowner": 16384,
+      "extnamespace": 16388,
+      "extrelocatable": true,
+      "extversion": "1.3",
+      "extconfig": null,
+      "extcondition": null
+    },
+    {
+      "oid": 13569,
+      "extname": "plpgsql",
+      "extowner": 10,
+      "extnamespace": 11,
+      "extrelocatable": false,
+      "extversion": "1.0",
+      "extconfig": null,
+      "extcondition": null
+    },
+    {
+      "oid": 16604,
+      "extname": "supabase_vault",
+      "extowner": 10,
+      "extnamespace": 16603,
+      "extrelocatable": false,
+      "extversion": "0.3.1",
+      "extconfig": [
+        16608
+      ],
+      "extcondition": [
+        ""
+      ]
+    },
+    {
+      "oid": 16432,
+      "extname": "uuid-ossp",
+      "extowner": 16384,
+      "extnamespace": 16388,
+      "extrelocatable": true,
+      "extversion": "1.1",
+      "extconfig": null,
+      "extcondition": null
+    }
+  ]
+}

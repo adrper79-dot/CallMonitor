@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
@@ -32,15 +32,10 @@ export async function GET(req: NextRequest) {
       throw new AppError('Unauthorized', 403)
     }
 
-    const { data: webhooks, error } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      throw new AppError('Failed to fetch webhooks', 500, 'FETCH_ERROR', error)
-    }
+    const { rows: webhooks } = await query(
+      `SELECT * FROM webhook_subscriptions WHERE organization_id = $1 ORDER BY created_at DESC`,
+      [orgId]
+    )
 
     return NextResponse.json({ webhooks })
   } catch (error: any) {
@@ -79,23 +74,14 @@ export async function POST(req: NextRequest) {
     const secret = randomBytes(32).toString('hex')
 
     // Create webhook subscription
-    const { data: webhook, error: insertError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .insert({
-        organization_id: organizationId,
-        url,
-        event_types: eventTypes,
-        secret,
-        is_active: true,
-        success_count: 0,
-        failure_count: 0,
-      })
-      .select()
-      .single()
+    const { rows } = await query(
+      `INSERT INTO webhook_subscriptions (organization_id, url, event_types, secret, is_active, success_count, failure_count)
+       VALUES ($1, $2, $3, $4, true, 0, 0)
+       RETURNING *`,
+      [organizationId, url, JSON.stringify(eventTypes), secret]
+    )
 
-    if (insertError) {
-      throw new AppError('Failed to create webhook', 500, 'CREATE_ERROR', insertError)
-    }
+    const webhook = rows[0]
 
     logger.info('Webhook subscription created', {
       webhookId: webhook.id,

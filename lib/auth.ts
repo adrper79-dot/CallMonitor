@@ -14,8 +14,8 @@ import AzureADProvider from "next-auth/providers/azure-ad"
 import TwitterProvider from "next-auth/providers/twitter"
 import FacebookProvider from "next-auth/providers/facebook"
 
-import { createClient } from '@supabase/supabase-js'
-import { SupabaseAdapter } from '@next-auth/supabase-adapter'
+import pgClient from '@/lib/pgClient'
+import { scryptSync, timingSafeEqual, randomBytes } from 'crypto'
 import { logger } from '@/lib/logger'
 import { v5 as uuidv5 } from 'uuid'
 
@@ -36,47 +36,16 @@ async function sendViaResend(to: string, html: string) {
   if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`)
 }
 
-// ARCH_DOCS: Lazy Supabase adapter with diagnostics
+import PostgresAdapter from "@auth/pg-adapter"
+import { pool } from "@/lib/pgClient"
+
+// ARCH_DOCS: Lazy Postgres adapter for Neon
 function getAdapter() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  logger.info('[Auth] Supabase adapter check', {
-    hasSupabaseUrl: !!supabaseUrl,
-    hasServiceKey: !!serviceKey,
-    urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
-    keyLength: serviceKey ? serviceKey.length : 0,
-    envPhase: process.env.NEXT_PHASE || 'unset',
-    nodeEnv: process.env.NODE_ENV || 'unset',
-  });
-  if (!supabaseUrl || !serviceKey) {
-    logger.warn('[Auth] Supabase adapter unavailable: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY', {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceKey: !!serviceKey,
-      urlValue: supabaseUrl ? '[REDACTED]' : 'missing',
-      keyLength: serviceKey ? serviceKey.length : 0,
-      envPhase: process.env.NEXT_PHASE || 'unset',
-      nodeEnv: process.env.NODE_ENV || 'unset',
-    });
-    return undefined;
+  if (!pool) {
+    logger.warn('[Auth] Postgres pool not available - disabling adapter')
+    return undefined
   }
-  try {
-    logger.info('[Auth] Supabase adapter created');
-    return SupabaseAdapter({
-      url: supabaseUrl,
-      secret: serviceKey,
-      schema: 'next_auth',
-    });
-  } catch (e: any) {
-    logger.error('[Auth] Supabase adapter error', {
-      error: e && (e.message || e.toString()),
-      stack: e && e.stack,
-      supabaseUrl: supabaseUrl ? '[REDACTED]' : 'missing',
-      keyLength: serviceKey ? serviceKey.length : 0,
-      envPhase: process.env.NEXT_PHASE || 'unset',
-      nodeEnv: process.env.NODE_ENV || 'unset',
-    });
-    return undefined;
-  }
+  return PostgresAdapter(pool)
 }
 
 /**
@@ -111,8 +80,8 @@ function getProviders(adapter: any) {
       if (!credentials || !credentials.username || !credentials.password) return null
 
       const key = String(credentials.username).toLowerCase()
-        if (!(globalThis as any).__loginRateLimiter) (globalThis as any).__loginRateLimiter = new Map()
-  const limiter: Map<string, { attempts: number[]; blockedUntil: number }> = (globalThis as any).__loginRateLimiter
+      if (!(globalThis as any).__loginRateLimiter) (globalThis as any).__loginRateLimiter = new Map()
+      const limiter: Map<string, { attempts: number[]; blockedUntil: number }> = (globalThis as any).__loginRateLimiter
       const MAX_ATTEMPTS = 5
       const WINDOW_MS = 15 * 60 * 1000
       const BLOCK_MS = 15 * 60 * 1000
@@ -125,10 +94,6 @@ function getProviders(adapter: any) {
         return null
       }
 
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      if (!supabaseUrl || !anonKey) throw new Error('Supabase not configured for credentials login')
-
       function looksLikeEmail(v: string) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) }
       let identifier = String(credentials.username)
       let emailToUse: string | null = null
@@ -136,10 +101,9 @@ function getProviders(adapter: any) {
         emailToUse = identifier
       } else {
         try {
-          const sup = createClient(supabaseUrl, anonKey)
-          const { data: found, error: findErr } = await sup.from('users').select('email,username').or(`username.eq.${identifier},email.eq.${identifier}`).limit(1)
-          if (!findErr && Array.isArray(found) && found.length) {
-            emailToUse = found[0]?.email ?? null
+          const foundRes = await pgClient.query(`SELECT email, username FROM users WHERE username = $1 OR email = $1 LIMIT 1`, [identifier])
+          if (foundRes?.rows && foundRes.rows.length) {
+            emailToUse = foundRes.rows[0].email ?? null
           }
         } catch (e) {
           // ignore lookup errors
@@ -157,16 +121,13 @@ function getProviders(adapter: any) {
 
       // Check if SSO is required for this email domain
       try {
-        const sup = createClient(supabaseUrl, anonKey)
         const emailDomain = emailToUse.toLowerCase().split('@')[1]
-        const { data: ssoConfig, error: ssoError } = await sup
-          .from('org_sso_configs')
-          .select('require_sso, provider_name')
-          .eq('is_enabled', true)
-          .contains('verified_domains', [emailDomain])
-          .limit(1)
-          .single()
-        if (!ssoError && ssoConfig?.require_sso) {
+        const ssoRes = await pgClient.query(
+          `SELECT require_sso, provider_name FROM org_sso_configs WHERE is_enabled = true AND verified_domains @> $1::jsonb LIMIT 1`,
+          [JSON.stringify([emailDomain])]
+        )
+        const ssoConfig = ssoRes?.rows && ssoRes.rows.length ? ssoRes.rows[0] : null
+        if (ssoConfig?.require_sso) {
           logger.warn('Password login blocked: SSO required for domain', { email: emailToUse, domain: emailDomain })
           return null
         }
@@ -176,19 +137,32 @@ function getProviders(adapter: any) {
 
       // Use Supabase Auth signInWithPassword for credentials
       try {
-        const sup = createClient(supabaseUrl, anonKey)
-        const { data, error } = await sup.auth.signInWithPassword({
-          email: emailToUse,
-          password: credentials.password
-        })
-        if (error || !data.user) {
+        // Verify password against stored hash
+        const userRes = await pgClient.query(`SELECT id, email, password_hash FROM users WHERE email = $1 LIMIT 1`, [emailToUse])
+        const userRow = userRes?.rows && userRes.rows.length ? userRes.rows[0] : null
+        if (!userRow || !userRow.password_hash) {
+          entry.attempts.push(now())
+          if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
+          limiter.set(key, entry)
+          return null
+        }
+        const [salt, storedDerived] = String(userRow.password_hash).split(':')
+        if (!salt || !storedDerived) {
+          entry.attempts.push(now())
+          if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
+          limiter.set(key, entry)
+          return null
+        }
+        const derived = scryptSync(credentials.password, salt, 64).toString('hex')
+        const match = timingSafeEqual(Buffer.from(derived, 'hex'), Buffer.from(storedDerived, 'hex'))
+        if (!match) {
           entry.attempts.push(now())
           if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
           limiter.set(key, entry)
           return null
         }
         limiter.delete(key)
-        return { id: data.user.id, email: data.user.email, name: data.user.email || data.user.user_metadata?.name }
+        return { id: userRow.id, email: userRow.email, name: userRow.email }
       } catch (e) {
         entry.attempts.push(now())
         if (entry.attempts.length >= MAX_ATTEMPTS) entry.blockedUntil = now() + BLOCK_MS
@@ -289,7 +263,7 @@ export function getAuthOptions() {
     },
 
     // ARCH_DOCS: Database strategy for SupabaseAdapter compatibility
-        session: {
+    session: {
       strategy: adapter ? 'database' as const : 'jwt' as const,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     },
@@ -300,46 +274,68 @@ export function getAuthOptions() {
     callbacks: {
       // ARCH_DOCS: SignIn callback for OAuth user/org setup (runs only on login)
       async signIn({ user, account }: { user: any; account: any }) {
+        // Only run provider linking/creation for common OAuth providers
         if (account && ['google', 'azure-ad', 'twitter', 'facebook'].includes(account.provider)) {
           try {
-            const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-            const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            if (!supabaseUrl || !serviceKey) throw new Error('Supabase not configured');
-            const supabase = createClient(supabaseUrl, serviceKey);
-
             // Use the adapter-provided user id (do not generate a separate UUID)
             const userId = user.id;
 
-            // Check if user exists
-            let { data: existingUser } = await supabase
-              .from('users')
-              .select('id, organization_id')
-              .eq('email', user.email)
-              .maybeSingle();
+            // Normalize email for provider-specific equivalence (gmail/microsoft rules)
+            const normalizeEmail = (email: string) => {
+              if (!email) return email;
+              const parts = email.split('@');
+              if (parts.length !== 2) return email.toLowerCase();
+              const local = parts[0];
+              const domain = parts[1].toLowerCase();
+              if (domain.endsWith('gmail.com') || domain.endsWith('googlemail.com')) {
+                const localNoPlus = local.split('+')[0].replace(/\./g, '');
+                return (localNoPlus + '@' + domain).toLowerCase();
+              }
+              if (domain.endsWith('outlook.com') || domain.endsWith('hotmail.com') || domain.endsWith('live.com') || domain.endsWith('microsoft.com')) {
+                const localNoPlus = local.split('+')[0];
+                return (localNoPlus + '@' + domain).toLowerCase();
+              }
+              return email.toLowerCase();
+            };
 
+            const normalizedEmail = normalizeEmail(user.email || '');
+
+            // First try to find an existing account link by provider/providerAccountId
+            const accRes = await pgClient.query(`SELECT user_id FROM accounts WHERE provider = $1 AND provider_account_id = $2 LIMIT 1`, [account.provider, account.providerAccountId])
+            const accountRow = accRes?.rows && accRes.rows.length ? accRes.rows[0] : null
+
+            let existingUser: any = null;
+            if (accountRow && accountRow.user_id) {
+              const userRes = await pgClient.query(`SELECT id, organization_id FROM users WHERE id = $1 LIMIT 1`, [accountRow.user_id])
+              existingUser = userRes?.rows && userRes.rows.length ? userRes.rows[0] : null
+            }
+
+            // If not found by account link, try normalized email lookup
             if (!existingUser) {
-              // Create org and user (deterministic UUID)
-              const { data: newOrg, error: orgError } = await supabase
-                .from('organizations')
-                .insert({ name: `${user.email.split('@')[0]}'s Organization`, plan: 'professional' })
-                .select('id')
-                .single();
-              if (orgError || !newOrg?.id) throw new Error('Failed to create organization');
-              const orgId = newOrg.id;
-              const { error: userInsertErr } = await supabase.from('users').insert({
-                id: userId,
-                email: user.email,
-                organization_id: orgId,
-                role: 'owner',
-                is_admin: true
-              });
-              if (userInsertErr) throw new Error('Failed to create user');
-              const { error: memberInsertErr } = await supabase.from('org_members').insert({
-                organization_id: orgId,
-                user_id: userId,
-                role: 'owner'
-              });
-              if (memberInsertErr) throw new Error('Failed to create org membership');
+              const userRes = await pgClient.query(`SELECT id, organization_id FROM users WHERE normalized_email = $1 OR email = $2 LIMIT 1`, [normalizedEmail, user.email])
+              existingUser = userRes?.rows && userRes.rows.length ? userRes.rows[0] : null
+            }
+
+            if (existingUser) {
+              // Ensure account link exists for this provider
+              const acctId = `${account.provider}:${account.providerAccountId}`;
+              const existAcctRes = await pgClient.query(`SELECT id FROM accounts WHERE provider = $1 AND provider_account_id = $2 LIMIT 1`, [account.provider, account.providerAccountId])
+              const existingAcct = existAcctRes?.rows && existAcctRes.rows.length ? existAcctRes.rows[0] : null
+              if (!existingAcct) {
+                try {
+                  await pgClient.query(`INSERT INTO accounts (id, user_id, type, provider, provider_account_id) VALUES ($1,$2,$3,$4,$5)`, [acctId, existingUser.id, account.type || 'oauth', account.provider, account.providerAccountId])
+                } catch (insertErr) {
+                  logger.warn('[Auth] Could not create accounts link', { error: insertErr })
+                }
+              }
+              logger.info('[Auth] Linked OAuth login to existing user', { email: user.email, userId: existingUser.id });
+            } else {
+              // Create org and user then link membership
+              const orgInsert = await pgClient.query(`INSERT INTO organizations (name, plan, created_at) VALUES ($1,$2,$3) RETURNING id`, [`${user.email?.split('@')[0] ?? 'user'}'s Organization`, 'professional', new Date().toISOString()])
+              const orgId = orgInsert?.rows && orgInsert.rows.length ? orgInsert.rows[0].id : null
+              if (!orgId) throw new Error('Failed to create organization')
+              await pgClient.query(`INSERT INTO users (id, email, normalized_email, organization_id, role, is_admin, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [userId, user.email, normalizedEmail, orgId, 'owner', true, new Date().toISOString()])
+              await pgClient.query(`INSERT INTO org_members (organization_id, user_id, role) VALUES ($1,$2,$3)`, [orgId, userId, 'owner'])
               logger.info('[Auth] Created new user/org for OAuth login', { email: user.email, userId, orgId });
             }
           } catch (err) {
@@ -357,7 +353,7 @@ export function getAuthOptions() {
       // ARCH_DOCS: Session callback ensures user ID in session
       async session({ session, token }: { session: any; token: any }) {
         if (session?.user && token?.id) {
-          ;(session.user as any).id = token.id;
+          ; (session.user as any).id = token.id;
         }
         return session;
       }
@@ -385,7 +381,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
   } catch (e) {
     logger.error('[auth] Failed to initialize auth options', e)
     // Return minimal fallback to prevent crashes
-        const fallback = {
+    const fallback = {
       providers: [],
       secret: process.env.NEXTAUTH_SECRET || 'auth-secret-fallback',
       session: { strategy: 'jwt' as const, maxAge: 30 * 24 * 60 * 60 },
@@ -402,7 +398,7 @@ export function getAuthOptionsLazy(): ReturnType<typeof getAuthOptions> {
         },
         session: async ({ session, token }: any) => {
           if (session?.user && token?.id) {
-            ;(session.user as any).id = token.id
+            ; (session.user as any).id = token.id
           }
           return session
         }

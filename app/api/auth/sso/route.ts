@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/types/app-error'
 import {
@@ -77,12 +77,11 @@ async function handleGET(req: Request): Promise<Response> {
     }
 
     // Verify user is admin/owner of org
-    const { data: membership } = await supabaseAdmin
-      .from('org_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .single()
+    const membershipRes = await pgClient.query(
+      `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+      [orgId, userId]
+    )
+    const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
 
     if (!membership || !['owner', 'admin'].includes(membership.role)) {
       const err = new AppError({ code: 'FORBIDDEN', message: 'Access denied', user_message: 'Admin access required', severity: 'HIGH' })
@@ -90,18 +89,16 @@ async function handleGET(req: Request): Promise<Response> {
     }
 
     // Get all SSO configs for org
-    const { data: configs, error } = await supabaseAdmin
-      .from('org_sso_configs')
-      .select('id, provider_type, provider_name, is_enabled, verified_domains, require_sso, auto_provision_users, default_role, created_at, updated_at, last_login_at, login_count')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false })
+    const configsRes = await pgClient.query(
+      `SELECT id, provider_type, provider_name, is_enabled, verified_domains, require_sso, auto_provision_users, default_role, created_at, updated_at, last_login_at, login_count
+       FROM org_sso_configs
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [orgId]
+    )
 
-    if (error) {
-      logger.error('Failed to fetch SSO configs', error, { orgId })
-      return NextResponse.json({ success: false, error: 'Failed to fetch SSO configurations' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true, configs: configs || [] })
+    const configs = configsRes?.rows || []
+    return NextResponse.json({ success: true, configs })
   } catch (err) {
     logger.error('SSO GET handler error', err as Error)
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
@@ -138,17 +135,17 @@ async function handlePOST(req: Request): Promise<Response> {
       const state = randomBytes(32).toString('hex')
 
       // Store state temporarily (in production, use Redis or similar)
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        resource_type: 'sso_state',
-        resource_id: state as unknown as string,
-        action: 'create',
-        after: {
-          config_id: config.id,
-          callback_url: callback_url || '/',
-          expires: Date.now() + 600000 // 10 minutes
-        }
-      })
+      await pgClient.query(
+        `INSERT INTO audit_logs (id, resource_type, resource_id, action, after)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          uuidv4(),
+          'sso_state',
+          state as unknown as string,
+          'create',
+          JSON.stringify({ config_id: config.id, callback_url: callback_url || '/', expires: Date.now() + 600000 })
+        ]
+      )
 
       let authUrl: string
       if (config.provider_type === 'saml' || config.provider_type === 'okta') {
@@ -183,12 +180,11 @@ async function handlePOST(req: Request): Promise<Response> {
     }
 
     // Verify user is owner of org
-    const { data: membership } = await supabaseAdmin
-      .from('org_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .single()
+    const membershipRes = await pgClient.query(
+      `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+      [orgId, userId]
+    )
+    const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
 
     if (!membership || membership.role !== 'owner') {
       const err = new AppError({ code: 'FORBIDDEN', message: 'Owner access required', user_message: 'Only organization owners can configure SSO', severity: 'HIGH' })
@@ -216,36 +212,45 @@ async function handlePOST(req: Request): Promise<Response> {
       }, { status: 400 })
     }
 
-    // Upsert SSO config
-    const { data: savedConfig, error } = await supabaseAdmin
-      .from('org_sso_configs')
-      .upsert({
-        ...config,
-        organization_id: orgId,
-        created_by: userId,
-        updated_by: userId,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'organization_id,provider_type'
-      })
-      .select()
-      .single()
+    // Upsert SSO config (insert or update)
+    const upsertRes = await pgClient.query(
+      `INSERT INTO org_sso_configs (organization_id, provider_type, provider_name, is_enabled, verified_domains, require_sso, auto_provision_users, default_role, created_by, updated_by, updated_at, saml_entity_id, saml_sso_url, saml_certificate, oidc_client_id, oidc_issuer_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       ON CONFLICT (organization_id, provider_type)
+       DO UPDATE SET provider_name = EXCLUDED.provider_name, is_enabled = EXCLUDED.is_enabled, verified_domains = EXCLUDED.verified_domains, require_sso = EXCLUDED.require_sso, auto_provision_users = EXCLUDED.auto_provision_users, default_role = EXCLUDED.default_role, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at, saml_entity_id = EXCLUDED.saml_entity_id, saml_sso_url = EXCLUDED.saml_sso_url, saml_certificate = EXCLUDED.saml_certificate, oidc_client_id = EXCLUDED.oidc_client_id, oidc_issuer_url = EXCLUDED.oidc_issuer_url
+       RETURNING *`,
+      [
+        orgId,
+        config.provider_type,
+        config.provider_name,
+        config.is_enabled ?? false,
+        config.verified_domains ?? null,
+        config.require_sso ?? false,
+        config.auto_provision_users ?? false,
+        config.default_role ?? null,
+        userId,
+        userId,
+        new Date().toISOString(),
+        config.saml_entity_id ?? null,
+        config.saml_sso_url ?? null,
+        config.saml_certificate ?? null,
+        config.oidc_client_id ?? null,
+        config.oidc_issuer_url ?? null,
+      ]
+    )
 
-    if (error) {
-      logger.error('Failed to save SSO config', error, { orgId })
+    const savedConfig = upsertRes?.rows && upsertRes.rows.length ? upsertRes.rows[0] : null
+    if (!savedConfig) {
+      logger.error('Failed to save SSO config', { orgId })
       return NextResponse.json({ success: false, error: 'Failed to save SSO configuration' }, { status: 500 })
     }
 
     // Log audit event
-    await supabaseAdmin.from('audit_logs').insert({
-      id: uuidv4(),
-      organization_id: orgId,
-      user_id: userId,
-      resource_type: 'sso_config',
-      resource_id: savedConfig.id,
-      action: 'create',
-      after: { provider_type: config.provider_type, provider_name: config.provider_name }
-    })
+    await pgClient.query(
+      `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, after)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [uuidv4(), orgId, userId, 'sso_config', savedConfig.id, 'create', JSON.stringify({ provider_type: config.provider_type, provider_name: config.provider_name })]
+    )
 
     logger.info('SSO config saved', { orgId, provider: config.provider_type })
 
@@ -286,39 +291,28 @@ async function handleDELETE(req: Request): Promise<Response> {
     }
 
     // Verify user is owner of org
-    const { data: membership } = await supabaseAdmin
-      .from('org_members')
-      .select('role')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .single()
+    const membershipRes = await pgClient.query(
+      `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+      [orgId, userId]
+    )
+    const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
 
     if (!membership || membership.role !== 'owner') {
       const err = new AppError({ code: 'FORBIDDEN', message: 'Owner access required', user_message: 'Only organization owners can delete SSO configurations', severity: 'HIGH' })
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 403 })
     }
-
     // Delete config
-    const { error } = await supabaseAdmin
-      .from('org_sso_configs')
-      .delete()
-      .eq('id', configId)
-      .eq('organization_id', orgId)
-
-    if (error) {
-      logger.error('Failed to delete SSO config', error, { configId, orgId })
+    const delRes = await pgClient.query(`DELETE FROM org_sso_configs WHERE id = $1 AND organization_id = $2`, [configId, orgId])
+    if (!(delRes && (delRes as any).rowCount)) {
+      logger.error('Failed to delete SSO config', { configId, orgId })
       return NextResponse.json({ success: false, error: 'Failed to delete SSO configuration' }, { status: 500 })
     }
 
     // Log audit event
-    await supabaseAdmin.from('audit_logs').insert({
-      id: uuidv4(),
-      organization_id: orgId,
-      user_id: userId,
-      resource_type: 'sso_config',
-      resource_id: configId as unknown as string,
-      action: 'delete'
-    })
+    await pgClient.query(
+      `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [uuidv4(), orgId, userId, 'sso_config', configId as unknown as string, 'delete']
+    )
 
     logger.info('SSO config deleted', { configId, orgId })
 

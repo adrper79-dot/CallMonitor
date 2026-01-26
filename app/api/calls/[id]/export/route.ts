@@ -178,7 +178,7 @@ export async function GET(
     }
 
     // 2. Get recording (handle null call_sid gracefully)
-    let recording = null
+    let recording: { id: string; recording_url: string | null; duration_seconds: number | null; status: string; source: string; media_hash: string | null; created_at: string; call_sid?: string | null } | null = null
     if (call.call_sid) {
       const { data: recRows } = await supabaseAdmin
         .from('recordings')

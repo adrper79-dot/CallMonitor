@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { buildSWML } from '@/lib/signalwire/swmlBuilder'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { parseRequestBody, swmlResponse } from '@/lib/api/utils'
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const FALLBACK_SWML = {
   version: '1.0.0',
-  sections: { main: [ { answer: {} }, { hangup: {} } ] }
+  sections: { main: [{ answer: {} }, { hangup: {} }] }
 }
 
 /**
@@ -32,24 +32,20 @@ export async function POST(req: Request) {
     let voiceConfig: any = null
 
     if (callSid) {
-      const { data: callRows } = await supabaseAdmin
-        .from('calls')
-        .select('id, organization_id')
-        .eq('call_sid', callSid)
-        .limit(1)
-
-      if (callRows?.[0]) {
-        organizationId = callRows[0].organization_id
+      const { rows } = await query(
+        `SELECT organization_id FROM calls WHERE call_sid = $1 LIMIT 1`,
+        [callSid]
+      )
+      if (rows?.[0]) {
+        organizationId = rows[0].organization_id
       }
     } else if (callId) {
-      const { data: callRows } = await supabaseAdmin
-        .from('calls')
-        .select('organization_id')
-        .eq('id', callId)
-        .limit(1)
-
-      if (callRows?.[0]) {
-        organizationId = callRows[0].organization_id
+      const { rows } = await query(
+        `SELECT organization_id FROM calls WHERE id = $1 LIMIT 1`,
+        [callId]
+      )
+      if (rows?.[0]) {
+        organizationId = rows[0].organization_id
       }
     }
 
@@ -58,11 +54,10 @@ export async function POST(req: Request) {
       return swmlResponse(FALLBACK_SWML)
     }
 
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('record, live_translate, translate_from, translate_to')
-      .eq('organization_id', organizationId)
-      .limit(1)
+    const { rows: vcRows } = await query(
+      `SELECT record, live_translate, translate_from, translate_to FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
     voiceConfig = vcRows?.[0] || null
 

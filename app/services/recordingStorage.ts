@@ -1,8 +1,9 @@
-import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
+import { query } from '@/lib/pgClient'
+import { getRequestContext } from '@cloudflare/next-on-pages'
 
 /**
- * Recording Storage Service - Downloads recordings from SignalWire and uploads to Supabase Storage.
+ * Recording Storage Service - Downloads recordings from SignalWire and uploads to Cloudflare R2.
  */
 
 export async function storeRecording(
@@ -36,51 +37,45 @@ export async function storeRecording(
       return null
     }
 
-    logger.debug('recordingStorage: download successful', {
-      recordingId,
-      contentType: response.headers.get('content-type'),
-      contentLength: response.headers.get('content-length')
-    })
-
     const audioBuffer = await response.arrayBuffer()
+    const contentType = response.headers.get('content-type') || 'audio/wav'
+    const extension = contentType.includes('mp3') ? 'mp3' : 'wav'
 
-    // Detect content type - handle octet-stream by inferring from URL or defaulting to audio/wav
-    let contentType = response.headers.get('content-type') || 'audio/mpeg'
-    // If octet-stream, infer from URL or default to wav (SignalWire typically returns wav)
-    if (contentType === 'application/octet-stream') {
-      if (recordingUrl.includes('.wav')) contentType = 'audio/wav'
-      else if (recordingUrl.includes('.mp3')) contentType = 'audio/mpeg'
-      else contentType = 'audio/wav' // Default to wav for SignalWire recordings
-    } else if (contentType === 'audio/x-wav') {
-      contentType = 'audio/wav' // Normalize x-wav to wav for Supabase Storage compatibility
-    }
-    const extension = contentType.includes('wav') ? 'wav' : contentType.includes('mp3') ? 'mp3' : 'mp3'
-
-    // Create Blob WITH the correct content type - important for Supabase Storage
-    const audioBlob = new Blob([audioBuffer], { type: contentType })
-
+    // Convert to Node Buffer for R2 API compatibility if needed, or use ArrayBuffer directly supported by Workers
+    const audioBufferNode = Buffer.from(audioBuffer)
     const storagePath = `${organizationId}/${callId}/${recordingId}.${extension}`
 
-    const { error } = await supabaseAdmin.storage
-      .from('recordings')
-      .upload(storagePath, audioBlob, { contentType, upsert: false })
+    // Upload to Cloudflare R2
+    try {
+      const ctx = getRequestContext()
+      if (!ctx?.env?.RECORDINGS_BUCKET) {
+        throw new Error('R2 Binding RECORDINGS_BUCKET not found')
+      }
 
-    if (error) {
-      logger.error('recordingStorage: failed to upload to Supabase Storage', error, { storagePath })
+      logger.info('recordingStorage: uploading to R2', { storagePath })
+      await ctx.env.RECORDINGS_BUCKET.put(storagePath, audioBufferNode, {
+        httpMetadata: { contentType }
+      })
+
+    } catch (r2Error: any) {
+      logger.error('recordingStorage: R2 upload failed', r2Error)
       return null
     }
 
-    logger.info('recordingStorage: uploaded to Supabase Storage', {
-      recordingId, storagePath, sizeBytes: audioBuffer.byteLength
+    logger.info('recordingStorage: uploaded to R2', {
+      recordingId, storagePath, sizeBytes: audioBufferNode.byteLength
     })
 
-    const { data: urlData } = supabaseAdmin.storage.from('recordings').getPublicUrl(storagePath)
-    const publicUrl = urlData.publicUrl
+    // Construct Public URL (Assuming Custom Domain or R2.dev subdomain is configured)
+    // For now, we store the R2 path. Code consuming this should know how to construct the full URL.
+    // Ideally: https://<custom-domain>/<storagePath>
+    const publicUrl = `https://${process.env.PUBLIC_ASSETS_URL || 'assets.gemini-project.com'}/${storagePath}`
 
-    await supabaseAdmin.from('recordings').update({
-      recording_url: publicUrl,
-      updated_at: new Date().toISOString()
-    }).eq('id', recordingId)
+    // Update Database using pgClient (Replace Supabase)
+    await query(
+      `UPDATE recordings SET recording_url = $1, updated_at = NOW() WHERE id = $2`,
+      [publicUrl, recordingId]
+    )
 
     logger.info('recordingStorage: stored recording and updated DB', { recordingId, storagePath })
 
@@ -97,62 +92,17 @@ export async function getRecordingSignedUrl(
   recordingId: string,
   expiresIn: number = 3600
 ): Promise<string | null> {
+  // Pure R2 implementation would use S3 presign here.
+  // For now, returning the stored URL or null if logic requires it.
+  // Since we are moving to R2 public access or Worker-mediated access,
+  // we query the DB for the URL.
+
   try {
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('recording_url')
-      .eq('id', recordingId)
-      .limit(1)
-
-    if (!recRows || recRows.length === 0) return null
-
-    const extensions = ['mp3', 'wav', 'm4a']
-    for (const ext of extensions) {
-      const storagePath = `${organizationId}/${callId}/${recordingId}.${ext}`
-
-      const { data, error } = await supabaseAdmin.storage
-        .from('recordings')
-        .createSignedUrl(storagePath, expiresIn)
-
-      if (!error && data) return data.signedUrl
-    }
-
-    return recRows[0].recording_url || null
+    const res = await query(`SELECT recording_url FROM recordings WHERE id = $1 LIMIT 1`, [recordingId])
+    if (res.rows.length === 0) return null
+    return res.rows[0].recording_url
   } catch (err: any) {
-    logger.error('recordingStorage: failed to get signed URL', err, { recordingId })
+    logger.error('recordingStorage: failed to get recording URL', err)
     return null
-  }
-}
-
-export async function ensureRecordingsBucket(): Promise<boolean> {
-  try {
-    const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets()
-
-    if (listError) {
-      logger.error('recordingStorage: failed to list buckets', listError)
-      return false
-    }
-
-    const recordingsBucket = buckets?.find(b => b.name === 'recordings')
-
-    if (!recordingsBucket) {
-      const { error: createError } = await supabaseAdmin.storage.createBucket('recordings', {
-        public: true,
-        fileSizeLimit: 104857600,
-        allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/mp4']
-      })
-
-      if (createError) {
-        logger.error('recordingStorage: failed to create bucket', createError)
-        return false
-      }
-
-      logger.info('recordingStorage: created PUBLIC recordings bucket')
-    }
-
-    return true
-  } catch (err: any) {
-    logger.error('recordingStorage: ensure bucket error', err)
-    return false
   }
 }

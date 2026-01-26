@@ -191,7 +191,7 @@ export default async function getCallStatus(input: GetCallStatusInput): Promise<
         updated_at: r.updated_at ?? null
       }))
 
-      if (recordings.length > 0) {
+      if (recordings && recordings.length > 0) {
         const recordingIds = recordings.map(r => r.id)
         // evidence_manifests.GET allows id, organization_id, recording_id, scorecard_id, manifest, created_at
         const { data: manifests, error: manifestErr } = await supabaseAdmin

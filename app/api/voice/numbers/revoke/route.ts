@@ -4,19 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { CallerIdService } from '@/lib/services/callerIdService'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function POST(req: NextRequest) {
     try {
@@ -26,13 +21,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Check admin role
-        const { data: membership } = await supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', session.user.orgId)
-            .eq('user_id', session.user.id)
-            .single()
-
+        const memRes = await query('SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1', [session.user.orgId, session.user.id])
+        const membership = memRes.rows?.[0]
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
             return ApiErrors.forbidden()
         }
@@ -44,29 +34,36 @@ export async function POST(req: NextRequest) {
             return ApiErrors.badRequest('caller_id_number_id and user_id required')
         }
 
-        const callerIdService = new CallerIdService(supabaseAdmin)
-        const result = await callerIdService.revokePermission(
-            session.user.orgId,
-            caller_id_number_id,
-            user_id,
-            session.user.id,
-            reason
-        )
+        // Revoke permission
+        try {
+            const updateRes = await query(
+                `UPDATE caller_id_permissions SET is_active = FALSE, revoked_at = $1, revoked_by = $2
+                 WHERE organization_id = $3 AND caller_id_number_id = $4 AND user_id = $5 RETURNING id`,
+                [new Date().toISOString(), session.user.id, session.user.orgId, caller_id_number_id, user_id]
+            )
 
-        if (!result.success) {
-            return ApiErrors.badRequest(result.error)
+            if (!updateRes.rows || updateRes.rows.length === 0) {
+                return ApiErrors.badRequest('Permission not found')
+            }
+
+            // Audit log (best-effort)
+            void query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, created_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                [require('uuid').v4(), session.user.orgId, session.user.id, 'caller_id_permission', updateRes.rows[0].id, 'revoke', 'human', new Date().toISOString()]
+            ).catch((e: any) => logger.warn('Failed to write audit log', e))
+
+            logger.info('Caller ID permission revoked', {
+                callerIdNumberId: caller_id_number_id,
+                targetUserId: user_id,
+                revokedBy: session.user.id
+            })
+
+            return NextResponse.json({ success: true, message: 'Permission revoked successfully' })
+        } catch (e: any) {
+            logger.error('Failed to revoke permission', e)
+            return ApiErrors.internal('Failed to revoke permission')
         }
-
-        logger.info('Caller ID permission revoked', {
-            callerIdNumberId: caller_id_number_id,
-            targetUserId: user_id,
-            revokedBy: session.user.id
-        })
-
-        return NextResponse.json({
-            success: true,
-            message: 'Permission revoked successfully'
-        })
     } catch (err: unknown) {
         logger.error('Failed to revoke caller ID', err instanceof Error ? err : new Error(String(err)))
         return ApiErrors.internal('Failed to revoke caller ID')

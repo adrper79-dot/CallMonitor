@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     const alerts = scoredRows.map((row) => {
       const scorecard = scorecardById.get(row.scorecard_id)
-      const criteria: Criteria[] = scorecard?.structure?.criteria || []
+      const criteria: Criteria[] = (scorecard as any)?.structure?.criteria || []
       const failures = criteria
         .map((criterion) => ({
           id: criterion.id,
@@ -76,12 +76,12 @@ export async function GET(req: NextRequest) {
         .filter((item) => item.failed)
 
       const recording = recordingById.get(row.recording_id)
-      const callId = recording?.call_sid ? callIdBySid.get(recording.call_sid) : null
+      const callId = (recording as any)?.call_sid ? callIdBySid.get((recording as any).call_sid) : null
 
       return {
         id: row.id,
         scorecard_id: row.scorecard_id,
-        scorecard_name: scorecard?.name || 'Scorecard',
+        scorecard_name: (scorecard as any)?.name || 'Scorecard',
         total_score: row.total_score,
         failures,
         recording_id: row.recording_id,

@@ -7,6 +7,7 @@
  * 3. Search never used as source-of-truth
  */
 
+// @integration: integration-level tests (set RUN_INTEGRATION=1 to run)
 import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -19,7 +20,9 @@ const supabase = createClient(
 // Test organization ID (should exist in test database)
 const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
 
-describe('Immutable Search Layer', () => {
+const describeIfIntegration = (process.env.RUN_INTEGRATION === '1' || process.env.RUN_INTEGRATION === 'true') ? describe : describe.skip
+
+describeIfIntegration('Immutable Search Layer', () => {
     let testDocId: string
 
     beforeAll(async () => {
@@ -67,6 +70,18 @@ describe('Immutable Search Layer', () => {
 
         test('can update is_current and superseded_by for version chaining', async () => {
             const newDocId = uuidv4()
+
+            // Insert the new version first so FK on superseded_by is satisfied
+            await supabase.from('search_documents').insert({
+                id: newDocId,
+                organization_id: TEST_ORG_ID,
+                source_type: 'call',
+                source_id: uuidv4(),
+                version: 2,
+                is_current: true,
+                content: 'placeholder new version',
+                content_hash: 'hash-' + newDocId
+            })
 
             // This should succeed - allowed for version chaining
             const { error } = await supabase
@@ -129,14 +144,8 @@ describe('Immutable Search Layer', () => {
                 content_hash: 'hash-v1-' + sourceId
             })
 
-            // Simulate rebuild: mark v1 as not current
+            // Insert v2 first so FK on superseded_by is satisfied, then mark v1 as superseded
             const v2Id = uuidv4()
-            await supabase
-                .from('search_documents')
-                .update({ is_current: false, superseded_by: v2Id })
-                .eq('id', v1Id)
-
-            // Insert v2
             await supabase.from('search_documents').insert({
                 id: v2Id,
                 organization_id: TEST_ORG_ID,
@@ -147,6 +156,12 @@ describe('Immutable Search Layer', () => {
                 content: 'version 2 content',
                 content_hash: 'hash-v2-' + sourceId
             })
+
+            // Simulate rebuild: mark v1 as not current and point to v2
+            await supabase
+                .from('search_documents')
+                .update({ is_current: false, superseded_by: v2Id })
+                .eq('id', v1Id)
 
             // Verify both versions exist
             const { data: allVersions } = await supabase

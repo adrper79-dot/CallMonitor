@@ -4,18 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { CRMService } from '@/lib/services/crmService'
+import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(req: NextRequest) {
     try {
@@ -24,11 +19,9 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
 
-        const crmService = new CRMService(supabaseAdmin)
-        const integrations = await crmService.getIntegrations(session.user.orgId)
-
-        // Return without sensitive data
-        const sanitized = integrations.map(int => ({
+        const res = await pgClient.query(`SELECT id, provider, provider_account_name, status, sync_enabled, connected_at, error_message FROM integrations WHERE organization_id = $1 ORDER BY created_at DESC`, [session.user.orgId])
+        const integrations = res?.rows || []
+        const sanitized = integrations.map((int: any) => ({
             id: int.id,
             provider: int.provider,
             provider_account_name: int.provider_account_name,

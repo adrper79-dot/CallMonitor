@@ -16,9 +16,6 @@ out/
 # Build artifacts
 *.tsbuildinfo
 
-# Database & Migrations
-migrations/
-db_validation_report.json
 
 # Scratchpad & Logs
 V5_Issues.txt

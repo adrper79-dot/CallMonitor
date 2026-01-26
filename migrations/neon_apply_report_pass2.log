@@ -1,0 +1,983 @@
+{
+  "runAt": "2026-01-25T22:10:20.665Z",
+  "results": [
+    {
+      "idx": 1,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "access_grants_role_id_fkey"
+    },
+    {
+      "idx": 2,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "access_grants_system_id_fkey"
+    },
+    {
+      "idx": 3,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "ai_agent_audit_log_organization_id_fkey"
+    },
+    {
+      "idx": 4,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "ai_runs_call_id_fkey"
+    },
+    {
+      "idx": 5,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "ai_runs_system_id_fkey"
+    },
+    {
+      "idx": 6,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "alerts_organization_id_fkey"
+    },
+    {
+      "idx": 7,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "alerts_test_config_id_fkey"
+    },
+    {
+      "idx": 8,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "artifact_provenance_organization_id_fkey"
+    },
+    {
+      "idx": 9,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "artifact_provenance_produced_by_system_id_fkey"
+    },
+    {
+      "idx": 10,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "attention_decisions_org_fkey"
+    },
+    {
+      "idx": 11,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "attention_decisions_event_fkey"
+    },
+    {
+      "idx": 12,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "attention_decisions_policy_fkey"
+    },
+    {
+      "idx": 13,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "attention_events_org_fkey"
+    },
+    {
+      "idx": 14,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "attention_policies_org_fkey"
+    },
+    {
+      "idx": 15,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "audit_logs_organization_id_fkey"
+    },
+    {
+      "idx": 16,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "audit_logs_system_id_fkey"
+    },
+    {
+      "idx": 17,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "booking_events_organization_id_fkey"
+    },
+    {
+      "idx": 18,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "booking_events_call_id_fkey"
+    },
+    {
+      "idx": 19,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmation_checklists_call_id_fkey"
+    },
+    {
+      "idx": 20,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmation_checklists_template_id_fkey"
+    },
+    {
+      "idx": 21,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmation_checklists_organization_id_fkey"
+    },
+    {
+      "idx": 22,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmation_checklists_confirmation_id_fkey"
+    },
+    {
+      "idx": 23,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmations_call_id_fkey"
+    },
+    {
+      "idx": 24,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_confirmations_organization_id_fkey"
+    },
+    {
+      "idx": 25,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_export_bundles_organization_id_fkey"
+    },
+    {
+      "idx": 26,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "call_export_bundles_call_id_fkey"
+    },
+    {
+      "idx": 27,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "caller_id_default_rules_org_fkey"
+    },
+    {
+      "idx": 28,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "caller_id_default_rules_caller_id_fkey"
+    },
+    {
+      "idx": 29,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "caller_id_numbers_organization_id_fkey"
+    },
+    {
+      "idx": 30,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "caller_id_permissions_org_fkey"
+    },
+    {
+      "idx": 31,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "caller_id_permissions_caller_id_fkey"
+    },
+    {
+      "idx": 32,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "calls_organization_id_fkey"
+    },
+    {
+      "idx": 33,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "calls_system_id_fkey"
+    },
+    {
+      "idx": 34,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "calls_caller_id_number_id_fkey"
+    },
+    {
+      "idx": 35,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaign_audit_log_campaign_id_fkey"
+    },
+    {
+      "idx": 36,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaign_calls_campaign_id_fkey"
+    },
+    {
+      "idx": 37,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaign_calls_call_id_fkey"
+    },
+    {
+      "idx": 38,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaigns_caller_id_id_fkey"
+    },
+    {
+      "idx": 39,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaigns_script_id_fkey"
+    },
+    {
+      "idx": 40,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaigns_survey_id_fkey"
+    },
+    {
+      "idx": 41,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "campaigns_organization_id_fkey"
+    },
+    {
+      "idx": 42,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "capabilities_system_id_fkey"
+    },
+    {
+      "idx": 43,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "compliance_restrictions_organization_id_fkey"
+    },
+    {
+      "idx": 44,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "compliance_violations_organization_id_fkey"
+    },
+    {
+      "idx": 45,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "compliance_violations_call_id_fkey"
+    },
+    {
+      "idx": 46,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "confirmation_templates_organization_id_fkey"
+    },
+    {
+      "idx": 47,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_object_links_organization_id_fkey"
+    },
+    {
+      "idx": 48,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_object_links_integration_id_fkey"
+    },
+    {
+      "idx": 49,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_object_links_call_id_fkey"
+    },
+    {
+      "idx": 50,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_sync_log_export_bundle_id_fkey"
+    },
+    {
+      "idx": 51,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_sync_log_organization_id_fkey"
+    },
+    {
+      "idx": 52,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_sync_log_integration_id_fkey"
+    },
+    {
+      "idx": 53,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "crm_sync_log_call_id_fkey"
+    },
+    {
+      "idx": 54,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "digest_items_digest_fkey"
+    },
+    {
+      "idx": 55,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "digest_items_decision_fkey"
+    },
+    {
+      "idx": 56,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "digests_org_fkey"
+    },
+    {
+      "idx": 57,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "disclosure_logs_organization_id_fkey"
+    },
+    {
+      "idx": 58,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "disclosure_logs_call_id_fkey"
+    },
+    {
+      "idx": 59,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_organization_id_fkey"
+    },
+    {
+      "idx": 60,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_call_id_fkey"
+    },
+    {
+      "idx": 61,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_recording_id_fkey"
+    },
+    {
+      "idx": 62,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_manifest_id_fkey"
+    },
+    {
+      "idx": 63,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_parent_bundle_id_fkey"
+    },
+    {
+      "idx": 64,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_bundles_superseded_by_fkey"
+    },
+    {
+      "idx": 65,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_manifests_recording_id_fkey"
+    },
+    {
+      "idx": 66,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_manifests_parent_manifest_id_fkey"
+    },
+    {
+      "idx": 67,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "evidence_manifests_superseded_by_fkey"
+    },
+    {
+      "idx": 68,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "export_compliance_log_organization_id_fkey"
+    },
+    {
+      "idx": 69,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "export_compliance_log_call_id_fkey"
+    },
+    {
+      "idx": 70,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "export_compliance_log_bundle_id_fkey"
+    },
+    {
+      "idx": 71,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entities_organization_id_fkey"
+    },
+    {
+      "idx": 72,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_identifiers_organization_id_fkey"
+    },
+    {
+      "idx": 73,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_identifiers_entity_id_fkey"
+    },
+    {
+      "idx": 74,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_links_organization_id_fkey"
+    },
+    {
+      "idx": 75,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_links_source_entity_id_fkey"
+    },
+    {
+      "idx": 76,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_links_target_entity_id_fkey"
+    },
+    {
+      "idx": 77,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_links_identifier_id_fkey"
+    },
+    {
+      "idx": 78,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_observations_organization_id_fkey"
+    },
+    {
+      "idx": 79,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "external_entity_observations_identifier_id_fkey"
+    },
+    {
+      "idx": 80,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "generated_reports_template_id_fkey"
+    },
+    {
+      "idx": 81,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "generated_reports_organization_id_fkey"
+    },
+    {
+      "idx": 82,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "incidents_organization_id_fkey"
+    },
+    {
+      "idx": 83,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "incidents_call_id_fkey"
+    },
+    {
+      "idx": 84,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "integrations_organization_id_fkey"
+    },
+    {
+      "idx": 85,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "invoices_organization_id_fkey"
+    },
+    {
+      "idx": 86,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "kpi_logs_test_id_fkey"
+    },
+    {
+      "idx": 87,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "kpi_settings_organization_id_fkey"
+    },
+    {
+      "idx": 88,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "legal_holds_organization_id_fkey"
+    },
+    {
+      "idx": 89,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "media_sessions_call_id_fkey"
+    },
+    {
+      "idx": 90,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "media_sessions_system_id_fkey"
+    },
+    {
+      "idx": 91,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "monitored_numbers_organization_id_fkey"
+    },
+    {
+      "idx": 92,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "monitored_numbers_greeting_message_id_fkey"
+    },
+    {
+      "idx": 93,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "number_kpi_logs_monitored_number_id_fkey"
+    },
+    {
+      "idx": 94,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "number_kpi_logs_organization_id_fkey"
+    },
+    {
+      "idx": 95,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "number_kpi_snapshot_monitored_number_id_fkey"
+    },
+    {
+      "idx": 96,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "number_kpi_snapshot_organization_id_fkey"
+    },
+    {
+      "idx": 97,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "oauth_tokens_integration_id_fkey"
+    },
+    {
+      "idx": 98,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "org_members_organization_id_fkey"
+    },
+    {
+      "idx": 99,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "org_sso_configs_organization_id_fkey"
+    },
+    {
+      "idx": 100,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "qa_evaluation_disclosures_call_id_fkey"
+    },
+    {
+      "idx": 101,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "qa_evaluation_disclosures_organization_id_fkey"
+    },
+    {
+      "idx": 102,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "recordings_organization_id_fkey"
+    },
+    {
+      "idx": 103,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "recordings_tool_id_fkey"
+    },
+    {
+      "idx": 104,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "recordings_call_id_fkey"
+    },
+    {
+      "idx": 105,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "report_access_log_report_id_fkey"
+    },
+    {
+      "idx": 106,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "report_schedules_organization_id_fkey"
+    },
+    {
+      "idx": 107,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "report_schedules_test_config_id_fkey"
+    },
+    {
+      "idx": 108,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "report_templates_organization_id_fkey"
+    },
+    {
+      "idx": 109,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "retention_policies_organization_id_fkey"
+    },
+    {
+      "idx": 110,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "role_capabilities_role_id_fkey"
+    },
+    {
+      "idx": 111,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "role_capabilities_capability_id_fkey"
+    },
+    {
+      "idx": 112,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "roles_organization_id_fkey"
+    },
+    {
+      "idx": 113,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scheduled_reports_template_id_fkey"
+    },
+    {
+      "idx": 114,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scheduled_reports_organization_id_fkey"
+    },
+    {
+      "idx": 115,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scorecards_organization_id_fkey"
+    },
+    {
+      "idx": 116,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scorecards_tool_id_fkey"
+    },
+    {
+      "idx": 117,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scored_recordings_organization_id_fkey"
+    },
+    {
+      "idx": 118,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scored_recordings_recording_id_fkey"
+    },
+    {
+      "idx": 119,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scored_recordings_scorecard_id_fkey"
+    },
+    {
+      "idx": 120,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "search_documents_organization_id_fkey"
+    },
+    {
+      "idx": 121,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "search_documents_superseded_by_fkey"
+    },
+    {
+      "idx": 122,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "search_events_organization_id_fkey"
+    },
+    {
+      "idx": 123,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "search_events_document_id_fkey"
+    },
+    {
+      "idx": 124,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "shopper_results_organization_id_fkey"
+    },
+    {
+      "idx": 125,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "shopper_results_call_id_fkey"
+    },
+    {
+      "idx": 126,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "shopper_results_recording_id_fkey"
+    },
+    {
+      "idx": 127,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "shopper_results_script_id_fkey"
+    },
+    {
+      "idx": 128,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "shopper_scripts_organization_id_fkey"
+    },
+    {
+      "idx": 129,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "sso_login_events_organization_id_fkey"
+    },
+    {
+      "idx": 130,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "sso_login_events_sso_config_id_fkey"
+    },
+    {
+      "idx": 131,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "stripe_events_organization_id_fkey"
+    },
+    {
+      "idx": 132,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "stripe_invoices_organization_id_fkey"
+    },
+    {
+      "idx": 133,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "stripe_payment_methods_organization_id_fkey"
+    },
+    {
+      "idx": 134,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "stripe_subscriptions_organization_id_fkey"
+    },
+    {
+      "idx": 135,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "subscriptions_organization_id_fkey"
+    },
+    {
+      "idx": 136,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "surveys_organization_id_fkey"
+    },
+    {
+      "idx": 137,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "team_invites_organization_id_fkey"
+    },
+    {
+      "idx": 138,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_configs_organization_id_fkey"
+    },
+    {
+      "idx": 139,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_configs_tool_id_fkey"
+    },
+    {
+      "idx": 140,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_frequency_config_monitored_number_id_fkey"
+    },
+    {
+      "idx": 141,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_results_test_config_id_fkey"
+    },
+    {
+      "idx": 142,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_results_tool_id_fkey"
+    },
+    {
+      "idx": 143,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_statistics_test_config_id_fkey"
+    },
+    {
+      "idx": 144,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_statistics_system_id_fkey"
+    },
+    {
+      "idx": 145,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "tool_access_organization_id_fkey"
+    },
+    {
+      "idx": 146,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "tool_settings_organization_id_fkey"
+    },
+    {
+      "idx": 147,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "tool_team_members_organization_id_fkey"
+    },
+    {
+      "idx": 148,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "transcript_versions_recording_id_fkey"
+    },
+    {
+      "idx": 149,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "transcript_versions_organization_id_fkey"
+    },
+    {
+      "idx": 150,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "usage_limits_organization_id_fkey"
+    },
+    {
+      "idx": 151,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "usage_records_organization_id_fkey"
+    },
+    {
+      "idx": 152,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "voice_configs_organization_id_fkey"
+    },
+    {
+      "idx": 153,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "voice_configs_script_id_fkey"
+    },
+    {
+      "idx": 154,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "voice_targets_organization_id_fkey"
+    },
+    {
+      "idx": 155,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "webhook_configs_organization_id_fkey"
+    },
+    {
+      "idx": 156,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "webhook_failures_organization_id_fkey"
+    },
+    {
+      "idx": 157,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "recordings_created_by_fkey"
+    },
+    {
+      "idx": 158,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "scorecards_created_by_fkey"
+    },
+    {
+      "idx": 159,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_configs_created_by_fkey"
+    },
+    {
+      "idx": 160,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "test_results_created_by_fkey"
+    },
+    {
+      "idx": 161,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "tool_access_archived_user_id_fkey"
+    },
+    {
+      "idx": 162,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "tool_team_members_user_id_fkey"
+    },
+    {
+      "idx": 163,
+      "status": "SKIP",
+      "reason": "constraint exists",
+      "constraint": "webrtc_sessions_call_id_fkey"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import pgClient from '@/lib/pgClient'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
@@ -55,13 +56,9 @@ export async function POST(req: Request) {
     }
 
     // Verify organization exists
-    const { data: org, error: orgErr } = await supabaseAdmin
-      .from('organizations')
-      .select('id, name, plan')
-      .eq('id', organization_id)
-      .single()
-
-    if (orgErr || !org) {
+    const orgRes = await pgClient.query(`SELECT id, name, plan FROM organizations WHERE id = $1 LIMIT 1`, [organization_id])
+    const org = orgRes?.rows && orgRes.rows.length ? orgRes.rows[0] : null
+    if (!org) {
       return NextResponse.json({
         success: false,
         error: `Organization not found: ${organization_id}`
@@ -69,13 +66,8 @@ export async function POST(req: Request) {
     }
 
     // Get a user from this org for operations
-    const { data: members } = await supabaseAdmin
-      .from('org_members')
-      .select('user_id, role')
-      .eq('organization_id', organization_id)
-      .eq('role', 'owner')
-      .limit(1)
-
+    const membersRes = await pgClient.query(`SELECT user_id, role FROM org_members WHERE organization_id = $1 AND role = $2 LIMIT 1`, [organization_id, 'owner'])
+    const members = membersRes?.rows || []
     const ownerId = members?.[0]?.user_id
 
     const results: any = {
@@ -92,25 +84,12 @@ export async function POST(req: Request) {
         }
 
         const targetId = uuidv4()
-        const { data: target, error } = await supabaseAdmin
-          .from('voice_targets')
-          .insert({
-            id: targetId,
-            organization_id,
-            phone_number,
-            name: name || 'E2E Test Target',
-            description: description || `Created via E2E test at ${new Date().toISOString()}`,
-            is_active: true,
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single()
-
-        if (error) {
-          results.actions.push({ action: 'create_target', success: false, error: error.message })
-        } else {
-          results.actions.push({ action: 'create_target', success: true, target })
+        try {
+          await pgClient.query(`INSERT INTO voice_targets (id, organization_id, phone_number, name, description, is_active, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [targetId, organization_id, phone_number, name || 'E2E Test Target', description || `Created via E2E test at ${new Date().toISOString()}`, true, new Date().toISOString()])
+          results.actions.push({ action: 'create_target', success: true, target: { id: targetId } })
           results.target_id = targetId
+        } catch (err: any) {
+          results.actions.push({ action: 'create_target', success: false, error: err?.message || String(err) })
         }
         break
       }
@@ -118,29 +97,12 @@ export async function POST(req: Request) {
       case 'create_survey': {
         const { name, questions } = params
         const surveyId = uuidv4()
-        const { data: survey, error } = await supabaseAdmin
-          .from('surveys')
-          .insert({
-            id: surveyId,
-            organization_id,
-            name: name || 'E2E Test Survey',
-            questions: questions || [
-              { type: 'scale', question: 'How satisfied were you? (1-5)', min: 1, max: 5 },
-              { type: 'yes_no', question: 'Would you recommend us?' },
-              { type: 'text', question: 'Any additional feedback?' }
-            ],
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single()
-
-        if (error) {
-          results.actions.push({ action: 'create_survey', success: false, error: error.message })
-        } else {
-          results.actions.push({ action: 'create_survey', success: true, survey })
+        try {
+          await pgClient.query(`INSERT INTO surveys (id, organization_id, name, questions, is_active, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [surveyId, organization_id, name || 'E2E Test Survey', questions || [ { type: 'scale', question: 'How satisfied were you? (1-5)', min: 1, max: 5 }, { type: 'yes_no', question: 'Would you recommend us?' }, { type: 'text', question: 'Any additional feedback?' } ], true, new Date().toISOString(), new Date().toISOString()])
+          results.actions.push({ action: 'create_survey', success: true, survey: { id: surveyId } })
           results.survey_id = surveyId
+        } catch (err: any) {
+          results.actions.push({ action: 'create_survey', success: false, error: err?.message || String(err) })
         }
         break
       }
@@ -149,12 +111,8 @@ export async function POST(req: Request) {
         const { modulations } = params
 
         // Check if config exists
-        const { data: existing } = await supabaseAdmin
-          .from('voice_configs')
-          .select('*')
-          .eq('organization_id', organization_id)
-          .limit(1)
-
+        const existingRes = await pgClient.query(`SELECT * FROM voice_configs WHERE organization_id = $1 LIMIT 1`, [organization_id])
+        const existing = existingRes?.rows || []
         const configPayload = {
           record: modulations?.record ?? true,
           transcribe: modulations?.transcribe ?? true,
@@ -168,25 +126,18 @@ export async function POST(req: Request) {
 
         if (!existing || existing.length === 0) {
           const configId = uuidv4()
-          const { error } = await supabaseAdmin
-            .from('voice_configs')
-            .insert({ id: configId, organization_id, ...configPayload })
-
-          if (error) {
-            results.actions.push({ action: 'update_config', success: false, error: error.message })
-          } else {
+          try {
+            await pgClient.query(`INSERT INTO voice_configs (id, organization_id, record, transcribe, translate, translate_from, translate_to, survey, updated_by, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [configId, organization_id, configPayload.record, configPayload.transcribe, configPayload.translate, configPayload.translate_from, configPayload.translate_to, configPayload.survey, configPayload.updated_by, configPayload.updated_at])
             results.actions.push({ action: 'update_config', success: true, config_id: configId })
+          } catch (err: any) {
+            results.actions.push({ action: 'update_config', success: false, error: err?.message || String(err) })
           }
         } else {
-          const { error } = await supabaseAdmin
-            .from('voice_configs')
-            .update(configPayload)
-            .eq('organization_id', organization_id)
-
-          if (error) {
-            results.actions.push({ action: 'update_config', success: false, error: error.message })
-          } else {
+          try {
+            await pgClient.query(`UPDATE voice_configs SET record = $1, transcribe = $2, translate = $3, translate_from = $4, translate_to = $5, survey = $6, updated_by = $7, updated_at = $8 WHERE organization_id = $9`, [configPayload.record, configPayload.transcribe, configPayload.translate, configPayload.translate_from, configPayload.translate_to, configPayload.survey, configPayload.updated_by, configPayload.updated_at, organization_id])
             results.actions.push({ action: 'update_config', success: true, config_id: existing[0].id })
+          } catch (err: any) {
+            results.actions.push({ action: 'update_config', success: false, error: err?.message || String(err) })
           }
         }
         break
@@ -203,14 +154,9 @@ export async function POST(req: Request) {
 
         try {
           // Get an owner user for this organization to use as actor
-          const { data: ownerData, error: ownerErr } = await supabaseAdmin
-            .from('org_members')
-            .select('user_id')
-            .eq('organization_id', organization_id)
-            .eq('role', 'owner')
-            .limit(1)
-
-          if (ownerErr || !ownerData || ownerData.length === 0) {
+          const ownerRes = await pgClient.query(`SELECT user_id FROM org_members WHERE organization_id = $1 AND role = $2 LIMIT 1`, [organization_id, 'owner'])
+          const ownerData = ownerRes?.rows || []
+          if (!ownerData || ownerData.length === 0) {
             return NextResponse.json({
               success: false,
               error: 'No owner user found for organization'
@@ -275,14 +221,9 @@ export async function POST(req: Request) {
         }
 
         // Step 0: Get owner user as actor
-        const { data: ownerData, error: ownerErr } = await supabaseAdmin
-          .from('org_members')
-          .select('user_id')
-          .eq('organization_id', organization_id)
-          .eq('role', 'owner')
-          .limit(1)
-
-        if (ownerErr || !ownerData || ownerData.length === 0) {
+        const ownerRes = await pgClient.query(`SELECT user_id FROM org_members WHERE organization_id = $1 AND role = $2 LIMIT 1`, [organization_id, 'owner'])
+        const ownerData = ownerRes?.rows || []
+        if (!ownerData || ownerData.length === 0) {
           results.success = false
           results.error = 'No owner user found for organization'
           return NextResponse.json(results, { status: 400 })

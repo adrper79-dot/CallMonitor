@@ -10,13 +10,9 @@
  * @see ERROR_HANDLING_REVIEW.md
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { query } from '@/lib/pgClient'
 import { AppError } from '@/lib/errors/AppError'
 import { logger } from '@/lib/logger'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabaseAdmin = createClient(supabaseUrl, serviceKey)
 
 export type UsageMetric = 'call' | 'minute' | 'transcription' | 'translation' | 'ai_run'
 
@@ -63,34 +59,25 @@ export async function trackUsage(params: TrackUsageParams): Promise<void> {
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-    const { error } = await supabaseAdmin
-      .from('usage_records')
-      .insert({
-        id: crypto.randomUUID(),
-        organization_id: organizationId,
-        call_id: callId,
+    await query(
+      `INSERT INTO usage_records (
+        id, organization_id, call_id, metric, quantity, billing_period_start, billing_period_end, metadata
+       ) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)`,
+      [
+        organizationId,
+        callId,
         metric,
         quantity,
-        billing_period_start: periodStart.toISOString(),
-        billing_period_end: periodEnd.toISOString(),
-        metadata: metadata || {}
-      })
-
-    if (error) {
-      logger.error('Failed to track usage', error, { organizationId, metric, quantity })
-      throw new AppError({
-        code: 'USAGE_TRACKING_FAILED',
-        message: `Failed to track ${metric} usage`,
-        user_message: 'Unable to record usage. Please contact support.',
-        severity: 'HIGH',
-        retriable: true,
-        details: { organizationId, metric, quantity }
-      })
-    }
+        periodStart.toISOString(),
+        periodEnd.toISOString(),
+        JSON.stringify(metadata || {})
+      ]
+    )
 
     logger.info('Usage tracked', { organizationId, metric, quantity, callId })
 
   } catch (err: any) {
+    logger.error('Failed to track usage', err, { organizationId, metric, quantity })
     if (err instanceof AppError) throw err
     throw new AppError({
       code: 'USAGE_TRACKING_ERROR',
@@ -115,22 +102,13 @@ export async function getUsageSummary(organizationId: string): Promise<UsageSumm
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-    const { data: records, error } = await supabaseAdmin
-      .from('usage_records')
-      .select('metric, quantity')
-      .eq('organization_id', organizationId)
-      .gte('billing_period_start', periodStart.toISOString())
-      .lte('billing_period_end', periodEnd.toISOString())
-
-    if (error) {
-      throw new AppError({
-        code: 'USAGE_FETCH_FAILED',
-        message: 'Failed to fetch usage summary',
-        user_message: 'Unable to load usage data.',
-        severity: 'MEDIUM',
-        retriable: true
-      })
-    }
+    const { rows: records } = await query(
+      `SELECT metric, quantity FROM usage_records 
+       WHERE organization_id = $1 
+       AND billing_period_start >= $2 
+       AND billing_period_end <= $3`,
+      [organizationId, periodStart.toISOString(), periodEnd.toISOString()]
+    )
 
     // Aggregate by metric
     const summary: UsageSummary = {
@@ -176,13 +154,13 @@ export async function checkUsageLimits(
 ): Promise<{ allowed: boolean; reason?: string; limits?: UsageLimits }> {
   try {
     // Get plan limits
-    const { data: limits, error: limitsError } = await supabaseAdmin
-      .from('usage_limits')
-      .select('*')
-      .eq('plan', plan.toLowerCase())
-      .single()
+    const { rows: limitsRows } = await query(
+      `SELECT * FROM usage_limits WHERE plan = $1 LIMIT 1`,
+      [plan.toLowerCase()]
+    )
+    const limits = limitsRows[0]
 
-    if (limitsError || !limits) {
+    if (!limits) {
       logger.warn('Plan limits not found, allowing usage', { plan })
       return { allowed: true } // Fail open per ARCH_DOCS
     }
@@ -238,12 +216,12 @@ export async function checkUsageLimits(
  */
 export async function getPlanLimits(organizationId: string): Promise<UsageLimits | null> {
   try {
-    const { data: limits, error } = await supabaseAdmin
-      .from('usage_limits')
-      .select('*')
-      .eq('organization_id', organizationId)
+    const { rows: limits } = await query(
+      `SELECT * FROM usage_limits WHERE organization_id = $1`,
+      [organizationId]
+    )
 
-    if (error || !limits || limits.length === 0) {
+    if (!limits || limits.length === 0) {
       // Return default limits for free tier if no custom limits set
       return {
         calls_per_month: 100,

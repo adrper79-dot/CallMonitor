@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { buildShopperSWML, buildShopperFallbackSWML } from '@/lib/signalwire/shopperSwmlBuilder'
 import { parseRequestBody, swmlResponse } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,11 +38,10 @@ export async function POST(req: NextRequest) {
     let organizationId = orgId
 
     if (scriptId) {
-      const { data: scriptRows } = await supabaseAdmin
-        .from('shopper_scripts')
-        .select('*')
-        .eq('id', scriptId)
-        .limit(1)
+      const { rows: scriptRows } = await query(
+        `SELECT * FROM shopper_scripts WHERE id = $1 LIMIT 1`,
+        [scriptId]
+      )
 
       script = scriptRows?.[0]
       if (script) {
@@ -50,12 +50,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!script && organizationId) {
-      const { data: configRows } = await supabaseAdmin
-        .from('voice_configs')
-        .select('shopper_script, shopper_expected_outcomes')
-        .eq('organization_id', organizationId)
-        .not('shopper_script', 'is', null)
-        .limit(1)
+      const { rows: configRows } = await query(
+        `SELECT shopper_script, shopper_expected_outcomes FROM voice_configs 
+         WHERE organization_id = $1 AND shopper_script IS NOT NULL LIMIT 1`,
+        [organizationId]
+      )
 
       if (configRows?.[0]?.shopper_script) {
         script = {
@@ -92,15 +91,12 @@ export async function POST(req: NextRequest) {
 
     if (callSid && organizationId) {
       try {
-        const { v4: uuidv4 } = await import('uuid')
         // Note: shopper_results table links call to script_id after evaluation
-        await supabaseAdmin.from('calls').insert({
-          id: uuidv4(),
-          organization_id: organizationId,
-          call_sid: callSid,
-          status: 'ringing',
-          started_at: new Date().toISOString()
-        })
+        await query(
+          `INSERT INTO calls (id, organization_id, call_sid, status, started_at)
+             VALUES ($1, $2, $3, 'ringing', NOW())`,
+          [uuidv4(), organizationId, callSid]
+        )
       } catch (insertErr) {
         logger.warn('SWML shopper: could not create call record', { error: (insertErr as any)?.message })
       }
@@ -115,8 +111,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    ok: true, route: '/api/voice/swml/shopper', 
+  return NextResponse.json({
+    ok: true, route: '/api/voice/swml/shopper',
     method: 'Use POST for SWML generation',
     description: 'SWML endpoint for Secret Shopper AI Agent evaluations',
     params: {

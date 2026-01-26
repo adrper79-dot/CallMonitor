@@ -1,4 +1,5 @@
 import supabaseAdmin from '@/lib/supabaseAdmin'
+import storage from '@/lib/storage'
 import { generateSpeech, cloneVoice, deleteClonedVoice } from './elevenlabs'
 import { logger } from '@/lib/logger'
 
@@ -170,24 +171,18 @@ export async function translateText(input: TranslationInput): Promise<void> {
           const audioBuffer = Buffer.concat(chunks)
           
           const audioFileName = `translations/${translationRunId}.mp3`
-          const { error: uploadError } = await supabaseAdmin.storage
-            .from('recordings')
-            .upload(audioFileName, audioBuffer, { contentType: 'audio/mpeg', upsert: true })
-          
-          if (uploadError) {
-            logger.error('translation: audio upload failed', uploadError, { translationRunId })
-          } else {
-            const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
-              .from('recordings')
-              .createSignedUrl(audioFileName, 86400)
-            
-            if (signedUrlError || !signedUrlData?.signedUrl) {
-              const { data: { publicUrl } } = supabaseAdmin.storage.from('recordings').getPublicUrl(audioFileName)
-              audioUrl = publicUrl
-            } else {
-              audioUrl = signedUrlData.signedUrl
+          try {
+            await storage.upload('recordings', audioFileName, audioBuffer, 'audio/mpeg')
+            try {
+              const signed = await storage.createSignedUrl('recordings', audioFileName, 86400)
+              audioUrl = signed?.signedUrl || signed
+            } catch (e) {
+              const pub = await storage.getPublicUrl('recordings', audioFileName)
+              audioUrl = pub.publicURL || pub.publicUrl
             }
             logger.info('translation: audio generated and uploaded', { translationRunId, usedVoiceCloning })
+          } catch (uploadErr: any) {
+            logger.error('translation: audio upload failed', uploadErr, { translationRunId })
           }
           
           if (clonedVoiceId) {

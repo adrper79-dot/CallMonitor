@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,38 +15,25 @@ export async function GET(req: Request, { params }: { params: { userId: string }
       return ApiErrors.unauthorized()
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-
     let organizationId: string | null = null
-    
-    const { data: membership } = await supabase
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', params.userId)
-      .limit(1)
-      .single()
-    
+
+    const memRes = await pgClient.query('SELECT organization_id FROM org_members WHERE user_id = $1 LIMIT 1', [params.userId])
+    const membership = memRes.rows?.[0]
     if (membership?.organization_id) {
       organizationId = membership.organization_id
     } else {
-      const { data: user } = await supabase
-        .from('users')
-        .select('organization_id')
-        .eq('id', params.userId)
-        .limit(1)
-        .single()
-      
+      const userRes = await pgClient.query('SELECT organization_id FROM users WHERE id = $1 LIMIT 1', [params.userId])
+      const user = userRes.rows?.[0]
       if (user?.organization_id) {
         organizationId = user.organization_id
-        
-        const { error: orgMemberError } = await supabase.from('org_members').insert({
-          organization_id: user.organization_id, user_id: params.userId, role: 'member'
-        })
-        if (orgMemberError && !orgMemberError.message.includes('duplicate')) {
-          logger.error('Failed to create org_members record', orgMemberError)
+        try {
+          await pgClient.query('INSERT INTO org_members (id, organization_id, user_id, role, created_at) VALUES ($1,$2,$3,$4,$5)', [
+            require('uuid').v4(), user.organization_id, params.userId, 'member', new Date().toISOString()
+          ])
+        } catch (e: any) {
+          if (!String(e?.message || '').includes('duplicate')) {
+            logger.error('Failed to create org_members record', e)
+          }
         }
       }
     }

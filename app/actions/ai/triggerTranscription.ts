@@ -1,7 +1,7 @@
 "use server"
 
 import { v4 as uuidv4 } from 'uuid'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import pgClient from '@/lib/pgClient'
 import { AppError } from '@/types/app-error'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
@@ -46,18 +46,7 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     if (!actorId) {
       // best-effort audit for unauthenticated access (user_id will be null)
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: uuidv4(),
-          organization_id: input.organization_id ?? null,
-          user_id: null,
-          system_id: null,
-          resource_type: 'auth',
-          resource_id: null,
-          action: 'error',
-          before: null,
-          after: { code: 'AUTH_REQUIRED', message: 'Unauthenticated access attempted' },
-          created_at: new Date().toISOString()
-        })
+        await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [uuidv4(), input.organization_id ?? null, null, null, 'auth', null, 'error', null, { code: 'AUTH_REQUIRED', message: 'Unauthenticated access attempted' }, new Date().toISOString()])
       } catch (__) {}
 
       const err = new AppError({ code: 'AUTH_REQUIRED', message: 'Unauthenticated', user_message: 'Authentication required', severity: 'HIGH', retriable: false })
@@ -71,18 +60,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     }
 
     // verify recording exists and belongs to organization
-    const { data: recRows, error: recErr } = await supabaseAdmin
-      .from('recordings')
-      .select('id,organization_id,call_sid,status,tool_id,created_by,recording_url')
-      .eq('id', recording_id)
-      .limit(1)
-
-    if (recErr) {
-      const e = new AppError({ code: 'RECORDING_FETCH_FAILED', message: 'Failed to fetch recording', user_message: 'Unable to fetch recording', severity: 'HIGH', retriable: true })
-      throw e
-    }
-
-    const rec = recRows?.[0]
+    const recRes = await pgClient.query(`SELECT id, organization_id, call_sid, status, tool_id, created_by, recording_url FROM recordings WHERE id = $1 LIMIT 1`, [recording_id])
+    const rec = recRes?.rows?.[0]
     if (!rec) {
       const e = new AppError({ code: 'RECORDING_NOT_FOUND', message: 'Recording not found', user_message: 'Recording not found', severity: 'MEDIUM', retriable: false })
       throw e
@@ -94,18 +73,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     }
 
     // ownership/membership check via org_members if present
-    const { data: membershipRows, error: membershipErr } = await supabaseAdmin
-      .from('org_members')
-      .select('id,role')
-      .eq('organization_id', organization_id)
-      .eq('user_id', actorId)
-      .limit(1)
-
-    if (membershipErr) {
-      const e = new AppError({ code: 'AUTH_MEMBERSHIP_LOOKUP_FAILED', message: 'Membership lookup failed', user_message: 'Unable to verify membership', severity: 'HIGH', retriable: true })
-      throw e
-    }
-
+    const membershipRes = await pgClient.query(`SELECT id, role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`, [organization_id, actorId])
+    const membershipRows = membershipRes?.rows || []
     if (!membershipRows || membershipRows.length === 0) {
       const e = new AppError({ code: 'AUTH_ORG_MISMATCH', message: 'Actor not authorized for organization', user_message: 'Not authorized for this organization', severity: 'HIGH', retriable: false })
       throw e
@@ -124,34 +93,13 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     // Resolve call_id from calls.call_sid so ai_runs.call_id can be populated.
     let resolvedCallId: string | null = null
     if (rec.call_sid) {
-      const { data: callRows, error: callErr } = await supabaseAdmin
-        .from('calls')
-        .select('id')
-        .eq('call_sid', rec.call_sid)
-        .limit(1)
-
-      if (callErr) {
-        const e = new AppError({ code: 'CALL_LOOKUP_FAILED', message: 'Failed to lookup call by call_sid', user_message: 'Unable to resolve call for recording', severity: 'HIGH', retriable: true })
-        throw e
-      }
-
-      const callRow = callRows?.[0]
+      const callRes = await pgClient.query(`SELECT id FROM calls WHERE call_sid = $1 LIMIT 1`, [rec.call_sid])
+      const callRow = callRes?.rows?.[0]
       if (!callRow) {
         const e = new AppError({ code: 'CALL_NOT_FOUND', message: 'Call not found for recording.call_sid', user_message: 'Call not found for this recording', severity: 'HIGH', retriable: false })
         // audit the missing call
         try {
-          await supabaseAdmin.from('audit_logs').insert({
-            id: uuidv4(),
-            organization_id,
-            user_id: capturedActorId,
-            system_id: null,
-            resource_type: 'recordings',
-            resource_id: recording_id,
-            action: 'error',
-            before: null,
-            after: { error: e.message, call_sid: rec.call_sid },
-            created_at: new Date().toISOString()
-          })
+          await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [uuidv4(), organization_id, capturedActorId, null, 'recordings', recording_id, 'error', null, { error: e.message, call_sid: rec.call_sid }, new Date().toISOString()])
         } catch (__) {}
         throw e
       }
@@ -174,17 +122,8 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     }
 
     // check organization plan limits
-    const { data: orgRows, error: orgErr } = await supabaseAdmin
-      .from('organizations')
-      .select('id,plan')
-      .eq('id', organization_id)
-      .limit(1)
-
-    if (orgErr) {
-      const e = new AppError({ code: 'ORG_LOOKUP_FAILED', message: 'Organization lookup failed', user_message: 'Unable to verify organization', severity: 'HIGH', retriable: true })
-      throw e
-    }
-    const org = orgRows?.[0]
+    const orgRes = await pgClient.query(`SELECT id, plan FROM organizations WHERE id = $1 LIMIT 1`, [organization_id])
+    const org = orgRes?.rows?.[0]
     if (!org) {
       const e = new AppError({ code: 'ORG_NOT_FOUND', message: 'Organization not found', user_message: 'Organization not found', severity: 'HIGH', retriable: false })
       throw e
@@ -197,23 +136,7 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     // Intent capture: Record intent:transcription_requested BEFORE execution (ARCH_DOCS compliance)
     // "You initiate intent. We orchestrate execution."
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id,
-        user_id: capturedActorId,
-        system_id: null,
-        resource_type: 'recordings',
-        resource_id: recording_id,
-        action: 'intent:transcription_requested',
-        before: null,
-        after: {
-          recording_id,
-          call_id: resolvedCallId,
-          provider: 'assemblyai',
-          declared_at: new Date().toISOString()
-        },
-        created_at: new Date().toISOString()
-      })
+      await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [uuidv4(), organization_id, capturedActorId, null, 'recordings', recording_id, 'intent:transcription_requested', null, { recording_id, call_id: resolvedCallId, provider: 'assemblyai', declared_at: new Date().toISOString() }, new Date().toISOString()])
     } catch (__) {}
 
     // Execute AssemblyAI (Intelligence Plane) with retry and circuit breaker
@@ -264,45 +187,20 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     }
 
     // Note: Schema defines ai_runs.call_id foreign key to calls.id. If recording has call reference elsewhere, you should populate call_id.
-    const { error: aiErr } = await supabaseAdmin.from('ai_runs').insert(aiRow)
-    if (aiErr) {
+    try {
+      await pgClient.query(`INSERT INTO ai_runs (id, call_id, system_id, model, status, job_id, produced_by, is_authoritative, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [aiId, resolvedCallId, null, 'assemblyai-v1', 'queued', job_id, 'model', true, new Date().toISOString()])
+    } catch (aiErr: any) {
       const e = new AppError({ code: 'AI_RUN_INSERT_FAILED', message: 'Failed to enqueue transcription', user_message: 'Could not start transcription', severity: 'HIGH', retriable: true, details: { cause: aiErr.message } } as any)
       // audit the failure
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: uuidv4(),
-          organization_id,
-          user_id: capturedActorId,
-          system_id: null,
-          resource_type: 'ai_runs',
-          resource_id: aiId,
-          action: 'error',
-          actor_type: capturedActorId ? 'human' : 'system',
-          actor_label: capturedActorId || 'transcription-trigger',
-          before: null,
-          after: { error: aiErr.message },
-          created_at: new Date().toISOString()
-        })
+        await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [uuidv4(), organization_id, capturedActorId, null, 'ai_runs', aiId, 'error', capturedActorId ? 'human' : 'system', capturedActorId || 'transcription-trigger', null, { error: aiErr.message }, new Date().toISOString()])
       } catch (__) {}
       throw e
     }
 
     // audit log entry (success)
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id,
-        user_id: capturedActorId,
-        system_id: null,
-        resource_type: 'ai_runs',
-        resource_id: aiId,
-        action: 'create',
-        actor_type: capturedActorId ? 'human' : 'system',
-        actor_label: capturedActorId || 'transcription-trigger',
-        before: null,
-        after: { requested_at: new Date().toISOString(), model: 'assemblyai-v1', job_id, recording_id },
-        created_at: new Date().toISOString()
-      })
+      await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [uuidv4(), organization_id, capturedActorId, null, 'ai_runs', aiId, 'create', capturedActorId ? 'human' : 'system', capturedActorId || 'transcription-trigger', null, { requested_at: new Date().toISOString(), model: 'assemblyai-v1', job_id, recording_id }, new Date().toISOString()])
     } catch (e) {
       // best-effort
     }
@@ -310,24 +208,11 @@ export default async function triggerTranscription(input: TriggerTranscriptionIn
     return { success: true, ai_run_id: aiId }
   } catch (err: any) {
     // Attempt to write an error audit (best-effort). Prefer resource ai_runs if we have aiId, otherwise record recordings resource.
-    try {
+      try {
       const resource_type = aiId ? 'ai_runs' : 'recordings'
       const resource_id = aiId ?? input.recording_id
       const errBody = err instanceof AppError ? { code: err.code, message: err.message } : { message: String(err?.message ?? err) }
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: input.organization_id,
-        user_id: capturedActorId,
-        system_id: null,
-        resource_type,
-        resource_id,
-        action: 'error',
-        actor_type: capturedActorId ? 'human' : 'system',
-        actor_label: capturedActorId || 'transcription-trigger',
-        before: null,
-        after: { error: errBody },
-        created_at: new Date().toISOString()
-      })
+      await pgClient.query(`INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, before, after, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [uuidv4(), input.organization_id, capturedActorId, null, resource_type, resource_id, 'error', capturedActorId ? 'human' : 'system', capturedActorId || 'transcription-trigger', null, { error: errBody }, new Date().toISOString()])
     } catch (__) {
       // best-effort
     }

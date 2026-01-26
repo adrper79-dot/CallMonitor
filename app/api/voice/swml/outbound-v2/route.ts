@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { parseRequestBody, swmlResponse, swmlJsonResponse } from '@/lib/api/utils'
+import { query } from '@/lib/pgClient'
+import { parseRequestBody, swmlJsonResponse } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
@@ -19,27 +19,27 @@ export const dynamic = 'force-dynamic'
  * - Modern SignalWire features
  */
 export async function POST(req: Request) {
-    // Feature flag check for live translation preview
-    if (!isLiveTranslationPreviewEnabled()) {
-      logger.warn('SWML outbound-v2: Live translation preview feature is disabled')
-      return swmlJsonResponse({
-        version: '1.0.0',
-        sections: {
-          main: [
-            { answer: {} },
-            { say: { text: 'Live translation is not available for your plan.' } },
-            { hangup: {} }
-          ]
-        }
-      })
-    }
+  // Feature flag check for live translation preview
+  if (!isLiveTranslationPreviewEnabled()) {
+    logger.warn('SWML outbound-v2: Live translation preview feature is disabled')
+    return swmlJsonResponse({
+      version: '1.0.0',
+      sections: {
+        main: [
+          { answer: {} },
+          { say: { text: 'Live translation is not available for your plan.' } },
+          { hangup: {} }
+        ]
+      }
+    })
+  }
   const url = new URL(req.url)
   const callId = url.searchParams.get('callId')
   const conference = url.searchParams.get('conference')
   const leg = url.searchParams.get('leg')
 
   if (conference && callId) {
-        const swml = await generateBridgeSWML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
+    const swml = await generateBridgeSWML(conference, callId, leg === '1' || leg === '2' ? parseInt(leg) : undefined)
     return swmlJsonResponse(swml)
   }
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
   const swml = await generateSWML(callSid, to, callId)
 
-    logger.debug('SWML outbound: generated JSON', { sectionCount: swml.sections.main.length, callId })
+  logger.debug('SWML outbound: generated JSON', { sectionCount: swml.sections.main.length, callId })
 
   return swmlJsonResponse(swml)
 }
@@ -62,35 +62,33 @@ async function generateSWML(callSid: string | undefined, toNumber: string | unde
   let organizationId: string | null = null
 
   if (callId) {
-    const { data: callRows } = await supabaseAdmin
-      .from('calls')
-      .select('organization_id')
-      .eq('id', callId)
-      .limit(1)
+    const { rows } = await query(
+      `SELECT organization_id FROM calls WHERE id = $1 LIMIT 1`,
+      [callId]
+    )
 
-    organizationId = callRows?.[0]?.organization_id || null
+    organizationId = rows?.[0]?.organization_id || null
     logger.debug('SWML outbound: lookup by callId', { callId, found: !!organizationId })
   }
 
   if (!organizationId && callSid) {
-    const { data: callRows } = await supabaseAdmin
-      .from('calls')
-      .select('organization_id')
-      .eq('call_sid', callSid)
-      .limit(1)
+    const { rows } = await query(
+      `SELECT organization_id FROM calls WHERE call_sid = $1 LIMIT 1`,
+      [callSid]
+    )
 
-    organizationId = callRows?.[0]?.organization_id || null
+    organizationId = rows?.[0]?.organization_id || null
     logger.debug('SWML outbound: fallback lookup by call_sid', { found: !!organizationId })
   }
 
   if (organizationId) {
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email')
-      .eq('organization_id', organizationId)
-      .limit(1)
+    const { rows } = await query(
+      `SELECT record, transcribe, live_translate, translate_from, translate_to, survey, synthetic_caller, survey_prompts, survey_prompts_locales, survey_webhook_email 
+       FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
-    voiceConfig = vcRows?.[0] || null
+    voiceConfig = rows?.[0] || null
     logger.debug('SWML outbound: voice_configs loaded', {
       record: voiceConfig?.record,
       transcribe: voiceConfig?.transcribe,
@@ -161,18 +159,18 @@ async function generateSWML(callSid: string | undefined, toNumber: string | unde
         }
       }
     }
-    
+
     sections.push({
       play: {
         url: 'say:Thank you for your time. Goodbye.'
       }
     })
-    
+
     // For secret shopper, we can add survey since it's automated end-to-end
     if (voiceConfig?.survey) {
       appendSurveyToSWML(sections, voiceConfig, callId, organizationId)
     }
-    
+
     sections.push({ hangup: {} })
   } else if (voiceConfig?.survey && !voiceConfig?.synthetic_caller) {
     // Survey enabled but NOT secret shopper - log warning
@@ -292,21 +290,19 @@ function appendSurveyToSWML(sections: any[], voiceConfig: any, callId: string | 
 }
 
 async function generateBridgeSWML(conferenceName: string, callId: string, leg?: number) {
-  const { data: callRows } = await supabaseAdmin
-    .from('calls')
-    .select('organization_id')
-    .eq('id', callId)
-    .limit(1)
+  const { rows: callRows } = await query(
+    `SELECT organization_id FROM calls WHERE id = $1 LIMIT 1`,
+    [callId]
+  )
 
   const organizationId = callRows?.[0]?.organization_id
   let voiceConfig: any = null
 
   if (organizationId) {
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('record, survey, survey_prompts, survey_prompts_locales, translate_to')
-      .eq('organization_id', organizationId)
-      .limit(1)
+    const { rows: vcRows } = await query(
+      `SELECT record, survey, survey_prompts, survey_prompts_locales, translate_to FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
     voiceConfig = vcRows?.[0]
   }
@@ -356,9 +352,9 @@ async function generateBridgeSWML(conferenceName: string, callId: string, leg?: 
 }
 
 export async function GET() {
-  return NextResponse.json({ 
-    ok: true, 
-    route: '/api/voice/swml/outbound-v2', 
+  return NextResponse.json({
+    ok: true,
+    route: '/api/voice/swml/outbound-v2',
     method: 'Use POST for SWML generation',
     format: 'JSON (SWML)'
   })

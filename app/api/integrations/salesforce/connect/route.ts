@@ -4,18 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { getAuthorizationUrl } from '@/lib/services/crmProviders/salesforce'
 import { randomBytes } from 'crypto'
+import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(req: NextRequest) {
     try {
@@ -25,12 +21,8 @@ export async function GET(req: NextRequest) {
         }
 
         // Check admin role
-        const { data: membership } = await supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', session.user.orgId)
-            .eq('user_id', session.user.id)
-            .single()
+        const membershipRes = await pgClient.query(`SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`, [session.user.orgId, session.user.id])
+        const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
 
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
             return NextResponse.json({ success: false, error: 'Admin role required' }, { status: 403 })

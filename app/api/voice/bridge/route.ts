@@ -2,7 +2,7 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 
@@ -52,12 +52,13 @@ export async function POST(request: NextRequest) {
         }
 
         // --- Get user's organization and RBAC ---
-        const { data: member, error: memberError } = await supabaseAdmin
-            .from('org_members')
-            .select('organization_id, role')
-            .eq('user_id', userId)
-            .single();
-        if (memberError || !member) {
+        const { rows: members } = await query(
+            `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+            [userId]
+        );
+        const member = members[0];
+
+        if (!member) {
             return NextResponse.json(
                 { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
                 { status: 403 }
@@ -92,20 +93,19 @@ export async function POST(request: NextRequest) {
         // --- Create call record ---
         const { v4: uuidv4 } = await import('uuid');
         const callId = uuidv4();
-        await supabaseAdmin.from('calls').insert({
-            id: callId,
-            organization_id: member.organization_id,
-            created_by: userId,
-            status: 'initiating',
-            caller_id_used: callerIdToUse
-        });
+
+        await query(
+            `INSERT INTO calls (id, organization_id, created_by, status, caller_id_used)
+             VALUES ($1, $2, $3, 'initiating', $4)`,
+            [callId, member.organization_id, userId, callerIdToUse]
+        );
 
         // --- Translation config ---
-        const { data: voiceConfig } = await supabaseAdmin
-            .from('voice_configs')
-            .select('live_translate, translate_from, translate_to')
-            .eq('organization_id', member.organization_id)
-            .single();
+        const { rows: voiceConfigs } = await query(
+            `SELECT live_translate, translate_from, translate_to FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+            [member.organization_id]
+        );
+        const voiceConfig = voiceConfigs[0];
         const translationEnabled = voiceConfig?.live_translate === true &&
             voiceConfig?.translate_from &&
             voiceConfig?.translate_to;
@@ -156,12 +156,12 @@ export async function POST(request: NextRequest) {
         if (!response.ok) {
             const errorText = await response.text();
             let parsedError = {};
-            try { parsedError = JSON.parse(errorText || '{}'); } catch {}
+            try { parsedError = JSON.parse(errorText || '{}'); } catch { }
             if ((parsedError as any).code === '21211') {
                 logger.error('[Bridge] Missing To parameter (first leg)', { requestBody1 });
             }
             logger.error('[Bridge] SignalWire Error (first leg)', { status: response.status, error: errorText, requestBody1 });
-            await supabaseAdmin.from('calls').update({ status: 'failed' }).eq('id', callId);
+            await query(`UPDATE calls SET status = 'failed' WHERE id = $1`, [callId]);
             return NextResponse.json(
                 { success: false, error: { code: 'SIGNALWIRE_ERROR', message: `Bridge failed: ${response.status}`, details: parsedError } },
                 { status: 502 }
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         if (!response2.ok) {
             const errorText2 = await response2.text();
             let parsedError2 = {};
-            try { parsedError2 = JSON.parse(errorText2 || '{}'); } catch {}
+            try { parsedError2 = JSON.parse(errorText2 || '{}'); } catch { }
             if ((parsedError2 as any).code === '21211') {
                 logger.error('[Bridge] Missing To parameter (second leg)', { requestBody2 });
             }
@@ -205,29 +205,32 @@ export async function POST(request: NextRequest) {
         const secondLegData = await response2.json();
 
         // --- Update call record with first leg SID ---
-        await supabaseAdmin.from('calls').update({
-            status: 'in-progress',
-            call_sid: firstLegData.sid,
-            started_at: new Date().toISOString()
-        }).eq('id', callId);
+        await query(
+            `UPDATE calls SET status = 'in-progress', call_sid = $1, started_at = NOW() WHERE id = $2`,
+            [firstLegData.sid, callId]
+        );
 
         // --- Audit log ---
-        await supabaseAdmin.from('audit_logs').insert({
-            organization_id: member.organization_id,
-            user_id: userId,
-            resource_type: 'call',
-            resource_id: callId,
-            action: 'voice:bridge.initiated',
-            actor_type: 'human',
-            actor_label: userId,
-            after: {
-                from: '[REDACTED]',
-                to: '[REDACTED]',
-                first_leg_sid: firstLegData.sid,
-                second_leg_sid: secondLegData.sid,
-                conference: conferenceName
-            }
-        });
+        try {
+            await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after)
+                 VALUES ($1, $2, $3, 'call', $4, 'voice:bridge.initiated', 'human', $5, $6)`,
+                [
+                    uuidv4(),
+                    member.organization_id,
+                    userId,
+                    callId,
+                    userId,
+                    JSON.stringify({
+                        from: '[REDACTED]',
+                        to: '[REDACTED]',
+                        first_leg_sid: firstLegData.sid,
+                        second_leg_sid: secondLegData.sid,
+                        conference: conferenceName
+                    })
+                ]
+            );
+        } catch (e) { /* ignore */ }
 
         logger.info('[Bridge] Both legs initiated', {
             callId,

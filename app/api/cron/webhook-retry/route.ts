@@ -8,7 +8,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
@@ -38,19 +38,15 @@ export async function POST(req: Request) {
     const now = new Date().toISOString()
 
     // Get pending failures ready for retry
-    const { data: pendingFailures, error: fetchErr } = await supabaseAdmin
-      .from('webhook_failures')
-      .select('*')
-      .in('status', ['pending', 'retrying'])
-      .lt('next_retry_at', now)
-      .lt('attempt_count', 5) // Max 5 attempts
-      .order('next_retry_at', { ascending: true })
-      .limit(10) // Process 10 at a time
-
-    if (fetchErr) {
-      logger.error('Webhook retry: Failed to fetch pending failures', fetchErr)
-      return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 })
-    }
+    const { rows: pendingFailures } = await query(
+      `SELECT * FROM webhook_failures 
+       WHERE status IN ('pending', 'retrying') 
+       AND next_retry_at < $1 
+       AND attempt_count < 5 
+       ORDER BY next_retry_at ASC 
+       LIMIT 10`,
+      [now]
+    )
 
     if (!pendingFailures || pendingFailures.length === 0) {
       return NextResponse.json({
@@ -71,14 +67,12 @@ export async function POST(req: Request) {
 
         if (replayResult.success) {
           // Mark as succeeded
-          await supabaseAdmin
-            .from('webhook_failures')
-            .update({
-              status: 'succeeded',
-              resolved_at: new Date().toISOString(),
-              resolution_notes: 'Auto-recovered via retry',
-            })
-            .eq('id', failure.id)
+          await query(
+            `UPDATE webhook_failures 
+             SET status = 'succeeded', resolved_at = NOW(), resolution_notes = 'Auto-recovered via retry' 
+             WHERE id = $1`,
+            [failure.id]
+          )
 
           results.push({ id: failure.id, status: 'succeeded' })
           logger.info('Webhook retry: Success', { failureId: failure.id })
@@ -88,17 +82,14 @@ export async function POST(req: Request) {
           const backoffMs = 60000 * Math.pow(2, nextAttempt) // Exponential backoff
 
           const newStatus = nextAttempt >= 5 ? 'failed' : 'retrying'
+          const retryTime = new Date(Date.now() + backoffMs).toISOString()
 
-          await supabaseAdmin
-            .from('webhook_failures')
-            .update({
-              status: newStatus,
-              attempt_count: nextAttempt,
-              next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
-              last_attempt_at: new Date().toISOString(),
-              error_message: replayResult.error || failure.error_message,
-            })
-            .eq('id', failure.id)
+          await query(
+            `UPDATE webhook_failures 
+             SET status = $1, attempt_count = $2, next_retry_at = $3, last_attempt_at = NOW(), error_message = $4 
+             WHERE id = $5`,
+            [newStatus, nextAttempt, retryTime, replayResult.error || failure.error_message, failure.id]
+          )
 
           results.push({
             id: failure.id,

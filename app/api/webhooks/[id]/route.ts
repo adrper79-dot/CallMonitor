@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
@@ -32,13 +32,13 @@ export async function PATCH(
     const { isActive } = body
 
     // Get webhook to verify ownership
-    const { data: webhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('organization_id')
-      .eq('id', webhookId)
-      .single()
+    const { rows: webhooks } = await query(
+      `SELECT organization_id FROM webhook_subscriptions WHERE id = $1 LIMIT 1`,
+      [webhookId]
+    )
+    const webhook = webhooks[0]
 
-    if (fetchError || !webhook) {
+    if (!webhook) {
       throw new AppError('Webhook not found', 404)
     }
 
@@ -47,19 +47,15 @@ export async function PATCH(
     }
 
     // Update webhook
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .update({
-        is_active: isActive,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', webhookId)
-      .select()
-      .single()
+    const { rows: updatedRows } = await query(
+      `UPDATE webhook_subscriptions 
+       SET is_active = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [isActive, webhookId]
+    )
 
-    if (updateError) {
-      throw new AppError('Failed to update webhook', 500, 'UPDATE_ERROR', updateError)
-    }
+    const updated = updatedRows[0]
 
     logger.info('Webhook subscription updated', {
       webhookId,
@@ -91,13 +87,13 @@ export async function DELETE(
     const webhookId = params.id
 
     // Get webhook to verify ownership
-    const { data: webhook, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('organization_id')
-      .eq('id', webhookId)
-      .single()
+    const { rows: webhooks } = await query(
+      `SELECT organization_id FROM webhook_subscriptions WHERE id = $1 LIMIT 1`,
+      [webhookId]
+    )
+    const webhook = webhooks[0]
 
-    if (fetchError || !webhook) {
+    if (!webhook) {
       throw new AppError('Webhook not found', 404)
     }
 
@@ -106,14 +102,7 @@ export async function DELETE(
     }
 
     // Delete webhook
-    const { error: deleteError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .delete()
-      .eq('id', webhookId)
-
-    if (deleteError) {
-      throw new AppError('Failed to delete webhook', 500, 'DELETE_ERROR', deleteError)
-    }
+    await query(`DELETE FROM webhook_subscriptions WHERE id = $1`, [webhookId])
 
     logger.info('Webhook subscription deleted', {
       webhookId,

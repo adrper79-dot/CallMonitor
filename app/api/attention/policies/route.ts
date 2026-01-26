@@ -4,18 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
+import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 export async function GET(req: NextRequest) {
     try {
@@ -24,16 +20,8 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { data: policies } = await supabaseAdmin
-            .from('attention_policies')
-            .select('*')
-            .eq('organization_id', session.user.orgId)
-            .order('priority', { ascending: true })
-
-        return NextResponse.json({
-            success: true,
-            policies: policies || []
-        })
+        const res = await pgClient.query(`SELECT * FROM attention_policies WHERE organization_id = $1 ORDER BY priority ASC`, [session.user.orgId])
+        return NextResponse.json({ success: true, policies: res?.rows || [] })
     } catch (err: unknown) {
         logger.error('Failed to list policies', err instanceof Error ? err : new Error(String(err)))
         return NextResponse.json({ success: false, error: 'Failed to list policies' }, { status: 500 })
@@ -48,13 +36,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Check admin role
-        const { data: membership } = await supabaseAdmin
-            .from('org_members')
-            .select('role')
-            .eq('organization_id', session.user.orgId)
-            .eq('user_id', session.user.id)
-            .single()
-
+        const membershipRes = await pgClient.query(`SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`, [session.user.orgId, session.user.id])
+        const membership = membershipRes?.rows && membershipRes.rows.length ? membershipRes.rows[0] : null
         if (!membership || !['owner', 'admin'].includes(membership.role)) {
             return NextResponse.json({ success: false, error: 'Admin role required' }, { status: 403 })
         }
@@ -78,23 +61,7 @@ export async function POST(req: NextRequest) {
         }
 
         const policyId = uuidv4()
-        const { error } = await supabaseAdmin
-            .from('attention_policies')
-            .insert({
-                id: policyId,
-                organization_id: session.user.orgId,
-                name,
-                description,
-                policy_type,
-                policy_config,
-                priority: priority || 100,
-                is_enabled: true,
-                created_by: session.user.id
-            })
-
-        if (error) {
-            return NextResponse.json({ success: false, error: error.message }, { status: 400 })
-        }
+        await pgClient.query(`INSERT INTO attention_policies (id, organization_id, name, description, policy_type, policy_config, priority, is_enabled, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [policyId, session.user.orgId, name, description, policy_type, policy_config, priority || 100, true, session.user.id, new Date().toISOString()])
 
         logger.info('Attention policy created', { policyId, type: policy_type })
 

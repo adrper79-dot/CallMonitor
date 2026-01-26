@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
       if (error) throw error
       
       // Flatten survey responses
-      data = (surveys || []).map(s => ({
+      data = (surveys || []).map((s: any) => ({
         call_id: s.call_id,
         created_at: s.created_at,
         status: s.status,
@@ -101,8 +101,8 @@ export async function GET(req: NextRequest) {
 
       // Extract sentiment data
       data = (recordings || [])
-        .filter(r => (r.transcript_json as any)?.sentiment_summary)
-        .map(r => {
+        .filter((r: any) => (r.transcript_json as any)?.sentiment_summary)
+        .map((r: any) => {
           const sentiment = (r.transcript_json as any)?.sentiment_summary
           return {
             call_id: r.call_id,

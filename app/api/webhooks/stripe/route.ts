@@ -3,31 +3,20 @@
  * 
  * Purpose: Process Stripe webhook events for subscription lifecycle
  * Architecture: Event-driven with idempotency and audit logging
- * 
- * Events handled:
- * - checkout.session.completed: New subscription created
- * - customer.subscription.updated: Subscription status changed
- * - customer.subscription.deleted: Subscription cancelled
- * - invoice.paid: Payment successful
- * - invoice.payment_failed: Payment failed
- * - payment_method.attached: New payment method added
  */
 
 export const dynamic = 'force-dynamic'
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/services/stripeService'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
-import { 
-  writeAudit, 
-  writeAuditLegacy, 
-  writeAuditErrorLegacy,
-  writeStripeWebhookAudit, 
-  writeSubscriptionAudit 
+import {
+  writeAuditLegacy,
+  writeAuditErrorLegacy
 } from '@/lib/audit/auditLogger'
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
@@ -39,7 +28,6 @@ async function handleStripeWebhook(req: Request) {
   let event: Stripe.Event
 
   try {
-    // Verify webhook signature
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err: any) {
     logger.error('Stripe webhook signature verification failed', err)
@@ -47,130 +35,85 @@ async function handleStripeWebhook(req: Request) {
   }
 
   try {
-    // Log event receipt
     logger.info('Stripe webhook received', { type: event.type, id: event.id })
 
-    // Check if event already processed (idempotency)
-    const { data: existingEvent } = await supabaseAdmin
-      .from('stripe_events')
-      .select('id, processed')
-      .eq('stripe_event_id', event.id)
-      .single()
-
-    if (existingEvent?.processed) {
+    // Idempotency Check
+    const existingRes = await query(`SELECT id, processed FROM stripe_events WHERE stripe_event_id = $1 LIMIT 1`, [event.id])
+    if (existingRes.rows.length > 0 && existingRes.rows[0].processed) {
       logger.info('Stripe webhook already processed', { eventId: event.id })
       return NextResponse.json({ received: true, status: 'already_processed' })
     }
 
-    // Store event
-    await supabaseAdmin.from('stripe_events').upsert({
-      stripe_event_id: event.id,
-      event_type: event.type,
-      data: event.data as any,
-      processed: false,
-    }, {
-      onConflict: 'stripe_event_id'
-    })
+    // Upsert Event
+    await query(
+      `INSERT INTO stripe_events (stripe_event_id, event_type, data, processed) 
+       VALUES ($1, $2, $3, false)
+       ON CONFLICT (stripe_event_id) DO UPDATE SET data = EXCLUDED.data`,
+      [event.id, event.type, JSON.stringify(event.data)]
+    )
 
-    // Process event based on type
+    // Process
     switch (event.type) {
       case 'checkout.session.completed':
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session)
         break
-      
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await handleSubscriptionUpdated(event.data.object as Stripe.Subscription)
         break
-      
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription)
         break
-      
       case 'invoice.paid':
         await handleInvoicePaid(event.data.object as Stripe.Invoice)
         break
-      
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice)
         break
-      
       case 'payment_method.attached':
         await handlePaymentMethodAttached(event.data.object as Stripe.PaymentMethod)
         break
-      
       default:
         logger.info('Stripe webhook event not handled', { type: event.type })
     }
 
-    // Mark event as processed
-    await supabaseAdmin
-      .from('stripe_events')
-      .update({ processed: true, processed_at: new Date().toISOString() })
-      .eq('stripe_event_id', event.id)
+    // Mark Processed
+    await query(
+      `UPDATE stripe_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1`,
+      [event.id]
+    )
 
     return NextResponse.json({ received: true })
   } catch (error: any) {
     logger.error('Stripe webhook processing failed', error, { eventType: event.type, eventId: event.id })
-    
-    // Mark event as failed
-    await supabaseAdmin
-      .from('stripe_events')
-      .update({ 
-        processed: false, 
-        error_message: error.message,
-        processed_at: new Date().toISOString() 
-      })
-      .eq('stripe_event_id', event.id)
-
+    await query(
+      `UPDATE stripe_events SET processed = false, error_message = $1, processed_at = NOW() WHERE stripe_event_id = $2`,
+      [error.message, event.id]
+    )
     return ApiErrors.internal('Webhook processing failed')
   }
 }
 
-/**
- * Handle checkout.session.completed
- * Creates subscription record when customer completes checkout
- */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const organizationId = session.metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.error('handleCheckoutCompleted: no organization_id in metadata', { sessionId: session.id })
-    return
-  }
+  if (!organizationId) return
 
-  if (session.mode !== 'subscription' || !session.subscription) {
-    logger.warn('handleCheckoutCompleted: session is not a subscription', { sessionId: session.id })
-    return
-  }
+  if (session.mode !== 'subscription' || !session.subscription) return
 
-  // Fetch full subscription details from Stripe
   const subscription = await stripe.subscriptions.retrieve(session.subscription as string)
-  
   await handleSubscriptionUpdated(subscription)
-  await writeAuditLegacy('organizations', organizationId, 'subscription_checkout_completed', { 
-    session_id: session.id,
-    subscription_id: subscription.id 
+  await writeAuditLegacy('organizations', organizationId, 'subscription_checkout_completed', {
+    session_id: session.id, subscription_id: subscription.id
   })
 }
 
-/**
- * Handle customer.subscription.created/updated
- * Syncs subscription state to database
- */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const organizationId = subscription.metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.error('handleSubscriptionUpdated: no organization_id in metadata', { subscriptionId: subscription.id })
-    return
-  }
+  if (!organizationId) return
 
-  // Extract plan from price ID
   const priceId = subscription.items.data[0]?.price.id || ''
   const plan = extractPlanFromPriceId(priceId)
 
-  // Prepare subscription data
   const subscriptionData = {
     organization_id: organizationId,
     stripe_customer_id: subscription.customer as string,
@@ -189,76 +132,38 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
   }
 
-  // Upsert subscription
-  const { error } = await supabaseAdmin
-    .from('stripe_subscriptions')
-    .upsert(subscriptionData, {
-      onConflict: 'stripe_subscription_id'
-    })
+  // Upsert Subscription
+  const cols = Object.keys(subscriptionData)
+  const vals = Object.values(subscriptionData)
+  const params = vals.map((_, i) => `$${i + 1}`)
+  const setClause = cols.map((c, i) => `${c} = EXCLUDED.${c}`).join(', ')
 
-  if (error) {
-    logger.error('handleSubscriptionUpdated: failed to upsert subscription', error, { subscriptionId: subscription.id })
-    throw error
-  }
+  await query(
+    `INSERT INTO stripe_subscriptions (${cols.join(',')}) VALUES (${params.join(',')})
+     ON CONFLICT (stripe_subscription_id) DO UPDATE SET ${setClause}`,
+    vals
+  )
 
-  logger.info('handleSubscriptionUpdated: subscription synced', { 
-    organizationId, 
-    subscriptionId: subscription.id,
-    status: subscription.status,
-    plan 
-  })
-
-  await writeAuditLegacy('organizations', organizationId, 'subscription_updated', { 
-    subscription_id: subscription.id,
-    status: subscription.status,
-    plan 
+  await writeAuditLegacy('organizations', organizationId, 'subscription_updated', {
+    subscription_id: subscription.id, status: subscription.status, plan
   })
 }
 
-/**
- * Handle customer.subscription.deleted
- * Marks subscription as cancelled
- */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const organizationId = subscription.metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.error('handleSubscriptionDeleted: no organization_id in metadata', { subscriptionId: subscription.id })
-    return
-  }
+  if (!organizationId) return
 
-  // Update subscription status
-  const { error } = await supabaseAdmin
-    .from('stripe_subscriptions')
-    .update({
-      status: 'canceled',
-      canceled_at: new Date().toISOString(),
-    })
-    .eq('stripe_subscription_id', subscription.id)
-
-  if (error) {
-    logger.error('handleSubscriptionDeleted: failed to update subscription', error, { subscriptionId: subscription.id })
-    throw error
-  }
-
-  logger.info('handleSubscriptionDeleted: subscription cancelled', { organizationId, subscriptionId: subscription.id })
+  await query(
+    `UPDATE stripe_subscriptions SET status = 'canceled', canceled_at = NOW() WHERE stripe_subscription_id = $1`,
+    [subscription.id]
+  )
   await writeAuditLegacy('organizations', organizationId, 'subscription_deleted', { subscription_id: subscription.id })
 }
 
-/**
- * Handle invoice.paid
- * Records successful payment
- */
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  const organizationId = (invoice as any).subscription_details?.metadata?.organization_id || 
-                         invoice.metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.warn('handleInvoicePaid: no organization_id in metadata', { invoiceId: invoice.id })
-    return
-  }
+  const organizationId = (invoice as any).subscription_details?.metadata?.organization_id || invoice.metadata?.organization_id
+  if (!organizationId) return
 
-  // Store invoice record
   const invoiceData = {
     organization_id: organizationId,
     stripe_invoice_id: invoice.id,
@@ -275,38 +180,26 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     hosted_invoice_url: invoice.hosted_invoice_url || null,
   }
 
-  const { error } = await supabaseAdmin
-    .from('stripe_invoices')
-    .upsert(invoiceData, {
-      onConflict: 'stripe_invoice_id'
-    })
+  const cols = Object.keys(invoiceData)
+  const vals = Object.values(invoiceData)
+  const params = vals.map((_, i) => `$${i + 1}`)
+  const setClause = cols.map((c, i) => `${c} = EXCLUDED.${c}`).join(', ')
 
-  if (error) {
-    logger.error('handleInvoicePaid: failed to store invoice', error, { invoiceId: invoice.id })
-    throw error
-  }
+  await query(
+    `INSERT INTO stripe_invoices (${cols.join(',')}) VALUES (${params.join(',')})
+     ON CONFLICT (stripe_invoice_id) DO UPDATE SET ${setClause}`,
+    vals
+  )
 
-  logger.info('handleInvoicePaid: invoice recorded', { organizationId, invoiceId: invoice.id })
-  await writeAuditLegacy('organizations', organizationId, 'invoice_paid', { 
-    invoice_id: invoice.id,
-    amount_cents: invoice.amount_paid 
+  await writeAuditLegacy('organizations', organizationId, 'invoice_paid', {
+    invoice_id: invoice.id, amount_cents: invoice.amount_paid
   })
 }
 
-/**
- * Handle invoice.payment_failed
- * Records failed payment and triggers alerts
- */
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
-  const organizationId = (invoice as any).subscription_details?.metadata?.organization_id || 
-                         invoice.metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.warn('handleInvoicePaymentFailed: no organization_id in metadata', { invoiceId: invoice.id })
-    return
-  }
+  const organizationId = (invoice as any).subscription_details?.metadata?.organization_id || invoice.metadata?.organization_id
+  if (!organizationId) return
 
-  // Store invoice record
   const invoiceData = {
     organization_id: organizationId,
     stripe_invoice_id: invoice.id,
@@ -323,57 +216,37 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     hosted_invoice_url: invoice.hosted_invoice_url || null,
   }
 
-  const { error } = await supabaseAdmin
-    .from('stripe_invoices')
-    .upsert(invoiceData, {
-      onConflict: 'stripe_invoice_id'
-    })
+  const cols = Object.keys(invoiceData)
+  const vals = Object.values(invoiceData)
+  const params = vals.map((_, i) => `$${i + 1}`)
+  const setClause = cols.map((c, i) => `${c} = EXCLUDED.${c}`).join(', ')
 
-  if (error) {
-    logger.error('handleInvoicePaymentFailed: failed to store invoice', error, { invoiceId: invoice.id })
-    throw error
-  }
+  await query(
+    `INSERT INTO stripe_invoices (${cols.join(',')}) VALUES (${params.join(',')})
+     ON CONFLICT (stripe_invoice_id) DO UPDATE SET ${setClause}`,
+    vals
+  )
 
-  logger.error('handleInvoicePaymentFailed: payment failed', undefined, { organizationId, invoiceId: invoice.id })
-  await writeAuditErrorLegacy('organizations', organizationId, { 
-    message: 'Invoice payment failed',
-    invoice_id: invoice.id,
-    amount_due_cents: invoice.amount_due 
+  await writeAuditErrorLegacy('organizations', organizationId, {
+    message: 'Invoice payment failed', invoice_id: invoice.id, amount_due_cents: invoice.amount_due
   })
 }
 
-/**
- * Handle payment_method.attached
- * Stores payment method details
- */
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) {
-  if (!paymentMethod.customer) {
-    logger.warn('handlePaymentMethodAttached: no customer', { paymentMethodId: paymentMethod.id })
-    return
-  }
+  if (!paymentMethod.customer) return
 
-  // Get organization ID from customer
   const customer = await stripe.customers.retrieve(paymentMethod.customer as string)
   const organizationId = (customer as Stripe.Customer).metadata?.organization_id
-  
-  if (!organizationId) {
-    logger.warn('handlePaymentMethodAttached: no organization_id in customer metadata', { 
-      customerId: paymentMethod.customer,
-      paymentMethodId: paymentMethod.id 
-    })
-    return
-  }
+  if (!organizationId) return
 
-  // Prepare payment method data
   const paymentMethodData: any = {
     organization_id: organizationId,
     stripe_customer_id: paymentMethod.customer as string,
     stripe_payment_method_id: paymentMethod.id,
     type: paymentMethod.type,
-    is_default: false, // Will be updated if this becomes the default
+    is_default: false,
   }
 
-  // Add type-specific details
   if (paymentMethod.type === 'card' && paymentMethod.card) {
     paymentMethodData.card_brand = paymentMethod.card.brand
     paymentMethodData.card_last4 = paymentMethod.card.last4
@@ -384,24 +257,20 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
     paymentMethodData.bank_last4 = paymentMethod.us_bank_account.last4
   }
 
-  const { error } = await supabaseAdmin
-    .from('stripe_payment_methods')
-    .upsert(paymentMethodData, {
-      onConflict: 'stripe_payment_method_id'
-    })
+  const cols = Object.keys(paymentMethodData)
+  const vals = Object.values(paymentMethodData)
+  const params = vals.map((_, i) => `$${i + 1}`)
+  const setClause = cols.map((c, i) => `${c} = EXCLUDED.${c}`).join(', ')
 
-  if (error) {
-    logger.error('handlePaymentMethodAttached: failed to store payment method', error, { paymentMethodId: paymentMethod.id })
-    throw error
-  }
+  await query(
+    `INSERT INTO stripe_payment_methods (${cols.join(',')}) VALUES (${params.join(',')})
+     ON CONFLICT (stripe_payment_method_id) DO UPDATE SET ${setClause}`,
+    vals
+  )
 
-  logger.info('handlePaymentMethodAttached: payment method stored', { organizationId, paymentMethodId: paymentMethod.id })
   await writeAuditLegacy('organizations', organizationId, 'payment_method_added', { payment_method_id: paymentMethod.id })
 }
 
-/**
- * Extract plan name from Stripe price ID
- */
 function extractPlanFromPriceId(priceId: string): string {
   if (priceId.includes('pro')) return 'pro'
   if (priceId.includes('business')) return 'business'
@@ -409,7 +278,6 @@ function extractPlanFromPriceId(priceId: string): string {
   return 'free'
 }
 
-// Export with rate limiting per ARCH_DOCS webhook security requirements
 export const POST = withRateLimit(handleStripeWebhook, {
   identifier: (req) => `webhook-stripe-${getClientIP(req)}`,
   config: { maxAttempts: 1000, windowMs: 60 * 1000, blockMs: 5 * 60 * 1000 }

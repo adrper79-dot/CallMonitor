@@ -14,9 +14,9 @@
 
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { fetchSignalWireWithRetry } from '@/lib/utils/fetchWithRetry'
 import { signalWireBreaker } from '@/lib/utils/circuitBreaker'
+import { query } from '@/lib/pgClient'
 
 // ============================================================================
 // Types
@@ -35,7 +35,7 @@ export interface SignalWireConfig {
 
 /**
  * Database client interface for voice_configs queries
- * Using minimal interface to avoid tight coupling to Supabase
+ * Using minimal interface to avoid tight coupling to Database
  */
 export interface VoiceConfigClient {
     getCallerIdMask(organizationId: string): Promise<{
@@ -52,41 +52,6 @@ export interface VoiceConfigClient {
 /**
  * Parameters for placing a SignalWire call
  * All dependencies are explicit - no closures
- * 
- * @example Basic outbound call (no translation)
- * ```typescript
- * const result = await placeSignalWireCall({
- *   toNumber: '+15551234567',
- *   callId: '550e8400-e29b-41d4-a716-446655440000',
- *   organizationId: 'org-uuid',
- *   config: extractSignalWireConfig(process.env),
- *   voiceConfigClient: createVoiceConfigClient(supabase),
- *   onAuditError: async (resource, id, payload) => { await logAuditError(...) }
- * })
- * ```
- * 
- * @example Live translation call (Spanish → English)
- * ```typescript
- * const result = await placeSignalWireCall({
- *   toNumber: '+15551234567',
- *   callId: 'call-uuid',
- *   organizationId: 'org-uuid',
- *   useLiveTranslation: true,
- *   translateFrom: 'es',
- *   translateTo: 'en',
- *   config: extractSignalWireConfig(process.env),
- *   voiceConfigClient: createVoiceConfigClient(supabase),
- *   onAuditError: writeAuditError
- * })
- * ```
- * 
- * @example Bridge call (connect two parties via conference)
- * ```typescript
- * // Leg A (agent)
- * await placeSignalWireCall({ ...params, conference: 'bridge-uuid', leg: '1' })
- * // Leg B (customer)
- * await placeSignalWireCall({ ...params, conference: 'bridge-uuid', leg: '2' })
- * ```
  */
 export interface PlaceCallParams {
     // Required identifiers
@@ -130,28 +95,6 @@ export type PlaceCallResponse = PlaceCallResult | PlaceCallError
 // Implementation
 // ============================================================================
 
-/**
- * Place a single SignalWire call via REST API
- * 
- * @param params - All explicit dependencies and configuration
- * @returns Call SID on success, error object on failure
- * 
- * @example
- * ```typescript
- * const result = await placeSignalWireCall({
- *   toNumber: '+1234567890',
- *   callId: 'uuid-here',
- *   organizationId: 'org-uuid',
- *   config: { projectId, token, space, number, appUrl },
- *   voiceConfigClient: createVoiceConfigClient(supabase),
- *   onAuditError: async (resource, id, payload) => { ... }
- * })
- * 
- * if (result.success) {
- *   console.log('Call placed:', result.callSid)
- * }
- * ```
- */
 export async function placeSignalWireCall(params: PlaceCallParams): Promise<PlaceCallResponse> {
     const {
         toNumber,
@@ -399,9 +342,6 @@ export async function placeSignalWireCall(params: PlaceCallParams): Promise<Plac
 // Helper: Extract SignalWire config from environment
 // ============================================================================
 
-/**
- * Extract and validate SignalWire configuration from environment
- */
 export function extractSignalWireConfig(env: Record<string, string | undefined>): SignalWireConfig | null {
     const rawSpace = String(env.SIGNALWIRE_SPACE || '')
     const space = rawSpace
@@ -423,35 +363,30 @@ export function extractSignalWireConfig(env: Record<string, string | undefined>)
 }
 
 // ============================================================================
-// Helper: Create VoiceConfigClient from Supabase
+// Helper: Create VoiceConfigClient
 // ============================================================================
 
 /**
- * Create a VoiceConfigClient adapter from Supabase admin client
- * 
- * @param supabaseAdmin - Supabase admin client
- * @returns VoiceConfigClient implementation
+ * Create a VoiceConfigClient adapter using pgClient
  */
-export function createVoiceConfigClient(supabaseAdmin: SupabaseClient): VoiceConfigClient {
+export function createVoiceConfigClient(): VoiceConfigClient {
     return {
         async getCallerIdMask(organizationId: string) {
-            const { data } = await supabaseAdmin
-                .from('voice_configs')
-                .select('caller_id_mask, caller_id_verified')
-                .eq('organization_id', organizationId)
-                .limit(1)
+            const { rows } = await query(
+                `SELECT caller_id_mask, caller_id_verified FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+                [organizationId]
+            )
 
-            return data?.[0] || null
+            return rows?.[0] || null
         },
 
         async getTranslationLanguages(organizationId: string) {
-            const { data } = await supabaseAdmin
-                .from('voice_configs')
-                .select('translate_from, translate_to')
-                .eq('organization_id', organizationId)
-                .limit(1)
+            const { rows } = await query(
+                `SELECT translate_from, translate_to FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+                [organizationId]
+            )
 
-            return data?.[0] || null
+            return rows?.[0] || null
         }
     }
 }
