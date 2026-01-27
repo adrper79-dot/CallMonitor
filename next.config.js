@@ -26,6 +26,14 @@ const nextConfig = {
         util: 'node:util',
       }
     }
+    if (nextRuntime === 'edge') {
+      config.externals.push({
+        'crypto': 'node:crypto',
+        'stream': 'node:stream',
+        'buffer': 'node:buffer',
+        'util': 'node:util',
+      })
+    }
     return config
   },
 
