@@ -12,7 +12,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { query } from '@/lib/pgClient'
 import { WebhookEventType, WEBHOOK_EVENT_TYPES, WebhookRetryPolicy } from '@/types/tier1-features'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'

@@ -13,7 +13,7 @@
 
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { WebhookEventType, WebhookPayload, WebhookSubscription } from '@/types/tier1-features'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
 
 /**
@@ -26,7 +26,7 @@ export function generateSignature(payload: string, secret: string): string {
     .createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex')
-  
+
   return `t=${timestamp},v1=${signature}`
 }
 
@@ -42,24 +42,24 @@ export function verifySignature(
   const parts = signature.split(',')
   const timestamp = parseInt(parts.find(p => p.startsWith('t='))?.slice(2) || '0')
   const expectedSig = parts.find(p => p.startsWith('v1='))?.slice(3)
-  
+
   if (!timestamp || !expectedSig) {
     return false
   }
-  
+
   // Check timestamp is within tolerance
   const currentTime = Math.floor(Date.now() / 1000)
   if (Math.abs(currentTime - timestamp) > tolerance) {
     return false
   }
-  
+
   // Verify signature
   const signedPayload = `${timestamp}.${payload}`
   const computedSig = crypto
     .createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex')
-  
+
   return crypto.timingSafeEqual(
     Buffer.from(expectedSig),
     Buffer.from(computedSig)
@@ -73,10 +73,10 @@ function calculateNextRetry(attempts: number): Date {
   // Base delay: 1 minute, max: 1 hour
   const baseDelay = 60 * 1000  // 1 minute in ms
   const maxDelay = 60 * 60 * 1000  // 1 hour in ms
-  
+
   const delay = Math.min(baseDelay * Math.pow(2, attempts), maxDelay)
   const jitter = Math.random() * 0.3 * delay  // Add 0-30% jitter
-  
+
   return new Date(Date.now() + delay + jitter)
 }
 
@@ -98,7 +98,7 @@ export async function queueWebhookEvent(
       .eq('organization_id', organizationId)
       .eq('active', true)
       .contains('events', [eventType])
-    
+
     if (fetchError) {
       logger.error('webhookDelivery: failed to fetch subscriptions', fetchError, {
         organizationId,
@@ -106,11 +106,11 @@ export async function queueWebhookEvent(
       })
       return
     }
-    
+
     if (!subscriptions || subscriptions.length === 0) {
       return  // No subscribers for this event
     }
-    
+
     // Create payload
     const payload: WebhookPayload = {
       event: eventType,
@@ -119,7 +119,7 @@ export async function queueWebhookEvent(
       organization_id: organizationId,
       data
     }
-    
+
     // Queue delivery for each subscription
     const deliveries = subscriptions.map(sub => ({
       subscription_id: sub.id,
@@ -129,11 +129,11 @@ export async function queueWebhookEvent(
       status: 'pending',
       max_attempts: sub.max_retries + 1
     }))
-    
+
     const { error: insertError } = await supabaseAdmin
       .from('webhook_deliveries')
       .insert(deliveries)
-    
+
     if (insertError) {
       // Ignore duplicate errors (idempotency)
       if (insertError.code !== '23505') {
@@ -173,24 +173,24 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
       `)
       .eq('id', deliveryId)
       .single()
-    
+
     if (fetchError || !delivery || !delivery.subscription) {
       logger.error('webhookDelivery: delivery not found', fetchError, {
         deliveryId
       })
       return false
     }
-    
+
     // Mark as processing
     await supabaseAdmin
       .from('webhook_deliveries')
       .update({ status: 'processing' })
       .eq('id', deliveryId)
-    
+
     const { subscription } = delivery
     const payloadString = JSON.stringify(delivery.payload)
     const signature = generateSignature(payloadString, subscription.secret)
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -199,31 +199,31 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
       'X-Webhook-Delivery-Id': deliveryId,
       ...subscription.headers
     }
-    
+
     const startTime = Date.now()
     let response: Response
-    
+
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), subscription.timeout_ms || 30000)
-      
+
       response = await fetch(subscription.url, {
         method: 'POST',
         headers,
         body: payloadString,
         signal: controller.signal
       })
-      
+
       clearTimeout(timeoutId)
     } catch (fetchError: any) {
       // Network error or timeout
       const responseTime = Date.now() - startTime
-      
+
       const newAttempts = delivery.attempts + 1
-      const shouldRetry = 
-        subscription.retry_policy !== 'none' && 
+      const shouldRetry =
+        subscription.retry_policy !== 'none' &&
         newAttempts < delivery.max_attempts
-      
+
       await supabaseAdmin
         .from('webhook_deliveries')
         .update({
@@ -234,13 +234,13 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
           next_retry_at: shouldRetry ? calculateNextRetry(newAttempts) : null
         })
         .eq('id', deliveryId)
-      
+
       return false
     }
-    
+
     const responseTime = Date.now() - startTime
     const responseBody = await response.text().catch(() => '')
-    
+
     // Check if successful (2xx status)
     if (response.ok) {
       await supabaseAdmin
@@ -254,17 +254,17 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
           delivered_at: new Date().toISOString()
         })
         .eq('id', deliveryId)
-      
+
       return true
     }
-    
+
     // Failed - check if we should retry
     const newAttempts = delivery.attempts + 1
-    const shouldRetry = 
-      subscription.retry_policy !== 'none' && 
+    const shouldRetry =
+      subscription.retry_policy !== 'none' &&
       newAttempts < delivery.max_attempts &&
       response.status >= 500  // Only retry on server errors
-    
+
     await supabaseAdmin
       .from('webhook_deliveries')
       .update({
@@ -277,13 +277,13 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
         next_retry_at: shouldRetry ? calculateNextRetry(newAttempts) : null
       })
       .eq('id', deliveryId)
-    
+
     return false
   } catch (error: any) {
     logger.error('webhookDelivery: error delivering webhook', error, {
       deliveryId
     })
-    
+
     // Mark as failed
     await supabaseAdmin
       .from('webhook_deliveries')
@@ -292,7 +292,7 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
         last_error: error.message
       })
       .eq('id', deliveryId)
-    
+
     return false
   }
 }
@@ -306,7 +306,7 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
   failed: number
 }> {
   const results = { processed: 0, succeeded: 0, failed: 0 }
-  
+
   try {
     // Get pending and retrying deliveries
     const { data: deliveries, error: fetchError } = await supabaseAdmin
@@ -315,12 +315,12 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
       .or('status.eq.pending,and(status.eq.retrying,next_retry_at.lte.now())')
       .order('created_at', { ascending: true })
       .limit(batchSize)
-    
+
     if (fetchError || !deliveries) {
       logger.error('webhookDelivery: failed to fetch queue', fetchError)
       return results
     }
-    
+
     // Process each delivery
     for (const delivery of deliveries) {
       results.processed++
@@ -334,7 +334,7 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
   } catch (error) {
     logger.error('webhookDelivery: error processing queue', error)
   }
-  
+
   return results
 }
 

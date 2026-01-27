@@ -10,7 +10,7 @@
  * - Auditable: All operations logged to search_events
  */
 
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import pgClient from '@/lib/pgClient'

@@ -12,7 +12,7 @@ import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
-import { randomBytes } from 'crypto'
+import { randomBytes } from 'node:crypto'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'edge'

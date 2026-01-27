@@ -15,7 +15,7 @@ import TwitterProvider from "next-auth/providers/twitter"
 import FacebookProvider from "next-auth/providers/facebook"
 
 import pgClient from '@/lib/pgClient'
-import { scryptSync, timingSafeEqual, randomBytes } from 'crypto'
+import { scryptSync, timingSafeEqual, randomBytes } from 'node:crypto'
 import { logger } from '@/lib/logger'
 import { v5 as uuidv5 } from 'uuid'
 

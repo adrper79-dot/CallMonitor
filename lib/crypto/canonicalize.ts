@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 /**
  * Canonical JSON Serialization for Cryptographic Hashing
@@ -22,11 +22,11 @@ export function sortObject(value: any): any {
   if (value === null || value === undefined) {
     return value
   }
-  
+
   if (Array.isArray(value)) {
     return value.map(sortObject)
   }
-  
+
   if (value && typeof value === 'object' && value.constructor === Object) {
     const sorted: Record<string, any> = {}
     for (const key of Object.keys(value).sort()) {
@@ -34,7 +34,7 @@ export function sortObject(value: any): any {
     }
     return sorted
   }
-  
+
   return value
 }
 
@@ -86,9 +86,9 @@ export function verifyHash(payload: any, expectedHash: string): boolean {
   const match = expectedHash.match(/^(\w+):(.+)$/)
   const algorithm = match ? match[1] : 'sha256'
   const hashValue = match ? match[2] : expectedHash
-  
+
   const computed = hashPayload(payload, algorithm)
-  
+
   // Use timing-safe comparison
   try {
     return crypto.timingSafeEqual(

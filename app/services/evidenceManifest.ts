@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
 import { createEvidenceBundle } from '@/app/services/evidenceBundle'
 import { hashPayloadPrefixed } from '@/lib/crypto/canonicalize'
@@ -135,7 +135,7 @@ export async function generateEvidenceManifest(
         const transcriptHash = crypto.createHash('sha256')
           .update(JSON.stringify(transcript))
           .digest('hex')
-        
+
         artifacts.push({
           type: 'transcript',
           id: `${recordingId}-transcript`,
@@ -414,7 +414,7 @@ export async function recordArtifactProvenance(
 ): Promise<string | null> {
   try {
     const provenanceId = uuidv4()
-    
+
     const { error } = await supabaseAdmin.from('artifact_provenance').insert({
       id: provenanceId,
       organization_id: organizationId,

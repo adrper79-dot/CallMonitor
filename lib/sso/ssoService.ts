@@ -13,7 +13,7 @@
 
 import { logger } from '@/lib/logger'
 import supabaseAdmin from '@/lib/supabaseAdmin'
-import { createHash, randomBytes } from 'crypto'
+import { createHash, randomBytes } from 'node:crypto'
 
 // =============================================================================
 // TYPES
@@ -27,7 +27,7 @@ export interface SSOConfig {
   provider_type: SSOProviderType
   provider_name: string
   is_enabled: boolean
-  
+
   // SAML Configuration
   saml_entity_id?: string
   saml_sso_url?: string
@@ -35,7 +35,7 @@ export interface SSOConfig {
   saml_certificate?: string
   saml_signature_algorithm?: string
   saml_name_id_format?: string
-  
+
   // OIDC Configuration
   oidc_client_id?: string
   oidc_client_secret_encrypted?: string
@@ -44,17 +44,17 @@ export interface SSOConfig {
   oidc_token_url?: string
   oidc_userinfo_url?: string
   oidc_scopes?: string[]
-  
+
   // Domain & Provisioning
   verified_domains: string[]
   auto_provision_users: boolean
   default_role: string
   require_sso: boolean
-  
+
   // Attribute Mapping
   attribute_mapping: Record<string, string>
   group_mapping: Record<string, string>
-  
+
   created_at: string
   updated_at: string
 }
@@ -142,7 +142,7 @@ export async function isSSORquired(email: string): Promise<{
   redirectUrl?: string
 }> {
   const config = await getSSOConfigByDomain(email)
-  
+
   if (!config) {
     return { required: false }
   }
@@ -236,13 +236,13 @@ export async function deleteSSOConfig(
 export function generateSAMLAuthnRequest(config: SSOConfig, callbackUrl: string): string {
   const requestId = `_${randomBytes(16).toString('hex')}`
   const issueInstant = new Date().toISOString()
-  
+
   // Service Provider entity ID (our application)
   const spEntityId = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/sso/metadata`
-  
+
   // Assertion Consumer Service URL
   const acsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback`
-  
+
   // Build AuthnRequest XML
   const authnRequest = `
     <samlp:AuthnRequest
@@ -263,8 +263,8 @@ export function generateSAMLAuthnRequest(config: SSOConfig, callbackUrl: string)
 
   // Encode and build redirect URL
   const encodedRequest = Buffer.from(authnRequest).toString('base64')
-  const relayState = Buffer.from(JSON.stringify({ 
-    callbackUrl, 
+  const relayState = Buffer.from(JSON.stringify({
+    callbackUrl,
     configId: config.id,
     nonce: randomBytes(16).toString('hex')
   })).toString('base64')
@@ -273,10 +273,10 @@ export function generateSAMLAuthnRequest(config: SSOConfig, callbackUrl: string)
   ssoUrl.searchParams.set('SAMLRequest', encodedRequest)
   ssoUrl.searchParams.set('RelayState', relayState)
 
-  logger.info('Generated SAML AuthnRequest', { 
-    configId: config.id, 
+  logger.info('Generated SAML AuthnRequest', {
+    configId: config.id,
     requestId,
-    providerType: config.provider_type 
+    providerType: config.provider_type
   })
 
   return ssoUrl.toString()
@@ -293,15 +293,15 @@ export async function validateSAMLResponse(
   try {
     // Decode the SAML response
     const decoded = Buffer.from(samlResponse, 'base64').toString('utf-8')
-    
+
     // In production, implement proper XML signature validation
     // This is a simplified example - use @node-saml/node-saml for production
-    
+
     // Extract NameID (email)
     const nameIdMatch = decoded.match(/<saml:NameID[^>]*>([^<]+)<\/saml:NameID>/i)
     const emailMatch = decoded.match(/<saml:Attribute Name="email"[^>]*>[\s\S]*?<saml:AttributeValue[^>]*>([^<]+)<\/saml:AttributeValue>/i)
     const nameMatch = decoded.match(/<saml:Attribute Name="(displayName|name)"[^>]*>[\s\S]*?<saml:AttributeValue[^>]*>([^<]+)<\/saml:AttributeValue>/i)
-    
+
     const email = emailMatch?.[1] || nameIdMatch?.[1]
     if (!email) {
       return { success: false, error: 'No email found in SAML response' }
@@ -340,7 +340,7 @@ export async function validateSAMLResponse(
  */
 export function generateOIDCAuthUrl(config: SSOConfig, state: string): string {
   const authUrl = new URL(config.oidc_authorization_url || `${config.oidc_issuer_url}/authorize`)
-  
+
   authUrl.searchParams.set('client_id', config.oidc_client_id!)
   authUrl.searchParams.set('response_type', 'code')
   authUrl.searchParams.set('redirect_uri', `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/sso/callback`)
@@ -361,7 +361,7 @@ export async function exchangeOIDCCode(
 ): Promise<{ success: boolean; tokens?: any; error?: string }> {
   try {
     const tokenUrl = config.oidc_token_url || `${config.oidc_issuer_url}/token`
-    
+
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
@@ -399,7 +399,7 @@ export async function getOIDCUserInfo(
 ): Promise<{ email: string; name?: string; groups?: string[] } | null> {
   try {
     const userInfoUrl = config.oidc_userinfo_url || `${config.oidc_issuer_url}/userinfo`
-    
+
     const response = await fetch(userInfoUrl, {
       headers: {
         Authorization: `Bearer ${accessToken}`
@@ -411,7 +411,7 @@ export async function getOIDCUserInfo(
     }
 
     const userInfo = await response.json()
-    
+
     // Apply attribute mapping
     const mapping = config.attribute_mapping
     return {
@@ -453,7 +453,7 @@ export async function processSSOLogin(
 
     if (existingUser) {
       userId = existingUser.id
-      
+
       // Update user name if provided and different
       if (name && name !== existingUser.name) {
         await supabaseAdmin
@@ -491,12 +491,12 @@ export async function processSSOLogin(
           user_id: userId,
           role: config.default_role
         }, { onConflict: 'organization_id,user_id' })
-        
+
       logger.info('SSO user auto-provisioned', { userId, email, organizationId: config.organization_id })
     } else {
       // User doesn't exist and auto-provision is disabled
       await recordSSOLoginEvent(config, 'login_failure', email, name, groups, ipAddress, userAgent, 'USER_NOT_FOUND', 'User not found and auto-provision disabled')
-      
+
       return {
         success: false,
         error: { code: 'USER_NOT_FOUND', message: 'No account found. Contact your administrator.' }

@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth'
 import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'edge'
