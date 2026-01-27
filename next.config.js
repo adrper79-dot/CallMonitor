@@ -34,33 +34,21 @@ const nextConfig = {
         ...config.resolve.alias,
         'node:child_process': false,
         'child_process': false,
-        'crypto': 'node:crypto',
-        'stream': 'node:stream',
-        'buffer': 'node:buffer',
-        'util': 'node:util',
-        'http': 'node:http',
-        'https': 'node:https',
-        'querystring': 'node:querystring',
-        'url': 'node:url',
-        'zlib': 'node:zlib',
-        'net': 'node:net',
-        'tls': 'node:tls',
       }
 
-      // Explicitly externalize the node: protocols so strict requires work in Cloudflare
-      config.externals.push(
-        'node:crypto',
-        'node:stream',
-        'node:buffer',
-        'node:util',
-        'node:http',
-        'node:https',
-        'node:querystring',
-        'node:url',
-        'node:zlib',
-        'node:net',
-        'node:tls'
-      )
+      // Explicitly externalize standard Node.js modules to use Cloudflare's nodejs_compat
+      // We map both bare names ('crypto') and prefixed names ('node:crypto') to the 'node:' prefixed require
+      const nodeModules = ['crypto', 'stream', 'buffer', 'util', 'http', 'https', 'querystring', 'url', 'zlib', 'net', 'tls', 'events', 'path', 'fs'];
+      const edgeExternals = {};
+
+      nodeModules.forEach(mod => {
+        // Force all imports to use the "node:" prefix in the final bundle
+        // The quotes are essential for Webpack to generate valid CommonJS require("node:...") syntax
+        edgeExternals[mod] = `commonjs "node:${mod}"`;
+        edgeExternals[`node:${mod}`] = `commonjs "node:${mod}"`;
+      });
+
+      config.externals.push(edgeExternals);
 
       config.externals.push('nodemailer', 'next-auth/providers/email', 'ws')
     }
