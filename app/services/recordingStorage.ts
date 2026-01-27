@@ -1,6 +1,5 @@
 import { logger } from '@/lib/logger'
 import { query } from '@/lib/pgClient'
-import { getRequestContext } from '@cloudflare/next-on-pages'
 
 /**
  * Recording Storage Service - Downloads recordings from SignalWire and uploads to Cloudflare R2.
@@ -47,13 +46,13 @@ export async function storeRecording(
 
     // Upload to Cloudflare R2
     try {
-      const ctx = getRequestContext()
-      if (!ctx?.env?.RECORDINGS_BUCKET) {
+      const recordingsBucket = (globalThis as any).RECORDINGS_BUCKET
+      if (!recordingsBucket) {
         throw new Error('R2 Binding RECORDINGS_BUCKET not found')
       }
 
       logger.info('recordingStorage: uploading to R2', { storagePath })
-      await ctx.env.RECORDINGS_BUCKET.put(storagePath, audioBufferNode, {
+      await recordingsBucket.put(storagePath, audioBufferNode, {
         httpMetadata: { contentType }
       })
 

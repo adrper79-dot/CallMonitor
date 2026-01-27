@@ -1,4 +1,3 @@
-import { getRequestContext } from '@cloudflare/next-on-pages'
 import { logger } from '@/lib/logger'
 
 export interface AIInferenceParams {
@@ -8,12 +7,12 @@ export interface AIInferenceParams {
 
 export async function runAIInference(params: AIInferenceParams) {
     try {
-        const ctx = getRequestContext()
-        if (!ctx?.env?.AI) {
+        const ai = (globalThis as any).AI
+        if (!ai) {
             throw new Error('Cloudflare AI binding not found')
         }
 
-        const response = await ctx.env.AI.run(params.model, params.inputs)
+        const response = await ai.run(params.model, params.inputs)
         return response
     } catch (err: any) {
         logger.error('aiService: inference failed', err)

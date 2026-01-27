@@ -1,16 +1,16 @@
 import { Pool } from 'pg'
-import { getRequestContext } from '@cloudflare/next-on-pages'
 
 const getConnectionString = () => {
   // Check for Cloudflare Hyperdrive binding first
   try {
-    const ctx = getRequestContext()
-    if (ctx?.env?.HYPERDRIVE?.connectionString) {
+    // In OpenNext v3, bindings are available through globalThis
+    const hyperdrive = (globalThis as any).HYPERDRIVE
+    if (hyperdrive?.connectionString) {
       console.log('Using Hyperdrive connection')
-      return ctx.env.HYPERDRIVE.connectionString
+      return hyperdrive.connectionString
     }
   } catch (e) {
-    // Context might not be available during build or local dev without next-on-pages
+    // Context might not be available during build or local dev
   }
 
   return process.env.NEON_PG_CONN || process.env.PG_CONN || process.env.DATABASE_URL
