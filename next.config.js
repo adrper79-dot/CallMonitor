@@ -16,13 +16,14 @@ const nextConfig = {
   },
   poweredByHeader: false,
   webpack: (config, { isServer, nextRuntime }) => {
-    // Fixes npm packages that depend on `crypto` module
-    if (nextRuntime === 'edge' || isServer) {
+    // Fixes npm packages that depend on Node.js modules
+    if (isServer) {
       config.resolve.alias = {
         ...config.resolve.alias,
         crypto: 'node:crypto',
         stream: 'node:stream',
         buffer: 'node:buffer',
+        util: 'node:util',
       }
     }
     return config
