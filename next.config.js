@@ -30,6 +30,11 @@ const nextConfig = {
       }
     }
     if (nextRuntime === 'edge') {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:child_process': false,
+        'child_process': false,
+      }
       config.externals.push({
         'crypto': 'node:crypto',
         'stream': 'node:stream',
@@ -43,6 +48,15 @@ const nextConfig = {
         'net': 'node:net',
         'tls': 'node:tls',
       })
+
+      // Handle node: protocol explicitly for other modules
+      config.externals.push(function ({ context, request }, callback) {
+        if (/^node:/.test(request)) {
+          return callback(null, 'commonjs ' + request);
+        }
+        callback();
+      });
+
       config.externals.push('nodemailer', 'next-auth/providers/email', 'ws')
     }
     return config
