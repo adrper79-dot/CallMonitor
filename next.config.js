@@ -15,6 +15,18 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   poweredByHeader: false,
+  webpack: (config, { isServer, nextRuntime }) => {
+    // Fixes npm packages that depend on `crypto` module
+    if (nextRuntime === 'edge' || isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        crypto: 'node:crypto',
+        stream: 'node:stream',
+        buffer: 'node:buffer',
+      }
+    }
+    return config
+  },
 
   // Security headers
   async headers() {
