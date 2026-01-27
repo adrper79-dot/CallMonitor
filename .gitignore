@@ -11,7 +11,7 @@ ARCH_DOCS/
 .next/
 .next/*
 out/
-
+.open-next/
 
 # Build artifacts
 *.tsbuildinfo

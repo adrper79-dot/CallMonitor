@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run pages:build
+        run: npm run build:cloudflare
         env:
           # Add any build-time environment variables here if needed
           # Most vars should be in Cloudflare Pages dashboard, but some might be needed for the build itself
@@ -38,4 +38,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .vercel/output/static --project-name=wordisbond
+          command: pages deploy .open-next/assets --project-name=wordisbond

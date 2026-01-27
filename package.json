@@ -9,6 +9,7 @@
     "start": "next start",
     "vercel-build": "next build",
     "pages:build": "npx @cloudflare/next-on-pages@1",
+    "build:cloudflare": "npx open-next build",
     "preview": "npm run pages:build && wrangler pages dev .vercel/output/static"
   },
   "dependencies": {
