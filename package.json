@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "vercel-build": "next build",
+    "pages:build": "npm run build:cloudflare",
     "build:cloudflare": "npx open-next build",
     "preview": "npm run build:cloudflare && wrangler pages dev .open-next/assets"
   },
