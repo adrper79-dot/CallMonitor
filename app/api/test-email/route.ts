@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/test-email - Send a test email to verify Resend is working

@@ -16,7 +16,7 @@ import { Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // Validation schemas
 const recordFailureSchema = z.object({

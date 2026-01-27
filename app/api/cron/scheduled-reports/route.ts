@@ -23,7 +23,7 @@ import { generateCallVolumeReport, generateCampaignPerformanceReport } from '@/l
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/cron/scheduled-reports

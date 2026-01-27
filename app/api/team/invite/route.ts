@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * POST /api/team/invite - Send team invitation email

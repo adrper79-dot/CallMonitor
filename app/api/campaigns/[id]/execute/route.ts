@@ -17,7 +17,7 @@ import { logger } from '@/lib/logger'
 import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * POST /api/campaigns/[id]/execute

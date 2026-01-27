@@ -2,48 +2,8 @@
   "issues": {
     "CRITICAL": [
       {
-        "File": "app\\actions\\ai\\triggerTranscription.ts",
-        "Line": 267,
-        "Table": "ai_runs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\actions\\calls\\startCallHandler.ts",
-        "Line": 461,
-        "Table": "calls",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\actions\\calls\\startCallHandler.ts",
-        "Line": 599,
-        "Table": "ai_runs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\actions\\calls\\startCallHandler.ts",
-        "Line": 632,
-        "Table": "ai_runs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\actions\\calls\\startCallHandler.ts",
-        "Line": 660,
-        "Table": "ai_runs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
         "File": "app\\api\\ai-runs\\[id]\\retry\\route.ts",
-        "Line": 168,
+        "Line": 169,
         "Table": "ai_runs",
         "Issue": "Column not found",
         "Column": "error",
@@ -51,7 +11,7 @@
       },
       {
         "File": "app\\api\\ai-runs\\[id]\\retry\\route.ts",
-        "Line": 181,
+        "Line": 182,
         "Table": "ai_runs",
         "Issue": "Column not found",
         "Column": "assemblyai_status",
@@ -59,55 +19,15 @@
       },
       {
         "File": "app\\api\\audio\\transcribe\\route.ts",
-        "Line": 74,
+        "Line": 75,
         "Table": "ai_runs",
         "Issue": "Column not found",
         "Column": "assemblyai_status",
         "Fix": "Remove column"
       },
       {
-        "File": "app\\api\\auth\\signup\\route.ts",
-        "Line": 170,
-        "Table": "organizations",
-        "Issue": "Column not found",
-        "Column": "email",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\signup\\route.ts",
-        "Line": 170,
-        "Table": "organizations",
-        "Issue": "Column not found",
-        "Column": "organization_id",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\signup\\route.ts",
-        "Line": 170,
-        "Table": "organizations",
-        "Issue": "Column not found",
-        "Column": "role",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\signup\\route.ts",
-        "Line": 170,
-        "Table": "organizations",
-        "Issue": "Column not found",
-        "Column": "is_admin",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\signup\\route.ts",
-        "Line": 170,
-        "Table": "organizations",
-        "Issue": "Missing NOT NULL column",
-        "Column": "name",
-        "Fix": "Add column"
-      },
-      {
         "File": "app\\api\\auth\\sso\\callback\\route.ts",
-        "Line": 245,
+        "Line": 246,
         "Table": "audit_logs",
         "Issue": "Column not found",
         "Column": "createdAt",
@@ -115,103 +35,7 @@
       },
       {
         "File": "app\\api\\auth\\sso\\callback\\route.ts",
-        "Line": 245,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 140,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "callback_url",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 140,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "expires",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 140,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 238,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "provider_name",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 238,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Column not found",
-        "Column": "user_id",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Column not found",
-        "Column": "resource_type",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Column not found",
-        "Column": "resource_id",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Column not found",
-        "Column": "action",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "provider_type",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 300,
-        "Table": "org_sso_configs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "provider_name",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\auth\\sso\\route.ts",
-        "Line": 311,
+        "Line": 246,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -219,7 +43,7 @@
       },
       {
         "File": "app\\api\\bookings\\[id]\\route.ts",
-        "Line": 141,
+        "Line": 142,
         "Table": "booking_events",
         "Issue": "Missing NOT NULL column",
         "Column": "organization_id",
@@ -227,7 +51,7 @@
       },
       {
         "File": "app\\api\\bookings\\[id]\\route.ts",
-        "Line": 141,
+        "Line": 142,
         "Table": "booking_events",
         "Issue": "Missing NOT NULL column",
         "Column": "title",
@@ -235,7 +59,7 @@
       },
       {
         "File": "app\\api\\bookings\\[id]\\route.ts",
-        "Line": 141,
+        "Line": 142,
         "Table": "booking_events",
         "Issue": "Missing NOT NULL column",
         "Column": "start_time",
@@ -243,7 +67,7 @@
       },
       {
         "File": "app\\api\\bookings\\[id]\\route.ts",
-        "Line": 141,
+        "Line": 142,
         "Table": "booking_events",
         "Issue": "Missing NOT NULL column",
         "Column": "end_time",
@@ -251,7 +75,7 @@
       },
       {
         "File": "app\\api\\bookings\\[id]\\route.ts",
-        "Line": 141,
+        "Line": 142,
         "Table": "booking_events",
         "Issue": "Missing NOT NULL column",
         "Column": "attendee_phone",
@@ -259,7 +83,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 43,
+        "Line": 44,
         "Table": "caller_id_numbers",
         "Issue": "Missing NOT NULL column",
         "Column": "phone_number",
@@ -267,7 +91,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 47,
+        "Line": 48,
         "Table": "caller_id_numbers",
         "Issue": "Missing NOT NULL column",
         "Column": "phone_number",
@@ -275,7 +99,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\export\\route.ts",
-        "Line": 395,
+        "Line": 396,
         "Table": "call_export_bundles",
         "Issue": "Column not found",
         "Column": "transcript_count",
@@ -283,7 +107,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\export\\route.ts",
-        "Line": 395,
+        "Line": 396,
         "Table": "call_export_bundles",
         "Issue": "Column not found",
         "Column": "translation_count",
@@ -291,7 +115,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\export\\route.ts",
-        "Line": 395,
+        "Line": 396,
         "Table": "call_export_bundles",
         "Issue": "Column not found",
         "Column": "score_count",
@@ -299,7 +123,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\export\\route.ts",
-        "Line": 395,
+        "Line": 396,
         "Table": "call_export_bundles",
         "Issue": "Column not found",
         "Column": "manifest_count",
@@ -307,7 +131,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\export\\route.ts",
-        "Line": 395,
+        "Line": 396,
         "Table": "call_export_bundles",
         "Issue": "Column not found",
         "Column": "audit_count",
@@ -315,7 +139,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 110,
+        "Line": 111,
         "Table": "call_outcomes",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -323,7 +147,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 161,
+        "Line": 162,
         "Table": "call_outcome_history",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -331,7 +155,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 308,
+        "Line": 309,
         "Table": "call_outcomes",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -339,7 +163,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 322,
+        "Line": 323,
         "Table": "call_outcomes",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -347,7 +171,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 501,
+        "Line": 502,
         "Table": "call_outcomes",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -355,7 +179,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\outcome\\route.ts",
-        "Line": 536,
+        "Line": 538,
         "Table": "call_outcomes",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -363,7 +187,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 252,
+        "Line": 253,
         "Table": "ai_summaries",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -371,7 +195,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 198,
+        "Line": 199,
         "Table": "campaign_calls",
         "Issue": "Missing NOT NULL column",
         "Column": "campaign_id",
@@ -379,7 +203,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 198,
+        "Line": 199,
         "Table": "campaign_calls",
         "Issue": "Missing NOT NULL column",
         "Column": "target_phone",
@@ -387,7 +211,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "campaign_id",
@@ -395,7 +219,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "user_id",
@@ -403,7 +227,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "action",
@@ -411,7 +235,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "changes",
@@ -419,7 +243,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Missing NOT NULL column",
         "Column": "organization_id",
@@ -427,7 +251,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Missing NOT NULL column",
         "Column": "name",
@@ -435,7 +259,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Missing NOT NULL column",
         "Column": "call_flow_type",
@@ -443,7 +267,7 @@
       },
       {
         "File": "app\\api\\campaigns\\route.ts",
-        "Line": 204,
+        "Line": 205,
         "Table": "campaigns",
         "Issue": "Missing NOT NULL column",
         "Column": "created_by",
@@ -451,23 +275,15 @@
       },
       {
         "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
-        "Line": 108,
+        "Line": 109,
         "Table": "campaign_audit_log",
         "Issue": "Column not found",
         "Column": "pending_calls",
         "Fix": "Remove column"
       },
       {
-        "File": "app\\api\\recordings\\[id]\\route.ts",
-        "Line": 32,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
         "File": "app\\api\\reliability\\webhooks\\route.ts",
-        "Line": 77,
+        "Line": 79,
         "Table": "reliability_metrics",
         "Issue": "Table not found in schema",
         "Column": "-",
@@ -475,7 +291,7 @@
       },
       {
         "File": "app\\api\\reliability\\webhooks\\route.ts",
-        "Line": 260,
+        "Line": 262,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -483,7 +299,7 @@
       },
       {
         "File": "app\\api\\reports\\route.ts",
-        "Line": 155,
+        "Line": 156,
         "Table": "generated_reports",
         "Issue": "Missing NOT NULL column",
         "Column": "template_id",
@@ -491,7 +307,7 @@
       },
       {
         "File": "app\\api\\reports\\route.ts",
-        "Line": 155,
+        "Line": 156,
         "Table": "generated_reports",
         "Issue": "Missing NOT NULL column",
         "Column": "name",
@@ -499,7 +315,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 136,
+        "Line": 138,
         "Table": "audit_logs",
         "Issue": "Column not found",
         "Column": "applies_to_all",
@@ -507,7 +323,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 136,
+        "Line": 138,
         "Table": "audit_logs",
         "Issue": "Column not found",
         "Column": "call_count",
@@ -515,7 +331,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 136,
+        "Line": 138,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -523,7 +339,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "user_id",
@@ -531,7 +347,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -539,7 +355,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -547,7 +363,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "action",
@@ -555,7 +371,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "before",
@@ -563,7 +379,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "after",
@@ -571,7 +387,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -579,7 +395,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 239,
+        "Line": 241,
         "Table": "calls",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -587,7 +403,7 @@
       },
       {
         "File": "app\\api\\retention\\legal-holds\\route.ts",
-        "Line": 250,
+        "Line": 252,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -595,7 +411,7 @@
       },
       {
         "File": "app\\api\\retention\\route.ts",
-        "Line": 114,
+        "Line": 115,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -603,7 +419,7 @@
       },
       {
         "File": "app\\api\\scorecards\\route.ts",
-        "Line": 52,
+        "Line": 53,
         "Table": "scorecards",
         "Issue": "Missing NOT NULL column",
         "Column": "name",
@@ -611,7 +427,7 @@
       },
       {
         "File": "app\\api\\scorecards\\route.ts",
-        "Line": 52,
+        "Line": 53,
         "Table": "scorecards",
         "Issue": "Missing NOT NULL column",
         "Column": "structure",
@@ -619,7 +435,7 @@
       },
       {
         "File": "app\\api\\survey\\ai-results\\route.ts",
-        "Line": 63,
+        "Line": 64,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "call_id",
@@ -627,7 +443,7 @@
       },
       {
         "File": "app\\api\\survey\\ai-results\\route.ts",
-        "Line": 63,
+        "Line": 64,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "model",
@@ -635,7 +451,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -643,7 +459,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -651,7 +467,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "action",
@@ -659,7 +475,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -667,7 +483,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -675,7 +491,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "before",
@@ -683,7 +499,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 92,
+        "Line": 93,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "after",
@@ -691,7 +507,15 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\team\\members\\route.ts",
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "user_id",
@@ -699,7 +523,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -707,7 +531,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -715,7 +539,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "action",
@@ -723,7 +547,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -731,7 +555,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -739,7 +563,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "before",
@@ -747,7 +571,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Column not found",
         "Column": "after",
@@ -755,7 +579,15 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "created_at",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\team\\members\\route.ts",
+        "Line": 106,
         "Table": "users",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -763,7 +595,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 105,
+        "Line": 106,
         "Table": "users",
         "Issue": "Missing NOT NULL column",
         "Column": "email",
@@ -771,7 +603,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 111,
+        "Line": 112,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -779,7 +611,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -787,7 +619,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -795,7 +627,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "action",
@@ -803,7 +635,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -811,7 +643,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -819,7 +651,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "before",
@@ -827,7 +659,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 177,
+        "Line": 178,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "after",
@@ -835,7 +667,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 188,
+        "Line": 189,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -843,15 +675,7 @@
       },
       {
         "File": "app\\api\\test\\e2e\\route.ts",
-        "Line": 172,
-        "Table": "voice_configs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\test\\e2e\\route.ts",
-        "Line": 296,
+        "Line": 238,
         "Table": "voice_targets",
         "Issue": "Missing NOT NULL column",
         "Column": "organization_id",
@@ -859,319 +683,15 @@
       },
       {
         "File": "app\\api\\test\\e2e\\route.ts",
-        "Line": 335,
+        "Line": 277,
         "Table": "voice_configs",
         "Issue": "Missing NOT NULL column",
         "Column": "organization_id",
         "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 65,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 65,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "call_sid",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 65,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "recording_url",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 65,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "tool_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 71,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 71,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "call_sid",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 71,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "recording_url",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\tts\\generate\\route.ts",
-        "Line": 71,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "tool_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\voice\\config\\route.ts",
-        "Line": 234,
-        "Table": "voice_configs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\voice\\config\\route.ts",
-        "Line": 248,
-        "Table": "voice_configs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 253,
-        "Table": "organizations",
-        "Issue": "Column not found",
-        "Column": "description",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 313,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 313,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "call_sid",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 313,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "recording_url",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 313,
-        "Table": "recordings",
-        "Issue": "Missing NOT NULL column",
-        "Column": "tool_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\signalwire\\route.ts",
-        "Line": 477,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "status_code",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\subscriptions\\[id]\\route.ts",
-        "Line": 338,
-        "Table": "webhook_subscriptions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "organization_id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\subscriptions\\[id]\\route.ts",
-        "Line": 338,
-        "Table": "webhook_subscriptions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "name",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\subscriptions\\[id]\\route.ts",
-        "Line": 338,
-        "Table": "webhook_subscriptions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "url",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\subscriptions\\[id]\\route.ts",
-        "Line": 338,
-        "Table": "webhook_subscriptions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "secret",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\subscriptions\\[id]\\route.ts",
-        "Line": 338,
-        "Table": "webhook_subscriptions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "events",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 163,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "total_questions",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 163,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "questions_answered",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 163,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "call_sid",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 163,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "from_number",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 163,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "to_number",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "responses",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "question",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "digit",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "value",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "timestamp",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "total_questions",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "questions_answered",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "call_sid",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "from_number",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\survey\\route.ts",
-        "Line": 247,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "to_number",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\[id]\\test\\route.ts",
-        "Line": 78,
-        "Table": "webhook_subscriptions",
-        "Issue": "Column not found",
-        "Column": "[success ? success_count",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\[id]\\test\\route.ts",
-        "Line": 78,
-        "Table": "webhook_subscriptions",
-        "Issue": "Column not found",
-        "Column": "last_triggered_at",
-        "Fix": "Remove column"
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -1179,7 +699,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -1187,7 +707,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "action",
@@ -1195,7 +715,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -1203,7 +723,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -1211,7 +731,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "after",
@@ -1219,7 +739,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "session_id",
@@ -1227,7 +747,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 125,
+        "Line": 137,
         "Table": "webrtc_sessions",
         "Issue": "Missing NOT NULL column",
         "Column": "session_token",
@@ -1235,7 +755,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 134,
+        "Line": 146,
         "Table": "audit_logs",
         "Issue": "Column not found",
         "Column": "session_id",
@@ -1243,7 +763,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 134,
+        "Line": 146,
         "Table": "audit_logs",
         "Issue": "Column not found",
         "Column": "call_id",
@@ -1251,7 +771,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 134,
+        "Line": 146,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -1259,7 +779,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "user_id",
@@ -1267,7 +787,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -1275,7 +795,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -1283,7 +803,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "action",
@@ -1291,7 +811,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -1299,7 +819,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -1307,7 +827,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "before",
@@ -1315,7 +835,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "after",
@@ -1323,7 +843,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -1331,7 +851,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 212,
+        "Line": 224,
         "Table": "calls",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -1339,7 +859,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "resource_type",
@@ -1347,7 +867,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "resource_id",
@@ -1355,7 +875,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "action",
@@ -1363,7 +883,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "actor_type",
@@ -1371,7 +891,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "actor_label",
@@ -1379,7 +899,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "before",
@@ -1387,7 +907,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "after",
@@ -1395,7 +915,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 226,
+        "Line": 238,
         "Table": "webrtc_sessions",
         "Issue": "Missing NOT NULL column",
         "Column": "session_token",
@@ -1403,7 +923,7 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 235,
+        "Line": 247,
         "Table": "audit_logs",
         "Issue": "Missing NOT NULL column",
         "Column": "id",
@@ -1411,274 +931,194 @@
       },
       {
         "File": "app\\api\\webrpc\\route.ts",
-        "Line": 444,
+        "Line": 456,
         "Table": "webrtc_sessions",
         "Issue": "Column not found",
         "Column": "disconnected_at",
         "Fix": "Remove column"
       },
       {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "resource_type",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "resource_id",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "action",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "actor_type",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "actor_label",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "before",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "source",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "after",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Column not found",
-        "Column": "reason",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 267,
-        "Table": "webrtc_sessions",
-        "Issue": "Missing NOT NULL column",
-        "Column": "session_token",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 273,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "source",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 273,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "reason",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 273,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 346,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "status",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 346,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "source",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 346,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "user_agent",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 346,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "ip_address",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 346,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 497,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "source",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webrtc\\session\\route.ts",
-        "Line": 497,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "app\\services\\translation.ts",
-        "Line": 185,
-        "Table": "recordings",
-        "Issue": "Column not found",
-        "Column": "completed_at",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "// Use event_type as actor label\r\n        before",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "status",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "metadata",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "error_message",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "ip_address",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Column not found",
-        "Column": "user_agent",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "lib\\audit\\auditLogger.ts",
-        "Line": 76,
-        "Table": "audit_logs",
-        "Issue": "Missing NOT NULL column",
-        "Column": "id",
-        "Fix": "Add column"
-      },
-      {
-        "File": "lib\\auth.ts",
-        "Line": 386,
-        "Table": "organizations",
-        "Issue": "Missing NOT NULL column",
-        "Column": "name",
-        "Fix": "Add column"
-      },
-      {
-        "File": "lib\\auth.ts",
-        "Line": 402,
+        "File": "app\\invite\\[token]\\page.tsx",
+        "Line": 119,
         "Table": "users",
-        "Issue": "Missing NOT NULL column",
-        "Column": "email",
-        "Fix": "Add column"
-      },
-      {
-        "File": "lib\\auth.ts",
-        "Line": 417,
-        "Table": "org_members",
         "Issue": "Column not found",
-        "Column": "// Use generated UUID\r\n                    role",
+        "Column": "organization_id",
         "Fix": "Remove column"
       },
       {
-        "File": "lib\\monitoring\\auditLogMonitor.ts",
-        "Line": 250,
-        "Table": "audit_logs",
+        "File": "app\\invite\\[token]\\page.tsx",
+        "Line": 119,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "role",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\rti\\digest.ts",
+        "Line": 58,
+        "Table": "digests",
         "Issue": "Missing NOT NULL column",
-        "Column": "id",
+        "Column": "period_end",
         "Fix": "Add column"
       },
       {
-        "File": "lib\\monitoring\\auditLogMonitor.ts",
-        "Line": 276,
-        "Table": "audit_logs",
+        "File": "lib\\rti\\digest.ts",
+        "Line": 58,
+        "Table": "digests",
         "Issue": "Missing NOT NULL column",
-        "Column": "id",
+        "Column": "summary_text",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\digest.ts",
+        "Line": 77,
+        "Table": "digests",
+        "Issue": "Missing NOT NULL column",
+        "Column": "period_end",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\digest.ts",
+        "Line": 77,
+        "Table": "digests",
+        "Issue": "Missing NOT NULL column",
+        "Column": "summary_text",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 48,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "organization_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 48,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "attention_event_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 48,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "decision",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 48,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "reason",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 48,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "produced_by",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 70,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "organization_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 70,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "attention_event_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 70,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "decision",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 70,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "reason",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\rti\\policyEngine.ts",
+        "Line": 70,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "produced_by",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 363,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "decision",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 363,
+        "Table": "attention_decisions",
+        "Issue": "Missing NOT NULL column",
+        "Column": "reason",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 489,
+        "Table": "digests",
+        "Issue": "Missing NOT NULL column",
+        "Column": "period_end",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 489,
+        "Table": "digests",
+        "Issue": "Missing NOT NULL column",
+        "Column": "summary_text",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 517,
+        "Table": "digest_items",
+        "Issue": "Missing NOT NULL column",
+        "Column": "digest_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 517,
+        "Table": "digest_items",
+        "Issue": "Missing NOT NULL column",
+        "Column": "attention_decision_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\attentionService.ts",
+        "Line": 517,
+        "Table": "digest_items",
+        "Issue": "Missing NOT NULL column",
+        "Column": "item_order",
         "Fix": "Add column"
       },
       {
@@ -1823,6 +1263,118 @@
         "Table": "campaign_audit_log",
         "Issue": "Missing NOT NULL column",
         "Column": "action",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\crmService.ts",
+        "Line": 314,
+        "Table": "oauth_tokens",
+        "Issue": "Column not found",
+        "Column": "status",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\crmService.ts",
+        "Line": 314,
+        "Table": "oauth_tokens",
+        "Issue": "Column not found",
+        "Column": "disconnected_at",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 128,
+        "Table": "external_entity_observations",
+        "Issue": "Missing NOT NULL column",
+        "Column": "organization_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 128,
+        "Table": "external_entity_observations",
+        "Issue": "Missing NOT NULL column",
+        "Column": "identifier_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 128,
+        "Table": "external_entity_observations",
+        "Issue": "Missing NOT NULL column",
+        "Column": "source_type",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 128,
+        "Table": "external_entity_observations",
+        "Issue": "Missing NOT NULL column",
+        "Column": "source_id",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Column not found",
+        "Column": "link_type",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Column not found",
+        "Column": "target_entity_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Column not found",
+        "Column": "identifier_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Column not found",
+        "Column": "created_by",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Column not found",
+        "Column": "reason",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Missing NOT NULL column",
+        "Column": "identifier_type",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Missing NOT NULL column",
+        "Column": "identifier_value",
+        "Fix": "Add column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 224,
+        "Table": "external_entity_identifiers",
+        "Issue": "Missing NOT NULL column",
+        "Column": "identifier_normalized",
         "Fix": "Add column"
       },
       {
@@ -1837,7 +1389,7 @@
     "HIGH": [
       {
         "File": "app\\api\\ai-config\\route.ts",
-        "Line": 39,
+        "Line": 40,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "name",
@@ -1845,7 +1397,7 @@
       },
       {
         "File": "app\\api\\ai-config\\route.ts",
-        "Line": 39,
+        "Line": 40,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "plan)",
@@ -1853,7 +1405,7 @@
       },
       {
         "File": "app\\api\\ai-config\\route.ts",
-        "Line": 130,
+        "Line": 131,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "name",
@@ -1861,7 +1413,7 @@
       },
       {
         "File": "app\\api\\ai-config\\route.ts",
-        "Line": 130,
+        "Line": 131,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "plan)",
@@ -1869,7 +1421,7 @@
       },
       {
         "File": "app\\api\\analytics\\export\\route.ts",
-        "Line": 55,
+        "Line": 56,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -1877,7 +1429,7 @@
       },
       {
         "File": "app\\api\\analytics\\export\\route.ts",
-        "Line": 55,
+        "Line": 56,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "duration_seconds",
@@ -1885,7 +1437,7 @@
       },
       {
         "File": "app\\api\\analytics\\export\\route.ts",
-        "Line": 55,
+        "Line": 56,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "to_number",
@@ -1893,7 +1445,7 @@
       },
       {
         "File": "app\\api\\analytics\\export\\route.ts",
-        "Line": 55,
+        "Line": 56,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "from_number",
@@ -1901,7 +1453,7 @@
       },
       {
         "File": "app\\api\\analytics\\export\\route.ts",
-        "Line": 68,
+        "Line": 69,
         "Table": "ai_runs",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -1909,7 +1461,7 @@
       },
       {
         "File": "app\\api\\analytics\\performance\\route.ts",
-        "Line": 43,
+        "Line": 64,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "call_id",
@@ -1917,7 +1469,7 @@
       },
       {
         "File": "app\\api\\analytics\\performance\\route.ts",
-        "Line": 43,
+        "Line": 64,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "transcript_json",
@@ -1925,7 +1477,7 @@
       },
       {
         "File": "app\\api\\analytics\\performance\\route.ts",
-        "Line": 43,
+        "Line": 64,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -1933,7 +1485,7 @@
       },
       {
         "File": "app\\api\\analytics\\surveys\\route.ts",
-        "Line": 106,
+        "Line": 107,
         "Table": "ai_runs",
         "Issue": "Column not found",
         "Column": "created_at",
@@ -1941,7 +1493,7 @@
       },
       {
         "File": "app\\api\\billing\\checkout\\route.ts",
-        "Line": 45,
+        "Line": 46,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "name)",
@@ -1949,7 +1501,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "phone_number",
@@ -1957,7 +1509,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "display_name",
@@ -1965,7 +1517,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "is_verified",
@@ -1973,7 +1525,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "is_default",
@@ -1981,7 +1533,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "verified_at",
@@ -1989,7 +1541,7 @@
       },
       {
         "File": "app\\api\\caller-id\\verify\\route.ts",
-        "Line": 164,
+        "Line": 165,
         "Table": "voice_configs",
         "Issue": "Column not found",
         "Column": "use_count",
@@ -1997,15 +1549,23 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\confirmations\\route.ts",
-        "Line": 114,
+        "Line": 115,
         "Table": "call_confirmations",
         "Issue": "Column not found",
         "Column": "captured_by_user",
         "Fix": "Remove column"
       },
       {
+        "File": "app\\api\\calls\\[id]\\disposition\\route.ts",
+        "Line": 68,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
         "File": "app\\api\\calls\\[id]\\notes\\route.ts",
-        "Line": 85,
+        "Line": 86,
         "Table": "call_notes",
         "Issue": "Column not found",
         "Column": "users",
@@ -2013,7 +1573,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "direction",
@@ -2021,7 +1581,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "ai_summary",
@@ -2029,7 +1589,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "transcription",
@@ -2037,7 +1597,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "caller_phone_number",
@@ -2045,7 +1605,7 @@
       },
       {
         "File": "app\\api\\calls\\[id]\\summary\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "calls",
         "Issue": "Column not found",
         "Column": "destination_phone_number",
@@ -2053,7 +1613,23 @@
       },
       {
         "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
-        "Line": 80,
+        "Line": 41,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
+        "Line": 41,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "role",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
+        "Line": 81,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "target_phone",
@@ -2061,7 +1637,7 @@
       },
       {
         "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "target_metadata",
@@ -2069,7 +1645,7 @@
       },
       {
         "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "attempt_number",
@@ -2077,23 +1653,71 @@
       },
       {
         "File": "app\\api\\campaigns\\[id]\\execute\\route.ts",
-        "Line": 80,
+        "Line": 81,
         "Table": "campaigns",
         "Issue": "Column not found",
         "Column": "max_attempts",
         "Fix": "Remove column"
       },
       {
-        "File": "app\\api\\features\\route.ts",
-        "Line": 53,
-        "Table": "global_feature_flags",
+        "File": "app\\api\\campaigns\\[id]\\route.ts",
+        "Line": 42,
+        "Table": "users",
         "Issue": "Column not found",
-        "Column": "disabled_reason",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\route.ts",
+        "Line": 120,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\route.ts",
+        "Line": 120,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "role",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\route.ts",
+        "Line": 234,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\route.ts",
+        "Line": 234,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "role",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\campaigns\\[id]\\stats\\route.ts",
+        "Line": 35,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\debug\\translation-check\\route.ts",
+        "Line": 26,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
         "Fix": "Remove column"
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "name",
@@ -2101,7 +1725,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "plan",
@@ -2109,7 +1733,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "plan_status",
@@ -2117,7 +1741,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "stripe_customer_id",
@@ -2125,7 +1749,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "stripe_subscription_id",
@@ -2133,7 +1757,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 32,
+        "Line": 33,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "created_at\r\n        )",
@@ -2141,7 +1765,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 64,
+        "Line": 65,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "status",
@@ -2149,7 +1773,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 64,
+        "Line": 65,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "plan",
@@ -2157,7 +1781,7 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 64,
+        "Line": 65,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "current_period_end",
@@ -2165,15 +1789,63 @@
       },
       {
         "File": "app\\api\\organizations\\current\\route.ts",
-        "Line": 64,
+        "Line": 65,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "cancel_at_period_end",
         "Fix": "Remove column"
       },
       {
+        "File": "app\\api\\reports\\route.ts",
+        "Line": 46,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\reports\\route.ts",
+        "Line": 100,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\reports\\route.ts",
+        "Line": 100,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "role",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\reports\\schedules\\[id]\\route.ts",
+        "Line": 34,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\reports\\schedules\\[id]\\route.ts",
+        "Line": 109,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "app\\api\\reports\\[id]\\export\\route.ts",
+        "Line": 39,
+        "Table": "users",
+        "Issue": "Column not found",
+        "Column": "organization_id",
+        "Fix": "Remove column"
+      },
+      {
         "File": "app\\api\\team\\invite\\route.ts",
-        "Line": 77,
+        "Line": 78,
         "Table": "team_invites",
         "Issue": "Column not found",
         "Column": "name",
@@ -2181,7 +1853,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 19,
+        "Line": 20,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "user",
@@ -2189,7 +1861,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 19,
+        "Line": 20,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "email",
@@ -2197,7 +1869,7 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 19,
+        "Line": 20,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "phone",
@@ -2205,82 +1877,18 @@
       },
       {
         "File": "app\\api\\team\\members\\route.ts",
-        "Line": 19,
+        "Line": 20,
         "Table": "org_members",
         "Issue": "Column not found",
         "Column": "created_at)",
         "Fix": "Remove column"
       },
       {
-        "File": "app\\api\\test\\e2e\\route.ts",
-        "Line": 182,
-        "Table": "voice_configs",
+        "File": "app\\dashboard\\page.tsx",
+        "Line": 27,
+        "Table": "users",
         "Issue": "Column not found",
-        "Column": "user_id",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\voice\\script\\route.ts",
-        "Line": 88,
-        "Table": "calls",
-        "Issue": "Column not found",
-        "Column": "to_number",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\assemblyai\\route.ts",
-        "Line": 434,
-        "Table": "calls",
-        "Issue": "Column not found",
-        "Column": "flow_type",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\assemblyai\\route.ts",
-        "Line": 554,
-        "Table": "ai_runs",
-        "Issue": "Column not found",
-        "Column": "recording_url",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\stripe\\route.ts",
-        "Line": 66,
-        "Table": "stripe_events",
-        "Issue": "Column not found",
-        "Column": "{\r\n      onConflict",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\stripe\\route.ts",
-        "Line": 194,
-        "Table": "stripe_subscriptions",
-        "Issue": "Column not found",
-        "Column": "{\r\n      onConflict",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\stripe\\route.ts",
-        "Line": 279,
-        "Table": "stripe_invoices",
-        "Issue": "Column not found",
-        "Column": "{\r\n      onConflict",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\stripe\\route.ts",
-        "Line": 327,
-        "Table": "stripe_invoices",
-        "Issue": "Column not found",
-        "Column": "{\r\n      onConflict",
-        "Fix": "Remove column"
-      },
-      {
-        "File": "app\\api\\webhooks\\stripe\\route.ts",
-        "Line": 388,
-        "Table": "stripe_payment_methods",
-        "Issue": "Column not found",
-        "Column": "{\r\n      onConflict",
+        "Column": "organization_id",
         "Fix": "Remove column"
       },
       {
@@ -2308,11 +1916,11 @@
         "Fix": "Remove column"
       },
       {
-        "File": "lib\\auth.ts",
-        "Line": 134,
+        "File": "app\\voice\\page.tsx",
+        "Line": 64,
         "Table": "users",
         "Issue": "Column not found",
-        "Column": "username",
+        "Column": "organization_id",
         "Fix": "Remove column"
       },
       {
@@ -2340,6 +1948,14 @@
         "Fix": "Remove column"
       },
       {
+        "File": "lib\\rti\\digest.ts",
+        "Line": 13,
+        "Table": "attention_decisions",
+        "Issue": "Column not found",
+        "Column": "event",
+        "Fix": "Remove column"
+      },
+      {
         "File": "lib\\services\\campaignExecutor.ts",
         "Line": 194,
         "Table": "campaign_calls",
@@ -2348,11 +1964,19 @@
         "Fix": "Remove column"
       },
       {
-        "File": "lib\\sso\\ssoService.ts",
-        "Line": 447,
-        "Table": "users",
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 294,
+        "Table": "calls",
         "Issue": "Column not found",
-        "Column": "name",
+        "Column": "phone_number",
+        "Fix": "Remove column"
+      },
+      {
+        "File": "lib\\services\\externalEntityService.ts",
+        "Line": 304,
+        "Table": "recordings",
+        "Issue": "Column not found",
+        "Column": "url",
         "Fix": "Remove column"
       },
       {
@@ -2366,6 +1990,6 @@
     ],
     "MEDIUM": []
   },
-  "operationsCount": 662,
-  "validatedTables": 90
+  "operationsCount": 474,
+  "validatedTables": 110
 }

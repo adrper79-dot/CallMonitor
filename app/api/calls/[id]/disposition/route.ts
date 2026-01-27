@@ -16,7 +16,7 @@ import { emitDispositionSet } from '@/lib/webhookDelivery'
 import { CallDisposition } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 const VALID_DISPOSITIONS: CallDisposition[] = [
   'sale',

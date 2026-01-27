@@ -3,7 +3,7 @@ import pgClient from '@/lib/pgClient'
 
 // Force dynamic rendering - health checks should always be fresh
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET() {
   try {

@@ -7,7 +7,7 @@ import { AppError } from '@/types/app-error'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 type Modulations = { record?: boolean; transcribe?: boolean; translate?: boolean; survey?: boolean; synthetic_caller?: boolean }
 

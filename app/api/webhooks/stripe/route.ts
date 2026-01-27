@@ -6,7 +6,7 @@
  */
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'

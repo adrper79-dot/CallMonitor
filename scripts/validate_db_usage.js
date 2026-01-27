@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // --- Configuration ---
-const SCHEMA_PATH = 'ARCH_DOCS/01-CORE/Schema.txt';
+const SCHEMA_PATH = 'schema.sql';
 const ROOT_DIR = process.cwd();
 const SCAN_DIRS = ['app', 'lib', 'hooks'];
 const FILE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];

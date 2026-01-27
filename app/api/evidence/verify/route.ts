@@ -5,7 +5,7 @@ import { hashPayloadPrefixed } from '@/lib/crypto/canonicalize'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 type ArtifactHash = { type: string; id: string; sha256?: string | null }
 

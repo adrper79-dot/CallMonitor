@@ -7,11 +7,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { getAuthorizationUrl } from '@/lib/services/crmProviders/salesforce'
-import { randomBytes } from 'node:crypto'
+import { randomBytes } from 'crypto'
 import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 
 export async function GET(req: NextRequest) {

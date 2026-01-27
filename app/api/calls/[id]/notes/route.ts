@@ -16,7 +16,7 @@ import { CallNoteTag, CALL_NOTE_TAGS } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 interface RouteParams {
   params: Promise<{ id: string }>

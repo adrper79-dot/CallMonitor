@@ -5,7 +5,7 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * POST /api/ai-runs/[id]/retry

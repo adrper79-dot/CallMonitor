@@ -15,7 +15,7 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses session via requireRole
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // Rate limiting commented out for build
 // const rateLimiter = rateLimit({

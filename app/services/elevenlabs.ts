@@ -3,19 +3,14 @@
  * Provides high-quality voice synthesis for translated text with voice cloning support
  */
 
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import { logger } from '@/lib/logger'
 import { fetchElevenLabsWithRetry } from '@/lib/utils/fetchWithRetry'
 import { elevenLabsBreaker } from '@/lib/utils/circuitBreaker'
 
-export function getElevenLabsClient() {
+export function ensureElevenLabsApiKey() {
   const apiKey = process.env.ELEVENLABS_API_KEY
-  
-  if (!apiKey) {
-    throw new Error('ELEVENLABS_API_KEY environment variable is not set')
-  }
-  
-  return new ElevenLabsClient({ apiKey })
+  if (!apiKey) throw new Error('ELEVENLABS_API_KEY environment variable is not set')
+  return apiKey
 }
 
 export async function generateSpeech(
@@ -23,25 +18,54 @@ export async function generateSpeech(
   targetLanguage: string = 'en',
   customVoiceId?: string
 ): Promise<ReadableStream<Uint8Array>> {
-  const client = getElevenLabsClient()
-  
-  const voiceId = customVoiceId || (targetLanguage === 'en' 
+  const apiKey = ensureElevenLabsApiKey()
+
+  const voiceId = customVoiceId || (targetLanguage === 'en'
     ? 'EXAVITQu4vr4xnSDxMaL'
     : 'pNInz6obpgDQGcFmaJgB')
-  
+
   try {
-    const audio = await client.textToSpeech.convert(voiceId, {
+    // ElevenLabs TTS REST endpoint - stream audio back
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`
+    const body = {
       text,
-      modelId: 'eleven_multilingual_v2',
-      voiceSettings: {
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: {
         stability: 0.5,
-        similarityBoost: 0.75,
+        similarity_boost: 0.75,
         style: 0.0,
-        useSpeakerBoost: true
+        use_speaker_boost: true
+      }
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'audio/mpeg'
+      },
+      body: JSON.stringify(body)
+    })
+
+    if (!res.ok) {
+      const textErr = await res.text()
+      logger.error('ElevenLabs TTS fetch error', undefined, { status: res.status, body: textErr })
+      throw new Error(`ElevenLabs TTS failed: ${res.status} - ${textErr}`)
+    }
+
+    // Return the response body stream (ReadableStream)
+    if (res.body) return res.body as unknown as ReadableStream<Uint8Array>
+
+    // Fallback: convert to stream from arrayBuffer
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(buffer))
+        controller.close()
       }
     })
-    
-    return audio as ReadableStream<Uint8Array>
+    return stream
   } catch (error: any) {
     logger.error('ElevenLabs TTS error', error)
     throw new Error(`ElevenLabs TTS failed: ${error?.message || 'Unknown error'}`)
@@ -135,11 +159,19 @@ export async function deleteClonedVoice(voiceId: string): Promise<void> {
 }
 
 export async function getAvailableVoices() {
-  const client = getElevenLabsClient()
-  
+  const apiKey = ensureElevenLabsApiKey()
   try {
-    const voices = await client.voices.getAll()
-    return voices
+    const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+      method: 'GET',
+      headers: { 'xi-api-key': apiKey }
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      logger.error('ElevenLabs voices fetch error', undefined, { status: res.status, body })
+      throw new Error(`Failed to fetch voices: ${res.status}`)
+    }
+    const data = await res.json()
+    return data
   } catch (error: any) {
     logger.error('ElevenLabs get voices error', error)
     throw new Error(`Failed to get ElevenLabs voices: ${error?.message || 'Unknown error'}`)

@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 export const maxDuration = 60
 
 /**

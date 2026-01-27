@@ -6,7 +6,7 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses request.url
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * Dynamic SWML Script Endpoint

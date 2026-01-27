@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // ARCH_DOCS COMPLIANCE: This endpoint is deprecated. Please use /api/voice/swml/outbound for all outbound call logic.
 // If called, respond with migration notice and SWML fallback.

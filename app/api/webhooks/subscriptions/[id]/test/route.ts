@@ -14,7 +14,7 @@ import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * POST /api/webhooks/subscriptions/[id]/test

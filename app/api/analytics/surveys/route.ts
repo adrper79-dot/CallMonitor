@@ -4,7 +4,7 @@ import { Errors, requireRole, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 type SurveyRunRow = {
   output: any

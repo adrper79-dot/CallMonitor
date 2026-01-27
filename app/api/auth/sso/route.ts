@@ -24,7 +24,7 @@ import { randomBytes } from 'node:crypto'
 import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // =============================================================================
 // GET - SSO Configuration & Metadata

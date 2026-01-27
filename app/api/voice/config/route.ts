@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession and request.url
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 type VoiceConfigRow = {
   id?: string

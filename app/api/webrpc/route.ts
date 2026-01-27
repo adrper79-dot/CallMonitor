@@ -29,7 +29,7 @@ import { checkRateLimit } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // Valid WebRPC methods
 const VALID_METHODS: WebRPCMethod[] = [

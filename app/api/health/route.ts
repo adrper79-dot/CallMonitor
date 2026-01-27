@@ -3,7 +3,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 
 // Force dynamic rendering - health checks should always be fresh
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * Health Check Endpoint

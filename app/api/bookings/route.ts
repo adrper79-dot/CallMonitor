@@ -8,7 +8,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { parseISO, isValid } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/bookings - List booking events for the user's organization

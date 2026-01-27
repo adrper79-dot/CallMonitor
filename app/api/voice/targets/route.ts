@@ -9,7 +9,7 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * Voice Targets API

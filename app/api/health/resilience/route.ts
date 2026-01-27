@@ -13,7 +13,7 @@ import { circuitBreakerRegistry } from '@/lib/utils/circuitBreaker'
 import { getAuditLogHealth, getAuditLogMetrics } from '@/lib/monitoring/auditLogMonitor'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET() {
   try {

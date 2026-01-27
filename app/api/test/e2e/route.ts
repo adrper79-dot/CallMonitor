@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * E2E Test Endpoint - Service-to-Service Authentication

@@ -11,7 +11,7 @@ import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 
 export async function GET(req: NextRequest) {

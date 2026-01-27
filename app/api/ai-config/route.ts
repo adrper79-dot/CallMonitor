@@ -16,7 +16,7 @@ import { writeAuditLegacy as writeAudit } from '@/lib/audit/auditLogger'
 
 // Force dynamic rendering - uses session via requireRole
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // Rate limiting commented out for build - implement if needed
 // const rateLimiter = rateLimit({

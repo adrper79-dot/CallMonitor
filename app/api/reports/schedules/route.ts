@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/reports/schedules

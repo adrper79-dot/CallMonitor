@@ -19,7 +19,7 @@ import {
 import { randomBytes } from 'node:crypto'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 // =============================================================================
 // POST - Handle SAML Response (POST binding)

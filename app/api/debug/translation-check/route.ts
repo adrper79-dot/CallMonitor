@@ -5,7 +5,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/debug/translation-check

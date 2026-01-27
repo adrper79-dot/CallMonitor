@@ -5,7 +5,7 @@ import { requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/bookings/[id] - Get a single booking by ID

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { scrypt, randomBytes } from 'node:crypto'
 import { promisify } from 'node:util'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 const scryptAsync = promisify(scrypt)
 

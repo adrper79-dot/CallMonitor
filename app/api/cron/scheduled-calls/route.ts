@@ -4,7 +4,7 @@ import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * GET /api/cron/scheduled-calls

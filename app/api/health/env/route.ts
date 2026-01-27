@@ -5,7 +5,7 @@ import { validateEnvVars } from '@/lib/env-validation'
 
 // Force dynamic rendering - env checks should always be fresh
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 /**
  * Environment Variables Health Check
