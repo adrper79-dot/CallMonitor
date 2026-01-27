@@ -1,4 +1,14 @@
-import { Pool } from 'pg'
+import { Pool, neonConfig } from '@neondatabase/serverless'
+
+// Configure WebSocket for Neon serverless driver in Node.js environments
+if (typeof WebSocket === 'undefined') {
+  try {
+    const ws = require('ws')
+    neonConfig.webSocketConstructor = ws
+  } catch (e) {
+    // ws package not present, acceptable if in Edge runtime with global WebSocket
+  }
+}
 
 const getConnectionString = () => {
   // Check for Cloudflare Hyperdrive binding first
@@ -25,7 +35,7 @@ if (!connectionString) {
 const pool = connectionString ? new Pool({ connectionString }) : null
 
 if (pool && process.env.NODE_ENV === 'production' && !(globalThis as any).HYPERDRIVE) {
-  console.warn('⚠️ WARNING: Using direct Postgres connection in production Edge environment. This may lead to connection exhaustion. Configure Cloudflare Hyperdrive!')
+  // Console warning for direct connection without Hyperdrive
 }
 
 export async function query(text: string, params?: any[]) {

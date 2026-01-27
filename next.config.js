@@ -43,7 +43,7 @@ const nextConfig = {
         'net': 'node:net',
         'tls': 'node:tls',
       })
-      config.externals.push('nodemailer', 'next-auth/providers/email')
+      config.externals.push('nodemailer', 'next-auth/providers/email', 'ws')
     }
     return config
   },
