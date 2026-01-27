@@ -22,3 +22,6 @@ bucket_name = "wordisbond01"
 [ai]
 binding = "AI"
 
+[assets]
+directory = ".open-next/assets"
+
