@@ -20,6 +20,13 @@ const nextConfig = {
         stream: 'node:stream',
         buffer: 'node:buffer',
         util: 'node:util',
+        http: 'node:http',
+        https: 'node:https',
+        querystring: 'node:querystring',
+        url: 'node:url',
+        zlib: 'node:zlib',
+        net: 'node:net',
+        tls: 'node:tls',
       }
     }
     if (nextRuntime === 'edge') {
@@ -28,6 +35,13 @@ const nextConfig = {
         'stream': 'node:stream',
         'buffer': 'node:buffer',
         'util': 'node:util',
+        'http': 'node:http',
+        'https': 'node:https',
+        'querystring': 'node:querystring',
+        'url': 'node:url',
+        'zlib': 'node:zlib',
+        'net': 'node:net',
+        'tls': 'node:tls',
       })
       config.externals.push('nodemailer', 'next-auth/providers/email')
     }
