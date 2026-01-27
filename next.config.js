@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // output: "standalone", // Cloudflare Pages does not support standalone mode
+  images: {
+    unoptimized: true,
+  },
   typescript: {
     // TypeScript errors will now block production builds
     // This ensures type safety in production
