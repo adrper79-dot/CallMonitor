@@ -16,6 +16,7 @@ import crypto from 'crypto'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Validate URL format

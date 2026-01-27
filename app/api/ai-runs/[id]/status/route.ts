@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/api/utils'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/ai-runs/[id]/status

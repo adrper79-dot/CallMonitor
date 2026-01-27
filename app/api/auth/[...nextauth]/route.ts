@@ -6,6 +6,7 @@
  */
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 import NextAuth from "next-auth"
 import { getAuthOptions } from "@/lib/auth"

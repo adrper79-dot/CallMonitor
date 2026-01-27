@@ -4,6 +4,7 @@ import startCallHandler from '@/app/actions/calls/startCallHandler'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function POST(req: Request) {
   // debug-only endpoint: disabled in production

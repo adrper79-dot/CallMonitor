@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { translateText } from '@/app/services/translation'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/calls/[id]/translate

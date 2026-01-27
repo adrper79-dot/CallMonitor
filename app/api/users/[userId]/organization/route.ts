@@ -6,6 +6,7 @@ import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(req: Request, { params }: { params: { userId: string } }) {
   try {

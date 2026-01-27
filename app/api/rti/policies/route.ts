@@ -4,6 +4,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(req: Request) {
     try {

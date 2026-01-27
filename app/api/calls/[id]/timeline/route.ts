@@ -15,6 +15,7 @@ import { TimelineEvent, TimelineEventType, CallTimeline } from '@/types/tier1-fe
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 interface RouteParams {
   params: Promise<{ id: string }>

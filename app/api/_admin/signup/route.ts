@@ -4,6 +4,7 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Admin Signup API

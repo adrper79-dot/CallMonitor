@@ -4,6 +4,7 @@ import { ensureEvidenceBundle } from '@/app/services/evidenceBundle'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/cron/fix-orphan-bundles

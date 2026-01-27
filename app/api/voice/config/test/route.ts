@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger'
 import { AppError } from '@/lib/errors'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/voice/config/test

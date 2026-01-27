@@ -17,6 +17,7 @@ import { z } from 'zod'
 
 // Force dynamic rendering - uses session via requireRole
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 // Validation schema
 const updatePolicySchema = z.object({

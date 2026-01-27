@@ -9,6 +9,7 @@ import { checkRateLimit } from '@/lib/rateLimit'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/webrtc/session

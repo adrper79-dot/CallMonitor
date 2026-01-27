@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/voice/swml/shopper

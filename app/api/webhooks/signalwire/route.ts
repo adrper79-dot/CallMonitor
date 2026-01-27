@@ -8,6 +8,7 @@ import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { parseRequestBody } from '@/lib/api/utils'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * SignalWire Webhook Handler

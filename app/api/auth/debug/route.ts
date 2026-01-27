@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Debug endpoint to diagnose auth issues

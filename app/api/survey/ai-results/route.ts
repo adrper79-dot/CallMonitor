@@ -5,6 +5,7 @@ import { sendEmail } from '@/app/services/emailService'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/survey/ai-results - Receives AI Survey results from SignalWire

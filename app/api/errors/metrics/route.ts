@@ -5,6 +5,7 @@ import { getErrorKPIs, getEndpointKPIs, getSystemHealth } from '@/lib/errors/kpi
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Error Metrics Endpoint

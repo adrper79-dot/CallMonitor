@@ -3,6 +3,7 @@ import pgClient from '@/lib/pgClient'
 
 // Force dynamic rendering - uses request.url
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(req: Request) {
   try {

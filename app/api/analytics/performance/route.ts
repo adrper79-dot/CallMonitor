@@ -4,6 +4,7 @@ import { requireRole, success, Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Performance Metrics Analytics API

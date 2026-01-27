@@ -14,6 +14,7 @@ import { AppError } from '@/lib/errors'
 import { createHmac } from 'crypto'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/webhooks/[id]/test

@@ -4,6 +4,7 @@ import { requireAuth, requireRole, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 function getSignalWireCredentials() {
   return {

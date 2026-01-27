@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger'
 import { scryptSync, randomBytes } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 
+export const runtime = 'edge'
+
 /**
  * POST /api/auth/reset-password
  * 

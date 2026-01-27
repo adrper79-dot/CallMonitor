@@ -5,6 +5,7 @@ import { getRBACContext } from '@/lib/middleware/rbac'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Get RBAC context for current user and organization

@@ -7,6 +7,7 @@ import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 // Force dynamic rendering - webhooks must be processed dynamically
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * AssemblyAI Webhook Handler

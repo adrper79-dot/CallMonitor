@@ -6,6 +6,7 @@ import { swmlJsonResponse } from '@/lib/api/utils'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(request: NextRequest) {
     // Feature flag check for live translation preview

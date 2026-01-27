@@ -9,6 +9,7 @@ import { checkRateLimit } from '@/lib/rateLimit'
 // ...existing code...
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 // POST /api/voice/bridge: Bridge two PSTN numbers together (Click-to-Call) using SWML only
 export async function POST(request: NextRequest) {

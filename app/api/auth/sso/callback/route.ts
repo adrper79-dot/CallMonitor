@@ -18,6 +18,7 @@ import {
 } from '@/lib/sso/ssoService'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 // =============================================================================
 // POST - Handle SAML Response (POST binding)

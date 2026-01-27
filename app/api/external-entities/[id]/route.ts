@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger'
 import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 
 export async function GET(

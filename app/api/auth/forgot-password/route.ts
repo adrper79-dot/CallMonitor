@@ -3,6 +3,8 @@ import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
 
+export const runtime = 'edge'
+
 async function sendResetEmail(to: string, resetUrl: string) {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) throw new Error('RESEND_API_KEY not configured')

@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * SWML Outbound Handler (v2) - Replaces LaML with modern SWML JSON

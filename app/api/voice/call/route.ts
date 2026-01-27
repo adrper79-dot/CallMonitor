@@ -8,6 +8,7 @@ import { query } from '@/lib/pgClient'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Voice Call API

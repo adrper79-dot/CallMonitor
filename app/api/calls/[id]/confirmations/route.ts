@@ -17,6 +17,7 @@ import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 interface RouteParams {
   params: Promise<{ id: string }>

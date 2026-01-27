@@ -23,6 +23,7 @@ import {
 } from '@/lib/reports/generator'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/reports - List generated reports

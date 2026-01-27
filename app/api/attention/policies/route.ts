@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid'
 import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 
 export async function GET(req: NextRequest) {

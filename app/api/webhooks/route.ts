@@ -15,6 +15,7 @@ import { AppError } from '@/lib/errors'
 import { randomBytes } from 'crypto'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/webhooks

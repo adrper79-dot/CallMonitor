@@ -16,6 +16,8 @@ import { Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
+export const runtime = 'edge'
+
 // Validation schemas
 const recordFailureSchema = z.object({
   source: z.enum(['signalwire', 'assemblyai', 'resend', 'stripe', 'internal']),

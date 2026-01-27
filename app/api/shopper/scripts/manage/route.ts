@@ -5,6 +5,7 @@ import { requireRole, requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * POST /api/shopper/scripts/manage - Create or update a secret shopper script

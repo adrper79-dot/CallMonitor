@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 async function handleSurveyWebhook(req: Request) {
   const url = new URL(req.url)

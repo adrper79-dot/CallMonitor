@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
   // Feature flag

@@ -8,6 +8,7 @@ import { isValidUUID } from '@/lib/utils/validation'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(
   req: NextRequest,

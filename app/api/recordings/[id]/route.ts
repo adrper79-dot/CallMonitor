@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { isValidUUID } from '@/lib/utils/validation'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {

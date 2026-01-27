@@ -12,6 +12,8 @@ import { Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
+export const runtime = 'edge'
+
 // Validation schemas
 const createHoldSchema = z.object({
   hold_name: z.string().min(1).max(200),

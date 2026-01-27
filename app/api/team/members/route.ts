@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/team/members

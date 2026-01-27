@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * Campaigns API

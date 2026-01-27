@@ -17,6 +17,7 @@ import { FeatureFlag, FEATURE_FLAGS, FeatureStatus } from '@/types/tier1-feature
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/features

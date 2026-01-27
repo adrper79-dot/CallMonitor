@@ -16,6 +16,7 @@ import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 /**
  * GET /api/webhooks/subscriptions/[id]/deliveries

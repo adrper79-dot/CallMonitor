@@ -4,6 +4,7 @@ import { parseRequestBody, Errors, getAuthUser } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 
 function isE164(n: string) {
   return /^\+?[1-9]\d{1,14}$/.test(n)
