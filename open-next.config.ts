@@ -8,7 +8,7 @@ const config: OpenNextConfig = {
       converter: 'edge',
     },
   },
-  buildCommand: "npx next build",
+  buildCommand: "npx next build --webpack",
 }
 
 export default config

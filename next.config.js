@@ -9,11 +9,7 @@ const nextConfig = {
     // This ensures type safety in production
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
+
   poweredByHeader: false,
   webpack: (config, { isServer, nextRuntime }) => {
     // Fixes npm packages that depend on Node.js modules
