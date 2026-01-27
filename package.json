@@ -5,12 +5,13 @@
     "dev": "next dev",
     "test": "vitest",
     "test:prod": "ts-node -r tsconfig-paths/register tools/run_prod_test.ts",
-    "build": "next build",
+    "build": "npx next build",
+    
     "start": "next start",
     "vercel-build": "next build",
-    "pages:build": "npm run build:cloudflare",
-    "build:cloudflare": "npx open-next build",
-    "preview": "npm run build:cloudflare && wrangler pages dev .open-next/assets"
+    "pages:build": "npx @cloudflare/next-on-pages@1",
+    "build:cloudflare": "npx @cloudflare/next-on-pages@1",
+    "preview": "npm run build:cloudflare && wrangler pages dev .vercel/output/static"
   },
   "dependencies": {
     "@auth/core": "^0.34.3",
@@ -40,7 +41,7 @@
     "date-fns-tz": "^3.2.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
-    "next": "^14.2.15",
+    "next": "^15.5.2",
     "next-auth": "^4.24.13",
     "pg": "^8.17.2",
     "react": "18.2.0",
@@ -54,6 +55,7 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.0.6",
     "@types/react": "^18.2.0",

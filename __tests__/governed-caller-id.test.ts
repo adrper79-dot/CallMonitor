@@ -29,7 +29,7 @@ describe('Governed Caller ID', () => {
     let callerIdService: CallerIdService
 
     beforeAll(async () => {
-        callerIdService = new CallerIdService(supabase)
+        callerIdService = new CallerIdService()
 
         // Create test organization
         await supabase.from('organizations').upsert({

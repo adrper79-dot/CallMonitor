@@ -9,15 +9,12 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/bookings/[id] - Get a single booking by ID
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
-    const { data: booking, error } = await supabaseAdmin
-      .from('booking_events')
-      .select('*, calls(id, status, started_at, ended_at, call_sid)')
-      .eq('id', params.id)
+    const { id } = await params
       .single()
 
     if (error || !booking) {
@@ -38,17 +35,18 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 /**
  * PATCH /api/bookings/[id] - Update a booking
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
     const body = await req.json()
+    const { id } = await params
 
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from('booking_events')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (fetchError || !existing) {
@@ -81,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data: booking, error: updateError } = await supabaseAdmin
       .from('booking_events')
       .update(updatePayload)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -93,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     try {
       await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
-        resource_type: 'booking_events', resource_id: params.id, action: 'update',
+        resource_type: 'booking_events', resource_id: id, action: 'update',
         before: { status: existing.status, start_time: existing.start_time },
         after: updatePayload, created_at: new Date().toISOString()
       })
@@ -109,15 +107,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 /**
  * DELETE /api/bookings/[id] - Cancel a booking
  */
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
+    const { id } = await params
+
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from('booking_events')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (fetchError || !existing) {
@@ -140,7 +140,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const { error: deleteError } = await supabaseAdmin
       .from('booking_events')
       .update({ status: 'cancelled' })
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (deleteError) {
       logger.error('DELETE /api/bookings/[id] error', deleteError)
@@ -150,7 +150,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     try {
       await supabaseAdmin.from('audit_logs').insert({
         id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
-        resource_type: 'booking_events', resource_id: params.id, action: 'delete',
+        resource_type: 'booking_events', resource_id: id, action: 'delete',
         before: { status: existing.status }, after: { status: 'cancelled' },
         created_at: new Date().toISOString()
       })
