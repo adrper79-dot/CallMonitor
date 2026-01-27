@@ -29,6 +29,7 @@ const nextConfig = {
         'buffer': 'node:buffer',
         'util': 'node:util',
       })
+      config.externals.push('nodemailer', 'next-auth/providers/email')
     }
     return config
   },

@@ -7,7 +7,7 @@
  * - Logging, error handling, and comments follow ARCH_DOCS standards
  */
 
-import EmailProvider from "next-auth/providers/email"
+// EmailProvider imported conditionally to support Edge runtime
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import AzureADProvider from "next-auth/providers/azure-ad"
@@ -172,22 +172,30 @@ function getProviders(adapter: any) {
     }
   }))
 
-  // Only include Email provider if adapter is present
-  if (adapter) {
-    providers.push(EmailProvider({
-      async sendVerificationRequest({ identifier: email, url }) {
-        const html = `<p>Sign in: <a href="${url}">${url}</a></p>`;
-        try {
-          await sendViaResend(email, html);
-        } catch (err) {
-          logger.error('[Auth] Resend email failed', err);
-          throw new Error('Failed to send verification email');
-        }
-      },
-      server: undefined,
-    }));
+  // Only include Email provider if adapter is present and NOT in Edge runtime
+  // Nodemailer (used by EmailProvider) is incompatible with Edge
+  if (adapter && process.env.NEXT_RUNTIME !== 'edge') {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const EmailProvider = require("next-auth/providers/email").default
+
+      providers.push(EmailProvider({
+        async sendVerificationRequest({ identifier: email, url }: { identifier: string, url: string }) {
+          const html = `<p>Sign in: <a href="${url}">${url}</a></p>`;
+          try {
+            await sendViaResend(email, html);
+          } catch (err) {
+            logger.error('[Auth] Resend email failed', err);
+            throw new Error('Failed to send verification email');
+          }
+        },
+        server: undefined,
+      }));
+    } catch (e) {
+      logger.warn('[Auth] Could not load EmailProvider (likely Edge runtime)', e)
+    }
   } else {
-    logger.warn('[Auth] Email provider disabled: Supabase adapter unavailable');
+    logger.warn('[Auth] Email provider disabled: Supabase adapter unavailable or Edge runtime detected');
   }
 
   // Add OAuth providers regardless of adapter
