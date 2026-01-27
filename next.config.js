@@ -39,24 +39,24 @@ const nextConfig = {
       // Use function to handle all node: imports correctly
       config.externals.push(({ request }, callback) => {
         if (/^node:/.test(request)) {
-          return callback(null, `commonjs ${request}`);
+          return callback(null, `commonjs "${request}"`);
         }
         callback();
       });
 
       // Explicit mappings for non-prefixed modules to force node: prefix
       config.externals.push({
-        'crypto': 'commonjs node:crypto',
-        'stream': 'commonjs node:stream',
-        'buffer': 'commonjs node:buffer',
-        'util': 'commonjs node:util',
-        'http': 'commonjs node:http',
-        'https': 'commonjs node:https',
-        'querystring': 'commonjs node:querystring',
-        'url': 'commonjs node:url',
-        'zlib': 'commonjs node:zlib',
-        'net': 'commonjs node:net',
-        'tls': 'commonjs node:tls',
+        'crypto': 'commonjs "node:crypto"',
+        'stream': 'commonjs "node:stream"',
+        'buffer': 'commonjs "node:buffer"',
+        'util': 'commonjs "node:util"',
+        'http': 'commonjs "node:http"',
+        'https': 'commonjs "node:https"',
+        'querystring': 'commonjs "node:querystring"',
+        'url': 'commonjs "node:url"',
+        'zlib': 'commonjs "node:zlib"',
+        'net': 'commonjs "node:net"',
+        'tls': 'commonjs "node:tls"',
       })
 
       config.externals.push('nodemailer', 'next-auth/providers/email', 'ws')
