@@ -16,6 +16,7 @@ import {
   getOIDCUserInfo,
   processSSOLogin
 } from '@/lib/sso/ssoService'
+import { randomBytes } from 'node:crypto'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'edge'
@@ -85,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
 
     // Create session cookie
     const sessionToken = await createSSOSession(loginResult.user!.id, config.organization_id)
-    
+
     // Set session cookie
     const cookieStore = await cookies()
     cookieStore.set('next-auth.session-token', sessionToken, {
@@ -144,7 +145,7 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     const stateData = stateLog.after as { config_id: string; callback_url: string; expires: number }
-    
+
     // Check expiry
     if (stateData.expires < Date.now()) {
       logger.error('SSO state expired')
@@ -195,7 +196,7 @@ export async function GET(req: Request): Promise<Response> {
 
     // Create session
     const sessionToken = await createSSOSession(loginResult.user!.id, config.organization_id)
-    
+
     // Set session cookie
     const cookieStore = await cookies()
     cookieStore.set('next-auth.session-token', sessionToken, {
@@ -237,9 +238,8 @@ function redirectWithError(message: string): Response {
 
 async function createSSOSession(userId: string, organizationId: string): Promise<string> {
   // Generate a session token
-  const crypto = await import('crypto')
-  const sessionToken = crypto.randomBytes(32).toString('hex')
-  
+  const sessionToken = randomBytes(32).toString('hex')
+
   // Store session in database
   // Note: In production, integrate with NextAuth's session management
   // This is a simplified approach for SSO sessions

@@ -31,6 +31,7 @@ export function getStripe() {
     stripeInstance = new Stripe(apiKey, {
       apiVersion: '2025-12-15.clover',
       typescript: true,
+      httpClient: Stripe.createFetchHttpClient()
     })
   }
   return stripeInstance

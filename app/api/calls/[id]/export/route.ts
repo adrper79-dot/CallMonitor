@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 import JSZip from 'jszip'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireAuth, Errors } from '@/lib/api/utils'
@@ -30,7 +30,7 @@ export interface CallExportBundle {
   bundle_hash: string
   exported_at: string
   exported_by: string | null
-  
+
   call: {
     id: string
     organization_id: string
@@ -41,7 +41,7 @@ export interface CallExportBundle {
     created_by: string | null
     created_at: string
   }
-  
+
   recording: {
     id: string
     recording_url: string | null
@@ -51,7 +51,7 @@ export interface CallExportBundle {
     media_hash: string | null
     created_at: string
   } | null
-  
+
   transcripts: Array<{
     id: string
     version: number
@@ -62,7 +62,7 @@ export interface CallExportBundle {
     produced_by_model: string | null
     produced_at: string
   }>
-  
+
   translations: Array<{
     id: string
     from_language: string | null
@@ -71,7 +71,7 @@ export interface CallExportBundle {
     produced_by: string
     produced_at: string
   }>
-  
+
   scores: Array<{
     id: string
     scorecard_id: string
@@ -80,21 +80,21 @@ export interface CallExportBundle {
     manual_overrides_json: Record<string, any> | null
     created_at: string
   }>
-  
+
   evidence_manifests: Array<{
     id: string
     version: number
     manifest: Record<string, any>
     created_at: string
   }>
-  
+
   audit_trail: Array<{
     action: string
     resource_type: string
     created_at: string
     actor_type: 'user' | 'system'
   }>
-  
+
   provenance: Array<{
     artifact_type: string
     artifact_id: string
@@ -116,7 +116,7 @@ export async function GET(
     }
 
     const callId = params.id
-    
+
     // Validate UUID format (strict UUIDv4 pattern)
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return Errors.badRequest('Invalid call ID format')
@@ -155,13 +155,13 @@ export async function GET(
     // Call the check_export_compliance function
     const { data: complianceResult, error: complianceErr } = await supabaseAdmin
       .rpc('check_export_compliance', { p_call_id: callId, p_user_id: ctx.userId })
-    
+
     if (complianceErr) {
       logger.error('callExport: compliance check failed', { callId, error: complianceErr })
       // Non-fatal - proceed with export but log the issue
     } else if (complianceResult && !complianceResult.allowed) {
-      logger.warn('callExport: export blocked by compliance policy', { 
-        callId, 
+      logger.warn('callExport: export blocked by compliance policy', {
+        callId,
         reasons: complianceResult.reasons,
         custody_status: complianceResult.custody_status,
         legal_hold: complianceResult.legal_hold_flag
@@ -191,7 +191,7 @@ export async function GET(
 
     // 3. Get transcript versions (prefer versioned table, fallback to recordings.transcript_json)
     const transcripts: CallExportBundle['transcripts'] = []
-    
+
     if (recording) {
       // Try transcript_versions table first
       const { data: tvRows } = await supabaseAdmin
@@ -226,7 +226,7 @@ export async function GET(
           const hash = crypto.createHash('sha256')
             .update(JSON.stringify(tj))
             .digest('hex')
-          
+
           transcripts.push({
             id: `${recording.id}-transcript-v1`,
             version: 1,
@@ -354,7 +354,7 @@ export async function GET(
       bundle_hash: '', // Will be computed
       exported_at: new Date().toISOString(),
       exported_by: ctx.userId,
-      
+
       call: {
         id: call.id,
         organization_id: call.organization_id,
@@ -365,7 +365,7 @@ export async function GET(
         created_by: call.created_by,
         created_at: call.created_at || call.started_at || new Date().toISOString()
       },
-      
+
       recording: recording ? {
         id: recording.id,
         recording_url: recording.recording_url,
@@ -375,7 +375,7 @@ export async function GET(
         media_hash: recording.media_hash,
         created_at: recording.created_at
       } : null,
-      
+
       transcripts,
       translations,
       scores,
@@ -445,22 +445,22 @@ export async function GET(
     // Check if ZIP format requested
     const { searchParams } = new URL(req.url)
     const format = searchParams.get('format')
-    
+
     if (format === 'zip') {
       // Generate ZIP bundle with human-readable files
       const zip = new JSZip()
-      
+
       // 1. transcript.txt - Human-readable transcript
       if (transcripts.length > 0) {
         const latestTranscript = transcripts[transcripts.length - 1]
         const transcriptText = formatTranscriptForHumans(latestTranscript)
         zip.file('transcript.txt', transcriptText)
       }
-      
+
       // 2. timeline.json - Full event timeline with provenance
       const timeline = buildTimeline(bundle)
       zip.file('timeline.json', JSON.stringify(timeline, null, 2))
-      
+
       // 3. manifest.json - Evidence manifest
       if (evidenceManifests.length > 0) {
         zip.file('manifest.json', JSON.stringify(evidenceManifests[evidenceManifests.length - 1], null, 2))
@@ -473,17 +473,17 @@ export async function GET(
           exported_at: bundle.exported_at
         }, null, 2))
       }
-      
+
       // 4. README.txt - Human-readable summary
       const readme = generateReadme(bundle, ctx.userId)
       zip.file('README.txt', readme)
-      
+
       // 5. full_bundle.json - Complete bundle for programmatic use
       zip.file('full_bundle.json', JSON.stringify(bundle, null, 2))
-      
+
       // Generate ZIP as blob for response
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-      
+
       return new NextResponse(zipBlob, {
         status: 200,
         headers: {
@@ -522,10 +522,10 @@ function formatTranscriptForHumans(transcript: {
   version: number
 }): string {
   const lines: string[] = []
-  
-  lines.push('=' .repeat(60))
+
+  lines.push('='.repeat(60))
   lines.push('CANONICAL TRANSCRIPT')
-  lines.push('=' .repeat(60))
+  lines.push('='.repeat(60))
   lines.push('')
   lines.push(`Version: ${transcript.version}`)
   lines.push(`Produced by: ${transcript.produced_by_model || transcript.produced_by}`)
@@ -542,7 +542,7 @@ function formatTranscriptForHumans(transcript: {
   lines.push('')
   lines.push('This transcript is the canonical source of truth.')
   lines.push('It is immutable and cannot be modified after creation.')
-  
+
   return lines.join('\n')
 }
 
@@ -562,7 +562,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
     producer?: string
     is_authoritative: boolean
   }> = []
-  
+
   // Call created
   events.push({
     timestamp: bundle.call.created_at,
@@ -572,7 +572,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
     producer: 'system',
     is_authoritative: true
   })
-  
+
   // Call started
   if (bundle.call.started_at) {
     events.push({
@@ -584,7 +584,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Recording
   if (bundle.recording) {
     events.push({
@@ -596,7 +596,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Transcripts
   for (const t of bundle.transcripts) {
     events.push({
@@ -608,7 +608,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Translations
   for (const t of bundle.translations) {
     events.push({
@@ -620,7 +620,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Scores
   for (const s of bundle.scores) {
     events.push({
@@ -632,7 +632,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Evidence manifests
   for (const m of bundle.evidence_manifests) {
     events.push({
@@ -644,7 +644,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Call ended
   if (bundle.call.ended_at) {
     events.push({
@@ -656,7 +656,7 @@ function buildTimeline(bundle: CallExportBundle): Array<{
       is_authoritative: true
     })
   }
-  
+
   // Export
   events.push({
     timestamp: bundle.exported_at,
@@ -666,16 +666,16 @@ function buildTimeline(bundle: CallExportBundle): Array<{
     producer: 'system',
     is_authoritative: true
   })
-  
+
   // Sort chronologically
   return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 }
 
 function generateReadme(bundle: CallExportBundle, exportedBy: string | null): string {
   const lines: string[] = []
-  
+
   lines.push('CALL EVIDENCE BUNDLE')
-  lines.push('=' .repeat(60))
+  lines.push('='.repeat(60))
   lines.push('')
   lines.push(`Call ID: ${bundle.call.id}`)
   lines.push(`Status: ${bundle.call.status}`)
@@ -688,7 +688,7 @@ function generateReadme(bundle: CallExportBundle, exportedBy: string | null): st
     lines.push(`Duration: ${mins}:${secs.toString().padStart(2, '0')}`)
   }
   lines.push('')
-  
+
   lines.push('CONTENTS')
   lines.push('-'.repeat(60))
   lines.push('- transcript.txt    : Canonical transcript (human-readable)')
@@ -697,7 +697,7 @@ function generateReadme(bundle: CallExportBundle, exportedBy: string | null): st
   lines.push('- full_bundle.json  : Complete bundle (programmatic)')
   lines.push('- README.txt        : This file')
   lines.push('')
-  
+
   lines.push('ARTIFACT SUMMARY')
   lines.push('-'.repeat(60))
   lines.push(`- Recording: ${bundle.recording ? 'Yes' : 'No'}`)
@@ -706,7 +706,7 @@ function generateReadme(bundle: CallExportBundle, exportedBy: string | null): st
   lines.push(`- Scores: ${bundle.scores.length}`)
   lines.push(`- Evidence Manifests: ${bundle.evidence_manifests.length}`)
   lines.push('')
-  
+
   lines.push('AUTHORITY')
   lines.push('-'.repeat(60))
   lines.push('All artifacts in this bundle are authoritative and legally defensible.')
@@ -719,23 +719,23 @@ function generateReadme(bundle: CallExportBundle, exportedBy: string | null): st
     lines.push('Recording is immutable and cannot be modified.')
   }
   lines.push('')
-  
+
   lines.push('PROVENANCE')
   lines.push('-'.repeat(60))
   lines.push('See timeline.json for full creation details of each artifact.')
   lines.push(`Bundle hash: ${bundle.bundle_hash}`)
   lines.push('')
-  
+
   lines.push('EXPORT INFORMATION')
   lines.push('-'.repeat(60))
   lines.push(`Exported by: ${exportedBy || 'system'}`)
   lines.push(`Export time: ${bundle.exported_at}`)
   lines.push(`Bundle version: ${bundle.bundle_version}`)
   lines.push('')
-  
-  lines.push('=' .repeat(60))
+
+  lines.push('='.repeat(60))
   lines.push('This bundle was generated by Word Is Bond System of Record')
   lines.push('https://voxsouth.online')
-  
+
   return lines.join('\n')
 }

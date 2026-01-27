@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { getAuthorizationUrl } from '@/lib/services/crmProviders/hubspot'
-import { randomBytes } from 'crypto'
+import { randomBytes } from 'node:crypto'
 import pgClient from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'

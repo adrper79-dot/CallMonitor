@@ -24,6 +24,10 @@ if (!connectionString) {
 
 const pool = connectionString ? new Pool({ connectionString }) : null
 
+if (pool && process.env.NODE_ENV === 'production' && !(globalThis as any).HYPERDRIVE) {
+  console.warn('⚠️ WARNING: Using direct Postgres connection in production Edge environment. This may lead to connection exhaustion. Configure Cloudflare Hyperdrive!')
+}
+
 export async function query(text: string, params?: any[]) {
   if (!pool) throw new Error('No Postgres connection configured (set NEON_PG_CONN or configure Hyperdrive)')
   const client = await pool.connect()

@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
 
 /**
  * Webhook Security
@@ -35,7 +35,7 @@ export function verifySignalWireSignature(
   try {
     // SignalWire/Twilio uses HMAC-SHA1 with Base64 encoding
     // The payload for LaML is: URL + sorted form-urlencoded params
-    
+
     // If URL provided, use it in the hash (standard Twilio/SignalWire validation)
     let dataToSign = payload
     if (url) {
@@ -161,7 +161,7 @@ export function getCORSHeaders(origin: string | null): Record<string, string> {
     process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   ]
 
-  const isAllowed = origin && allowedOrigins.some(allowed => 
+  const isAllowed = origin && allowedOrigins.some(allowed =>
     origin === allowed || origin.endsWith(allowed.replace(/^https?:\/\//, ''))
   )
 

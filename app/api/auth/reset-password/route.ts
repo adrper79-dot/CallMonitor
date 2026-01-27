@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import pgClient from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
-import { scryptSync, randomBytes } from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
+import { scrypt, randomBytes } from 'node:crypto'
+import { promisify } from 'node:util'
 
 export const runtime = 'edge'
+
+const scryptAsync = promisify(scrypt)
 
 /**
  * POST /api/auth/reset-password
@@ -39,9 +42,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Token expired' }, { status: 400 })
     }
 
-    // Hash the new password (scrypt)
+    // Hash the new password (scrypt async)
     const salt = randomBytes(16).toString('hex')
-    const derived = scryptSync(password, salt, 64).toString('hex')
+    const derivedBuffer = (await scryptAsync(password, salt, 64)) as Buffer
+    const derived = derivedBuffer.toString('hex')
     const passwordHash = `${salt}:${derived}`
 
     // Update user password hash
