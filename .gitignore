@@ -1,3 +1,9 @@
+# Ignore local Vercel env preview files (do NOT commit secrets)
+.vercel/*.env*
+
+# Node/npm
+node_modules/
+/.next
 .env.local
 node_modules/
 .DS_Store
