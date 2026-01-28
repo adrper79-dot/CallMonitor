@@ -41,6 +41,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Print repo tree (debug)
+        run: |
+          echo "Repository root: $GITHUB_WORKSPACE"
+          ls -la $GITHUB_WORKSPACE
+          echo "Listing services directory (if present)"
+          ls -la $GITHUB_WORKSPACE/services || true
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
