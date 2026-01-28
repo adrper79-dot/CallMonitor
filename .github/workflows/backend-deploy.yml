@@ -17,6 +17,14 @@ jobs:
       image: ghcr.io/${{ github.repository_owner }}/gemini-backend:latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
+        with:
+          repository: adrper79-dot/gemini-project-01
+          path: gemini-project
+          fetch-depth: 0
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -30,8 +38,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          context: ./services/backend
-          file: ./services/backend/Dockerfile
+          context: ./gemini-project/services/backend
+          file: ./gemini-project/services/backend/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/gemini-backend:latest
