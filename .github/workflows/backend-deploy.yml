@@ -42,7 +42,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event.inputs.deploy_to == 'render' || github.event.inputs.deploy_to == 'fly'
+    if: github.event.inputs.deploy_to == 'render' || github.event.inputs.deploy_to == 'fly' || github.event.inputs.deploy_to == 'cloudflare'
     steps:
       - name: Deploy to Render (if configured)
         if: github.event.inputs.deploy_to == 'render'
@@ -75,3 +75,24 @@ jobs:
           export FLYCTL_INSTALL=/home/runner/.fly
           export PATH=$FLYCTL_INSTALL/bin:$PATH
           flyctl deploy --image ghcr.io/${{ github.repository_owner }}/gemini-backend:latest --remote-only
+
+      - name: Deploy to Cloudflare Pages (if configured)
+        if: github.event.inputs.deploy_to == 'cloudflare'
+        run: |
+          if [ -z "${{ secrets.CF_API_TOKEN }}" ]; then
+            echo "CF_API_TOKEN is not set in repository secrets. Aborting Cloudflare deploy." >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.CF_ACCOUNT_ID }}" ]; then
+            echo "CF_ACCOUNT_ID is not set in repository secrets. Aborting Cloudflare deploy." >&2
+            exit 1
+          fi
+          if [ -z "${{ secrets.CF_PAGES_PROJECT_NAME }}" ]; then
+            echo "CF_PAGES_PROJECT_NAME is not set in repository secrets. Aborting Cloudflare deploy." >&2
+            exit 1
+          fi
+          echo "Triggering Cloudflare Pages deployment for project: ${{ secrets.CF_PAGES_PROJECT_NAME }}"
+          curl -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CF_ACCOUNT_ID }}/pages/projects/${{ secrets.CF_PAGES_PROJECT_NAME }}/deployments" \
+            -H "Authorization: Bearer ${{ secrets.CF_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"branch":"main"}'
