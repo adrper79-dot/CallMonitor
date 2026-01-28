@@ -26,7 +26,10 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          # Use a personal GHCR PAT stored in repo secret `GHCR_PAT`.
+          # Please add `GHCR_PAT` to repository secrets with a personal token
+          # that has `read:packages, write:packages` and `delete:packages` scopes.
+          password: ${{ secrets.GHCR_PAT }}
       - name: Print repo tree (debug)
         run: |
           echo "Repository root: $GITHUB_WORKSPACE"
