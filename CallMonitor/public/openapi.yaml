@@ -1,0 +1,1553 @@
+openapi: 3.0.3
+info:
+  title: Wordis Bond API
+  description: |
+    Wordis Bond - Conversation System of Record API
+    
+    This API provides endpoints for managing voice calls, recordings, transcriptions,
+    campaigns, analytics, and compliance features for enterprise conversation management.
+    
+    ## Authentication
+    All endpoints require authentication via NextAuth.js session cookies.
+    Include `credentials: 'include'` in all fetch requests.
+    
+    ## RBAC Roles
+    - **owner**: Full access including billing and team management
+    - **admin**: Manage team, calls, settings (no billing)
+    - **operator**: Make calls, view recordings, run campaigns
+    - **analyst**: View recordings, transcripts, analytics
+    - **viewer**: View-only access to dashboards
+    
+    ## Rate Limiting
+    API endpoints are rate limited. Standard limits:
+    - Read operations: 100 requests/minute
+    - Write operations: 30 requests/minute
+    - Sensitive operations: 5 requests/minute
+  version: 1.0.0
+  contact:
+    name: Wordis Bond Support
+    email: support@wordisbond.com
+  license:
+    name: Proprietary
+    url: https://wordisbond.com/terms
+
+servers:
+  - url: /api
+    description: API Base URL
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Calls
+    description: Voice call management and history
+  - name: Recordings
+    description: Call recording management
+  - name: Transcriptions
+    description: Transcript generation and management
+  - name: Campaigns
+    description: Bulk call campaign management
+  - name: Analytics
+    description: Dashboard metrics and reporting
+  - name: Billing
+    description: Subscription and payment management
+  - name: Team
+    description: Organization and team member management
+  - name: Webhooks
+    description: Webhook subscription management
+  - name: Compliance
+    description: Retention policies and legal holds
+  - name: AI Configuration
+    description: AI agent and live translation settings
+
+paths:
+  /calls:
+    get:
+      tags:
+        - Calls
+      summary: List calls
+      description: Retrieve a paginated list of calls for the organization
+      operationId: listCalls
+      parameters:
+        - name: orgId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Organization ID
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, in_progress, ringing, completed, failed]
+          description: Filter by call status
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Results per page
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /calls/{callId}:
+    get:
+      tags:
+        - Calls
+      summary: Get call details
+      description: Retrieve details for a specific call including recordings and transcripts
+      operationId: getCall
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: Comma-separated list of related resources (recordings,transcripts,ai_runs,manifests)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /calls/{callId}/notes:
+    get:
+      tags:
+        - Calls
+      summary: Get call notes
+      operationId: getCallNotes
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CallNote'
+    post:
+      tags:
+        - Calls
+      summary: Add call note
+      operationId: addCallNote
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tags
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+                    enum: [important, followup, dispute, escalate, review]
+                note:
+                  type: string
+      responses:
+        '201':
+          description: Note created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  note:
+                    $ref: '#/components/schemas/CallNote'
+
+  /calls/{callId}/timeline:
+    get:
+      tags:
+        - Calls
+      summary: Get call timeline
+      description: Retrieve timeline events for a call
+      operationId: getCallTimeline
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeline:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TimelineEvent'
+
+  /voice/call:
+    post:
+      tags:
+        - Calls
+      summary: Place a new call
+      description: Initiate a new outbound voice call
+      operationId: placeCall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organization_id
+              properties:
+                organization_id:
+                  type: string
+                  format: uuid
+                to_number:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  description: E.164 format phone number
+                target_id:
+                  type: string
+                  format: uuid
+                  description: Pre-configured target ID
+                from_number:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                flow_type:
+                  type: string
+                  enum: [direct, bridge, webrtc]
+                call_options:
+                  type: object
+                  properties:
+                    script_id:
+                      type: string
+                      format: uuid
+                    survey_id:
+                      type: string
+                      format: uuid
+                    recording_enabled:
+                      type: boolean
+                      default: true
+                    transcription_enabled:
+                      type: boolean
+                      default: true
+      responses:
+        '200':
+          description: Call initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [ringing, in_progress]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /voice/targets:
+    get:
+      tags:
+        - Calls
+      summary: List voice targets
+      operationId: listVoiceTargets
+      parameters:
+        - name: orgId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  targets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VoiceTarget'
+    post:
+      tags:
+        - Calls
+      summary: Create voice target
+      operationId: createVoiceTarget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organization_id
+                - phone_number
+              properties:
+                organization_id:
+                  type: string
+                  format: uuid
+                phone_number:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Target created
+
+  /recordings/{recordingId}:
+    get:
+      tags:
+        - Recordings
+      summary: Get recording
+      operationId: getRecording
+      parameters:
+        - name: recordingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recording URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  duration_seconds:
+                    type: number
+
+  /campaigns:
+    get:
+      tags:
+        - Campaigns
+      summary: List campaigns
+      operationId: listCampaigns
+      parameters:
+        - name: orgId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaigns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Campaign'
+    post:
+      tags:
+        - Campaigns
+      summary: Create campaign
+      operationId: createCampaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignCreate'
+      responses:
+        '201':
+          description: Campaign created
+
+  /campaigns/{campaignId}:
+    get:
+      tags:
+        - Campaigns
+      summary: Get campaign
+      operationId: getCampaign
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign details
+
+  /campaigns/{campaignId}/execute:
+    post:
+      tags:
+        - Campaigns
+      summary: Execute campaign
+      description: Start or resume campaign execution
+      operationId: executeCampaign
+      parameters:
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Campaign execution started
+
+  /billing/subscription:
+    get:
+      tags:
+        - Billing
+      summary: Get subscription
+      description: Get current subscription details
+      operationId: getSubscription
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription:
+                    $ref: '#/components/schemas/Subscription'
+                  invoices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+                  paymentMethods:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentMethod'
+
+  /billing/checkout:
+    post:
+      tags:
+        - Billing
+      summary: Create checkout session
+      operationId: createCheckout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - priceId
+              properties:
+                priceId:
+                  type: string
+                organizationId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+
+  /billing/portal:
+    post:
+      tags:
+        - Billing
+      summary: Create billing portal session
+      operationId: createPortalSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Portal URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+
+  /billing/cancel:
+    post:
+      tags:
+        - Billing
+      summary: Cancel subscription
+      operationId: cancelSubscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Subscription canceled
+
+  /team/members:
+    get:
+      tags:
+        - Team
+      summary: List team members
+      operationId: listTeamMembers
+      responses:
+        '200':
+          description: Team members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TeamMember'
+                  pending_invites:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PendingInvite'
+    put:
+      tags:
+        - Team
+      summary: Update member role
+      operationId: updateMemberRole
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - member_id
+                - role
+              properties:
+                member_id:
+                  type: string
+                  format: uuid
+                role:
+                  type: string
+                  enum: [admin, operator, analyst, viewer]
+      responses:
+        '200':
+          description: Role updated
+    delete:
+      tags:
+        - Team
+      summary: Remove team member
+      operationId: removeMember
+      parameters:
+        - name: member_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Member removed
+
+  /team/invite:
+    post:
+      tags:
+        - Team
+      summary: Send team invitation
+      operationId: inviteMember
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [admin, operator, analyst, viewer]
+      responses:
+        '200':
+          description: Invitation sent
+
+  /webhooks/subscriptions:
+    get:
+      tags:
+        - Webhooks
+      summary: List webhook subscriptions
+      operationId: listWebhooks
+      responses:
+        '200':
+          description: Webhook subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookSubscription'
+    post:
+      tags:
+        - Webhooks
+      summary: Create webhook subscription
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - url
+                - events
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum: [call.created, call.completed, call.updated, transcription.completed, campaign.started, campaign.completed, report.generated]
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                retry_policy:
+                  type: string
+                  enum: [none, linear, exponential]
+                max_retries:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+      responses:
+        '201':
+          description: Webhook created
+
+  /webhooks/subscriptions/{webhookId}:
+    patch:
+      tags:
+        - Webhooks
+      summary: Update webhook
+      operationId: updateWebhook
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active:
+                  type: boolean
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Webhook updated
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete webhook
+      operationId: deleteWebhook
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook deleted
+
+  /webhooks/subscriptions/{webhookId}/test:
+    post:
+      tags:
+        - Webhooks
+      summary: Test webhook
+      operationId: testWebhook
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Test delivery initiated
+
+  /retention:
+    get:
+      tags:
+        - Compliance
+      summary: Get retention policy
+      operationId: getRetentionPolicy
+      responses:
+        '200':
+          description: Retention policy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policy:
+                    $ref: '#/components/schemas/RetentionPolicy'
+    put:
+      tags:
+        - Compliance
+      summary: Update retention policy
+      operationId: updateRetentionPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recording_retention_days:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+                transcript_retention_days:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+                auto_delete_enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Policy updated
+
+  /retention/legal-holds:
+    get:
+      tags:
+        - Compliance
+      summary: List legal holds
+      operationId: listLegalHolds
+      responses:
+        '200':
+          description: Legal holds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  legal_holds:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LegalHold'
+    post:
+      tags:
+        - Compliance
+      summary: Create legal hold
+      operationId: createLegalHold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - hold_name
+              properties:
+                hold_name:
+                  type: string
+                matter_reference:
+                  type: string
+                applies_to_all:
+                  type: boolean
+      responses:
+        '201':
+          description: Legal hold created
+    delete:
+      tags:
+        - Compliance
+      summary: Release legal hold
+      operationId: releaseLegalHold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - hold_id
+                - release_reason
+              properties:
+                hold_id:
+                  type: string
+                  format: uuid
+                release_reason:
+                  type: string
+      responses:
+        '200':
+          description: Legal hold released
+
+  /ai-config:
+    get:
+      tags:
+        - AI Configuration
+      summary: Get AI configuration
+      operationId: getAIConfig
+      responses:
+        '200':
+          description: AI configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfigSettings'
+    put:
+      tags:
+        - AI Configuration
+      summary: Update AI configuration
+      operationId: updateAIConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIConfig'
+      responses:
+        '200':
+          description: Configuration updated
+
+  /analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics dashboard
+      operationId: getAnalytics
+      parameters:
+        - name: orgId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsData'
+
+  /reports:
+    get:
+      tags:
+        - Analytics
+      summary: List generated reports
+      operationId: listReports
+      responses:
+        '200':
+          description: Reports list
+    post:
+      tags:
+        - Analytics
+      summary: Generate new report
+      operationId: generateReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_id
+              properties:
+                template_id:
+                  type: string
+                  format: uuid
+                parameters:
+                  type: object
+      responses:
+        '201':
+          description: Report generation started
+
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: System healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+
+components:
+  schemas:
+    CallListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/Call'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Call:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        system_id:
+          type: string
+        status:
+          type: string
+          enum: [ringing, in_progress, completed, failed, canceled]
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+        call_sid:
+          type: string
+        is_authoritative:
+          type: boolean
+          description: Evidence provenance marker
+
+    CallDetailResponse:
+      type: object
+      properties:
+        call:
+          $ref: '#/components/schemas/CallWithArtifacts'
+
+    CallWithArtifacts:
+      allOf:
+        - $ref: '#/components/schemas/Call'
+        - type: object
+          properties:
+            recordings:
+              type: array
+              items:
+                $ref: '#/components/schemas/Recording'
+            transcript_versions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Transcript'
+            ai_runs:
+              type: array
+              items:
+                $ref: '#/components/schemas/AIRun'
+            evidence_manifests:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvidenceManifest'
+
+    Recording:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        duration_seconds:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        is_authoritative:
+          type: boolean
+        source:
+          type: string
+
+    Transcript:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        transcript_json:
+          type: object
+        transcript_hash:
+          type: string
+        produced_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        is_authoritative:
+          type: boolean
+
+    AIRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        model:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        output:
+          type: object
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        is_authoritative:
+          type: boolean
+
+    EvidenceManifest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        manifest:
+          type: object
+        version:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        is_authoritative:
+          type: boolean
+        cryptographic_hash:
+          type: string
+
+    CallNote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        call_id:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        created_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    TimelineEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        event_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          type: object
+
+    VoiceTarget:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        phone_number:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [draft, scheduled, active, paused, completed, canceled]
+        call_flow_type:
+          type: string
+          enum: [secret_shopper, survey, outbound, test]
+        total_targets:
+          type: integer
+        calls_completed:
+          type: integer
+        calls_successful:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CampaignCreate:
+      type: object
+      required:
+        - name
+        - organization_id
+        - call_flow_type
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        organization_id:
+          type: string
+          format: uuid
+        call_flow_type:
+          type: string
+          enum: [secret_shopper, survey, outbound, test]
+        targets:
+          type: array
+          items:
+            type: object
+            properties:
+              phone_number:
+                type: string
+              name:
+                type: string
+        script_id:
+          type: string
+          format: uuid
+        survey_id:
+          type: string
+          format: uuid
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [active, trialing, past_due, canceled, incomplete]
+        plan:
+          type: string
+          enum: [free, starter, pro, enterprise]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [paid, open, draft, void, uncollectible]
+        amount_due:
+          type: integer
+          description: Amount in cents
+        currency:
+          type: string
+        created:
+          type: string
+          format: date-time
+        hosted_invoice_url:
+          type: string
+          format: uri
+
+    PaymentMethod:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        card:
+          type: object
+          properties:
+            brand:
+              type: string
+            last4:
+              type: string
+            exp_month:
+              type: integer
+            exp_year:
+              type: integer
+        is_default:
+          type: boolean
+
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [owner, admin, operator, analyst, viewer]
+        created_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+
+    PendingInvite:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        last_triggered_at:
+          type: string
+          format: date-time
+        success_count:
+          type: integer
+        failure_count:
+          type: integer
+
+    RetentionPolicy:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        recording_retention_days:
+          type: integer
+        transcript_retention_days:
+          type: integer
+        auto_delete_enabled:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+
+    LegalHold:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        hold_name:
+          type: string
+        matter_reference:
+          type: string
+        status:
+          type: string
+          enum: [active, released]
+        applies_to_all:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+
+    AIConfig:
+      type: object
+      properties:
+        signalwire_ai_agent_id:
+          type: string
+        translation_enabled:
+          type: boolean
+        default_target_language:
+          type: string
+        custom_prompts:
+          type: object
+        voice_settings:
+          type: object
+
+    AIConfigSettings:
+      type: object
+      properties:
+        config:
+          $ref: '#/components/schemas/AIConfig'
+        features_available:
+          type: object
+          properties:
+            live_translation:
+              type: boolean
+            custom_agent_id:
+              type: boolean
+            custom_prompts:
+              type: boolean
+            voice_cloning:
+              type: boolean
+
+    AnalyticsData:
+      type: object
+      properties:
+        total_calls:
+          type: integer
+        completed_calls:
+          type: integer
+        average_duration:
+          type: number
+        success_rate:
+          type: number
+        calls_by_day:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              count:
+                type: integer
+        top_numbers:
+          type: array
+          items:
+            type: object
+            properties:
+              number:
+                type: string
+              count:
+                type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+      description: NextAuth.js session cookie
+
+security:
+  - cookieAuth: []

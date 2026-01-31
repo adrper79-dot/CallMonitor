@@ -1,0 +1,24 @@
+[
+  {
+    "label": "neon",
+    "version": "PostgreSQL 17.7 (e429a59) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+    "public_table_count": 110,
+    "sample_tables": {
+      "network_incidents": {
+        "est_rows": "-1"
+      },
+      "booking_events": {
+        "est_rows": "-1"
+      },
+      "users": {
+        "est_rows": "-1"
+      },
+      "webhook_subscriptions": {
+        "est_rows": "-1"
+      },
+      "attention_policies": {
+        "est_rows": "-1"
+      }
+    }
+  }
+]

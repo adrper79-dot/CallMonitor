@@ -1,0 +1,233 @@
+# Schema Extract — Selected public tables
+
+### calls
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL | YES |  |
+| organization_id | uuid |  | organizations(id) |
+| system_id | uuid |  | systems(id) |
+| status | text |  |  |
+| started_at | timestamp with time zone |  |  |
+| ended_at | timestamp with time zone |  |  |
+| created_by | uuid |  | users(id) |
+| call_sid | text |  |  |
+
+
+### recordings
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL DEFAULT gen_random_uuid() | YES |  |
+| organization_id | uuid NOT NULL |  | organizations(id) |
+| call_sid | text NOT NULL |  |  |
+| recording_sid | text UNIQUE |  |  |
+| recording_url | text NOT NULL |  |  |
+| duration_seconds | integer |  |  |
+| transcript_json | jsonb |  |  |
+| status | text DEFAULT 'pending'::text |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+| updated_at | timestamp with time zone DEFAULT now() |  |  |
+| tool_id | uuid NOT NULL |  | tools(id) |
+| created_by | uuid |  |  |
+
+
+### scored_recordings
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL DEFAULT gen_random_uuid() | YES |  |
+| organization_id | uuid NOT NULL |  | organizations(id) |
+| recording_id | uuid NOT NULL |  | recordings(id) |
+| scorecard_id | uuid NOT NULL |  | scorecards(id) |
+| scores_json | jsonb NOT NULL |  |  |
+| total_score | numeric |  |  |
+| manual_overrides_json | jsonb |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+| updated_at | timestamp with time zone DEFAULT now() |  |  |
+
+
+### evidence_manifests
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL DEFAULT gen_random_uuid() | YES |  |
+| organization_id | uuid NOT NULL |  |  |
+| recording_id | uuid NOT NULL |  | recordings(id) |
+| scorecard_id | uuid |  |  |
+| manifest | jsonb NOT NULL |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+
+
+### ai_runs
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL | YES |  |
+| call_id | uuid |  | calls(id) |
+| system_id | uuid |  | systems(id) |
+| model | text |  |  |
+| status | text |  |  |
+| started_at | timestamp with time zone |  |  |
+| completed_at | timestamp with time zone |  |  |
+| output | jsonb |  |  |
+
+
+### organizations
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL DEFAULT gen_random_uuid() | YES |  |
+| name | text NOT NULL |  |  |
+| plan | text |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+| plan_status | text DEFAULT 'active'::text CHECK (plan_status = ANY (ARRAY['active'::text |  |  |
+| stripe_customer_id | text UNIQUE |  |  |
+| stripe_subscription_id | text |  |  |
+| tenant_id | uuid |  |  |
+| tool_id | uuid |  |  |
+| created_by | uuid |  |  |
+
+
+### users
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL | YES |  |
+| organization_id | uuid |  | organizations(id) |
+| email | text NOT NULL UNIQUE |  |  |
+| phone | text |  |  |
+| role | text DEFAULT 'viewer'::text |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+| is_admin | boolean DEFAULT false |  |  |
+| tenant_id | uuid |  |  |
+| tool_id | uuid |  |  |
+| created_by | uuid |  |  |
+
+
+### audit_logs
+
+| Column | SQL Type | PK | FK |
+|---|---:|:--:|:--:
+| id | uuid NOT NULL | YES |  |
+| organization_id | uuid |  | organizations(id) |
+| user_id | uuid |  | users(id) |
+| system_id | uuid |  | systems(id) |
+| resource_type | text |  |  |
+| resource_id | uuid |  |  |
+| action | text |  |  |
+| before | jsonb |  |  |
+| after | jsonb |  |  |
+| created_at | timestamp with time zone DEFAULT now() |  |  |
+
+
+
+# TypeScript Interfaces
+
+export interface Calls {
+  id: string;
+  organization_id: string | null;
+  system_id: string | null;
+  status: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_by: string | null;
+  call_sid: string | null;
+}
+
+export interface Recordings {
+  id: string;
+  organization_id: string;
+  call_sid: string;
+  recording_sid: string | null;
+  recording_url: string;
+  duration_seconds: number | null;
+  transcript_json: any | null;
+  status: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  tool_id: string;
+  created_by: string | null;
+}
+
+export interface Scored_recordings {
+  id: string;
+  organization_id: string;
+  recording_id: string;
+  scorecard_id: string;
+  scores_json: any;
+  total_score: number | null;
+  manual_overrides_json: any | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Evidence_manifests {
+  id: string;
+  organization_id: string;
+  recording_id: string;
+  scorecard_id: string | null;
+  manifest: any;
+  created_at: string | null;
+}
+
+export interface Ai_runs {
+  id: string;
+  call_id: string | null;
+  system_id: string | null;
+  model: string | null;
+  status: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  output: any | null;
+}
+
+export interface Organizations {
+  id: string;
+  name: string;
+  plan: string | null;
+  created_at: string | null;
+  plan_status: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  tenant_id: string | null;
+  tool_id: string | null;
+  created_by: string | null;
+}
+
+export interface Users {
+  id: string;
+  organization_id: string | null;
+  email: string;
+  phone: string | null;
+  role: string | null;
+  created_at: string | null;
+  is_admin: boolean | null;
+  tenant_id: string | null;
+  tool_id: string | null;
+  created_by: string | null;
+}
+
+export interface Audit_logs {
+  id: string;
+  organization_id: string | null;
+  user_id: string | null;
+  system_id: string | null;
+  resource_type: string | null;
+  resource_id: string | null;
+  action: string | null;
+  before: any | null;
+  after: any | null;
+  created_at: string | null;
+}
+
+
+# Column counts
+calls: 8
+recordings: 12
+scored_recordings: 9
+evidence_manifests: 6
+ai_runs: 8
+organizations: 10
+users: 10
+audit_logs: 10

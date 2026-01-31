@@ -1,0 +1,24 @@
+[
+  {
+    "label": "neon",
+    "version": "PostgreSQL 17.7 (e429a59) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+    "public_table_count": 110,
+    "sample_tables": {
+      "external_entity_identifiers": {
+        "est_rows": "9"
+      },
+      "org_members": {
+        "est_rows": "9"
+      },
+      "audit_logs": {
+        "est_rows": "6"
+      },
+      "organizations": {
+        "est_rows": "6"
+      },
+      "search_documents": {
+        "est_rows": "6"
+      }
+    }
+  }
+]

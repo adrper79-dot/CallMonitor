@@ -1,0 +1,29 @@
+.env.local
+node_modules/
+.DS_Store
+.vscode/
+dist/
+.vercel
+.env*.local
+ARCH_DOCS/
+./TROUBLESHOOTING_LOG.md
+# Next.js build outputs
+.next/
+.next/*
+out/
+.open-next/
+
+# Build artifacts
+*.tsbuildinfo
+
+
+# Scratchpad & Logs
+V5_Issues.txt
+finalization-prompts
+
+# Large/Test Media
+/*.mp4
+*.uvz
+image (1).jpg
+
+scripts/set_cloudflare_secrets.ps1

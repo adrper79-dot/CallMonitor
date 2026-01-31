@@ -1,0 +1,43 @@
+name: R2 Copy & Integration Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  r2-copy-and-integration:
+    runs-on: ubuntu-latest
+    env:
+      NEON_PG_CONN: ${{ secrets.NEON_PG_CONN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Supabase storage sync removed — this workflow now focuses on applying Neon schema and running integration tests
+
+      - name: Apply Neon schema pass1
+        run: |
+          psql "$NEON_PG_CONN" -f migrations/neon_public_schema_pass1.sql
+
+      - name: Apply Neon schema pass2 (safe)
+        run: |
+          node scripts/apply_pass2_safe.js "$NEON_PG_CONN"
+
+      - name: Seed test users
+        run: |
+          psql "$NEON_PG_CONN" -f migrations/seed_test_users.sql
+
+      - name: Run integration tests
+        run: |
+          RUN_INTEGRATION=1 NEON_PG_CONN="$NEON_PG_CONN" R2_ENDPOINT="$R2_ENDPOINT" R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" npx vitest --run

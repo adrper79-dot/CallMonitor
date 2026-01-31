@@ -1,0 +1,570 @@
+{
+  "query": "select table_schema, table_name, table_type from information_schema.tables where table_schema='public' order by table_name",
+  "rows": [
+    {
+      "table_schema": "public",
+      "table_name": "access_grants_archived",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "accounts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ai_agent_audit_log",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "ai_runs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "alert_acknowledgements",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "alerts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "artifact_provenance",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "artifacts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "attention_decisions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "attention_events",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "attention_policies",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "audit_logs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "booking_events",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "call_confirmation_checklists",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "call_confirmations",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "call_debug_view",
+      "table_type": "VIEW"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "call_export_bundles",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "call_notes",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "caller_id_default_rules",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "caller_id_numbers",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "caller_id_permissions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "calls",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "campaign_audit_log",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "campaign_calls",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "campaigns",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "capabilities_archived",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "carrier_health_public",
+      "table_type": "VIEW"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "carrier_status",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compliance_restrictions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "compliance_violations",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "confirmation_templates",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "crm_object_links",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "crm_sync_log",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "digest_items",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "digests",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "disclosure_logs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "evidence_bundles",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "evidence_manifests",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "execution_contexts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "export_compliance_log",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "external_entities",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "external_entity_identifiers",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "external_entity_links",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "external_entity_observations",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "generated_reports",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "global_feature_flags",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "incidents",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "integrations",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "invoices",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "kpi_logs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "kpi_settings",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "legal_holds",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "login_attempts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "media_sessions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "monitored_numbers",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "network_incidents",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "number_kpi_logs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "number_kpi_snapshot",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "oauth_tokens",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "org_feature_flags",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "org_members",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "org_sso_configs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "organizations",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "qa_evaluation_disclosures",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "recordings",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "reliability_metrics",
+      "table_type": "VIEW"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "report_access_log",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "report_schedules",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "report_templates",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "retention_policies",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "role_capabilities_archived",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "roles_archived",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scheduled_reports",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scorecards",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "scored_recordings",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "search_documents",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "search_events",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "sessions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "shopper_campaigns_archive",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "shopper_jobs_archive",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "shopper_results",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "shopper_scripts",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "sso_login_events",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_messages",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stripe_events",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stripe_invoices",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stripe_payment_methods",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stripe_subscriptions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "subscriptions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "surveys",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "systems",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "team_invites",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "test_configs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "test_frequency_config",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "test_results",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "test_statistics",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tool_access",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tool_access_archived",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tool_settings",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tool_team_members",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tools",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transcript_versions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "usage_limits",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "usage_records",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "verification_tokens",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "voice_configs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "voice_targets",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "webhook_configs",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "webhook_deliveries",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "webhook_failures",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "webhook_subscriptions",
+      "table_type": "BASE TABLE"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "webrtc_sessions",
+      "table_type": "BASE TABLE"
+    }
+  ]
+}
