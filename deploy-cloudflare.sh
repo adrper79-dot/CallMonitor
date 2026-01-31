@@ -9,6 +9,6 @@ echo "Building Next.js app for Cloudflare Pages..."
 npm run build:cloudflare
 
 echo "Publishing to Cloudflare Pages..."
-wrangler pages publish .open-next/assets --project-name wordisbond
+wrangler pages deploy .open-next/assets --project-name wordisbond
 
 echo "Deployment complete! Check https://wordisbond.pages.dev"

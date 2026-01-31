@@ -71,6 +71,7 @@
     "autoprefixer": "^10.4.23",
     "cloudflare": "^5.2.0",
     "dotenv": "^17.2.3",
+    "eslint": "^9.39.2",
     "glob": "^13.0.0",
     "nodemailer": "^7.0.12",
     "open-next": "^3.1.3",
