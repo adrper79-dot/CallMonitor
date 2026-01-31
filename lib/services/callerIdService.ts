@@ -11,7 +11,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
-import { query } from '@/lib/pgClient'
+import { pool } from '@/lib/neon'
 
 // =============================================================================
 // TYPES

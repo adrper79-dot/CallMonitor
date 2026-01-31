@@ -20,35 +20,35 @@ describe('CRM Integration', () => {
     let testIntegrationId: string
 
     beforeAll(async () => {
+        await setRLSSession(TEST_ORG_ID, TEST_ADMIN_USER)
+
         // Create test organization
-        await supabase.from('organizations').upsert({
-            id: TEST_ORG_ID,
-            name: 'Test Org for CRM',
-            slug: 'test-crm-org'
-        })
+        await pool.query(`
+            INSERT INTO organizations (id, name, slug)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug
+        `, [TEST_ORG_ID, 'Test Org for CRM', 'test-crm-org'])
 
         // Create test users
-        await supabase.from('users').upsert([
-            { id: TEST_ADMIN_USER, email: 'admin@test.com', name: 'Test Admin' },
-            { id: TEST_MEMBER_USER, email: 'member@test.com', name: 'Test Member' }
-        ])
+        await pool.query(`
+            INSERT INTO users (id, email, name)
+            VALUES ($1, $2, $3), ($4, $5, $6)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name
+        `, [TEST_ADMIN_USER, 'admin@test.com', 'Test Admin', TEST_MEMBER_USER, 'member@test.com', 'Test Member'])
 
         // Create org memberships
-        await supabase.from('org_members').upsert([
-            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_ADMIN_USER, role: 'admin' },
-            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_MEMBER_USER, role: 'member' }
-        ])
+        await pool.query(`
+            INSERT INTO org_members (id, organization_id, user_id, role)
+            VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
+            ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role
+        `, [uuidv4(), TEST_ORG_ID, TEST_ADMIN_USER, 'admin', uuidv4(), TEST_ORG_ID, TEST_MEMBER_USER, 'member'])
 
         // Create test integration
         testIntegrationId = uuidv4()
-        await supabase.from('integrations').insert({
-            id: testIntegrationId,
-            organization_id: TEST_ORG_ID,
-            provider: 'hubspot',
-            status: 'active',
-            connected_by: TEST_ADMIN_USER,
-            connected_at: new Date().toISOString()
-        })
+        await pool.query(`
+            INSERT INTO integrations (id, organization_id, provider, status, connected_by, connected_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [testIntegrationId, TEST_ORG_ID, 'hubspot', 'active', TEST_ADMIN_USER, new Date().toISOString()])
     })
 
     describe('Token Encryption', () => {
@@ -90,17 +90,10 @@ describe('CRM Integration', () => {
         test('creates sync log entry for operations', async () => {
             const logId = uuidv4()
 
-            await supabase.from('crm_sync_log').insert({
-                id: logId,
-                organization_id: TEST_ORG_ID,
-                integration_id: testIntegrationId,
-                operation: 'push_evidence',
-                status: 'success',
-                idempotency_key: 'test-key-' + logId,
-                triggered_by: 'user',
-                triggered_by_user_id: TEST_ADMIN_USER,
-                completed_at: new Date().toISOString()
-            })
+            await pool.query(`
+                INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, idempotency_key, triggered_by, triggered_by_user_id, completed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `, [logId, TEST_ORG_ID, testIntegrationId, 'push_evidence', 'success', 'test-key-' + logId, 'user', TEST_ADMIN_USER, new Date().toISOString()])
 
             // Verify it was created
             const { data } = await supabase
@@ -117,45 +110,35 @@ describe('CRM Integration', () => {
         test('cannot delete sync log entries', async () => {
             const logId = uuidv4()
 
-            await supabase.from('crm_sync_log').insert({
-                id: logId,
-                organization_id: TEST_ORG_ID,
-                integration_id: testIntegrationId,
-                operation: 'oauth_connect',
-                status: 'success',
-                triggered_by: 'user'
-            })
+            await pool.query(`
+                INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, triggered_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [logId, TEST_ORG_ID, testIntegrationId, 'oauth_connect', 'success', 'user'])
 
             // Try to delete
-            const { error } = await supabase
-                .from('crm_sync_log')
-                .delete()
-                .eq('id', logId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('DELETE FROM crm_sync_log WHERE id = $1', [logId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
 
         test('cannot modify core fields in sync log', async () => {
             const logId = uuidv4()
 
-            await supabase.from('crm_sync_log').insert({
-                id: logId,
-                organization_id: TEST_ORG_ID,
-                integration_id: testIntegrationId,
-                operation: 'push_evidence',
-                status: 'pending',
-                triggered_by: 'system'
-            })
+            await pool.query(`
+                INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, triggered_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [logId, TEST_ORG_ID, testIntegrationId, 'sync_contacts', 'pending', 'system'])
 
             // Try to modify operation (should fail)
-            const { error } = await supabase
-                .from('crm_sync_log')
-                .update({ operation: 'error' })
-                .eq('id', logId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('UPDATE crm_sync_log SET operation = $1 WHERE id = $2', ['error', logId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
 
         test('can update status and completed_at', async () => {
@@ -171,24 +154,13 @@ describe('CRM Integration', () => {
             })
 
             // Update status (should succeed)
-            const { error } = await supabase
-                .from('crm_sync_log')
-                .update({
-                    status: 'success',
-                    completed_at: new Date().toISOString()
-                })
-                .eq('id', logId)
-
-            expect(error).toBeNull()
+            await pool.query(`
+                UPDATE crm_sync_log SET status = $1, completed_at = $2 WHERE id = $3
+            `, ['success', new Date().toISOString(), logId])
 
             // Verify update
-            const { data } = await supabase
-                .from('crm_sync_log')
-                .select('status')
-                .eq('id', logId)
-                .single()
-
-            expect(data?.status).toBe('success')
+            const result = await pool.query('SELECT status FROM crm_sync_log WHERE id = $1', [logId])
+            expect(result.rows[0].status).toBe('success')
         })
     })
 
@@ -206,9 +178,7 @@ describe('CRM Integration', () => {
             // In real tests, this would use anon key with authenticated user
             // For now, we just verify the policy exists by checking if RLS is enabled
             try {
-                await supabase.rpc('get_policies_for_table', {
-                    table_name: 'oauth_tokens'
-                })
+                await pool.query('SELECT get_policies_for_table($1)', ['oauth_tokens'])
             } catch {
                 // RPC may not exist, that's fine - just testing RLS concept
             }
@@ -221,13 +191,11 @@ describe('CRM Integration', () => {
 
     describe('Integration Permissions', () => {
         test('integrations table allows org members to read', async () => {
-            const { data } = await supabase
-                .from('integrations')
-                .select('id, provider, status')
-                .eq('organization_id', TEST_ORG_ID)
+            const result = await pool.query('SELECT id, provider, status FROM integrations WHERE organization_id = $1', [TEST_ORG_ID])
+            const data = result.rows
 
             expect(data).not.toBeNull()
-            expect(data?.length).toBeGreaterThan(0)
+            expect(data.length).toBeGreaterThan(0)
         })
     })
 
@@ -236,25 +204,18 @@ describe('CRM Integration', () => {
             const idempotencyKey = 'test-idem-' + uuidv4()
 
             // First insert
-            await supabase.from('crm_sync_log').insert({
-                id: uuidv4(),
-                organization_id: TEST_ORG_ID,
-                integration_id: testIntegrationId,
-                operation: 'push_evidence',
-                status: 'success',
-                idempotency_key: idempotencyKey,
-                triggered_by: 'system'
-            })
+            await pool.query(`
+                INSERT INTO crm_sync_log (id, organization_id, integration_id, operation, status, idempotency_key, triggered_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `, [uuidv4(), TEST_ORG_ID, testIntegrationId, 'push_evidence', 'success', idempotencyKey, 'system'])
 
             // Check if operation already completed
-            const { data } = await supabase
-                .from('crm_sync_log')
-                .select('status')
-                .eq('idempotency_key', idempotencyKey)
-                .in('status', ['success', 'skipped'])
-                .limit(1)
-
-            const isCompleted = (data?.length ?? 0) > 0
+            const result = await pool.query(`
+                SELECT status FROM crm_sync_log
+                WHERE idempotency_key = $1 AND status IN ('success', 'skipped')
+                LIMIT 1
+            `, [idempotencyKey])
+            const isCompleted = result.rows.length > 0
             expect(isCompleted).toBe(true)
         })
     })

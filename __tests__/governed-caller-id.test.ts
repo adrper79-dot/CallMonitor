@@ -9,15 +9,9 @@
  * 5. Retired numbers cannot be used for new calls
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pool, setRLSSession } from '@/lib/neon'
 import { v4 as uuidv4 } from 'uuid'
 import { CallerIdService } from '@/lib/services/callerIdService'
-
-// Test setup
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-)
 
 const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
 const TEST_ADMIN_USER = uuidv4()
@@ -29,46 +23,36 @@ describe('Governed Caller ID', () => {
     let callerIdService: CallerIdService
 
     beforeAll(async () => {
+        await setRLSSession(TEST_ORG_ID, TEST_ADMIN_USER)
         callerIdService = new CallerIdService()
 
         // Create test organization
-        await supabase.from('organizations').upsert({
-            id: TEST_ORG_ID,
-            name: 'Test Org for Caller ID',
-            slug: 'test-caller-id-org'
-        })
+        await pool.query(`
+            INSERT INTO organizations (id, name, slug)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug
+        `, [TEST_ORG_ID, 'Test Org for Caller ID', 'test-caller-id-org'])
 
         // Create test users
-        await supabase.from('users').upsert([
-            { id: TEST_ADMIN_USER, email: 'admin-cid@test.com', name: 'Test Admin' },
-            { id: TEST_OPERATOR_USER, email: 'operator-cid@test.com', name: 'Test Operator' }
-        ])
+        await pool.query(`
+            INSERT INTO users (id, email, name)
+            VALUES ($1, $2, $3), ($4, $5, $6)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name
+        `, [TEST_ADMIN_USER, 'admin-cid@test.com', 'Test Admin', TEST_OPERATOR_USER, 'operator-cid@test.com', 'Test Operator'])
 
         // Create org memberships
-        await supabase.from('org_members').upsert([
-            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_ADMIN_USER, role: 'admin' },
-            { id: uuidv4(), organization_id: TEST_ORG_ID, user_id: TEST_OPERATOR_USER, role: 'operator' }
-        ])
+        await pool.query(`
+            INSERT INTO org_members (id, organization_id, user_id, role)
+            VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
+            ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role
+        `, [uuidv4(), TEST_ORG_ID, TEST_ADMIN_USER, 'admin', uuidv4(), TEST_ORG_ID, TEST_OPERATOR_USER, 'operator'])
 
         // Create test caller ID numbers
-        await supabase.from('caller_id_numbers').upsert([
-            {
-                id: TEST_CALLER_ID_1,
-                organization_id: TEST_ORG_ID,
-                phone_number: '+15551234567',
-                display_name: 'Test Number 1',
-                is_verified: true,
-                status: 'active'
-            },
-            {
-                id: TEST_CALLER_ID_2,
-                organization_id: TEST_ORG_ID,
-                phone_number: '+15559876543',
-                display_name: 'Test Number 2',
-                is_verified: true,
-                status: 'active'
-            }
-        ])
+        await pool.query(`
+            INSERT INTO caller_id_numbers (id, organization_id, phone_number, display_name, is_verified, status)
+            VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)
+            ON CONFLICT (id) DO UPDATE SET phone_number = EXCLUDED.phone_number, display_name = EXCLUDED.display_name, is_verified = EXCLUDED.is_verified, status = EXCLUDED.status
+        `, [TEST_CALLER_ID_1, TEST_ORG_ID, '+15551234567', 'Test Number 1', true, 'active', TEST_CALLER_ID_2, TEST_ORG_ID, '+15559876543', 'Test Number 2', true, 'active'])
     })
 
     describe('Permission Validation', () => {
@@ -118,13 +102,10 @@ describe('Governed Caller ID', () => {
         test('cannot use unverified caller ID', async () => {
             // Create unverified number
             const unverifiedId = uuidv4()
-            await supabase.from('caller_id_numbers').insert({
-                id: unverifiedId,
-                organization_id: TEST_ORG_ID,
-                phone_number: '+15550000000',
-                is_verified: false,
-                status: 'active'
-            })
+            await pool.query(`
+                INSERT INTO caller_id_numbers (id, organization_id, phone_number, is_verified, status)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [unverifiedId, TEST_ORG_ID, '+15550000000', false, 'active'])
 
             const result = await callerIdService.validateCallerIdForUser(
                 TEST_ORG_ID,

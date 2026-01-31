@@ -8,14 +8,8 @@
  */
 
 // @integration: integration-level tests (set RUN_INTEGRATION=1 to run)
-import { createClient } from '@supabase/supabase-js'
+import { pool, setRLSSession } from '@/lib/neon'
 import { v4 as uuidv4 } from 'uuid'
-
-// Test setup - use service role for admin operations
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-)
 
 // Test organization ID (should exist in test database)
 const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
@@ -26,26 +20,23 @@ describeIfIntegration('Immutable Search Layer', () => {
     let testDocId: string
 
     beforeAll(async () => {
+        await setRLSSession(TEST_ORG_ID)
         // Create test organization if needed
-        await supabase.from('organizations').upsert({
-            id: TEST_ORG_ID,
-            name: 'Test Org for Search Tests',
-            slug: 'test-search-org'
-        })
+        await pool.query(`
+            INSERT INTO organizations (id, name, slug)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug
+        `, [TEST_ORG_ID, 'Test Org for Search Tests', 'test-search-org'])
     })
 
     describe('Immutability Constraints', () => {
         beforeEach(async () => {
             // Insert a test document before each test
             testDocId = uuidv4()
-            await supabase.from('search_documents').insert({
-                id: testDocId,
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: uuidv4(),
-                content: 'original test content',
-                content_hash: 'hash-' + testDocId
-            })
+            await pool.query(`
+                INSERT INTO search_documents (id, organization_id, source_type, source_id, content, content_hash)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            `, [testDocId, TEST_ORG_ID, 'call', uuidv4(), 'original test content', 'hash-' + testDocId])
         })
 
         test('cannot update search_documents content', async () => {
@@ -72,21 +63,15 @@ describeIfIntegration('Immutable Search Layer', () => {
             const newDocId = uuidv4()
 
             // Insert the new version first so FK on superseded_by is satisfied
-            await supabase.from('search_documents').insert({
-                id: newDocId,
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: uuidv4(),
-                version: 2,
-                is_current: true,
-                content: 'placeholder new version',
-                content_hash: 'hash-' + newDocId
-            })
+            await pool.query(`
+                INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, content, content_hash)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [newDocId, TEST_ORG_ID, 'call', uuidv4(), 2, true, 'placeholder new version', 'hash-' + newDocId])
 
             // This should succeed - allowed for version chaining
-            const { error } = await supabase
-                .from('search_documents')
-                .update({ is_current: false, superseded_by: newDocId })
+            await pool.query(`
+                UPDATE search_documents SET is_current = $1, superseded_by = $2 WHERE id = $3
+            `, [false, newDocId, testDocId])
                 .eq('id', testDocId)
 
             expect(error).toBeNull()
@@ -98,32 +83,28 @@ describeIfIntegration('Immutable Search Layer', () => {
 
         beforeEach(async () => {
             testEventId = uuidv4()
-            await supabase.from('search_events').insert({
-                id: testEventId,
-                organization_id: TEST_ORG_ID,
-                event_type: 'indexed',
-                actor_type: 'system'
-            })
+            await pool.query(`
+                INSERT INTO search_events (id, organization_id, event_type, actor_type)
+                VALUES ($1, $2, $3, $4)
+            `, [testEventId, TEST_ORG_ID, 'indexed', 'system'])
         })
 
         test('cannot update search_events', async () => {
-            const { error } = await supabase
-                .from('search_events')
-                .update({ event_type: 'reindexed' })
-                .eq('id', testEventId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('immutable')
+            try {
+                await pool.query('UPDATE search_events SET event_type = $1 WHERE id = $2', ['reindexed', testEventId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('immutable')
+            }
         })
 
         test('cannot delete search_events', async () => {
-            const { error } = await supabase
-                .from('search_events')
-                .delete()
-                .eq('id', testEventId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('DELETE FROM search_events WHERE id = $1', [testEventId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('immutable')
+            }
         })
     })
 
@@ -133,35 +114,22 @@ describeIfIntegration('Immutable Search Layer', () => {
 
             // Insert v1
             const v1Id = uuidv4()
-            await supabase.from('search_documents').insert({
-                id: v1Id,
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: sourceId,
-                version: 1,
-                is_current: true,
-                content: 'version 1 content',
-                content_hash: 'hash-v1-' + sourceId
-            })
+            await pool.query(`
+                INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, content, content_hash)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [v1Id, TEST_ORG_ID, 'call', sourceId, 1, true, 'version 1 content', 'hash-v1-' + sourceId])
 
             // Insert v2 first so FK on superseded_by is satisfied, then mark v1 as superseded
             const v2Id = uuidv4()
-            await supabase.from('search_documents').insert({
-                id: v2Id,
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: sourceId,
-                version: 2,
-                is_current: true,
-                content: 'version 2 content',
-                content_hash: 'hash-v2-' + sourceId
-            })
+            await pool.query(`
+                INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, content, content_hash)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [v2Id, TEST_ORG_ID, 'call', sourceId, 2, true, 'version 2 content', 'hash-v2-' + sourceId])
 
             // Simulate rebuild: mark v1 as not current and point to v2
-            await supabase
-                .from('search_documents')
-                .update({ is_current: false, superseded_by: v2Id })
-                .eq('id', v1Id)
+            await pool.query(`
+                UPDATE search_documents SET is_current = $1, superseded_by = $2 WHERE id = $3
+            `, [false, v2Id, v1Id])
 
             // Verify both versions exist
             const { data: allVersions } = await supabase
@@ -183,31 +151,22 @@ describeIfIntegration('Immutable Search Layer', () => {
             const sourceId = uuidv4()
 
             // Insert first document with is_current=true
-            await supabase.from('search_documents').insert({
-                id: uuidv4(),
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: sourceId,
-                version: 1,
-                is_current: true,
-                content: 'first version',
-                content_hash: 'hash-first-' + sourceId
-            })
+            await pool.query(`
+                INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, content, content_hash)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [uuidv4(), TEST_ORG_ID, 'call', sourceId, 1, true, 'first version', 'hash-first-' + sourceId])
 
             // Try to insert second document with is_current=true (same source) - should fail
-            const { error } = await supabase.from('search_documents').insert({
-                id: uuidv4(),
-                organization_id: TEST_ORG_ID,
-                source_type: 'call',
-                source_id: sourceId,
-                version: 2,
-                is_current: true,  // Violation!
-                content: 'second version',
-                content_hash: 'hash-second-' + sourceId
-            })
-
-            expect(error).not.toBeNull()
-            // Should violate unique index on (org_id, source_type, source_id) WHERE is_current=true
+            try {
+                await pool.query(`
+                    INSERT INTO search_documents (id, organization_id, source_type, source_id, version, is_current, content, content_hash)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                `, [uuidv4(), TEST_ORG_ID, 'call', sourceId, 2, true, 'second version', 'hash-second-' + sourceId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                // Should violate unique index on (org_id, source_type, source_id) WHERE is_current=true
+                expect((error as Error).message).toContain('unique')
+            }
         })
     })
 

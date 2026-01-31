@@ -6,10 +6,6 @@ pages_build_output_dir = ".open-next/assets"
 [vars]
 # Public Variables (Safe to commit)
 NEXT_PUBLIC_APP_URL = "https://wordisbond.pages.dev"
-NEXT_PUBLIC_SUPABASE_URL = "https://fiijrhpjpebevfavzlhu.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY = "sb_publishable_lRUy5ZWTCzCNPTuOP9K9Rg_Nh-nEClF"
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_51SlCczAqCb48cFrqGdVN8sDwUYj7ZtlTpbS3bDXKXHPE7EkJYvEZGvOq9nDKQYxW5zP3xvQz8Rc4jY6U9fRiPs0000abcdefgh"
-TRANSLATION_LIVE_ASSIST_PREVIEW = "true"
 NODE_VERSION = "20"
 
 [[hyperdrive]]
@@ -20,6 +16,42 @@ id = "3948fde8207649108d77e82020091b56"
 binding = "RECORDINGS_BUCKET"
 bucket_name = "wordisbond01"
 
+[[r2_buckets]]
+binding = "EVIDENCE_BUCKET"
+bucket_name = "evidence"
+
+[[r2_buckets]]
+binding = "EXPORTS_BUCKET"
+bucket_name = "exports"
+
 [ai]
 binding = "AI"
+
+# WAF Rules
+[[rules]]
+type = "http"
+method = "GET"
+path = "/api/*"
+action = "block"
+description = "Block direct API access"
+
+# Rate limiting
+[rate_limits]
+requests_per_minute = 100
+
+# Queues for background jobs
+[[queues.producers]]
+queue = "transcription_queue"
+binding = "TRANSCRIPTION_QUEUE"
+
+[[queues.consumers]]
+queue = "transcription_queue"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "dlq_transcription"
+
+# Cron triggers for background jobs
+[[triggers.crons]]
+cron = "*/5 * * * *"
 
