@@ -81,13 +81,11 @@ describe('Return-Traffic Intelligence Layer', () => {
             testEventId = result.eventId!
 
             // Verify decision was created
-            const { data: decisions } = await supabase
-                .from('attention_decisions')
-                .select('*')
-                .eq('attention_event_id', testEventId)
+            const decisionsResult = await pool.query('SELECT * FROM attention_decisions WHERE attention_event_id = $1', [testEventId])
+            const decisions = decisionsResult.rows
 
-            expect(decisions?.length).toBeGreaterThan(0)
-            expect(decisions?.[0].produced_by).toBe('system')
+            expect(decisions.length).toBeGreaterThan(0)
+            expect(decisions[0].produced_by).toBe('system')
         })
 
         test('high severity event gets escalated', async () => {
@@ -104,21 +102,16 @@ describe('Return-Traffic Intelligence Layer', () => {
             expect(result.success).toBe(true)
 
             // Verify escalation
-            const { data: decisions } = await supabase
-                .from('attention_decisions')
-                .select('*')
-                .eq('attention_event_id', result.eventId)
+            const decisionsResult = await pool.query('SELECT * FROM attention_decisions WHERE attention_event_id = $1', [result.eventId])
+            const decisions = decisionsResult.rows
 
-            expect(decisions?.[0].decision).toBe('escalate')
-            expect(decisions?.[0].reason).toContain('threshold')
+            expect(decisions[0].decision).toBe('escalate')
+            expect(decisions[0].reason).toContain('threshold')
         })
 
         test('decision includes input_refs (provenance)', async () => {
-            const { data: decision } = await supabase
-                .from('attention_decisions')
-                .select('input_refs')
-                .eq('attention_event_id', testEventId)
-                .single()
+            const decisionResult = await pool.query('SELECT input_refs FROM attention_decisions WHERE attention_event_id = $1 LIMIT 1', [testEventId])
+            const decision = decisionResult.rows[0]
 
             expect(decision?.input_refs).toBeInstanceOf(Array)
             expect(decision?.input_refs.length).toBeGreaterThan(0)
@@ -127,23 +120,21 @@ describe('Return-Traffic Intelligence Layer', () => {
 
     describe('Immutability Enforcement (LAW RTI-03)', () => {
         test('cannot update attention_events', async () => {
-            const { error } = await supabase
-                .from('attention_events')
-                .update({ event_type: 'system_error' })
-                .eq('id', testEventId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('UPDATE attention_events SET event_type = $1 WHERE id = $2', ['system_error', testEventId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
 
         test('cannot delete attention_events', async () => {
-            const { error } = await supabase
-                .from('attention_events')
-                .delete()
-                .eq('id', testEventId)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('DELETE FROM attention_events WHERE id = $1', [testEventId])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
 
         test('cannot update attention_decisions', async () => {

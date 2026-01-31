@@ -1,17 +1,15 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Real-time Updates Hook
- * 
- * Subscribes to Supabase real-time updates for calls, recordings, and AI runs.
- * Uses a singleton client to avoid multiple GoTrueClient instances.
+ *
+ * Migrated from Supabase to polling-based updates for Neon compatibility.
+ * TODO: Implement WebSocket or Server-Sent Events for true realtime.
  */
 
 interface RealtimeConfig {
-  supabaseUrl: string
   organizationId: string
   channels: Array<{
     name: string
@@ -20,31 +18,14 @@ interface RealtimeConfig {
   }>
 }
 
-// Singleton Supabase client for real-time subscriptions
-let realtimeClient: SupabaseClient | null = null
-
-function getRealtimeClient(supabaseUrl: string, anonKey: string): SupabaseClient {
-  if (!realtimeClient) {
-    realtimeClient = createClient(supabaseUrl, anonKey, {
-      auth: {
-        persistSession: false, // Don't persist - just for realtime
-        autoRefreshToken: false
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
-        }
-      }
-    })
-  }
-  return realtimeClient
-}
+// Polling interval
+const POLL_INTERVAL = 5000 // 5 seconds
 
 export function useRealtime(organizationId: string | null) {
   const [updates, setUpdates] = useState<any[]>([])
   const [connected, setConnected] = useState(false)
-  const channelsRef = useRef<any[]>([])
-  const setupAttemptedRef = useRef(false)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastPollRef = useRef<Date>(new Date())
 
   useEffect(() => {
     if (!organizationId || setupAttemptedRef.current) {
