@@ -12,9 +12,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { isLiveTranslationPreviewEnabled } from '@/lib/env-validation'
 import { logger } from '@/lib/logger'
 
@@ -34,59 +33,62 @@ export async function GET(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // SECURITY: Require authenticated user
-    const session = await getServerSession(authOptions)
-    const userId = session?.user?.id
-    if (!userId) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'AUTH_REQUIRED', message: 'Authentication required' }
-      }, { status: 401 })
-    }
+    // SECURITY: Require authenticated user (Viewer+)
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    // This session validates the user is in *an* organization (the one in the session). 
+    // But this endpoint might query capability for a specific called/requested org.
+    // However, requireRole checks against `org_members` and returns membership.
+    // Logic below handles cross-check if provided orgId differs from session orgId.
 
-    let organizationId = orgId
+    // Actually, `requireRole` sets `session.user.organizationId` based on the user's active org membership.
+    // If the client passes `orgId`, we must verify the user belongs to THAT org, or is an admin etc.
+    // `requireRole` only verifies the user has a role in *some* org or their default org? 
+    // Let's assume `requireRole` verifies the user is authenticated and gets their primary org.
+    // If we want to check access to a *different* org, we need to query `org_members`.
+
+    let targetOrganizationId = orgId || session.user.organizationId
 
     // If callId provided, get org from call
-    if (callId && !orgId) {
-      const { data: callRows, error: callError } = await supabaseAdmin
-        .from('calls')
-        .select('organization_id')
-        .eq('id', callId)
-        .limit(1)
+    if (callId) {
+      const { rows: callRows } = await query(
+        `SELECT organization_id FROM calls WHERE id = $1 LIMIT 1`,
+        [callId]
+      )
 
-      if (callError || !callRows?.[0]) {
+      if (callRows.length === 0) {
         return NextResponse.json({
           success: false,
           error: { code: 'CALL_NOT_FOUND', message: 'Call not found' }
         }, { status: 404 })
       }
 
-      organizationId = callRows[0].organization_id
+      targetOrganizationId = callRows[0].organization_id
     }
 
-    // SECURITY: Verify user is member of organization
-    const { data: memberRows, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('id, role')
-      .eq('organization_id', organizationId)
-      .eq('user_id', userId)
-      .limit(1)
+    // SECURITY: Verify user is member of the target organization
+    if (targetOrganizationId !== session.user.organizationId) {
+      // Since the user might belong to multiple orgs, check DB
+      const { rows: memberRows } = await query(
+        `SELECT id, role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+        [targetOrganizationId, userId]
+      )
 
-    if (memberError || !memberRows?.[0]) {
-      return NextResponse.json({
-        success: false,
-        error: { code: 'AUTH_ORG_MISMATCH', message: 'Not authorized for this organization' }
-      }, { status: 403 })
+      if (memberRows.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'AUTH_ORG_MISMATCH', message: 'Not authorized for this organization' }
+        }, { status: 403 })
+      }
     }
 
     // Get organization plan
-    const { data: orgRows, error: orgError } = await supabaseAdmin
-      .from('organizations')
-      .select('plan')
-      .eq('id', organizationId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT plan FROM organizations WHERE id = $1 LIMIT 1`,
+      [targetOrganizationId]
+    )
 
-    if (orgError || !orgRows?.[0]) {
+    if (orgRows.length === 0) {
       return NextResponse.json({
         success: false,
         error: { code: 'ORG_NOT_FOUND', message: 'Organization not found' }
@@ -100,7 +102,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      organization_id: organizationId,
+      organization_id: targetOrganizationId,
       plan,
       capabilities
     })

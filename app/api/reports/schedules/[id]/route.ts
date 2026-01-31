@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/types/app-error'
@@ -26,54 +26,36 @@ export async function PATCH(
 ) {
   try {
     const session = await requireRole(['owner', 'admin'])
+    if (session instanceof NextResponse) return session
     const userId = session.user.id
+    const organizationId = session.user.organizationId
     const scheduleId = params.id
-
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
-
-    if (userError || !user?.organization_id) {
-      throw new AppError('Organization not found', 404)
-    }
-
-    const organizationId = user.organization_id
 
     const body = await req.json()
     const { isActive } = body
 
     // Get schedule to verify ownership
-    const { data: schedule, error: fetchError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .select('organization_id')
-      .eq('id', scheduleId)
-      .single()
+    const { rows: schedules } = await query(
+      `SELECT organization_id FROM scheduled_reports WHERE id = $1`,
+      [scheduleId]
+    )
 
-    if (fetchError || !schedule) {
+    if (schedules.length === 0) {
       throw new AppError('Schedule not found', 404)
     }
 
-    if (schedule.organization_id !== organizationId) {
+    if (schedules[0].organization_id !== organizationId) {
       throw new AppError('Unauthorized', 403)
     }
 
     // Update schedule
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .update({
-        is_active: isActive,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', scheduleId)
-      .select()
-      .single()
-
-    if (updateError) {
-      throw new AppError('Failed to update schedule', 500, 'UPDATE_ERROR', updateError)
-    }
+    const { rows: updatedSchedules } = await query(
+      `UPDATE scheduled_reports 
+       SET is_active = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [isActive, scheduleId]
+    )
 
     logger.info('Scheduled report updated', {
       scheduleId,
@@ -81,7 +63,7 @@ export async function PATCH(
       userId,
     })
 
-    return NextResponse.json({ schedule: updated })
+    return NextResponse.json({ schedule: updatedSchedules[0] })
   } catch (error: any) {
     logger.error('PATCH /api/reports/schedules/[id] error', error)
     return NextResponse.json(
@@ -101,46 +83,30 @@ export async function DELETE(
 ) {
   try {
     const session = await requireRole(['owner', 'admin'])
+    if (session instanceof NextResponse) return session
     const userId = session.user.id
+    const organizationId = session.user.organizationId
     const scheduleId = params.id
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
-
-    if (userError || !user?.organization_id) {
-      throw new AppError('Organization not found', 404)
-    }
-
-    const organizationId = user.organization_id
-
     // Get schedule to verify ownership
-    const { data: schedule, error: fetchError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .select('organization_id')
-      .eq('id', scheduleId)
-      .single()
+    const { rows: schedules } = await query(
+      `SELECT organization_id FROM scheduled_reports WHERE id = $1`,
+      [scheduleId]
+    )
 
-    if (fetchError || !schedule) {
+    if (schedules.length === 0) {
       throw new AppError('Schedule not found', 404)
     }
 
-    if (schedule.organization_id !== organizationId) {
+    if (schedules[0].organization_id !== organizationId) {
       throw new AppError('Unauthorized', 403)
     }
 
     // Delete schedule
-    const { error: deleteError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .delete()
-      .eq('id', scheduleId)
-
-    if (deleteError) {
-      throw new AppError('Failed to delete schedule', 500, 'DELETE_ERROR', deleteError)
-    }
+    await query(
+      `DELETE FROM scheduled_reports WHERE id = $1`,
+      [scheduleId]
+    )
 
     logger.info('Scheduled report deleted', {
       scheduleId,

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 
 // Force dynamic rendering - health checks should always be fresh
 export const dynamic = 'force-dynamic'
@@ -9,10 +9,9 @@ export const runtime = 'nodejs'
  * Health Check Endpoint
  * 
  * Checks health of critical services:
- * - Database connectivity
+ * - Database connectivity (Postgres via pgClient)
  * - SignalWire connectivity
  * - AssemblyAI availability
- * - Supabase Storage accessibility
  * 
  * Returns health status: healthy, degraded, critical
  */
@@ -37,28 +36,16 @@ export async function GET(req: Request) {
   // 1. Database connectivity check
   try {
     const dbStart = Date.now()
-    const { error: dbError } = await supabaseAdmin
-      .from('organizations')
-      .select('id')
-      .limit(1)
-    
+    // Simple query to check connection
+    await query('SELECT 1', [])
     const dbTime = Date.now() - dbStart
-    
-    if (dbError) {
-      checks.push({
-        service: 'database',
-        status: 'critical',
-        message: `Database query failed: ${dbError.message}`,
-        responseTime: dbTime
-      })
-    } else {
-      checks.push({
-        service: 'database',
-        status: 'healthy',
-        message: 'Database connection successful',
-        responseTime: dbTime
-      })
-    }
+
+    checks.push({
+      service: 'database',
+      status: 'healthy',
+      message: 'Database connection successful',
+      responseTime: dbTime
+    })
   } catch (err: any) {
     checks.push({
       service: 'database',
@@ -85,7 +72,7 @@ export async function GET(req: Request) {
       const swEndpoint = `https://${swSpace.replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.signalwire\.com$/i, '')}.signalwire.com/api/laml/2010-04-01/Accounts/${swProject}.json`
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
-      
+
       try {
         const swRes = await fetch(swEndpoint, {
           method: 'GET',
@@ -95,9 +82,9 @@ export async function GET(req: Request) {
           signal: controller.signal
         })
         clearTimeout(timeout)
-        
+
         const swTime = Date.now() - swStart
-        
+
         if (swRes.ok) {
           checks.push({
             service: 'signalwire',
@@ -145,7 +132,7 @@ export async function GET(req: Request) {
       // Lightweight API check
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
-      
+
       try {
         // Use /v2/transcript endpoint with minimal check (no body = 400, but proves API is reachable)
         const aaiRes = await fetch('https://api.assemblyai.com/v2/transcript', {
@@ -156,9 +143,9 @@ export async function GET(req: Request) {
           signal: controller.signal
         })
         clearTimeout(timeout)
-        
+
         const aaiTime = Date.now() - aaiStart
-        
+
         // 200 or 400 both indicate the API is reachable and key is valid
         // 401 = bad key, 5xx = service issue
         if (aaiRes.ok || aaiRes.status === 400) {
@@ -200,40 +187,14 @@ export async function GET(req: Request) {
     })
   }
 
-  // 4. Supabase Storage check (if configured)
-  try {
-    const storageStart = Date.now()
-    // Try to list buckets (lightweight operation)
-    const { data, error: storageError } = await supabaseAdmin.storage.listBuckets()
-    const storageTime = Date.now() - storageStart
-
-    if (storageError) {
-      checks.push({
-        service: 'supabase_storage',
-        status: 'degraded',
-        message: `Storage access failed: ${storageError.message}`,
-        responseTime: storageTime
-      })
-    } else {
-      checks.push({
-        service: 'supabase_storage',
-        status: 'healthy',
-        message: 'Supabase Storage accessible',
-        responseTime: storageTime
-      })
-    }
-  } catch (err: any) {
-    checks.push({
-      service: 'supabase_storage',
-      status: 'degraded',
-      message: `Storage check failed: ${err?.message || 'Unknown error'}`
-    })
-  }
+  // 4. Storage check (Optional/Removed)
+  // We removed Supabase Storage check as we are migrating away from Supabase.
+  // R2 check is implicit in successful application operation or could be added later if needed.
 
   // Determine overall status
   const criticalCount = checks.filter(c => c.status === 'critical').length
   const degradedCount = checks.filter(c => c.status === 'degraded').length
-  
+
   let overallStatus: 'healthy' | 'degraded' | 'critical' = 'healthy'
   if (criticalCount > 0) {
     overallStatus = 'critical'
@@ -249,10 +210,10 @@ export async function GET(req: Request) {
     checks
   }
 
-  const httpStatus = overallStatus === 'critical' ? 503 : overallStatus === 'degraded' ? 200 : 200
+  const httpStatus = overallStatus === 'critical' ? 503 : 200
 
   const res = NextResponse.json(response, { status: httpStatus })
   res.headers.set('X-Health-Check-Time', `${totalTime}ms`)
-  
+
   return res
 }

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
+import { query } from '@/lib/pgClient'
 
 // Force dynamic rendering - uses headers via getServerSession
 export const dynamic = 'force-dynamic'
@@ -49,22 +49,12 @@ export async function GET(req: Request) {
     }
 
     // Fetch scripts from voice_configs (stored as shopper_script text field)
-    // For now, we'll return scripts from voice_configs
-    // In the future, this could be a separate shopper_scripts table
-    const { data: configs, error: configsErr } = await supabaseAdmin
-      .from('voice_configs')
-      .select('id, shopper_script, shopper_expected_outcomes')
-      .eq('organization_id', organizationId)
-      .not('shopper_script', 'is', null)
-
-    // If table doesn't exist (42P01 error), return empty array instead of failing
-    if (configsErr) {
-      if (configsErr.code === '42P01' || configsErr.message?.includes('does not exist')) {
-        return NextResponse.json({ success: true, scripts: [] })
-      }
-      const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch shopper scripts', user_message: 'Could not retrieve shopper scripts', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+    const { rows: configs } = await query(
+      `SELECT id, shopper_script, shopper_expected_outcomes 
+         FROM voice_configs 
+         WHERE organization_id = $1 AND shopper_script IS NOT NULL`,
+      [organizationId]
+    )
 
     // Format scripts for response
     const scripts = (configs || []).map((config: any) => ({

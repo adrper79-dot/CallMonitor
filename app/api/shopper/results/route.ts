@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { scoreShopperCall, ScoringResult } from '@/app/services/shopperScoring'
 import { v4 as uuidv4 } from 'uuid'
 import { parseRequestBody, Errors, success } from '@/lib/api/utils'
@@ -35,11 +35,10 @@ export async function POST(req: NextRequest) {
     const aiSummary = payload.summary || payload.result || ''
     const rawTranscript = payload.transcript || ''
 
-    const { data: callRows } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id, call_sid')
-      .eq('id', callId)
-      .limit(1)
+    const { rows: callRows } = await query(
+      `SELECT id, organization_id, call_sid FROM calls WHERE id = $1 LIMIT 1`,
+      [callId]
+    )
 
     const call = callRows?.[0]
     if (!call) {
@@ -47,12 +46,10 @@ export async function POST(req: NextRequest) {
       return Errors.notFound('Call')
     }
 
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('id')
-      .eq('call_id', callId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const { rows: recRows } = await query(
+      `SELECT id FROM recordings WHERE call_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [callId]
+    )
 
     const recordingId = recRows?.[0]?.id
 
@@ -63,43 +60,46 @@ export async function POST(req: NextRequest) {
 
     const resultId = uuidv4()
     // Per ARCH_DOCS Schema.txt: shopper_results uses overall_score, outcome_results, evaluated_by
-    // NOT: score, score_breakdown, ai_summary, conversation_log, raw_transcript, status
-    const { error: insertErr } = await supabaseAdmin
-      .from('shopper_results')
-      .insert({
-        id: resultId,
-        organization_id: orgId,
-        script_id: scriptId || null,
-        call_id: callId,
-        recording_id: recordingId || null,
-        overall_score: scoringResult?.score || null,
-        outcome_results: scoringResult?.details || [],
-        evaluated_at: new Date().toISOString(),
-        evaluated_by: 'signalwire-shopper-ai',
-        notes: aiSummary || null
-      })
+    await query(
+      `INSERT INTO shopper_results (
+        id, organization_id, script_id, call_id, recording_id, 
+        overall_score, outcome_results, evaluated_at, evaluated_by, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)`,
+      [
+        resultId,
+        orgId,
+        scriptId || null,
+        callId,
+        recordingId || null,
+        scoringResult?.score || null,
+        JSON.stringify(scoringResult?.details || []),
+        'signalwire-shopper-ai',
+        aiSummary || null
+      ]
+    )
 
-    if (insertErr) {
-      logger.error('Shopper results: failed to store results', insertErr)
-    }
-
-    await supabaseAdmin
-      .from('calls')
-      .update({ status: 'completed', ended_at: new Date().toISOString() })
-      .eq('id', callId)
+    await query(
+      `UPDATE calls SET status = 'completed', ended_at = NOW() WHERE id = $1`,
+      [callId]
+    )
 
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: orgId,
-        action: 'shopper_evaluation_complete',
-        resource_type: 'shopper_result',
-        resource_id: resultId,
-        actor_type: 'vendor',
-        actor_label: 'signalwire-shopper-ai',
-        after: { call_id: callId, script_id: scriptId, overall_score: scoringResult?.score, has_recording: !!recordingId },
-        created_at: new Date().toISOString()
-      })
+      await query(
+        `INSERT INTO audit_logs (
+          id, organization_id, action, resource_type, resource_id, actor_type, 
+          actor_label, after, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          uuidv4(),
+          orgId,
+          'shopper_evaluation_complete',
+          'shopper_result',
+          resultId,
+          'vendor',
+          'signalwire-shopper-ai',
+          JSON.stringify({ call_id: callId, script_id: scriptId, overall_score: scoringResult?.score, has_recording: !!recordingId })
+        ]
+      )
     } catch { /* Best effort */ }
 
     logger.info('Shopper results: completed', {
@@ -132,27 +132,22 @@ export async function GET(req: NextRequest) {
       return Errors.badRequest('orgId required')
     }
 
-    let query = supabaseAdmin
-      .from('shopper_results')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('evaluated_at', { ascending: false })
-      .limit(limit)
+    let queryStr = `SELECT * FROM shopper_results WHERE organization_id = $1`
+    const params: any[] = [orgId]
 
     if (scriptId) {
-      query = query.eq('script_id', scriptId)
+      queryStr += ` AND script_id = $${params.length + 1}`
+      params.push(scriptId)
     }
 
-    const { data: results, error } = await query
+    queryStr += ` ORDER BY evaluated_at DESC LIMIT $${params.length + 1}`
+    params.push(limit)
 
-    if (error) {
-      logger.error('Shopper results GET error', error)
-      return Errors.internal(error)
-    }
+    const { rows: results } = await query(queryStr, params)
 
-    const scores = (results || []).filter(r => r.overall_score !== null).map(r => r.overall_score)
+    const scores = (results || []).filter((r: any) => r.overall_score !== null).map((r: any) => r.overall_score)
     const avgScore = scores.length > 0
-      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length)
       : null
 
     return success({
@@ -160,8 +155,8 @@ export async function GET(req: NextRequest) {
       stats: {
         total: results?.length || 0,
         average_score: avgScore,
-        passed: scores.filter(s => s >= 70).length,
-        failed: scores.filter(s => s < 70).length
+        passed: scores.filter((s: number) => s >= 70).length,
+        failed: scores.filter((s: number) => s < 70).length
       }
     })
 

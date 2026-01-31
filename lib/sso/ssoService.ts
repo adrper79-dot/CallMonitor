@@ -12,8 +12,9 @@
  */
 
 import { logger } from '@/lib/logger'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query, withTransaction } from '@/lib/pgClient'
 import { createHash, randomBytes } from 'node:crypto'
+import { v4 as uuidv4 } from 'uuid'
 
 // =============================================================================
 // TYPES
@@ -96,19 +97,19 @@ export interface SAMLAssertion {
  * Get SSO configuration for an organization
  */
 export async function getSSOConfig(organizationId: string): Promise<SSOConfig | null> {
-  const { data, error } = await supabaseAdmin
-    .from('org_sso_configs')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .eq('is_enabled', true)
-    .limit(1)
-    .single()
-
-  if (error || !data) {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM org_sso_configs 
+       WHERE organization_id = $1 AND is_enabled = true 
+       LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    return rows[0] || null
+  } catch (error) {
+    logger.error('Failed to get SSO config', error)
     return null
   }
-
-  return data as SSOConfig
 }
 
 /**
@@ -118,19 +119,20 @@ export async function getSSOConfigByDomain(email: string): Promise<SSOConfig | n
   const domain = email.toLowerCase().split('@')[1]
   if (!domain) return null
 
-  const { data, error } = await supabaseAdmin
-    .from('org_sso_configs')
-    .select('*')
-    .eq('is_enabled', true)
-    .contains('verified_domains', [domain])
-    .limit(1)
-    .single()
-
-  if (error || !data) {
+  try {
+    // Check if domain is in verified_domains array
+    const { rows } = await query(
+      `SELECT * FROM org_sso_configs 
+       WHERE is_enabled = true 
+       AND $1 = ANY(verified_domains)
+       LIMIT 1`,
+      [domain]
+    )
+    return rows[0] || null
+  } catch (error) {
+    logger.error('Failed to get SSO config by domain', error)
     return null
   }
-
-  return data as SSOConfig
 }
 
 /**
@@ -164,35 +166,81 @@ export async function upsertSSOConfig(
 ): Promise<{ success: boolean; config?: SSOConfig; error?: string }> {
   try {
     // Encrypt client secret if provided
-    let processedConfig = { ...config }
-    if (config.oidc_client_secret_encrypted) {
-      processedConfig.oidc_client_secret_encrypted = encryptSecret(config.oidc_client_secret_encrypted)
+    let encryptedSecret = config.oidc_client_secret_encrypted
+    if (encryptedSecret) {
+      encryptedSecret = encryptSecret(encryptedSecret)
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('org_sso_configs')
-      .upsert({
-        ...processedConfig,
-        organization_id: organizationId,
-        updated_by: userId,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'organization_id,provider_type'
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logger.error('Failed to upsert SSO config', error, { organizationId })
-      return { success: false, error: error.message }
-    }
+    const { rows } = await query(
+      `INSERT INTO org_sso_configs (
+         organization_id, provider_type, provider_name, is_enabled,
+         saml_entity_id, saml_sso_url, saml_slo_url, saml_certificate, saml_signature_algorithm, saml_name_id_format,
+         oidc_client_id, oidc_client_secret_encrypted, oidc_issuer_url, oidc_authorization_url, oidc_token_url, oidc_userinfo_url, oidc_scopes,
+         verified_domains, auto_provision_users, default_role, require_sso,
+         attribute_mapping, group_mapping,
+         updated_by, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, NOW())
+       ON CONFLICT (organization_id, provider_type)
+       DO UPDATE SET
+         provider_name = EXCLUDED.provider_name,
+         is_enabled = EXCLUDED.is_enabled,
+         saml_entity_id = EXCLUDED.saml_entity_id,
+         saml_sso_url = EXCLUDED.saml_sso_url,
+         saml_slo_url = EXCLUDED.saml_slo_url,
+         saml_certificate = EXCLUDED.saml_certificate,
+         saml_signature_algorithm = EXCLUDED.saml_signature_algorithm,
+         saml_name_id_format = EXCLUDED.saml_name_id_format,
+         oidc_client_id = EXCLUDED.oidc_client_id,
+         oidc_client_secret_encrypted = EXCLUDED.oidc_client_secret_encrypted,
+         oidc_issuer_url = EXCLUDED.oidc_issuer_url,
+         oidc_authorization_url = EXCLUDED.oidc_authorization_url,
+         oidc_token_url = EXCLUDED.oidc_token_url,
+         oidc_userinfo_url = EXCLUDED.oidc_userinfo_url,
+         oidc_scopes = EXCLUDED.oidc_scopes,
+         verified_domains = EXCLUDED.verified_domains,
+         auto_provision_users = EXCLUDED.auto_provision_users,
+         default_role = EXCLUDED.default_role,
+         require_sso = EXCLUDED.require_sso,
+         attribute_mapping = EXCLUDED.attribute_mapping,
+         group_mapping = EXCLUDED.group_mapping,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        organizationId,
+        config.provider_type,
+        config.provider_name,
+        config.is_enabled ?? true,
+        config.saml_entity_id || null,
+        config.saml_sso_url || null,
+        config.saml_slo_url || null,
+        config.saml_certificate || null,
+        config.saml_signature_algorithm || null,
+        config.saml_name_id_format || null,
+        config.oidc_client_id || null,
+        encryptedSecret || null,
+        config.oidc_issuer_url || null,
+        config.oidc_authorization_url || null,
+        config.oidc_token_url || null,
+        config.oidc_userinfo_url || null,
+        config.oidc_scopes || null,
+        config.verified_domains || [],
+        config.auto_provision_users ?? false,
+        config.default_role || 'viewer',
+        config.require_sso ?? false,
+        JSON.stringify(config.attribute_mapping || {}),
+        JSON.stringify(config.group_mapping || {}),
+        userId
+      ],
+      { organizationId, userId }
+    )
 
     // Log the configuration change
     await logSSOAuditEvent(organizationId, userId, 'sso_config_updated', { provider_type: config.provider_type })
 
-    return { success: true, config: data }
-  } catch (err) {
-    logger.error('SSO config upsert failed', err as Error, { organizationId })
+    return { success: true, config: rows[0] }
+  } catch (err: any) {
+    logger.error('SSO config upsert failed', err, { organizationId })
     return { success: false, error: 'Failed to save SSO configuration' }
   }
 }
@@ -206,22 +254,21 @@ export async function deleteSSOConfig(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error } = await supabaseAdmin
-      .from('org_sso_configs')
-      .delete()
-      .eq('id', configId)
-      .eq('organization_id', organizationId)
+    const { rowCount } = await query(
+      `DELETE FROM org_sso_configs WHERE id = $1 AND organization_id = $2`,
+      [configId, organizationId],
+      { organizationId, userId }
+    )
 
-    if (error) {
-      logger.error('Failed to delete SSO config', error, { organizationId, configId })
-      return { success: false, error: error.message }
+    if (rowCount === 0) {
+      return { success: false, error: 'SSO configuration not found' }
     }
 
     await logSSOAuditEvent(organizationId, userId, 'sso_config_deleted', { config_id: configId })
 
     return { success: true }
-  } catch (err) {
-    logger.error('SSO config delete failed', err as Error, { organizationId })
+  } catch (err: any) {
+    logger.error('SSO config delete failed', err, { organizationId })
     return { success: false, error: 'Failed to delete SSO configuration' }
   }
 }
@@ -442,97 +489,92 @@ export async function processSSOLogin(
   userAgent?: string
 ): Promise<SSOLoginResult> {
   try {
-    // Check if user exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('users')
-      .select('id, email, name')
-      .eq('email', email.toLowerCase())
-      .single()
+    return await withTransaction(async (client) => {
+      // Check if user exists
+      const { rows: existingUsers } = await client.query(
+        `SELECT id, email, name FROM users WHERE email = $1 LIMIT 1`,
+        [email.toLowerCase()]
+      )
+      const existingUser = existingUsers[0]
 
-    let userId: string
+      let userId: string
 
-    if (existingUser) {
-      userId = existingUser.id
+      if (existingUser) {
+        userId = existingUser.id
 
-      // Update user name if provided and different
-      if (name && name !== existingUser.name) {
-        await supabaseAdmin
-          .from('users')
-          .update({ name })
-          .eq('id', userId)
-      }
-    } else if (config.auto_provision_users) {
-      // Auto-provision new user
-      const { data: newUser, error: createError } = await supabaseAdmin
-        .from('users')
-        .insert({
-          email: email.toLowerCase(),
-          name: name || email.split('@')[0],
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single()
+        // Update user name if provided and different
+        if (name && name !== existingUser.name) {
+          await client.query(
+            `UPDATE users SET name = $1 WHERE id = $2`,
+            [name, userId]
+          )
+        }
+      } else if (config.auto_provision_users) {
+        // Auto-provision new user
+        userId = uuidv4()
+        const { rows: newUsers } = await client.query(
+          `INSERT INTO users (id, email, name, created_at) 
+           VALUES ($1, $2, $3, NOW()) 
+           RETURNING id`,
+          [userId, email.toLowerCase(), name || email.split('@')[0]]
+        )
 
-      if (createError || !newUser) {
-        logger.error('Failed to provision SSO user', createError, { email })
+        if (!newUsers.length) {
+          throw new Error('Failed to create user')
+        }
+
+        logger.info('SSO user created', { userId, email })
+
+        // Add to organization with default role
+        await client.query(
+          `INSERT INTO org_members (organization_id, user_id, role)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (organization_id, user_id) DO NOTHING`,
+          [config.organization_id, userId, config.default_role]
+        )
+
+        logger.info('SSO user provisioned to org', { userId, organizationId: config.organization_id })
+      } else {
+        // User doesn't exist and auto-provision is disabled
+        await recordSSOLoginEvent(config, 'login_failure', email, name, groups, ipAddress, userAgent, 'USER_NOT_FOUND', 'User not found and auto-provision disabled')
+
         return {
           success: false,
-          error: { code: 'PROVISION_FAILED', message: 'Failed to create user account' }
+          error: { code: 'USER_NOT_FOUND', message: 'No account found. Contact your administrator.' }
         }
       }
 
-      userId = newUser.id
+      // Apply group mappings if configured
+      if (groups && Object.keys(config.group_mapping).length > 0) {
+        for (const group of groups) {
+          const mappedRole = config.group_mapping[group]
+          if (mappedRole) {
+            await client.query(
+              `UPDATE org_members SET role = $1 
+               WHERE organization_id = $2 AND user_id = $3`,
+              [mappedRole, config.organization_id, userId]
+            )
+          }
+        }
+      }
 
-      // Add to organization with default role
-      const { error: memberError } = await supabaseAdmin
-        .from('org_members')
-        .upsert({
-          organization_id: config.organization_id,
-          user_id: userId,
-          role: config.default_role
-        }, { onConflict: 'organization_id,user_id' })
+      // Record successful login
+      await recordSSOLoginEvent(config, 'login_success', email, name, groups, ipAddress, userAgent)
 
-      logger.info('SSO user auto-provisioned', { userId, email, organizationId: config.organization_id })
-    } else {
-      // User doesn't exist and auto-provision is disabled
-      await recordSSOLoginEvent(config, 'login_failure', email, name, groups, ipAddress, userAgent, 'USER_NOT_FOUND', 'User not found and auto-provision disabled')
+      logger.info('SSO login successful', { userId, email, configId: config.id })
 
       return {
-        success: false,
-        error: { code: 'USER_NOT_FOUND', message: 'No account found. Contact your administrator.' }
-      }
-    }
-
-    // Apply group mappings if configured
-    if (groups && Object.keys(config.group_mapping).length > 0) {
-      for (const group of groups) {
-        const mappedRole = config.group_mapping[group]
-        if (mappedRole) {
-          await supabaseAdmin
-            .from('org_members')
-            .update({ role: mappedRole })
-            .eq('organization_id', config.organization_id)
-            .eq('user_id', userId)
+        success: true,
+        user: {
+          id: userId,
+          email: email.toLowerCase(),
+          name,
+          groups
         }
       }
-    }
-
-    // Record successful login
-    await recordSSOLoginEvent(config, 'login_success', email, name, groups, ipAddress, userAgent)
-
-    logger.info('SSO login successful', { userId, email, configId: config.id })
-
-    return {
-      success: true,
-      user: {
-        id: userId,
-        email: email.toLowerCase(),
-        name,
-        groups
-      }
-    }
-  } catch (err) {
-    logger.error('SSO login processing failed', err as Error, { email })
+    })
+  } catch (err: any) {
+    logger.error('SSO login processing failed', err, { email })
     return {
       success: false,
       error: { code: 'SSO_ERROR', message: 'Authentication failed' }
@@ -556,20 +598,26 @@ async function recordSSOLoginEvent(
   errorMessage?: string
 ): Promise<void> {
   try {
-    await supabaseAdmin.from('sso_login_events').insert({
-      organization_id: config.organization_id,
-      sso_config_id: config.id,
-      event_type: eventType,
-      email,
-      name,
-      groups,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      error_code: errorCode,
-      error_message: errorMessage
-    })
-  } catch (err) {
-    logger.warn('Failed to record SSO login event', { error: (err as Error).message })
+    await query(
+      `INSERT INTO sso_login_events (
+         organization_id, sso_config_id, event_type, email, name, 
+         groups_list, ip_address, user_agent, error_code, error_message, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+      [
+        config.organization_id,
+        config.id,
+        eventType,
+        email,
+        name || null,
+        groups ? JSON.stringify(groups) : null,
+        ipAddress || null,
+        userAgent || null,
+        errorCode || null,
+        errorMessage || null
+      ]
+    )
+  } catch (err: any) {
+    logger.warn('Failed to record SSO login event', { error: err.message })
   }
 }
 
@@ -580,18 +628,23 @@ async function logSSOAuditEvent(
   details: Record<string, any>
 ): Promise<void> {
   try {
-    await supabaseAdmin.from('audit_logs').insert({
-      organization_id: organizationId,
-      user_id: userId,
-      resource_type: 'sso_config',
-      action,
-      actor_type: 'human',
-      actor_label: userId,
-      after: details,
-      created_at: new Date().toISOString()
-    })
-  } catch (err) {
-    logger.warn('Failed to log SSO audit event', { error: (err as Error).message })
+    await query(
+      `INSERT INTO audit_logs (
+         id, organization_id, user_id, resource_type, action, 
+         actor_type, actor_label, after, created_at
+       ) VALUES ($1, $2, $3, $4, $5, 'human', $6, $7, NOW())`,
+      [
+        uuidv4(),
+        organizationId,
+        userId,
+        'sso_config',
+        action,
+        userId,
+        JSON.stringify(details)
+      ]
+    )
+  } catch (err: any) {
+    logger.warn('Failed to log SSO audit event', { error: err.message })
   }
 }
 

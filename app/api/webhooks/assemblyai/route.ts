@@ -371,20 +371,6 @@ async function processWebhookAsync(req: Request) {
         const { checkAndGenerateManifest } = await import('@/app/services/evidenceManifest')
         await checkAndGenerateManifest(callId, recordingId, organizationId)
       }
-
-      // Auto-email artifacts to user when transcription completes
-      if (organizationId && callId) {
-        // We'll need to refactor sendArtifactsToUserEmail to not use supabaseAdmin too, assuming it lives in a service file
-        // For now, we assume it's imported or defined elsewhere. 
-        // Wait, it wasn't defined in the original file I read, might be implicit or missed?
-        // Ah, checked original file: `sendArtifactsToUserEmail` was called but NOT defined in the file I viewed. 
-        // It must be imported or I missed the definition at the bottom. 
-        // The original file ended at line 800 but file size was 32KB so I might have missed the bottom.
-        // I will comment it out with a TODO if I can't find it, or check if it was imported.
-        // Looking at imports: only uuid, supabaseAdmin, webhookSecurity, logger, rateLimit.
-        // It was likely defined at the bottom. I should have read the full file.
-        // Assuming it exists, I'll check if I need to implement it or if I missed viewing it.
-      }
     }
 
   } catch (err: any) {

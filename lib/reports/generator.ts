@@ -7,7 +7,7 @@
  * @module lib/reports/generator
  */
 
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 export interface ReportFilters {
@@ -43,45 +43,50 @@ export async function generateCallVolumeReport(
 ): Promise<ReportData> {
   const { date_range, statuses, users } = filters
 
-  // Build query
-  let query = supabaseAdmin
-    .from('calls')
-    .select('id, status, direction, duration, created_at, created_by')
-    .eq('organization_id', organizationId)
+  // Build query params
+  const conditions: string[] = [`organization_id = $1`]
+  const params: any[] = [organizationId]
+  let paramIdx = 2
 
   if (date_range) {
-    query = query
-      .gte('created_at', date_range.start)
-      .lte('created_at', date_range.end)
+    conditions.push(`created_at >= $${paramIdx++}`)
+    params.push(date_range.start)
+    conditions.push(`created_at <= $${paramIdx++}`)
+    params.push(date_range.end)
   }
 
   if (statuses && statuses.length > 0) {
-    query = query.in('status', statuses)
+    conditions.push(`status = ANY($${paramIdx++})`)
+    params.push(statuses)
   }
 
   if (users && users.length > 0) {
-    query = query.in('created_by', users)
+    conditions.push(`created_by = ANY($${paramIdx++})`)
+    params.push(users)
   }
 
-  const { data: calls, error } = await query
+  const sql = `
+    SELECT id, status, direction, duration, created_at, created_by 
+    FROM calls 
+    WHERE ${conditions.join(' AND ')}
+  `
 
-  if (error) {
-    logger.error('Error fetching calls for report', error, { organizationId, dateRange: date_range })
-    throw new Error('Failed to generate call volume report')
-  }
+  const { rows: calls } = await query(sql, params)
 
   // Calculate metrics
   const summary = {
-    total_calls: calls?.length || 0,
-    successful_calls: calls?.filter((c: any) => c.status === 'completed').length || 0,
-    failed_calls: calls?.filter((c: any) => c.status === 'failed').length || 0,
-    avg_duration: calls?.reduce((sum: number, c: any) => sum + (c.duration || 0), 0) / (calls?.length || 1),
-    total_duration: calls?.reduce((sum: number, c: any) => sum + (c.duration || 0), 0)
+    total_calls: calls.length,
+    successful_calls: calls.filter((c: any) => c.status === 'completed').length,
+    failed_calls: calls.filter((c: any) => c.status === 'failed').length,
+    avg_duration: calls.length > 0
+      ? Math.round(calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0) / calls.length)
+      : 0,
+    total_duration: calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0)
   }
 
   // Group by date
   const callsByDate: Record<string, number> = {}
-  calls?.forEach((call: any) => {
+  calls.forEach((call: any) => {
     const date = new Date(call.created_at).toISOString().split('T')[0]
     callsByDate[date] = (callsByDate[date] || 0) + 1
   })
@@ -114,62 +119,83 @@ export async function generateCampaignPerformanceReport(
   const { date_range, campaign_ids } = filters
 
   // Build query
-  let query = supabaseAdmin
-    .from('campaigns')
-    .select(`
-      *,
-      campaign_calls(id, status, outcome, duration_seconds)
-    `)
-    .eq('organization_id', organizationId)
+  const conditions: string[] = [`c.organization_id = $1`]
+  const params: any[] = [organizationId]
+  let paramIdx = 2
 
   if (date_range) {
-    query = query
-      .gte('created_at', date_range.start)
-      .lte('created_at', date_range.end)
+    conditions.push(`c.created_at >= $${paramIdx++}`)
+    params.push(date_range.start)
+    conditions.push(`c.created_at <= $${paramIdx++}`)
+    params.push(date_range.end)
   }
 
   if (campaign_ids && campaign_ids.length > 0) {
-    query = query.in('id', campaign_ids)
+    conditions.push(`c.id = ANY($${paramIdx++})`)
+    params.push(campaign_ids)
   }
 
-  const { data: campaigns, error } = await query
+  // Fetch campaigns with calls using json_agg to emulate Supabase shape
+  // Assuming 'calls' table has 'campaign_id'
+  const sql = `
+    SELECT 
+      c.*,
+      (
+        SELECT json_agg(json_build_object(
+          'id', cc.id,
+          'status', cc.status,
+          'outcome', cc.outcome,
+          'duration_seconds', cc.duration
+        ))
+        FROM calls cc
+        WHERE cc.campaign_id = c.id
+      ) as campaign_calls
+    FROM campaigns c
+    WHERE ${conditions.join(' AND ')}
+  `
 
-  if (error) {
-    logger.error('Error fetching campaigns for report', error, { organizationId, dateRange: date_range, campaignIds: campaign_ids })
-    throw new Error('Failed to generate campaign performance report')
-  }
+  try {
+    const { rows: campaigns } = await query(sql, params)
 
-  // Calculate metrics for each campaign
-  const details = campaigns?.map((campaign: any) => {
-    const calls = campaign.campaign_calls || []
-    const completed = calls.filter((c: any) => c.status === 'completed')
-    const successful = calls.filter((c: any) => c.outcome === 'answered')
+    // Calculate metrics for each campaign
+    const details = campaigns.map((campaign: any) => {
+      const calls = campaign.campaign_calls || []
+      const completed = calls.filter((c: any) => c.status === 'completed')
+      const successful = calls.filter((c: any) => c.outcome === 'answered')
+
+      return {
+        campaign_id: campaign.id,
+        campaign_name: campaign.name,
+        status: campaign.status,
+        total_targets: campaign.total_targets,
+        calls_completed: completed.length,
+        calls_successful: successful.length,
+        success_rate: completed.length > 0 ? (successful.length / completed.length) * 100 : 0,
+        avg_duration: completed.length > 0
+          ? completed.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) / completed.length
+          : 0,
+        created_at: campaign.created_at
+      }
+    })
+
+    const summary = {
+      total_campaigns: campaigns.length,
+      active_campaigns: campaigns.filter((c: any) => c.status === 'active').length,
+      completed_campaigns: campaigns.filter((c: any) => c.status === 'completed').length,
+      total_calls: details.reduce((sum: number, d: any) => sum + d.calls_completed, 0),
+      total_successful: details.reduce((sum: number, d: any) => sum + d.calls_successful, 0),
+      avg_success_rate: details.length > 0
+        ? details.reduce((sum: number, d: any) => sum + d.success_rate, 0) / details.length
+        : 0
+    }
 
     return {
-      campaign_id: campaign.id,
-      campaign_name: campaign.name,
-      status: campaign.status,
-      total_targets: campaign.total_targets,
-      calls_completed: completed.length,
-      calls_successful: successful.length,
-      success_rate: completed.length > 0 ? (successful.length / completed.length) * 100 : 0,
-      avg_duration: completed.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) / (completed.length || 1),
-      created_at: campaign.created_at
+      summary,
+      details
     }
-  }) || []
-
-  const summary = {
-    total_campaigns: campaigns?.length || 0,
-    active_campaigns: campaigns?.filter((c: any) => c.status === 'active').length || 0,
-    completed_campaigns: campaigns?.filter((c: any) => c.status === 'completed').length || 0,
-    total_calls: details.reduce((sum: number, d: any) => sum + d.calls_completed, 0),
-    total_successful: details.reduce((sum: number, d: any) => sum + d.calls_successful, 0),
-    avg_success_rate: details.reduce((sum: number, d: any) => sum + d.success_rate, 0) / (details.length || 1)
-  }
-
-  return {
-    summary,
-    details
+  } catch (error) {
+    logger.error('Error fetching campaigns for report', error, { organizationId, dateRange: date_range, campaignIds: campaign_ids })
+    throw new Error('Failed to generate campaign performance report')
   }
 }
 

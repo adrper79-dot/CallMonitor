@@ -1,0 +1,8 @@
+{
+    "cron": [
+        {
+            "path": "/api/cron/retry-tsa",
+            "schedule": "*/5 * * * *"
+        }
+    ]
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth, success, Errors } from '@/lib/api/utils'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -15,18 +15,25 @@ export async function GET(req: Request) {
         const limit = parseInt(url.searchParams.get('limit') || '50')
 
         // Fetch decisions with their associated events
-        // Filter by organization for RLS compliance
-        const { data, error } = await supabaseAdmin
-            .from('attention_decisions')
-            .select('*, event:attention_events(*)')
-            .eq('organization_id', orgId)
-            .order('created_at', { ascending: false })
-            .limit(limit)
-
-        if (error) throw error
+        // Optimization: Use SQL JOIN instead of client-side join logic
+        const { rows } = await query(
+            `SELECT d.*, 
+                    json_build_object(
+                      'id', e.id,
+                      'type', e.type,
+                      'created_at', e.created_at,
+                      'data', e.data
+                    ) as event
+             FROM attention_decisions d
+             LEFT JOIN attention_events e ON d.event_id = e.id
+             WHERE d.organization_id = $1
+             ORDER BY d.created_at DESC
+             LIMIT $2`,
+            [orgId, limit]
+        )
 
         return success({
-            items: (data || []).map((d: any) => ({
+            items: (rows || []).map((d: any) => ({
                 type: 'decision',
                 ...d
             }))

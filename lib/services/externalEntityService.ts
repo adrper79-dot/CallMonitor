@@ -10,10 +10,9 @@
  * - Auditable: All link operations logged
  */
 
-import { SupabaseClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
-import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
+import { query } from '@/lib/pgClient'
 
 export interface ObserveIdentifierInput {
     organizationId: string
@@ -52,7 +51,8 @@ export interface ExternalEntityTimelineItem {
 }
 
 export class ExternalEntityService {
-    constructor(private supabaseAdmin: SupabaseClient) { }
+    // No longer needs SupabaseClient injection
+    constructor() { }
 
     /**
      * Normalize identifier value based on type
@@ -86,55 +86,60 @@ export class ExternalEntityService {
     async observeIdentifier(input: ObserveIdentifierInput): Promise<{ identifierId: string }> {
         const normalized = this.normalizeIdentifier(input.identifierType, input.identifierValue)
 
-        // Upsert identifier
-        const { data: existing } = await this.supabaseAdmin
-            .from('external_entity_identifiers')
-            .select('id, observation_count')
-            .eq('organization_id', input.organizationId)
-            .eq('identifier_type', input.identifierType)
-            .eq('identifier_normalized', normalized)
-            .limit(1)
+        // Check if exists
+        const { rows: existing } = await query(
+            `SELECT id, observation_count FROM external_entity_identifiers 
+             WHERE organization_id = $1 AND identifier_type = $2 AND identifier_normalized = $3 
+             LIMIT 1`,
+            [input.organizationId, input.identifierType, normalized]
+        )
 
         let identifierId: string
 
         if (existing?.[0]) {
             // Update observation count and last_observed_at
             identifierId = existing[0].id
-            await this.supabaseAdmin
-                .from('external_entity_identifiers')
-                .update({
-                    last_observed_at: new Date().toISOString(),
-                    observation_count: existing[0].observation_count + 1
-                })
-                .eq('id', identifierId)
+            await query(
+                `UPDATE external_entity_identifiers 
+                 SET last_observed_at = NOW(), observation_count = observation_count + 1 
+                 WHERE id = $1`,
+                [identifierId]
+            )
         } else {
             // Create new identifier
             identifierId = uuidv4()
-            await this.supabaseAdmin
-                .from('external_entity_identifiers')
-                .insert({
-                    id: identifierId,
-                    organization_id: input.organizationId,
-                    identifier_type: input.identifierType,
-                    identifier_value: input.identifierValue,
-                    identifier_normalized: normalized,
-                    first_observed_source: input.sourceType,
-                    first_observed_source_id: input.sourceId
-                })
+            await query(
+                `INSERT INTO external_entity_identifiers (
+                    id, organization_id, identifier_type, identifier_value, identifier_normalized, 
+                    first_observed_source, first_observed_source_id, created_at, observation_count, last_observed_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 1, NOW())`,
+                [
+                    identifierId,
+                    input.organizationId,
+                    input.identifierType,
+                    input.identifierValue,
+                    normalized,
+                    input.sourceType,
+                    input.sourceId
+                ]
+            )
         }
 
         // Log observation (append-only)
-        await this.supabaseAdmin
-            .from('external_entity_observations')
-            .insert({
-                id: uuidv4(),
-                organization_id: input.organizationId,
-                identifier_id: identifierId,
-                source_type: input.sourceType,
-                source_id: input.sourceId,
-                role: input.role,
-                direction: input.direction
-            })
+        await query(
+            `INSERT INTO external_entity_observations (
+                id, organization_id, identifier_id, source_type, source_id, role, direction, observed_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+            [
+                uuidv4(),
+                input.organizationId,
+                identifierId,
+                input.sourceType,
+                input.sourceId,
+                input.role || null,
+                input.direction || null
+            ]
+        )
 
         return { identifierId }
     }
@@ -184,31 +189,37 @@ export class ExternalEntityService {
     async createEntity(input: CreateEntityInput): Promise<{ entityId: string }> {
         const entityId = uuidv4()
 
-        await this.supabaseAdmin
-            .from('external_entities')
-            .insert({
-                id: entityId,
-                organization_id: input.organizationId,
-                display_name: input.displayName,
-                entity_type: input.entityType || 'contact',
-                notes: input.notes,
-                tags: input.tags,
-                created_by: input.userId
-            })
+        await query(
+            `INSERT INTO external_entities (
+                id, organization_id, display_name, entity_type, notes, tags, created_by, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+            [
+                entityId,
+                input.organizationId,
+                input.displayName || null,
+                input.entityType || 'contact',
+                input.notes || null,
+                input.tags || [],
+                input.userId
+            ]
+        )
 
         // Audit log
-        await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: input.organizationId,
-                user_id: input.userId,
-                resource_type: 'external_entity',
-                resource_id: entityId,
-                action: 'create',
-                after: { display_name: input.displayName, entity_type: input.entityType }
-            }),
-            { resource: 'external_entity', resourceId: entityId, action: 'create' }
-        )
+        try {
+            await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, after, created_at)
+                 VALUES ($1, $2, $3, 'external_entity', $4, 'create', $5, NOW())`,
+                [
+                    uuidv4(),
+                    input.organizationId,
+                    input.userId,
+                    entityId,
+                    JSON.stringify({ display_name: input.displayName, entity_type: input.entityType })
+                ]
+            )
+        } catch (e) {
+            logger.warn('Failed to write audit log for entity creation', e)
+        }
 
         return { entityId }
     }
@@ -220,43 +231,47 @@ export class ExternalEntityService {
         const linkId = uuidv4()
 
         // Update identifier with entity_id
-        await this.supabaseAdmin
-            .from('external_entity_identifiers')
-            .update({ entity_id: input.entityId })
-            .eq('id', input.identifierId)
-            .eq('organization_id', input.organizationId)
+        await query(
+            `UPDATE external_entity_identifiers SET entity_id = $1 WHERE id = $2 AND organization_id = $3`,
+            [input.entityId, input.identifierId, input.organizationId]
+        )
 
         // Create link record (human-attributed)
-        await this.supabaseAdmin
-            .from('external_entity_links')
-            .insert({
-                id: linkId,
-                organization_id: input.organizationId,
-                link_type: 'identifier_to_entity',
-                target_entity_id: input.entityId,
-                identifier_id: input.identifierId,
-                created_by: input.userId,
-                reason: input.reason
-            })
+        await query(
+            `INSERT INTO external_entity_links (
+                id, organization_id, link_type, target_entity_id, identifier_id, created_by, reason, created_at
+             ) VALUES ($1, $2, 'identifier_to_entity', $3, $4, $5, $6, NOW())`,
+            [
+                linkId,
+                input.organizationId,
+                input.entityId,
+                input.identifierId,
+                input.userId,
+                input.reason || null
+            ]
+        )
 
         // Audit log
-        await bestEffortAuditLog(
-            async () => await this.supabaseAdmin.from('audit_logs').insert({
-                id: uuidv4(),
-                organization_id: input.organizationId,
-                user_id: input.userId,
-                resource_type: 'external_entity_link',
-                resource_id: linkId,
-                action: 'create',
-                after: {
-                    link_type: 'identifier_to_entity',
-                    entity_id: input.entityId,
-                    identifier_id: input.identifierId,
-                    reason: input.reason
-                }
-            }),
-            { resource: 'external_entity_link', resourceId: linkId, action: 'create' }
-        )
+        try {
+            await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, after, created_at)
+                 VALUES ($1, $2, $3, 'external_entity_link', $4, 'create', $5, NOW())`,
+                [
+                    uuidv4(),
+                    input.organizationId,
+                    input.userId,
+                    linkId,
+                    JSON.stringify({
+                        link_type: 'identifier_to_entity',
+                        entity_id: input.entityId,
+                        identifier_id: input.identifierId,
+                        reason: input.reason
+                    })
+                ]
+            )
+        } catch (e) {
+            logger.warn('Failed to write audit log for entity linking', e)
+        }
 
         return { linkId }
     }
@@ -266,44 +281,42 @@ export class ExternalEntityService {
      */
     async getEntityTimeline(organizationId: string, entityId: string): Promise<ExternalEntityTimelineItem[]> {
         // Get all identifiers for this entity
-        const { data: identifiers } = await this.supabaseAdmin
-            .from('external_entity_identifiers')
-            .select('id')
-            .eq('organization_id', organizationId)
-            .eq('entity_id', entityId)
+        const { rows: identifiers } = await query(
+            `SELECT id FROM external_entity_identifiers WHERE organization_id = $1 AND entity_id = $2`,
+            [organizationId, entityId]
+        )
 
         if (!identifiers?.length) return []
 
-        const identifierIds = identifiers.map(i => i.id)
+        const identifierIds = identifiers.map((i: any) => i.id)
 
         // Get all observations for these identifiers
-        const { data: observations } = await this.supabaseAdmin
-            .from('external_entity_observations')
-            .select('source_type, source_id, role, direction, observed_at')
-            .eq('organization_id', organizationId)
-            .in('identifier_id', identifierIds)
-            .order('observed_at', { ascending: false })
+        const { rows: observations } = await query(
+            `SELECT source_id FROM external_entity_observations 
+             WHERE organization_id = $1 AND identifier_id = ANY($2) AND source_type = 'call'
+             ORDER BY observed_at DESC`,
+            [organizationId, identifierIds]
+        )
 
-        // Group by source and fetch call details
-        const callSourceIds = observations?.filter(o => o.source_type === 'call').map(o => o.source_id) || []
+        const callSourceIds = observations?.map((o: any) => o.source_id) || []
         const callIds = Array.from(new Set(callSourceIds))
 
         if (!callIds.length) return []
 
-        const { data: calls } = await this.supabaseAdmin
-            .from('calls')
-            .select('id, status, started_at, ended_at, phone_number')
-            .eq('organization_id', organizationId)
-            .in('id', callIds)
-            .order('started_at', { ascending: false })
+        const { rows: calls } = await query(
+            `SELECT id, status, started_at, ended_at, phone_number FROM calls 
+             WHERE organization_id = $1 AND id = ANY($2) 
+             ORDER BY started_at DESC`,
+            [organizationId, callIds]
+        )
 
-        // Fetch recordings for each call
         const result: ExternalEntityTimelineItem[] = []
+
         for (const call of calls || []) {
-            const { data: recordings } = await this.supabaseAdmin
-                .from('recordings')
-                .select('id, url')
-                .eq('call_id', call.id)
+            const { rows: recordings } = await query(
+                `SELECT id, recording_url as url FROM recordings WHERE call_id = $1`,
+                [call.id]
+            )
 
             result.push({
                 id: call.id,
@@ -330,14 +343,15 @@ export class ExternalEntityService {
         identifier_value: string
         observation_count: number
     }>> {
-        const { data } = await this.supabaseAdmin
-            .from('external_entity_identifiers')
-            .select('id, identifier_type, identifier_value, observation_count')
-            .eq('organization_id', organizationId)
-            .is('entity_id', null)
-            .order('observation_count', { ascending: false })
-            .limit(limit)
+        const { rows } = await query(
+            `SELECT id, identifier_type, identifier_value, observation_count 
+             FROM external_entity_identifiers 
+             WHERE organization_id = $1 AND entity_id IS NULL 
+             ORDER BY observation_count DESC 
+             LIMIT $2`,
+            [organizationId, limit]
+        )
 
-        return data || []
+        return rows || []
     }
 }

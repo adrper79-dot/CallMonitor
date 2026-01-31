@@ -1,4 +1,4 @@
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 
 /**
@@ -39,16 +39,16 @@ export async function rateLimit(
 
   try {
     // Try persistent storage first (login_attempts table)
-    const { data: attempts, error } = await supabaseAdmin
-      .from('login_attempts')
-      .select('attempted_at, succeeded')
-      .eq('username', identifier)
-      .gte('attempted_at', new Date(windowStart).toISOString())
-      .order('attempted_at', { ascending: false })
+    const { rows: attempts } = await query(
+      `SELECT attempted_at, succeeded FROM login_attempts 
+       WHERE username = $1 AND attempted_at >= $2 
+       ORDER BY attempted_at DESC`,
+      [identifier, new Date(windowStart).toISOString()]
+    )
 
-    if (!error && attempts) {
+    if (attempts) {
       // Count failed attempts
-      const failedAttempts = attempts.filter(a => !a.succeeded)
+      const failedAttempts = attempts.filter((a: any) => !a.succeeded)
       const recentFailed = failedAttempts.length
 
       // Check if blocked
@@ -127,14 +127,10 @@ export async function recordAttempt(
 ): Promise<void> {
   try {
     // Record in persistent storage
-    await supabaseAdmin
-      .from('login_attempts')
-      .insert({
-        username: identifier,
-        ip: ip || null,
-        succeeded,
-        attempted_at: new Date().toISOString()
-      })
+    await query(
+      `INSERT INTO login_attempts (username, ip, succeeded, attempted_at) VALUES ($1, $2, $3, NOW())`,
+      [identifier, ip || null, succeeded]
+    )
   } catch (err) {
     // Best-effort
     logger.warn('recordAttempt: failed', { error: (err as Error).message })
@@ -202,7 +198,7 @@ export function withRateLimit(
   }
 ) {
   return async (req: Request): Promise<Response> => {
-    const identifier = options?.identifier 
+    const identifier = options?.identifier
       ? options.identifier(req)
       : getClientIP(req)
 

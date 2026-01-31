@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { hashPayload } from '@/lib/crypto/canonicalize'
 import type { ArtifactReference } from '@/app/services/evidenceTypes'
@@ -129,38 +129,44 @@ async function requestRfc3161Token(bundleHashHex: string): Promise<{
  */
 export async function processTsaRequest(bundleId: string, bundleHashHex: string): Promise<void> {
   const requestedAt = new Date().toISOString()
-  
+
   try {
     // Mark as requested
-    await supabaseAdmin.from('evidence_bundles')
-      .update({ tsa_requested_at: requestedAt })
-      .eq('id', bundleId)
+    await query(
+      `UPDATE evidence_bundles SET tsa_requested_at = $1 WHERE id = $2`,
+      [requestedAt, bundleId]
+    )
 
     // Request TSA token
     const result = await requestRfc3161Token(bundleHashHex)
 
     // Update bundle with result
-    await supabaseAdmin.from('evidence_bundles')
-      .update({
-        tsa: result.tsa,
-        tsa_status: result.tsaStatus,
-        tsa_received_at: result.tsaReceivedAt,
-        tsa_error: result.tsaError
-      })
-      .eq('id', bundleId)
+    await query(
+      `UPDATE evidence_bundles SET 
+         tsa = $1, 
+         tsa_status = $2, 
+         tsa_received_at = $3, 
+         tsa_error = $4 
+       WHERE id = $5`,
+      [
+        JSON.stringify(result.tsa),
+        result.tsaStatus,
+        result.tsaReceivedAt || null,
+        result.tsaError || null,
+        bundleId
+      ]
+    )
 
-    logger.info('evidenceBundle: TSA request completed', { 
-      bundleId, 
-      status: result.tsaStatus 
+    logger.info('evidenceBundle: TSA request completed', {
+      bundleId,
+      status: result.tsaStatus
     })
   } catch (err: any) {
     // Update with error status
-    await supabaseAdmin.from('evidence_bundles')
-      .update({
-        tsa_status: 'error',
-        tsa_error: err?.message || 'TSA request failed'
-      })
-      .eq('id', bundleId)
+    await query(
+      `UPDATE evidence_bundles SET tsa_status = 'error', tsa_error = $1 WHERE id = $2`,
+      [err?.message || 'TSA request failed', bundleId]
+    )
 
     logger.error('evidenceBundle: TSA request failed', err, { bundleId })
   }
@@ -204,12 +210,10 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
 
   try {
     // Check for existing bundle (idempotent)
-    const { data: existing } = await supabaseAdmin
-      .from('evidence_bundles')
-      .select('id')
-      .eq('manifest_id', manifestId)
-      .is('superseded_at', null)
-      .limit(1)
+    const { rows: existing } = await query(
+      `SELECT id FROM evidence_bundles WHERE manifest_id = $1 AND superseded_at IS NULL LIMIT 1`,
+      [manifestId]
+    )
 
     if (existing?.[0]) {
       return existing[0].id
@@ -235,12 +239,10 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
     // Find parent bundle if manifest has parent
     let parentBundleId: string | null = null
     if (parentManifestId) {
-      const { data: parentBundleRows } = await supabaseAdmin
-        .from('evidence_bundles')
-        .select('id')
-        .eq('manifest_id', parentManifestId)
-        .is('superseded_at', null)
-        .limit(1)
+      const { rows: parentBundleRows } = await query(
+        `SELECT id FROM evidence_bundles WHERE manifest_id = $1 AND superseded_at IS NULL LIMIT 1`,
+        [parentManifestId]
+      )
 
       parentBundleId = parentBundleRows?.[0]?.id || null
     }
@@ -252,36 +254,41 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
 
     // Insert bundle with pending TSA status (non-blocking)
     const bundleId = uuidv4()
-    const { error: insertErr } = await supabaseAdmin.from('evidence_bundles').insert({
-      id: bundleId,
-      organization_id: organizationId,
-      call_id: callId,
-      recording_id: recordingId || null,
-      manifest_id: manifestId,
-      manifest_hash: manifestHash,
-      artifact_hashes: artifactHashes,
-      bundle_payload: bundlePayload,
-      bundle_hash: bundleHash,
-      bundle_hash_algo: 'sha256',
-      version,
-      parent_bundle_id: parentBundleId,
-      immutable_storage: true,
-      custody_status: 'active',
-      retention_class: 'default',
-      legal_hold_flag: false,
-      evidence_completeness: evidenceCompleteness,
-      tsa: null,
-      tsa_status: initialTsaStatus,
-      tsa_requested_at: null,
-      tsa_received_at: null,
-      tsa_error: null,
-      created_at: createdAt
-    })
 
-    if (insertErr) {
-      logger.error('evidenceBundle: failed to insert bundle', insertErr, { manifestId, callId })
-      throw new Error(`Failed to store evidence bundle: ${insertErr.message}`)
-    }
+    await query(
+      `INSERT INTO evidence_bundles (
+        id, organization_id, call_id, recording_id, manifest_id, manifest_hash, 
+        artifact_hashes, bundle_payload, bundle_hash, bundle_hash_algo, version, 
+        parent_bundle_id, immutable_storage, custody_status, retention_class, 
+        legal_hold_flag, evidence_completeness, tsa, tsa_status, tsa_requested_at, 
+        tsa_received_at, tsa_error, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+      [
+        bundleId,
+        organizationId,
+        callId,
+        recordingId || null,
+        manifestId,
+        manifestHash,
+        JSON.stringify(artifactHashes),
+        JSON.stringify(bundlePayload),
+        bundleHash,
+        'sha256',
+        version,
+        parentBundleId,
+        true, // immutable_storage
+        'active', // custody_status
+        'default', // retention_class
+        false, // legal_hold_flag
+        evidenceCompleteness,
+        null, // tsa
+        initialTsaStatus,
+        null, // tsa_requested_at
+        null, // tsa_received_at
+        null, // tsa_error
+        createdAt
+      ]
+    )
 
     logger.info('evidenceBundle: created bundle', {
       bundleId,
@@ -311,25 +318,25 @@ export async function createEvidenceBundle(options: CreateEvidenceBundleOptions)
  */
 export async function ensureEvidenceBundle(manifestId: string): Promise<string> {
   // Check if bundle already exists
-  const { data: existingBundle } = await supabaseAdmin
-    .from('evidence_bundles')
-    .select('id')
-    .eq('manifest_id', manifestId)
-    .is('superseded_at', null)
-    .limit(1)
+  const { rows: existingBundle } = await query(
+    `SELECT id FROM evidence_bundles WHERE manifest_id = $1 AND superseded_at IS NULL LIMIT 1`,
+    [manifestId]
+  )
 
   if (existingBundle?.[0]) {
     return existingBundle[0].id
   }
 
   // Fetch manifest data for recovery
-  const { data: manifest, error: manifestErr } = await supabaseAdmin
-    .from('evidence_manifests')
-    .select('id, manifest, organization_id, recording_id, version, parent_manifest_id')
-    .eq('id', manifestId)
-    .single()
+  const { rows: manifestRows } = await query(
+    `SELECT id, manifest, organization_id, recording_id, version, parent_manifest_id 
+     FROM evidence_manifests WHERE id = $1 LIMIT 1`,
+    [manifestId]
+  )
 
-  if (manifestErr || !manifest) {
+  const manifest = manifestRows?.[0]
+
+  if (!manifest) {
     throw new Error(`Manifest ${manifestId} not found for bundle recovery`)
   }
 

@@ -184,7 +184,7 @@ export default function CampaignsPage() {
                   </TableHeader>
                   <TableBody>
                     {campaigns.map((campaign) => (
-                      <TableRow 
+                      <TableRow
                         key={campaign.id}
                         className="cursor-pointer"
                         onClick={() => router.push(`/campaigns/${campaign.id}`)}
@@ -248,13 +248,13 @@ export default function CampaignsPage() {
           <div className="grid md:grid-cols-4 gap-4 mt-6">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{campaigns.length}</div>
+                <div className="text-2xl font-semibold">{campaigns.length}</div>
                 <div className="text-sm text-muted-foreground">Total Campaigns</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {campaigns.filter(c => c.status === 'active').length}
                 </div>
                 <div className="text-sm text-muted-foreground">Active</div>
@@ -262,7 +262,7 @@ export default function CampaignsPage() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {campaigns.reduce((sum, c) => sum + c.calls_completed, 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Calls Completed</div>
@@ -270,7 +270,7 @@ export default function CampaignsPage() {
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-semibold">
                   {campaigns.reduce((sum, c) => sum + c.calls_successful, 0)}
                 </div>
                 <div className="text-sm text-muted-foreground">Successful Calls</div>

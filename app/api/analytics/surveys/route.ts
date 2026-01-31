@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { Errors, requireRole, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
@@ -94,25 +94,18 @@ export async function GET() {
     const ctx = await requireRole(['owner', 'admin', 'analyst'])
     if (ctx instanceof NextResponse) return ctx
 
-    // First get call IDs for this organization, then filter ai_runs
-    const { data: orgCalls } = await supabaseAdmin
-      .from('calls')
-      .select('id')
-      .eq('organization_id', ctx.orgId)
-      .limit(1000)
-
-    const callIds = (orgCalls || []).map(c => c.id)
-
-    const { data: surveys, error } = await supabaseAdmin
-      .from('ai_runs')
-      .select('output, created_at, status, call_id')
-      .in('call_id', callIds.length > 0 ? callIds : ['00000000-0000-0000-0000-000000000000'])
-      .in('model', ['laml-dtmf-survey', 'signalwire-ai-survey', 'assemblyai-survey'])
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(500)
-
-    if (error) throw error
+    // Use JOIN to get surveys for organization calls
+    const { rows: surveys } = await query(
+      `SELECT ar.output, ar.created_at, ar.status, ar.call_id
+       FROM ai_runs ar
+       JOIN calls c ON ar.call_id = c.id
+       WHERE c.organization_id = $1
+         AND ar.model IN ('laml-dtmf-survey', 'signalwire-ai-survey', 'assemblyai-survey')
+         AND ar.status = 'completed'
+       ORDER BY ar.created_at DESC
+       LIMIT 500`,
+      [ctx.orgId]
+    )
 
     const metrics = computeMetrics((surveys || []) as SurveyRunRow[])
     return success({ metrics })

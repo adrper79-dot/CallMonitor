@@ -1,0 +1,14 @@
+WARN OpenNext is not fully compatible with Windows.
+WARN For optimal performance, it is recommended to use Windows Subsystem for Linux (WSL).
+WARN While OpenNext may function on Windows, it could encounter unpredictable failures during runtime.
+file:///C:/Users/Ultimate%20Warrior/My%20project/gemini-project/node_modules/open-next/dist/build/validateConfig.js:35
+    if (!compatibilityMatrix[wrapper].includes(converter) &&
+                                      ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at validateFunctionOptions (file:///C:/Users/Ultimate%20Warrior/My%20project/gemini-project/node_modules/open-next/dist/build/validateConfig.js:35:39)
+    at validateConfig (file:///C:/Users/Ultimate%20Warrior/My%20project/gemini-project/node_modules/open-next/dist/build/validateConfig.js:57:5)
+    at build (file:///C:/Users/Ultimate%20Warrior/My%20project/gemini-project/node_modules/open-next/dist/build.js:34:5)
+    at async file:///C:/Users/Ultimate%20Warrior/My%20project/gemini-project/node_modules/open-next/dist/index.js:9:1
+
+Node.js v24.12.0

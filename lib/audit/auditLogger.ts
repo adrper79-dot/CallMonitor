@@ -15,7 +15,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { v4 as uuidv4 } from 'uuid'
 
 // Audit event types
@@ -69,42 +69,54 @@ export async function writeAudit(entry: AuditLogEntry): Promise<boolean> {
       resource: entry.resource_id
     })
 
-    // Write to database using correct schema columns
-    // Schema: id, organization_id, user_id, system_id, resource_type, resource_id, 
-    //         action, before, after, created_at, actor_type, actor_label
-    // Extra fields go in the 'after' jsonb column
-    const { error } = await supabaseAdmin
-      .from('audit_logs')
-      .insert({
-        id: uuidv4(),
-        organization_id: entry.organization_id,
-        user_id: entry.actor_type === 'user' ? entry.actor_id : null,
-        system_id: entry.actor_type === 'system' ? entry.actor_id : null,
-        resource_type: entry.resource_type,
-        resource_id: entry.resource_id,
-        action: entry.action,
-        actor_type: entry.actor_type || 'system',
-        actor_label: entry.event_type, // Use event_type as actor label
-        before: null,
-        after: {
-          event_type: entry.event_type,
-          status: entry.status,
-          metadata: entry.metadata || {},
-          error_message: entry.error_message,
-          ip_address: entry.ip_address,
-          user_agent: entry.user_agent
-        },
-        created_at: new Date().toISOString()
-      })
+    const id = uuidv4()
+    const userId = entry.actor_type === 'user' ? entry.actor_id : null
+    // Assuming system_id is nullable text or uuid. If it's a UUID column, non-UUID strings will fail.
+    // Safe bet: if it's 'system' or 'webhook', we probably don't have a specific ID, or it shares the ID param.
+    // If actor_type is system, we map actor_id to system_id.
+    const systemId = entry.actor_type === 'system' ? entry.actor_id : null
 
-    if (error) {
-      // Log the failure but don't throw - audit failures shouldn't break business logic
-      logger.error('Failed to write audit log', error, {
-        event_type: entry.event_type,
-        action: entry.action
-      })
-      return false
+    // Construct JSON for 'after' column
+    const afterData = {
+      event_type: entry.event_type,
+      status: entry.status,
+      metadata: entry.metadata || {},
+      error_message: entry.error_message,
+      ip_address: entry.ip_address,
+      user_agent: entry.user_agent
     }
+
+    // SQL Insert
+    // We use the optional chaining to handle potentially undefined values safely (though parameters handle nulls)
+    await query(
+      `INSERT INTO audit_logs (
+        id, 
+        organization_id, 
+        user_id, 
+        system_id, 
+        resource_type, 
+        resource_id, 
+        action, 
+        actor_type, 
+        actor_label, 
+        before, 
+        after, 
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+      [
+        id,
+        entry.organization_id || null, // Handle undefined
+        userId || null,
+        systemId || null,
+        entry.resource_type || null,
+        entry.resource_id || null,
+        entry.action,
+        entry.actor_type || 'system',
+        entry.event_type, // actor_label
+        null, // before
+        JSON.stringify(afterData) // after
+      ]
+    )
 
     return true
   } catch (error) {

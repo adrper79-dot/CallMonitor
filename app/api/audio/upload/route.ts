@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
 import storage from '@/lib/storage'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'

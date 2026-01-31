@@ -2,17 +2,11 @@
  * Call Summary API (AI-Assisted)
  * 
  * POST /api/calls/[id]/summary - Generate AI summary from call transcript
- * 
- * Per AI Role Policy (ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md):
- * - AI GENERATES summaries, humans VERIFY and CONFIRM
- * - Summaries are marked as AI-generated until human confirms
- * - "The AI proposes. The human decides."
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -36,15 +30,9 @@ export async function POST(
     const { id: callId } = await params
 
     // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
+    const session = await requireRole('viewer') // Viewer can request generation, but usually higher needed for persistence
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -62,40 +50,18 @@ export async function POST(
       custom_transcript,
     } = body
 
-    // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .single()
-
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-
     // Get call with transcript
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select(`
-        id,
-        organization_id,
-        direction,
-        status,
-        ai_summary,
-        transcription,
-        caller_phone_number,
-        destination_phone_number,
-        started_at,
-        ended_at
-      `)
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
+    const { rows: calls } = await query(
+      `SELECT 
+            id, organization_id, direction, status, ai_summary, transcription, 
+            caller_phone_number, destination_phone_number, started_at, ended_at
+         FROM calls 
+         WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+    const call = calls[0]
 
-    if (callError || !call) {
+    if (!call) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
@@ -104,7 +70,7 @@ export async function POST(
 
     // Get transcript text
     let transcriptText = custom_transcript || ''
-    
+
     if (use_call_transcript && !custom_transcript) {
       if (call.transcription) {
         // Handle different transcription formats
@@ -116,7 +82,7 @@ export async function POST(
           transcriptText = call.transcription.transcript
         } else if (Array.isArray(call.transcription)) {
           // Array of utterances
-          transcriptText = call.transcription.map((u: any) => 
+          transcriptText = call.transcription.map((u: any) =>
             `${u.speaker || 'Unknown'}: ${u.text || ''}`
           ).join('\n')
         }
@@ -125,12 +91,12 @@ export async function POST(
 
     if (!transcriptText || transcriptText.trim().length < 20) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'NO_TRANSCRIPT', 
-            message: 'Insufficient transcript content. A minimum of 20 characters is required.' 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'NO_TRANSCRIPT',
+            message: 'Insufficient transcript content. A minimum of 20 characters is required.'
+          }
         },
         { status: 400 }
       )
@@ -140,12 +106,12 @@ export async function POST(
     if (!process.env.OPENAI_API_KEY) {
       logger.error('AI Summary failed: OPENAI_API_KEY not configured', { callId })
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'CONFIG_ERROR', 
-            message: 'AI summarization is not configured. Please contact your administrator.' 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'CONFIG_ERROR',
+            message: 'AI summarization is not configured. Please contact your administrator.'
+          }
         },
         { status: 503 }
       )
@@ -193,12 +159,12 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       const errorText = await openaiResponse.text()
       logger.error('OpenAI API error', { callId, status: openaiResponse.status, error: errorText })
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'AI_ERROR', 
-            message: 'Failed to generate AI summary. Please try again.' 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'AI_ERROR',
+            message: 'Failed to generate AI summary. Please try again.'
+          }
         },
         { status: 502 }
       )
@@ -209,12 +175,12 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
 
     if (!aiContent) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'AI_EMPTY', 
-            message: 'AI returned an empty response. Please try again.' 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'AI_EMPTY',
+            message: 'AI returned an empty response. Please try again.'
+          }
         },
         { status: 502 }
       )
@@ -222,7 +188,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
 
     // Parse the AI response
     let summaryResult: any
-    
+
     if (include_structured_extraction) {
       try {
         summaryResult = JSON.parse(aiContent)
@@ -249,32 +215,39 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
     }
 
     // Store in ai_summaries table for audit
-    const { data: aiSummary, error: insertError } = await supabaseAdmin
-      .from('ai_summaries')
-      .insert({
-        call_id: callId,
-        organization_id: member.organization_id,
-        summary_text: summaryResult.summary_text,
-        topics_discussed: summaryResult.topics_discussed || [],
-        potential_agreements: summaryResult.potential_agreements || [],
-        potential_concerns: summaryResult.potential_concerns || [],
-        recommended_followup: summaryResult.recommended_followup || [],
-        confidence_score: 0.85, // Default confidence
-        model_used: 'gpt-4-turbo-preview',
-        generated_by_user_id: userId,
-        review_status: 'pending',
-        input_length: transcriptText.length,
-      })
-      .select()
-      .single()
-
-    if (insertError) {
+    // Using simple query insert
+    let aiSummary: any = null
+    try {
+      const { rows: inserted } = await query(
+        `INSERT INTO ai_summaries (
+                call_id, organization_id, summary_text, topics_discussed, potential_agreements,
+                potential_concerns, recommended_followup, confidence_score, model_used,
+                generated_by_user_id, review_status, input_length
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             RETURNING id`,
+        [
+          callId,
+          organizationId,
+          summaryResult.summary_text,
+          JSON.stringify(summaryResult.topics_discussed || []),
+          JSON.stringify(summaryResult.potential_agreements || []),
+          JSON.stringify(summaryResult.potential_concerns || []),
+          JSON.stringify(summaryResult.recommended_followup || []),
+          0.85,
+          'gpt-4-turbo-preview',
+          userId,
+          'pending',
+          transcriptText.length
+        ]
+      )
+      aiSummary = inserted[0]
+    } catch (insertError) {
       logger.error('Failed to store AI summary', { callId, error: insertError })
-      // Continue anyway - return the summary even if storage fails
+      // Continue anyway
     }
 
-    logger.info('AI summary generated', { 
-      callId, 
+    logger.info('AI summary generated', {
+      callId,
       aiSummaryId: aiSummary?.id,
       summaryLength: summaryResult.summary_text?.length,
       generatedBy: userId

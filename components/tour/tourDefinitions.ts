@@ -94,16 +94,22 @@ export const SETTINGS_TOUR: TourStepDefinition[] = [
     position: 'bottom',
   },
   {
-    targetSelector: '[data-tour="voice-settings"]',
+    targetSelector: '[data-tour="tab-call-config"]',
     title: 'Voice Settings',
-    content: 'Configure default recording, transcription, and translation options. These apply to all new calls.',
-    position: 'right',
+    content: 'Configure default recording, transcription, and translation options. these apply to all new calls.',
+    position: 'bottom',
   },
   {
-    targetSelector: '[data-tour="team-settings"]',
+    targetSelector: '[data-tour="tab-team"]',
     title: 'Team Management',
-    content: 'Invite team members, assign roles, and manage permissions. Control who can make calls and view recordings.',
-    position: 'right',
+    content: 'Invite team members, assign roles, and manage permissions.',
+    position: 'bottom',
+  },
+  {
+    targetSelector: '[data-tour="tab-billing"]',
+    title: 'Billing & Plans',
+    content: 'Manage your subscription, view invoices, and upgrade your plan.',
+    position: 'bottom',
   },
 ]
 

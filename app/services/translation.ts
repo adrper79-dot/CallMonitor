@@ -1,4 +1,4 @@
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import storage from '@/lib/storage'
 import { generateSpeech, cloneVoice, deleteClonedVoice } from './elevenlabs'
 import { logger } from '@/lib/logger'
@@ -21,38 +21,41 @@ export interface TranslationInput {
 export async function translateText(input: TranslationInput): Promise<void> {
   const { callId, translationRunId, text, fromLanguage, toLanguage, organizationId, recordingUrl, useVoiceCloning } = input
 
-  logger.info('translation: starting', { 
-    callId, 
-    translationRunId, 
-    fromLanguage, 
-    toLanguage, 
+  logger.info('translation: starting', {
+    callId,
+    translationRunId,
+    fromLanguage,
+    toLanguage,
     textLength: text?.length || 0,
     hasRecordingUrl: !!recordingUrl,
     useVoiceCloning
   })
 
   try {
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('plan')
-      .eq('id', organizationId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT plan FROM organizations WHERE id = $1`,
+      [organizationId]
+    )
 
-    const orgPlan = orgRows?.[0]?.plan?.toLowerCase()
+    const orgPlan = orgRows[0]?.plan?.toLowerCase()
     const translationPlans = ['global', 'enterprise', 'business', 'pro', 'standard', 'active', 'free']
+
     if (!translationPlans.includes(orgPlan || '')) {
-      logger.error('TRANSLATION_FAILED: Plan does not support translation', undefined, { 
-        organizationId, 
+      logger.error('TRANSLATION_FAILED: Plan does not support translation', undefined, {
+        organizationId,
         plan: orgPlan,
         allowedPlans: translationPlans.join(', ')
       })
-      await supabaseAdmin.from('ai_runs').update({
-        status: 'failed',
-        completed_at: new Date().toISOString(),
-        produced_by: 'model',
-        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
-        output: { error: 'Plan does not support translation', plan: orgPlan }
-      }).eq('id', translationRunId)
+      await query(
+        `UPDATE ai_runs SET
+            status = 'failed',
+            completed_at = NOW(),
+            produced_by = 'model',
+            is_authoritative = false,
+            output = $1
+         WHERE id = $2`,
+        [{ error: 'Plan does not support translation', plan: orgPlan }, translationRunId]
+      )
       return
     }
 
@@ -71,7 +74,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
         // Add timeout protection for external API calls (30 second timeout)
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000)
-        
+
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -94,7 +97,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
             max_tokens: 2000
           })
         })
-        
+
         clearTimeout(timeoutId)
 
         if (openaiRes.ok) {
@@ -108,7 +111,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
           translationError = `OpenAI API error: ${openaiRes.status} - ${errorText}`
         }
       } catch (err: any) {
-        const errorMsg = err?.name === 'AbortError' 
+        const errorMsg = err?.name === 'AbortError'
           ? 'OpenAI translation timed out (30s)'
           : `OpenAI translation failed: ${err?.message || 'Unknown error'}`
         translationError = errorMsg
@@ -119,23 +122,23 @@ export async function translateText(input: TranslationInput): Promise<void> {
       let audioUrl: string | null = null
       let clonedVoiceId: string | null = null
       let usedVoiceCloning = false
-      
+
       if (process.env.ELEVENLABS_API_KEY) {
         try {
-          logger.debug('translation: generating audio with ElevenLabs', { 
+          logger.debug('translation: generating audio with ElevenLabs', {
             translationRunId, chars: translatedText.length, useVoiceCloning: !!useVoiceCloning
           })
-          
+
           let voiceIdToUse: string | undefined = undefined
-          
+
           if (useVoiceCloning && recordingUrl) {
             try {
               logger.debug('translation: attempting voice cloning from recording', { translationRunId })
-              
+
               const recordingResponse = await fetch(recordingUrl)
               if (recordingResponse.ok) {
                 const recordingBuffer = Buffer.from(await recordingResponse.arrayBuffer())
-                
+
                 if (recordingBuffer.length > 50000) {
                   const cloneResult = await cloneVoice(
                     recordingBuffer,
@@ -150,7 +153,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
                   logger.warn('translation: recording too short for voice cloning', { translationRunId })
                 }
               } else {
-                logger.warn('translation: could not download recording for voice cloning', { 
+                logger.warn('translation: could not download recording for voice cloning', {
                   translationRunId, status: recordingResponse.status
                 })
               }
@@ -158,9 +161,9 @@ export async function translateText(input: TranslationInput): Promise<void> {
               logger.error('translation: voice cloning failed, falling back to default voice', cloneError, { translationRunId })
             }
           }
-          
+
           const audioStream = await generateSpeech(translatedText, toLanguage, voiceIdToUse)
-          
+
           const reader = audioStream.getReader()
           const chunks: Uint8Array[] = []
           while (true) {
@@ -169,7 +172,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
             chunks.push(value)
           }
           const audioBuffer = Buffer.concat(chunks)
-          
+
           const audioFileName = `translations/${translationRunId}.mp3`
           try {
             await storage.upload('recordings', audioFileName, audioBuffer, 'audio/mpeg')
@@ -184,7 +187,7 @@ export async function translateText(input: TranslationInput): Promise<void> {
           } catch (uploadErr: any) {
             logger.error('translation: audio upload failed', uploadErr, { translationRunId })
           }
-          
+
           if (clonedVoiceId) {
             try {
               await deleteClonedVoice(clonedVoiceId)
@@ -197,48 +200,57 @@ export async function translateText(input: TranslationInput): Promise<void> {
           logger.error('translation: ElevenLabs audio generation failed', audioError, { translationRunId })
         }
       }
-      
-      await supabaseAdmin.from('ai_runs').update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        produced_by: 'model',
-        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
-        output: {
+
+      await query(
+        `UPDATE ai_runs SET
+            status = 'completed',
+            completed_at = NOW(),
+            produced_by = 'model',
+            is_authoritative = false,
+            output = $1
+         WHERE id = $2`,
+        [{
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, translated_text: translatedText,
           translated_audio_url: audioUrl, provider: 'openai',
           tts_provider: audioUrl ? 'elevenlabs' : null,
           voice_cloning_used: usedVoiceCloning,
           completed_at: new Date().toISOString()
-        }
-      }).eq('id', translationRunId)
+        }, translationRunId]
+      )
 
       logger.info('translation: completed', { translationRunId, callId, fromLanguage, toLanguage, hasAudio: !!audioUrl, usedVoiceCloning })
     } else {
-      await supabaseAdmin.from('ai_runs').update({
-        status: 'failed',
-        completed_at: new Date().toISOString(),
-        produced_by: 'model',
-        is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
-        output: {
+      await query(
+        `UPDATE ai_runs SET
+            status = 'failed',
+            completed_at = NOW(),
+            produced_by = 'model',
+            is_authoritative = false,
+            output = $1
+         WHERE id = $2`,
+        [{
           from_language: fromLanguage, to_language: toLanguage,
           source_text: text, error: translationError || 'Translation failed',
           failed_at: new Date().toISOString()
-        }
-      }).eq('id', translationRunId)
+        }, translationRunId]
+      )
 
       logger.error('translation: failed', undefined, { translationRunId, callId, error: translationError })
     }
 
   } catch (err: any) {
     logger.error('translation: service error', err, { translationRunId, callId })
-    
-    await supabaseAdmin.from('ai_runs').update({
-      status: 'failed',
-      completed_at: new Date().toISOString(),
-      produced_by: 'model',
-      is_authoritative: false, // LLM translations are non-authoritative per ARTIFACT_AUTHORITY_CONTRACT
-      output: { error: err?.message || 'Translation service error', failed_at: new Date().toISOString() }
-    }).eq('id', translationRunId)
+
+    await query(
+      `UPDATE ai_runs SET
+            status = 'failed',
+            completed_at = NOW(),
+            produced_by = 'model',
+            is_authoritative = false,
+            output = $1
+         WHERE id = $2`,
+      [{ error: err?.message || 'Translation service error', failed_at: new Date().toISOString() }, translationRunId]
+    )
   }
 }

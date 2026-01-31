@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: __dirname,
   // output: "standalone", // Cloudflare Pages does not support standalone mode
   images: {
     unoptimized: true,

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
+import { query } from '@/lib/pgClient'
+import { v4 as uuidv4 } from 'uuid'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -10,7 +12,7 @@ export const runtime = 'nodejs'
  * Admin Signup API
  * 
  * SECURITY: Requires ADMIN_API_KEY authentication
- * This endpoint creates users directly via Supabase Admin API
+ * This endpoint creates users directly via Supabase Auth Admin API
  * Only use for internal/admin operations
  */
 export async function POST(req: Request) {
@@ -24,7 +26,7 @@ export async function POST(req: Request) {
 
     const providedKey = req.headers.get('x-admin-key') || req.headers.get('X-Admin-Key') || ''
     if (providedKey !== adminKey) {
-      logger.warn('Admin signup: Unauthorized access attempt', { 
+      logger.warn('Admin signup: Unauthorized access attempt', {
         hasKey: !!providedKey,
         source: req.headers.get('x-forwarded-for') || 'unknown'
       })
@@ -69,6 +71,24 @@ export async function POST(req: Request) {
     const data = await res.json()
     if (!res.ok) {
       return ApiErrors.badRequest(data?.message ?? data)
+    }
+
+    // Audit log: Admin User Creation
+    try {
+      if (organization_id) {
+        await query(
+          `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+           VALUES ($1, $2, null, 'user', $3, 'admin:user.create', 'system', 'admin-api', $4, NOW())`,
+          [
+            uuidv4(),
+            organization_id,
+            data.id,
+            JSON.stringify({ email, role, name })
+          ]
+        )
+      }
+    } catch (auditErr) {
+      logger.error('Admin signup: Failed to write audit log', auditErr)
     }
 
     return NextResponse.json({ ok: true, user: data })

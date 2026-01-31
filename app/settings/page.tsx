@@ -146,11 +146,12 @@ function SettingsPageContent() {
 
       <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Tab Navigation - Improved hierarchy */}
-        <nav className="flex flex-wrap gap-2 mb-8">
+        <nav className="flex flex-wrap gap-2 mb-8" data-tour="settings-tabs">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              data-tour={`tab-${tab.id}`}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id
                 ? 'bg-primary-600 text-white'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'

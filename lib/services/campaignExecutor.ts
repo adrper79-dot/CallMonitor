@@ -14,7 +14,7 @@
  * @module lib/services/campaignExecutor
  */
 
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/types/app-error'
 
@@ -66,18 +66,22 @@ export async function executeCampaign(campaignId: string): Promise<void> {
     logger.info('executeCampaign: starting', { campaignId })
 
     // Get campaign details
+    // Get campaign details
     const campaign = await getCampaign(campaignId)
     if (!campaign) {
       throw new AppError('Campaign not found', 404, 'CAMPAIGN_NOT_FOUND')
     }
+
+    // Capture orgId for RLS context in subsequent calls
+    const orgContext = { organizationId: campaign.organization_id }
 
     // Validate campaign status
     if (campaign.status !== 'active') {
       throw new AppError('Campaign is not active', 400, 'CAMPAIGN_NOT_ACTIVE')
     }
 
-    // Get pending calls
-    const pendingCalls = await getPendingCalls(campaignId)
+    // Get pending calls with RLS
+    const pendingCalls = await getPendingCalls(campaignId, orgContext)
     if (pendingCalls.length === 0) {
       logger.info('executeCampaign: no pending calls', { campaignId })
       await completeCampaign(campaignId)
@@ -97,7 +101,7 @@ export async function executeCampaign(campaignId: string): Promise<void> {
     })
 
     // Process calls in batches with rate limiting
-    await processCalls(campaign, pendingCalls, config)
+    await processCalls(campaign, pendingCalls, config, orgContext)
 
     logger.info('executeCampaign: completed', { campaignId })
   } catch (error: any) {
@@ -110,37 +114,35 @@ export async function executeCampaign(campaignId: string): Promise<void> {
  * Get campaign details
  */
 async function getCampaign(campaignId: string): Promise<Campaign | null> {
-  const { data, error } = await supabaseAdmin
-    .from('campaigns')
-    .select('*')
-    .eq('id', campaignId)
-    .single()
-
-  if (error) {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM campaigns WHERE id = $1 LIMIT 1`,
+      [campaignId]
+    )
+    return rows[0] || null
+  } catch (error: any) {
     logger.error('getCampaign: database error', error, { campaignId })
     return null
   }
-
-  return data
 }
 
 /**
  * Get pending campaign calls
  */
-async function getPendingCalls(campaignId: string): Promise<CampaignCall[]> {
-  const { data, error } = await supabaseAdmin
-    .from('campaign_calls')
-    .select('*')
-    .eq('campaign_id', campaignId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true })
-
-  if (error) {
+async function getPendingCalls(campaignId: string, options?: { organizationId: string }): Promise<CampaignCall[]> {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM campaign_calls 
+       WHERE campaign_id = $1 AND status = 'pending' 
+       ORDER BY created_at ASC`,
+      [campaignId],
+      options
+    )
+    return rows
+  } catch (error: any) {
     logger.error('getPendingCalls: database error', error, { campaignId })
     return []
   }
-
-  return data || []
 }
 
 /**
@@ -149,7 +151,8 @@ async function getPendingCalls(campaignId: string): Promise<CampaignCall[]> {
 async function processCalls(
   campaign: Campaign,
   calls: CampaignCall[],
-  config: ExecutionConfig
+  config: ExecutionConfig,
+  options?: { organizationId: string }
 ): Promise<void> {
   const callsPerBatch = Math.min(config.maxConcurrent, config.rateLimitPerMinute)
   const delayBetweenBatches = (60 * 1000) / (config.rateLimitPerMinute / callsPerBatch)
@@ -159,7 +162,7 @@ async function processCalls(
 
     // Process batch concurrently
     await Promise.allSettled(
-      batch.map(call => executeCall(campaign, call))
+      batch.map(call => executeCall(campaign, call, options))
     )
 
     // Update campaign progress
@@ -172,7 +175,7 @@ async function processCalls(
   }
 
   // Check if campaign is complete
-  const remaining = await getPendingCalls(campaign.id)
+  const remaining = await getPendingCalls(campaign.id, options)
   if (remaining.length === 0) {
     await completeCampaign(campaign.id)
   }
@@ -181,7 +184,7 @@ async function processCalls(
 /**
  * Execute individual call
  */
-async function executeCall(campaign: Campaign, call: CampaignCall): Promise<void> {
+async function executeCall(campaign: Campaign, call: CampaignCall, options?: { organizationId: string }): Promise<void> {
   try {
     logger.info('executeCall: starting', {
       campaignId: campaign.id,
@@ -190,20 +193,21 @@ async function executeCall(campaign: Campaign, call: CampaignCall): Promise<void
     })
 
     // Update call status to calling
-    await supabaseAdmin
-      .from('campaign_calls')
-      .update({
-        status: 'calling',
-        started_at: new Date().toISOString(),
-      })
-      .eq('id', call.id)
+    await query(
+      `UPDATE campaign_calls 
+       SET status = 'calling', started_at = NOW() 
+       WHERE id = $1`,
+      [call.id],
+      options
+    )
 
     // Get caller ID phone number
-    const { data: callerId } = await supabaseAdmin
-      .from('caller_id_numbers')
-      .select('phone_number')
-      .eq('id', campaign.caller_id_id)
-      .single()
+    const { rows: callerIds } = await query(
+      `SELECT phone_number FROM caller_id_numbers WHERE id = $1 LIMIT 1`,
+      [campaign.caller_id_id],
+      options
+    )
+    const callerId = callerIds[0]
 
     if (!callerId) {
       throw new AppError('Caller ID not found', 404, 'CALLER_ID_NOT_FOUND')
@@ -216,16 +220,14 @@ async function executeCall(campaign: Campaign, call: CampaignCall): Promise<void
     const callResult = await initiateSignalWireCall(callParams)
 
     // Update campaign_call with call_id
-    await supabaseAdmin
-      .from('campaign_calls')
-      .update({
-        call_id: callResult.call_id,
-        status: 'completed',
-        outcome: callResult.outcome,
-        duration_seconds: callResult.duration,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', call.id)
+    await query(
+      `UPDATE campaign_calls 
+       SET call_id = $1, status = 'completed', outcome = $2, 
+           duration_seconds = $3, completed_at = NOW() 
+       WHERE id = $4`,
+      [callResult.call_id, callResult.outcome, callResult.duration, call.id],
+      options
+    )
 
     logger.info('executeCall: completed', {
       campaignId: campaign.id,
@@ -242,26 +244,25 @@ async function executeCall(campaign: Campaign, call: CampaignCall): Promise<void
     // Handle retry logic
     if (call.attempt_number < call.max_attempts) {
       // Schedule retry
-      await supabaseAdmin
-        .from('campaign_calls')
-        .update({
-          status: 'pending',
-          attempt_number: call.attempt_number + 1,
-          error_message: error.message,
-          scheduled_for: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now
-        })
-        .eq('id', call.id)
+      const retryTime = new Date(Date.now() + 300000).toISOString() // 5 minutes from now
+      await query(
+        `UPDATE campaign_calls 
+         SET status = 'pending', attempt_number = $1, 
+             error_message = $2, scheduled_for = $3 
+         WHERE id = $4`,
+        [call.attempt_number + 1, error.message, retryTime, call.id],
+        options
+      )
     } else {
       // Max attempts reached, mark as failed
-      await supabaseAdmin
-        .from('campaign_calls')
-        .update({
-          status: 'failed',
-          outcome: 'error',
-          error_message: error.message,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', call.id)
+      await query(
+        `UPDATE campaign_calls 
+         SET status = 'failed', outcome = 'error', 
+             error_message = $1, completed_at = NOW() 
+         WHERE id = $2`,
+        [error.message, call.id],
+        options
+      )
     }
   }
 }
@@ -365,23 +366,23 @@ async function initiateSignalWireCall(params: any): Promise<any> {
  */
 async function updateCampaignProgress(campaignId: string): Promise<void> {
   try {
-    // Get call stats
-    const { data: stats } = await supabaseAdmin.rpc('get_campaign_stats', {
-      campaign_id_param: campaignId,
-    })
+    // Get call stats via SQL function
+    const { rows } = await query(
+      `SELECT * FROM get_campaign_stats($1)`,
+      [campaignId]
+    )
+    const stats = rows[0]
 
     if (!stats) return
 
     // Update campaign with stats
-    await supabaseAdmin
-      .from('campaigns')
-      .update({
-        total_targets: stats.total,
-        calls_completed: stats.completed,
-        calls_successful: stats.successful,
-        calls_failed: stats.failed,
-      })
-      .eq('id', campaignId)
+    await query(
+      `UPDATE campaigns 
+       SET total_targets = $1, calls_completed = $2, 
+           calls_successful = $3, calls_failed = $4 
+       WHERE id = $5`,
+      [stats.total, stats.completed, stats.successful, stats.failed, campaignId]
+    )
   } catch (error: any) {
     logger.error('updateCampaignProgress: failed', error, { campaignId })
   }
@@ -392,21 +393,19 @@ async function updateCampaignProgress(campaignId: string): Promise<void> {
  */
 async function completeCampaign(campaignId: string): Promise<void> {
   try {
-    await supabaseAdmin
-      .from('campaigns')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', campaignId)
+    await query(
+      `UPDATE campaigns 
+       SET status = 'completed', completed_at = NOW() 
+       WHERE id = $1`,
+      [campaignId]
+    )
 
     // Log audit event
-    await supabaseAdmin.from('campaign_audit_log').insert({
-      campaign_id: campaignId,
-      user_id: null, // System action
-      action: 'completed',
-      changes: { status: 'completed' },
-    })
+    await query(
+      `INSERT INTO campaign_audit_log (campaign_id, user_id, action, changes) 
+       VALUES ($1, NULL, 'completed', $2)`,
+      [campaignId, JSON.stringify({ status: 'completed' })]
+    )
 
     logger.info('completeCampaign: campaign completed', { campaignId })
   } catch (error: any) {

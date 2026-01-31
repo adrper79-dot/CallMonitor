@@ -6,7 +6,6 @@
  */
 
 import { CRMService, OAuthTokens } from '../crmService'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { logger } from '@/lib/logger'
 
 // =============================================================================
@@ -381,8 +380,8 @@ export async function createTask(params: CreateTaskParams): Promise<{
 export class SalesforceService {
     private crmService: CRMService
 
-    constructor(private supabaseAdmin: SupabaseClient) {
-        this.crmService = new CRMService(supabaseAdmin)
+    constructor() {
+        this.crmService = new CRMService()
     }
 
     /**

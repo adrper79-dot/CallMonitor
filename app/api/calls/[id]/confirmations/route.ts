@@ -11,9 +11,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -62,16 +61,9 @@ export async function GET(
   try {
     const { id: callId } = await params
 
-    // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
+    // Authenticate (viewer+)
+    const session = await requireRole('viewer')
+    const organizationId = session.user.organizationId
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -81,29 +73,13 @@ export async function GET(
       )
     }
 
-    // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .single()
-
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-
     // Verify call belongs to organization
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id')
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
+    const { rows: callRows } = await query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
 
-    if (callError || !call) {
+    if (callRows.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
@@ -111,33 +87,27 @@ export async function GET(
     }
 
     // Get confirmations
-    const { data: confirmations, error: confirmationsError } = await supabaseAdmin
-      .from('call_confirmations')
-      .select(`
-        id,
-        confirmation_type,
-        confirmation_label,
-        prompt_text,
-        confirmer_role,
-        confirmed_at,
-        recording_timestamp_seconds,
-        captured_by,
-        captured_by_user_id,
-        verification_method,
-        notes,
-        created_at,
-        captured_by_user:users!call_confirmations_captured_by_user_id_fkey (email)
-      `)
-      .eq('call_id', callId)
-      .order('confirmed_at', { ascending: true })
-
-    if (confirmationsError) {
-      logger.error('Failed to fetch confirmations', { callId, error: confirmationsError })
-      return NextResponse.json(
-        { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch confirmations' } },
-        { status: 500 }
-      )
-    }
+    const { rows: confirmations } = await query(
+      `SELECT
+        c.id,
+        c.confirmation_type,
+        c.confirmation_label,
+        c.prompt_text,
+        c.confirmer_role,
+        c.confirmed_at,
+        c.recording_timestamp_seconds,
+        c.captured_by,
+        c.captured_by_user_id,
+        c.verification_method,
+        c.notes,
+        c.created_at,
+        json_build_object('email', u.email) as captured_by_user
+       FROM call_confirmations c
+       LEFT JOIN users u ON c.captured_by_user_id = u.id
+       WHERE c.call_id = $1
+       ORDER BY c.confirmed_at ASC`,
+      [callId]
+    )
 
     return NextResponse.json({
       success: true,
@@ -170,16 +140,10 @@ export async function POST(
   try {
     const { id: callId } = await params
 
-    // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
+    // Authenticate (operator+)
+    const session = await requireRole('operator')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -257,29 +221,13 @@ export async function POST(
       )
     }
 
-    // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .single()
-
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-
     // Verify call belongs to organization
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id, status')
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
+    const { rows: callRows } = await query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
 
-    if (callError || !call) {
+    if (callRows.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
@@ -287,32 +235,26 @@ export async function POST(
     }
 
     // Insert confirmation
-    const { data: confirmation, error: insertError } = await supabaseAdmin
-      .from('call_confirmations')
-      .insert({
-        call_id: callId,
-        organization_id: member.organization_id,
+    const { rows: inserted } = await query(
+      `INSERT INTO call_confirmations
+       (call_id, organization_id, confirmation_type, confirmation_label, prompt_text, confirmer_role, confirmed_at, recording_timestamp_seconds, captured_by, captured_by_user_id, verification_method, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, 'human', $8, $9, $10)
+       RETURNING *`,
+      [
+        callId,
+        organizationId,
         confirmation_type,
-        confirmation_label: confirmation_label || null,
+        confirmation_label || null,
         prompt_text,
         confirmer_role,
-        confirmed_at: new Date().toISOString(),
-        recording_timestamp_seconds: recording_timestamp_seconds ?? null,
-        captured_by: 'human', // Per AI Role Policy: only humans capture confirmations
-        captured_by_user_id: userId,
-        verification_method: verification_method || 'verbal',
-        notes: notes || null,
-      })
-      .select()
-      .single()
+        recording_timestamp_seconds ?? null,
+        userId,
+        verification_method || 'verbal',
+        notes || null
+      ]
+    )
 
-    if (insertError) {
-      logger.error('Failed to insert confirmation', { callId, error: insertError })
-      return NextResponse.json(
-        { success: false, error: { code: 'INSERT_ERROR', message: 'Failed to save confirmation' } },
-        { status: 500 }
-      )
-    }
+    const confirmation = inserted[0]
 
     // Log to audit trail
     logger.info('Confirmation captured', {
@@ -332,7 +274,7 @@ export async function POST(
       },
     }, { status: 201 })
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Confirmations POST error', { error })
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { checkApiPermission, UserRole, Plan } from '@/lib/rbac'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
@@ -32,27 +32,24 @@ export async function getRBACContext(
   }
 
   // Get user's role in organization
-  const { data: membershipRows, error: membershipErr } = await supabaseAdmin
-    .from('org_members')
-    .select('role')
-    .eq('organization_id', organizationId)
-    .eq('user_id', userId)
-    .limit(1)
+  const { rows: membershipRows } = await query(
+    `SELECT role FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+    [organizationId, userId]
+  )
 
-  if (membershipErr || !membershipRows || membershipRows.length === 0) {
+  if (!membershipRows || membershipRows.length === 0) {
     return null
   }
 
   const role = (membershipRows[0].role || 'viewer').toLowerCase() as UserRole
 
   // Get organization plan
-  const { data: orgRows, error: orgErr } = await supabaseAdmin
-    .from('organizations')
-    .select('plan')
-    .eq('id', organizationId)
-    .limit(1)
+  const { rows: orgRows } = await query(
+    `SELECT plan FROM organizations WHERE id = $1 LIMIT 1`,
+    [organizationId]
+  )
 
-  if (orgErr || !orgRows || orgRows.length === 0) {
+  if (!orgRows || orgRows.length === 0) {
     return null
   }
 
@@ -93,7 +90,7 @@ export function withRBAC(
       // Extract organization_id from request (query param, body, or params)
       const url = new URL(req.url)
       const orgIdFromQuery = url.searchParams.get('orgId') || url.searchParams.get('organization_id')
-      
+
       let organizationId: string | null = null
       if (orgIdFromQuery) {
         organizationId = orgIdFromQuery
@@ -127,7 +124,7 @@ export function withRBAC(
       if (options?.requireRole && !options.requireRole.includes(context.role)) {
         // Log permission denial
         await logPermissionDenial(userId, organizationId, context.role, 'insufficient_role')
-        
+
         return NextResponse.json(
           { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions', severity: 'HIGH' } },
           { status: 403 }
@@ -137,7 +134,7 @@ export function withRBAC(
       // Check plan requirement
       if (options?.requirePlan && !options.requirePlan.includes(context.plan)) {
         await logPermissionDenial(userId, organizationId, context.role, 'insufficient_plan')
-        
+
         return NextResponse.json(
           { success: false, error: { code: 'PLAN_LIMIT', message: 'This feature requires a higher plan', severity: 'MEDIUM' } },
           { status: 403 }
@@ -148,10 +145,10 @@ export function withRBAC(
       const endpoint = url.pathname
       const method = req.method
       const permissionCheck = checkApiPermission(endpoint, method, context.role, context.plan)
-      
+
       if (!permissionCheck.allowed) {
         await logPermissionDenial(userId, organizationId, context.role, permissionCheck.reason || 'permission_denied')
-        
+
         return NextResponse.json(
           { success: false, error: { code: 'FORBIDDEN', message: permissionCheck.reason || 'Access denied', severity: 'HIGH' } },
           { status: 403 }
@@ -180,20 +177,22 @@ async function logPermissionDenial(
   reason: string
 ) {
   try {
-    await supabaseAdmin.from('audit_logs').insert({
-      id: uuidv4(),
-      organization_id: organizationId,
-      user_id: userId,
-      system_id: null,
-      resource_type: 'auth',
-      resource_id: null,
-      action: 'permission_denied',
-      actor_type: 'human',
-      actor_label: userId,
-      before: null,
-      after: { role, reason },
-      created_at: new Date().toISOString()
-    })
+    const afterData = { role, reason }
+    await query(
+      `INSERT INTO audit_logs (
+        id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, before, after, created_at
+      ) VALUES ($1, $2, $3, null, $4, null, $5, $6, $7, null, $8, NOW())`,
+      [
+        uuidv4(),
+        organizationId,
+        userId,
+        'auth',
+        'permission_denied',
+        'human',
+        userId,
+        JSON.stringify(afterData)
+      ]
+    )
   } catch (err) {
     // Best-effort logging
     logger.error('Failed to log permission denial', err as Error)

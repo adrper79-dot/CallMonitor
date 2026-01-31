@@ -11,10 +11,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import pgClient from '@/lib/pgClient'
+import { query } from '@/lib/pgClient'
 import { FeatureFlag, FEATURE_FLAGS, FeatureStatus } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -28,16 +28,16 @@ export async function GET(request: NextRequest) {
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Get user's organization
-    const memberRes = await pgClient.query(`SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`, [userId])
+    const memberRes = await query(`SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`, [userId])
     const member = memberRes?.rows && memberRes.rows.length ? memberRes.rows[0] : null
     if (!member) {
       return NextResponse.json(
@@ -45,22 +45,22 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       )
     }
-    
+
     // Get global feature flags
-    const gfRes = await pgClient.query(`SELECT feature, enabled, disabled_reason FROM global_feature_flags`)
+    const gfRes = await query(`SELECT feature, enabled, disabled_reason FROM global_feature_flags`)
     const globalFlags = gfRes?.rows || []
     const globalFlagMap = new Map((globalFlags || []).map((f: any) => [f.feature, f]))
-    
+
     // Get org-specific feature flags
-    const ofRes = await pgClient.query(`SELECT * FROM org_feature_flags WHERE organization_id = $1`, [member.organization_id])
+    const ofRes = await query(`SELECT * FROM org_feature_flags WHERE organization_id = $1`, [member.organization_id])
     const orgFlags = ofRes?.rows || []
     const orgFlagMap = new Map((orgFlags || []).map((f: any) => [f.feature, f]))
-    
+
     // Build feature status for all features
     const features: FeatureStatus[] = FEATURE_FLAGS.map(feature => {
       const global = globalFlagMap.get(feature)
       const org = orgFlagMap.get(feature)
-      
+
       // Global takes precedence (platform-level kill switch)
       if (global?.enabled === false) {
         return {
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
           reason: global.disabled_reason || 'Disabled by platform'
         }
       }
-      
+
       // Then org-level
       if (org) {
         return {
@@ -84,14 +84,14 @@ export async function GET(request: NextRequest) {
           } : undefined
         }
       }
-      
+
       // Default: enabled
       return {
         feature,
         enabled: true
       }
     })
-    
+
     return NextResponse.json({
       success: true,
       features,
@@ -115,18 +115,18 @@ export async function PUT(request: NextRequest) {
     // Authenticate
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id
-    
+
     if (!userId) {
       return NextResponse.json(
         { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
-    
+
     // Parse request body
     const body = await request.json()
     const { feature, enabled, disabled_reason, daily_limit, monthly_limit } = body
-    
+
     // Validate feature
     if (!feature || !FEATURE_FLAGS.includes(feature)) {
       return NextResponse.json(
@@ -134,7 +134,7 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       )
     }
-    
+
     // Validate enabled is boolean
     if (typeof enabled !== 'boolean') {
       return NextResponse.json(
@@ -142,21 +142,21 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       )
     }
-    
+
     // Get user's organization and verify admin role
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
+    const { rows: memberRows } = await query(
+      `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    )
+    const member = memberRows?.[0]
+
+    if (!member) {
       return NextResponse.json(
         { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
         { status: 403 }
       )
     }
-    
+
     // Only owners and admins can manage feature flags
     if (!['owner', 'admin'].includes(member.role)) {
       return NextResponse.json(
@@ -164,10 +164,10 @@ export async function PUT(request: NextRequest) {
         { status: 403 }
       )
     }
-    
+
     // Check if global flag prevents enabling
     if (enabled) {
-      const gf = await pgClient.query(`SELECT enabled FROM global_feature_flags WHERE feature = $1 LIMIT 1`, [feature])
+      const gf = await query(`SELECT enabled FROM global_feature_flags WHERE feature = $1 LIMIT 1`, [feature])
       const globalFlag = gf?.rows && gf.rows.length ? gf.rows[0] : null
       if (globalFlag?.enabled === false) {
         return NextResponse.json(
@@ -176,12 +176,12 @@ export async function PUT(request: NextRequest) {
         )
       }
     }
-    
+
     // Upsert feature flag
     let updatedFlag: any = null
     try {
       const now = new Date().toISOString()
-      const res = await pgClient.query(`INSERT INTO org_feature_flags (organization_id, feature, enabled, disabled_reason, disabled_at, disabled_by, daily_limit, monthly_limit, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id, feature) DO UPDATE SET enabled = EXCLUDED.enabled, disabled_reason = EXCLUDED.disabled_reason, disabled_at = EXCLUDED.disabled_at, disabled_by = EXCLUDED.disabled_by, daily_limit = EXCLUDED.daily_limit, monthly_limit = EXCLUDED.monthly_limit, updated_at = EXCLUDED.updated_at RETURNING *`, [member.organization_id, feature, enabled, enabled ? null : (disabled_reason || null), enabled ? null : now, enabled ? null : userId, daily_limit ?? null, monthly_limit ?? null, now])
+      const res = await query(`INSERT INTO org_feature_flags (organization_id, feature, enabled, disabled_reason, disabled_at, disabled_by, daily_limit, monthly_limit, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (organization_id, feature) DO UPDATE SET enabled = EXCLUDED.enabled, disabled_reason = EXCLUDED.disabled_reason, disabled_at = EXCLUDED.disabled_at, disabled_by = EXCLUDED.disabled_by, daily_limit = EXCLUDED.daily_limit, monthly_limit = EXCLUDED.monthly_limit, updated_at = EXCLUDED.updated_at RETURNING *`, [member.organization_id, feature, enabled, enabled ? null : (disabled_reason || null), enabled ? null : now, enabled ? null : userId, daily_limit ?? null, monthly_limit ?? null, now])
       updatedFlag = res?.rows && res.rows.length ? res.rows[0] : null
       if (!updatedFlag) {
         throw new Error('Upsert returned no rows')
@@ -193,26 +193,31 @@ export async function PUT(request: NextRequest) {
         { status: 500 }
       )
     }
-    
+
     // Log to audit (fire and forget)
-    ;(async () => {
+    ; (async () => {
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: member.organization_id,
-          user_id: userId,
-          resource_type: 'feature_flag',
-          resource_id: updatedFlag.id,
-          action: enabled ? 'enable' : 'disable',
-          actor_type: 'human',
-          actor_label: userId,
-          after: { feature, enabled, disabled_reason, daily_limit, monthly_limit }
-        })
+        await query(
+          `INSERT INTO audit_logs (
+            id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+          [
+            uuidv4(),
+            member.organization_id,
+            userId,
+            'feature_flag',
+            updatedFlag.id,
+            enabled ? 'enable' : 'disable',
+            'human',
+            userId,
+            JSON.stringify({ feature, enabled, disabled_reason, daily_limit, monthly_limit })
+          ]
+        )
       } catch (err) {
         logger.error('[features PUT] Audit log error', err, { featureId: updatedFlag.id })
       }
     })()
-    
+
     return NextResponse.json({
       success: true,
       feature: {

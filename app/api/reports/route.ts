@@ -8,9 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 import { logger } from '@/lib/logger'
@@ -19,7 +17,6 @@ import {
   generateCampaignPerformanceReport,
   exportToCSV,
   exportToJSON,
-  type ReportFilters
 } from '@/lib/reports/generator'
 
 export const dynamic = 'force-dynamic'
@@ -30,50 +27,55 @@ export const runtime = 'nodejs'
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
+    const session = await requireRole(['owner', 'admin', 'analyst', 'viewer'])
+    if (session instanceof NextResponse) return session
+    const organizationId = session.user.organizationId
 
-    const userId = (session.user as any).id
     const searchParams = request.nextUrl.searchParams
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = (page - 1) * limit
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
+    // Fetch generated reports with pagination and user info
+    const { rows: reports } = await query(
+      `SELECT gr.*,
+              u.id as user_id, u.name as user_name, u.email as user_email
+       FROM generated_reports gr
+       LEFT JOIN users u ON gr.generated_by = u.id
+       WHERE gr.organization_id = $1
+       ORDER BY gr.generated_at DESC
+       LIMIT $2 OFFSET $3`,
+      [organizationId, limit, offset]
+    )
 
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
+    // Map user info to expected structure
+    const mappedReports = reports.map((r: any) => ({
+      ...r,
+      generated_by: r.user_id ? {
+        id: r.user_id,
+        name: r.user_name,
+        email: r.user_email
+      } : null,
+      // Remove flattened fields
+      user_id: undefined,
+      user_name: undefined,
+      user_email: undefined
+    }))
 
-    // Fetch generated reports
-    const { data: reports, error: reportsError, count } = await supabaseAdmin
-      .from('generated_reports')
-      .select('*, generated_by:users!generated_reports_generated_by_fkey(id, name, email)', {
-        count: 'exact'
-      })
-      .eq('organization_id', user.organization_id)
-      .order('generated_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-
-    if (reportsError) {
-      logger.error('Error fetching reports', reportsError)
-      return ApiErrors.dbError('Failed to fetch reports')
-    }
+    // Get count
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*) as total FROM generated_reports WHERE organization_id = $1`,
+      [organizationId]
+    )
+    const count = parseInt(countRows[0]?.total || '0', 10)
 
     return apiSuccess({
-      reports: reports || [],
+      reports: mappedReports || [],
       pagination: {
         page,
         limit,
-        total: count || 0,
-        pages: Math.ceil((count || 0) / limit)
+        total: count,
+        pages: Math.ceil(count / limit)
       }
     })
   } catch (error) {
@@ -88,26 +90,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
-
-    // Get user's organization and role
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
-      .single()
-
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
-
-    // Check RBAC
-    // Role already checked
+    const session = await requireRole(['owner', 'admin'])
+    if (session instanceof NextResponse) return session
+    const organizationId = session.user.organizationId
+    const userId = session.user.id
 
     const body = await request.json()
     const {
@@ -135,33 +121,37 @@ export async function POST(request: NextRequest) {
       switch (report_type) {
         case 'call_volume':
           reportData = await generateCallVolumeReport(
-            user.organization_id,
+            organizationId,
             filters || {},
             metrics || []
           )
           break
         case 'campaign_performance':
           reportData = await generateCampaignPerformanceReport(
-            user.organization_id,
+            organizationId,
             filters || {}
           )
           break
         default:
           throw new Error(`Report type ${report_type} not implemented yet`)
       }
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error generating report', err, { report_type, filters })
-      
+
       // Save failed report record
-      await supabaseAdmin.from('generated_reports').insert({
-        organization_id: user.organization_id,
-        name,
-        status: 'failed',
-        error_message: err instanceof Error ? err.message : 'Report generation failed',
-        parameters: { report_type, filters, metrics },
-        generated_by: userId,
-        generation_duration_ms: Date.now() - startTime
-      })
+      await query(
+        `INSERT INTO generated_reports (
+           organization_id, name, status, error_message, parameters, generated_by, generation_duration_ms, generated_at
+         ) VALUES ($1, $2, 'failed', $3, $4, $5, $6, NOW())`,
+        [
+          organizationId,
+          name,
+          err instanceof Error ? err.message : 'Report generation failed',
+          JSON.stringify({ report_type, filters, metrics }),
+          userId,
+          Date.now() - startTime
+        ]
+      )
 
       return ApiErrors.internal('Failed to generate report')
     }
@@ -182,37 +172,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Save generated report
-    const { data: report, error: saveError } = await supabaseAdmin
-      .from('generated_reports')
-      .insert({
-        organization_id: user.organization_id,
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+    const { rows: savedReports } = await query(
+      `INSERT INTO generated_reports (
+         organization_id, name, file_format, file_size_bytes, report_data, parameters, 
+         generated_by, status, generation_duration_ms, expires_at, generated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8, $9, NOW())
+       RETURNING *`,
+      [
+        organizationId,
         name,
-        file_format: file_format || 'json',
-        file_size_bytes: fileData ? Buffer.byteLength(fileData, 'utf8') : 0,
-        report_data: reportData,
-        parameters: { report_type, filters, metrics },
-        generated_by: userId,
-        status: 'completed',
-        generation_duration_ms: Date.now() - startTime,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-      })
-      .select()
-      .single()
+        file_format || 'json',
+        fileData ? Buffer.byteLength(fileData, 'utf8') : 0,
+        JSON.stringify(reportData),
+        JSON.stringify({ report_type, filters, metrics }),
+        userId,
+        Date.now() - startTime,
+        expiresAt
+      ]
+    )
 
-    if (saveError) {
-      logger.error('Error saving report', saveError)
-      return ApiErrors.dbError('Failed to save report')
-    }
+    const report = savedReports[0]
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       report,
       data: reportData,
       file_data: fileData
     }, { status: 201 })
+
   } catch (error) {
     logger.error('POST /api/reports failed', error)
     return ApiErrors.internal('Failed to generate report')
   }
 }
-

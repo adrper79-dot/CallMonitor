@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 import { isValidUUID } from '@/lib/utils/validation'
 
-// Force dynamic rendering - uses headers via getServerSession
+// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -15,42 +14,21 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-    if (!userId) {
-      return ApiErrors.unauthorized()
-    }
-
+    const session = await requireRole('viewer')
+    const organizationId = session.user.organizationId
     const callId = params.id
-    
+
     // Validate UUID format early to prevent DB errors
     if (!isValidUUID(callId)) {
       return ApiErrors.badRequest('Invalid call ID format')
     }
 
-    // First get user's org membership
-    const { data: membershipRows } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .limit(1)
-
-    const userOrgId = membershipRows?.[0]?.organization_id
-    if (!userOrgId) {
-      return ApiErrors.notFound('Call not found') // 404 prevents org probing
-    }
-
     // Fetch call with organization_id filter for tenant isolation
-    const { data: call, error: callError } = await (supabaseAdmin as any)
-      .from('calls')
-      .select('*')
-      .eq('id', callId)
-      .eq('organization_id', userOrgId)
-      .single()
-
-    if (callError) {
-      throw callError
-    }
+    const { rows: calls } = await query(
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+    const call = calls[0]
 
     if (!call) {
       return ApiErrors.notFound('Call not found')
@@ -58,60 +36,51 @@ export async function GET(
 
     // Fetch recording if exists - try call_id first (per migration), fallback to call_sid
     let recording: { [key: string]: any } | null = null
-    
-    // First try by call_id (the FK relationship per 20260118_schema_alignment.sql)
-    const { data: recByCallId } = await (supabaseAdmin as any)
-      .from('recordings')
-      .select('*')
-      .eq('call_id', callId)
-      .limit(1)
-      .single()
-    
-    if (recByCallId) {
-      recording = recByCallId
-    } else if (call.call_sid) {
-      // Fallback to call_sid for older recordings
-      const { data: recByCallSid } = await (supabaseAdmin as any)
-        .from('recordings')
-        .select('*')
-        .eq('call_sid', call.call_sid)
-        .limit(1)
-        .single()
-      recording = recByCallSid
+
+    if (call.id) {
+      const { rows: recByCallId } = await query(
+        `SELECT * FROM recordings WHERE call_id = $1 LIMIT 1`,
+        [call.id]
+      )
+      if (recByCallId.length > 0) {
+        recording = recByCallId[0]
+      }
     }
 
-    // Fetch transcript/translation/survey from ai_runs
-    const { data: aiRuns } = await (supabaseAdmin as any)
-      .from('ai_runs')
-      .select('*')
-      .eq('call_id', callId)
+    if (!recording && call.call_sid) {
+      // Fallback to call_sid
+      const { rows: recByCallSid } = await query(
+        `SELECT * FROM recordings WHERE call_sid = $1 LIMIT 1`,
+        [call.call_sid]
+      )
+      if (recByCallSid.length > 0) {
+        recording = recByCallSid[0]
+      }
+    }
+
+    // Fetch dependencies in parallel
+    const [aiRunsResult, manifestResult, scoreResult] = await Promise.all([
+      query(`SELECT * FROM ai_runs WHERE call_id = $1`, [callId]),
+      recording ? query(`SELECT * FROM evidence_manifests WHERE recording_id = $1`, [recording.id]) : { rows: [] },
+      recording ? query(`SELECT * FROM scored_recordings WHERE recording_id = $1`, [recording.id]) : { rows: [] }
+    ])
+
+    const aiRuns = aiRunsResult.rows
+    const manifest = manifestResult.rows[0] || null
+    const score = scoreResult.rows[0] || null
 
     // Look for AssemblyAI transcription runs - models used are 'assemblyai-v1' or 'assemblyai-upload'
-    const transcriptRun = aiRuns?.find((r: any) => 
-      r.model === 'assemblyai-v1' || 
-      r.model === 'assemblyai-upload' || 
+    const transcriptRun = aiRuns.find((r: any) =>
+      r.model === 'assemblyai-v1' ||
+      r.model === 'assemblyai-upload' ||
       r.model?.includes('transcription')
     )
-    const translation = aiRuns?.find((r: any) => r.model?.includes('translation'))
-    const survey = aiRuns?.find((r: any) => r.model?.includes('survey'))
+    const translation = aiRuns.find((r: any) => r.model?.includes('translation'))
+    const survey = aiRuns.find((r: any) => r.model?.includes('survey'))
 
     // Extract transcript content and status
     const transcript = transcriptRun?.output?.transcript || transcriptRun?.output || recording?.transcript_json || null
     const transcriptionStatus = transcriptRun?.status || null
-
-    // Fetch evidence manifest
-    const { data: manifest } = await (supabaseAdmin as any)
-      .from('evidence_manifests')
-      .select('*')
-      .eq('recording_id', recording?.id)
-      .single()
-
-    // Fetch score
-    const { data: score } = await (supabaseAdmin as any)
-      .from('scored_recordings')
-      .select('*')
-      .eq('recording_id', recording?.id)
-      .single()
 
     return NextResponse.json({
       success: true,

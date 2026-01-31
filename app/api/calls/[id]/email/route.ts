@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { requireRole } from '@/lib/rbac-server'
 import { sendArtifactEmail } from '@/app/services/emailService'
-import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
+import { query } from '@/lib/pgClient'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
 /**
  * POST /api/calls/[id]/email
@@ -18,20 +20,15 @@ export const runtime = 'nodejs'
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    const { id: callId } = await params
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
-    const callId = params.id
     const body = await req.json()
     const {
       email,
@@ -57,13 +54,12 @@ export async function POST(
     }
 
     // Get call and verify user has access
-    const { data: callRows, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id')
-      .eq('id', callId)
-      .limit(1)
+    const { rows: callRows } = await query(
+      `SELECT id, organization_id FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [callId, organizationId]
+    )
 
-    if (callError || !callRows || callRows.length === 0) {
+    if (callRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Call not found' },
         { status: 404 }
@@ -71,21 +67,6 @@ export async function POST(
     }
 
     const call = callRows[0]
-
-    // Verify user is member of organization
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id, role')
-      .eq('organization_id', call.organization_id)
-      .eq('user_id', userId)
-      .limit(1)
-
-    if (!memberRows || memberRows.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Not authorized to access this call' },
-        { status: 403 }
-      )
-    }
 
     // Check if email service is configured
     if (!process.env.RESEND_API_KEY) {

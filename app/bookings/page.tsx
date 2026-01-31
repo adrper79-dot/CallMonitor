@@ -122,7 +122,7 @@ export default function BookingsPage() {
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-white flex items-center gap-2">
               📅 Scheduled Calls
             </h1>
             <p className="text-sm text-slate-400 mt-1">
@@ -155,8 +155,8 @@ export default function BookingsPage() {
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === f
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}

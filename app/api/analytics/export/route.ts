@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole, Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
@@ -10,35 +10,20 @@ export const runtime = 'nodejs'
  * Analytics Export API
  * 
  * GET /api/analytics/export - Export analytics data to CSV or JSON
- * 
- * Architecture Compliance:
- * - Uses requireRole() for RBAC (owner/admin/analyst)
- * - Supports multiple export formats (CSV, JSON)
- * - Returns file downloads with proper headers
- * - Follows Professional Design System v3.0 patterns
- * 
- * Query Parameters:
- * - type: 'calls' | 'surveys' | 'sentiment' (required)
- * - format: 'csv' | 'json' (default: csv)
- * - startDate: ISO string (default: 30 days ago)
- * - endDate: ISO string (default: now)
  */
 
 export async function GET(req: NextRequest) {
   try {
-    // RBAC: Only owner/admin/analyst can export analytics
     const ctx = await requireRole(['owner', 'admin', 'analyst'])
     if (ctx instanceof NextResponse) return ctx
 
-    // Parse query parameters
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type')
     const format = searchParams.get('format') || 'csv'
-    const startDate = searchParams.get('startDate') || 
+    const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const endDate = searchParams.get('endDate') || new Date().toISOString()
 
-    // Validate parameters
     if (!type || !['calls', 'surveys', 'sentiment'].includes(type)) {
       return Errors.badRequest('type parameter required (calls|surveys|sentiment)')
     }
@@ -47,39 +32,40 @@ export async function GET(req: NextRequest) {
       return Errors.badRequest('format must be csv or json')
     }
 
-    // Fetch data based on type
     let data: any[] = []
     let filename = ''
 
     if (type === 'calls') {
-      const { data: calls, error } = await supabaseAdmin
-        .from('calls')
-        .select('id, status, created_at, ended_at, duration_seconds, to_number, from_number')
-        .eq('organization_id', ctx.orgId)
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .order('created_at', { ascending: false })
-        .limit(10000)
+      const { rows } = await query(
+        `SELECT id, status, created_at, ended_at, duration_seconds, to_number, from_number
+         FROM calls
+         WHERE organization_id = $1
+           AND created_at >= $2
+           AND created_at <= $3
+         ORDER BY created_at DESC
+         LIMIT 10000`,
+        [ctx.orgId, startDate, endDate]
+      )
 
-      if (error) throw error
-      data = calls || []
+      data = rows || []
       filename = `calls-export-${new Date().toISOString().slice(0, 10)}`
     } else if (type === 'surveys') {
-      const { data: surveys, error } = await supabaseAdmin
-        .from('ai_runs')
-        .select('call_id, output, created_at, status')
-        .eq('calls.organization_id', ctx.orgId)
-        .in('model', ['laml-dtmf-survey', 'signalwire-ai-survey'])
-        .eq('status', 'completed')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .order('created_at', { ascending: false })
-        .limit(10000)
+      // Use JOIN to filter by organization
+      const { rows } = await query(
+        `SELECT ar.call_id, ar.output, ar.created_at, ar.status
+         FROM ai_runs ar
+         JOIN calls c ON ar.call_id = c.id
+         WHERE c.organization_id = $1
+           AND ar.model IN ('laml-dtmf-survey', 'signalwire-ai-survey')
+           AND ar.status = 'completed'
+           AND ar.created_at >= $2
+           AND ar.created_at <= $3
+         ORDER BY ar.created_at DESC
+         LIMIT 10000`,
+        [ctx.orgId, startDate, endDate]
+      )
 
-      if (error) throw error
-      
-      // Flatten survey responses
-      data = (surveys || []).map((s: any) => ({
+      data = (rows || []).map((s: any) => ({
         call_id: s.call_id,
         created_at: s.created_at,
         status: s.status,
@@ -88,20 +74,25 @@ export async function GET(req: NextRequest) {
       }))
       filename = `surveys-export-${new Date().toISOString().slice(0, 10)}`
     } else if (type === 'sentiment') {
-      const { data: recordings, error } = await supabaseAdmin
-        .from('recordings')
-        .select('call_id, created_at, transcript_json')
-        .eq('calls.organization_id', ctx.orgId)
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .not('transcript_json', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(10000)
+      // Use JOIN to filter by organization if organization_id on recordings isn't trusted or to consistent with Surveys
+      // However previous code used recordings.organization_id directly if possible? 
+      // The old code said: .eq('calls.organization_id', ctx.orgId) which implies a join on calls table
+      // So in Supabase it was joining. Here we MUST join or use explicit org_id if on recordings.
+      // Recordings usually has org_id. Let's use JOIN to be safe and consistent with query patterns.
+      const { rows } = await query(
+        `SELECT r.call_id, r.created_at, r.transcript_json
+         FROM recordings r
+         JOIN calls c ON r.call_id = c.id
+         WHERE c.organization_id = $1
+           AND r.created_at >= $2
+           AND r.created_at <= $3
+           AND r.transcript_json IS NOT NULL
+         ORDER BY r.created_at DESC
+         LIMIT 10000`,
+        [ctx.orgId, startDate, endDate]
+      )
 
-      if (error) throw error
-
-      // Extract sentiment data
-      data = (recordings || [])
+      data = (rows || [])
         .filter((r: any) => (r.transcript_json as any)?.sentiment_summary)
         .map((r: any) => {
           const sentiment = (r.transcript_json as any)?.sentiment_summary
@@ -118,7 +109,6 @@ export async function GET(req: NextRequest) {
       filename = `sentiment-export-${new Date().toISOString().slice(0, 10)}`
     }
 
-    // Generate response based on format
     if (format === 'json') {
       return new NextResponse(JSON.stringify(data, null, 2), {
         status: 200,
@@ -128,7 +118,6 @@ export async function GET(req: NextRequest) {
         }
       })
     } else {
-      // CSV format
       const csv = convertToCSV(data)
       return new NextResponse(csv, {
         status: 200,
@@ -144,22 +133,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * Convert array of objects to CSV format
- */
 function convertToCSV(data: any[]): string {
-  if (data.length === 0) {
-    return ''
-  }
-
-  // Get headers from first object
+  if (data.length === 0) return ''
   const headers = Object.keys(data[0])
-  
-  // Create CSV rows
-  const rows = data.map(obj => 
+  const rows = data.map(obj =>
     headers.map(header => {
       const value = obj[header]
-      // Escape quotes and wrap in quotes if contains comma or newline
       if (value === null || value === undefined) return ''
       const stringValue = String(value)
       if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
@@ -168,24 +147,14 @@ function convertToCSV(data: any[]): string {
       return stringValue
     }).join(',')
   )
-
-  // Combine headers and rows
   return [headers.join(','), ...rows].join('\n')
 }
 
-/**
- * Extract numeric score from survey output
- */
 function extractSurveyScore(output: any): number | null {
-  if (!output?.responses || !Array.isArray(output.responses)) {
-    return null
-  }
-
+  if (!output?.responses || !Array.isArray(output.responses)) return null
   for (const response of output.responses) {
     const value = response.digit ?? response.value
-    if (typeof value === 'number' && value >= 1 && value <= 5) {
-      return value
-    }
+    if (typeof value === 'number' && value >= 1 && value <= 5) return value
     if (typeof value === 'string') {
       const match = value.match(/\d+/)
       if (match) {
@@ -194,6 +163,5 @@ function extractSurveyScore(output: any): number | null {
       }
     }
   }
-
   return null
 }

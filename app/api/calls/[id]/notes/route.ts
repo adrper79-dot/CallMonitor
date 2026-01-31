@@ -3,17 +3,14 @@
  * 
  * GET /api/calls/[id]/notes - Get all notes for a call
  * POST /api/calls/[id]/notes - Add a note to a call
- * 
- * Per MASTER_ARCHITECTURE: Call is root object
- * Notes are structured (checkboxes + short text), not freeform
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { CallNoteTag, CALL_NOTE_TAGS } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -32,18 +29,12 @@ export async function GET(
 ) {
   try {
     const { id: callId } = await params
-    
-    // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-    
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
-    
+
+    // Authenticate and get organization
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
+
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return NextResponse.json(
@@ -51,63 +42,31 @@ export async function GET(
         { status: 400 }
       )
     }
-    
-    // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-    
+
     // Verify call belongs to user's org
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id')
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (callError || !call) {
+    const { rows: calls } = await query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+
+    if (calls.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
       )
     }
-    
+
     // Get notes with creator info
-    const { data: notes, error: notesError } = await supabaseAdmin
-      .from('call_notes')
-      .select(`
-        id,
-        call_id,
-        organization_id,
-        tags,
-        note,
-        created_by,
-        created_at,
-        updated_at,
-        users:created_by (
-          email
-        )
-      `)
-      .eq('call_id', callId)
-      .order('created_at', { ascending: false })
-    
-    if (notesError) {
-      logger.error('[notes GET] Error fetching notes', notesError, { callId })
-      return NextResponse.json(
-        { success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch notes' } },
-        { status: 500 }
-      )
-    }
-    
+    const { rows: notes } = await query(
+      `SELECT n.id, n.call_id, n.organization_id, n.tags, n.note, n.created_by, n.created_at, n.updated_at,
+              json_build_object('email', u.email) as users
+       FROM call_notes n
+       LEFT JOIN users u ON n.created_by = u.id
+       WHERE n.call_id = $1
+       ORDER BY n.created_at DESC`,
+      [callId]
+    )
+
     return NextResponse.json({
       success: true,
       notes: notes || []
@@ -115,7 +74,7 @@ export async function GET(
   } catch (error: any) {
     logger.error('[notes GET] Error', error)
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } },
       { status: 500 }
     )
   }
@@ -131,18 +90,12 @@ export async function POST(
 ) {
   try {
     const { id: callId } = await params
-    
-    // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-    
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
-    
+
+    // Authenticate and get organization
+    const session = await requireRole('operator') // Requires operator+ for writing
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
+
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return NextResponse.json(
@@ -150,11 +103,11 @@ export async function POST(
         { status: 400 }
       )
     }
-    
+
     // Parse request body
     const body = await request.json()
     const { tags, note } = body
-    
+
     // Validate tags
     if (!tags || !Array.isArray(tags) || tags.length === 0) {
       return NextResponse.json(
@@ -162,22 +115,22 @@ export async function POST(
         { status: 400 }
       )
     }
-    
+
     // Validate each tag
     const invalidTags = tags.filter((tag: string) => !CALL_NOTE_TAGS.includes(tag as CallNoteTag))
     if (invalidTags.length > 0) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'INVALID_TAGS', 
-            message: `Invalid tags: ${invalidTags.join(', ')}. Valid tags are: ${CALL_NOTE_TAGS.join(', ')}` 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'INVALID_TAGS',
+            message: `Invalid tags: ${invalidTags.join(', ')}. Valid tags are: ${CALL_NOTE_TAGS.join(', ')}`
+          }
         },
         { status: 400 }
       )
     }
-    
+
     // Validate note length (max 500 chars)
     if (note && note.length > 500) {
       return NextResponse.json(
@@ -185,82 +138,43 @@ export async function POST(
         { status: 400 }
       )
     }
-    
-    // Get user's organization and role
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-    
-    // Check RBAC: Owner, Admin, Operator can add notes
-    if (!['owner', 'admin', 'operator'].includes(member.role)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Only owners, admins, and operators can add notes' } },
-        { status: 403 }
-      )
-    }
-    
+
     // Verify call belongs to user's org
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id')
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (callError || !call) {
+    const { rows: calls } = await query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+
+    if (calls.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
       )
     }
-    
+
     // Insert note
-    const { data: newNote, error: insertError } = await supabaseAdmin
-      .from('call_notes')
-      .insert({
-        call_id: callId,
-        organization_id: member.organization_id,
-        tags: tags,
-        note: note || null,
-        created_by: userId
-      })
-      .select()
-      .single()
-    
-    if (insertError) {
-      logger.error('[notes POST] Insert error', insertError, { callId })
-      return NextResponse.json(
-        { success: false, error: { code: 'INSERT_FAILED', message: 'Failed to create note' } },
-        { status: 500 }
-      )
-    }
-    
-    // Log to audit (fire and forget)
-    ;(async () => {
-      try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: member.organization_id,
-          user_id: userId,
-          resource_type: 'call_note',
-          resource_id: newNote.id,
-          action: 'create',
-          after: { tags, note }
-        })
-      } catch (err) {
-        logger.error('[notes POST] Audit log error', err, { noteId: newNote.id })
-      }
-    })()
-    
+    const noteId = uuidv4()
+    const { rows: insertedNotes } = await query(
+      `INSERT INTO call_notes (id, call_id, organization_id, tags, note, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [noteId, callId, organizationId, JSON.stringify(tags), note || null, userId]
+    )
+    const newNote = insertedNotes[0]
+
+      // Log to audit (fire and forget)
+      ; (async () => {
+        try {
+          await query(
+            `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, after, created_at)
+                 VALUES ($1, $2, $3, 'call_note', $4, 'create', 'human', $5, NOW())`,
+            [uuidv4(), organizationId, userId, newNote.id, JSON.stringify({ tags, note })]
+          )
+        } catch (err) {
+          logger.error('[notes POST] Audit log error', err, { noteId: newNote.id })
+        }
+      })()
+
     return NextResponse.json({
       success: true,
       note: newNote
@@ -268,7 +182,7 @@ export async function POST(
   } catch (error: any) {
     logger.error('[notes POST] Error', error)
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } },
       { status: 500 }
     )
   }

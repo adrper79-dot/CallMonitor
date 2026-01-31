@@ -1,4 +1,4 @@
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 
@@ -27,22 +27,20 @@ export async function checkIdempotency(
   ttlSeconds: number = 3600 // 1 hour default
 ): Promise<{ cached: boolean; response?: any }> {
   try {
-    // Check if idempotency table exists (create if needed)
-    // For now, we'll use a simple approach with a dedicated table or use existing audit_logs
-    
-    // Try to find existing idempotency record
-    const { data: records, error } = await supabaseAdmin
-      .from('audit_logs')
-      .select('id, after')
-      .eq('resource_type', 'idempotency')
-      .eq('resource_id', key)
-      .gte('created_at', new Date(Date.now() - ttlSeconds * 1000).toISOString())
-      .limit(1)
+    // Check existing idempotency record in audit_logs
+    const { rows: records } = await query(
+      `SELECT id, after FROM audit_logs 
+       WHERE resource_type = 'idempotency' 
+       AND resource_id = $1 
+       AND created_at >= $2 
+       LIMIT 1`,
+      [key, new Date(Date.now() - ttlSeconds * 1000).toISOString()]
+    )
 
-    if (!error && records && records.length > 0) {
+    if (records && records.length > 0) {
       const record = records[0]
       const storedHash = (record.after as any)?.request_hash
-      
+
       // Verify request hash matches
       if (storedHash === requestHash) {
         return {
@@ -71,24 +69,23 @@ export async function storeIdempotency(
   ttlSeconds: number = 3600
 ): Promise<void> {
   try {
-    await supabaseAdmin
-      .from('audit_logs')
-      .insert({
-        id: uuidv4(),
-        organization_id: organizationId || null,
-        user_id: null,
-        system_id: null,
-        resource_type: 'idempotency',
-        resource_id: key,
-        action: 'create',
-        before: null,
-        after: {
-          request_hash: requestHash,
-          response,
-          expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString()
-        },
-        created_at: new Date().toISOString()
-      })
+    const afterData = {
+      request_hash: requestHash,
+      response,
+      expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString()
+    }
+
+    await query(
+      `INSERT INTO audit_logs (
+        id, organization_id, user_id, system_id, resource_type, resource_id, action, before, after, created_at
+      ) VALUES ($1, $2, null, null, 'idempotency', $3, 'create', null, $4, NOW())`,
+      [
+        uuidv4(),
+        organizationId || null,
+        key,
+        JSON.stringify(afterData)
+      ]
+    )
   } catch (err) {
     // Best-effort
     logger.warn('storeIdempotency failed', { error: (err as Error).message })
@@ -124,7 +121,7 @@ export function withIdempotency(
     // Get idempotency key from header or generate from request
     const headerKey = req.headers.get('Idempotency-Key')
     let idempotencyKey: string | null = headerKey
-    
+
     if (!idempotencyKey && options?.getKey) {
       const keyResult = options.getKey(req)
       idempotencyKey = keyResult instanceof Promise ? await keyResult : keyResult

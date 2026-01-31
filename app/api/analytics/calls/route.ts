@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole, success, Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
@@ -10,23 +10,12 @@ export const runtime = 'nodejs'
  * Call Analytics API
  * 
  * GET /api/analytics/calls - Aggregate call metrics with time-series
- * 
- * Architecture Compliance:
- * - Uses requireRole() for RBAC (owner/admin/analyst)
- * - Returns structured success() responses
- * - Follows Professional Design System v3.0 patterns
- * - Server-side aggregation for performance
- * 
- * Query Parameters:
- * - startDate: ISO string (default: 30 days ago)
- * - endDate: ISO string (default: now)
- * - groupBy: 'day' | 'week' | 'month' (default: day)
  */
 
 interface CallRow {
   id: string
   status: string
-  started_at: string | null  // Per Schema.txt - calls has started_at, not created_at
+  started_at: string | null
   ended_at: string | null
 }
 
@@ -50,40 +39,34 @@ interface CallMetrics {
 
 export async function GET(req: NextRequest) {
   try {
-    // RBAC: Only owner/admin/analyst can access analytics
+    // RBAC
     const ctx = await requireRole(['owner', 'admin', 'analyst'])
     if (ctx instanceof NextResponse) return ctx
 
-    // Parse query parameters
     const { searchParams } = new URL(req.url)
     const startDate = searchParams.get('startDate') ||
       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const endDate = searchParams.get('endDate') || new Date().toISOString()
     const groupBy = (searchParams.get('groupBy') || 'day') as 'day' | 'week' | 'month'
 
-    // Validate groupBy parameter
     if (!['day', 'week', 'month'].includes(groupBy)) {
       return Errors.badRequest('groupBy must be one of: day, week, month')
     }
 
-    // Query calls with filters
-    // NOTE: calls table uses started_at (not created_at) per Schema.txt
-    const { data: calls, error } = await supabaseAdmin
-      .from('calls')
-      .select('id, status, started_at, ended_at')
-      .eq('organization_id', ctx.orgId)
-      .gte('started_at', startDate)
-      .lte('started_at', endDate)
-      .order('started_at', { ascending: false })
-      .limit(10000) // Reasonable limit for performance
-
-    if (error) {
-      logger.error('Failed to fetch calls for analytics', { error, orgId: ctx.orgId })
-      throw error
-    }
+    // Query calls using pgClient
+    const { rows: calls } = await query(
+      `SELECT id, status, started_at::text, ended_at::text 
+       FROM calls 
+       WHERE organization_id = $1 
+         AND started_at >= $2 
+         AND started_at <= $3 
+       ORDER BY started_at DESC 
+       LIMIT 10000`,
+      [ctx.orgId, startDate, endDate]
+    )
 
     // Compute aggregated metrics
-    const metrics = computeCallMetrics(calls || [], groupBy)
+    const metrics = computeCallMetrics(calls as CallRow[], groupBy)
 
     return success({ metrics })
   } catch (err: any) {
@@ -102,7 +85,6 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
     c.status === 'failed' || c.status === 'no-answer' || c.status === 'busy'
   ).length
 
-  // Calculate duration from started_at/ended_at (calls table doesn't have duration_seconds per Schema.txt)
   const durationsSeconds = calls
     .filter(c => c.started_at && c.ended_at && c.status === 'completed')
     .map(c => {
@@ -110,7 +92,7 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
       const end = new Date(c.ended_at!).getTime()
       return Math.round((end - start) / 1000)
     })
-    .filter(d => d > 0 && d < 3600) // Filter outliers
+    .filter(d => d > 0 && d < 3600)
 
   const avg_duration_seconds = durationsSeconds.length > 0
     ? Math.round(durationsSeconds.reduce((a, b) => a + b, 0) / durationsSeconds.length)
@@ -124,10 +106,10 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
     ? Math.round((completed_calls / total_calls) * 100)
     : 0
 
-  // Group calls by time period (use started_at for grouping)
+  // Group calls by time period
   const grouped: Record<string, CallRow[]> = {}
   calls.forEach(call => {
-    if (!call.started_at) return // Skip calls without started_at
+    if (!call.started_at) return
     const key = getGroupKey(call.started_at, groupBy)
     if (!grouped[key]) grouped[key] = []
     grouped[key].push(call)
@@ -169,23 +151,19 @@ function computeCallMetrics(calls: CallRow[], groupBy: 'day' | 'week' | 'month')
   }
 }
 
-/**
- * Get grouping key based on timestamp and groupBy parameter
- */
 function getGroupKey(timestamp: string, groupBy: 'day' | 'week' | 'month'): string {
   const date = new Date(timestamp)
 
   if (groupBy === 'day') {
-    return date.toISOString().slice(0, 10) // YYYY-MM-DD
+    return date.toISOString().slice(0, 10)
   } else if (groupBy === 'week') {
-    // Get Monday of the week
     const weekStart = new Date(date)
     const day = weekStart.getDay()
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1) // Adjust to Monday
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1)
     weekStart.setDate(diff)
     return weekStart.toISOString().slice(0, 10)
   } else if (groupBy === 'month') {
-    return date.toISOString().slice(0, 7) // YYYY-MM
+    return date.toISOString().slice(0, 7)
   }
 
   return date.toISOString().slice(0, 10)

@@ -3,18 +3,16 @@
  * 
  * PUT /api/calls/[id]/disposition - Set call disposition
  * GET /api/calls/[id]/disposition - Get call disposition
- * 
- * Per MASTER_ARCHITECTURE: Call is root object
- * Disposition is a call modulation, not a separate entity
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { emitDispositionSet } from '@/lib/webhookDelivery'
 import { CallDisposition } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -25,7 +23,6 @@ const VALID_DISPOSITIONS: CallDisposition[] = [
   'not_interested',
   'follow_up',
   'wrong_number',
-  // Note: 'callback_scheduled' removed - not in DB CHECK constraint
   'other'
 ]
 
@@ -45,15 +42,9 @@ export async function GET(
     const { id: callId } = await params
 
     // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -63,29 +54,16 @@ export async function GET(
       )
     }
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found' } },
-        { status: 404 }
-      )
-    }
-
     // Get call with disposition (verify org access)
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('id, disposition, disposition_set_at, disposition_set_by, disposition_notes')
-      .eq('id', callId)
-      .eq('organization_id', user.organization_id)
-      .single()
+    const { rows: calls } = await query(
+      `SELECT id, disposition, disposition_set_at, disposition_set_by, disposition_notes 
+         FROM calls 
+         WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+    const call = calls[0]
 
-    if (callError || !call) {
+    if (!call) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
@@ -105,7 +83,7 @@ export async function GET(
   } catch (error: any) {
     logger.error('[disposition GET] Error', error)
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } },
       { status: 500 }
     )
   }
@@ -123,15 +101,9 @@ export async function PUT(
     const { id: callId } = await params
 
     // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
+    const session = await requireRole('operator') // Requires operator+
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -167,37 +139,14 @@ export async function PUT(
       )
     }
 
-    // Get user's organization and role
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, role')
-      .eq('user_id', userId)
-      .single()
-
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-
-    // Check RBAC: Owner, Admin, Operator can set disposition
-    if (!['owner', 'admin', 'operator'].includes(member.role)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INSUFFICIENT_PERMISSIONS', message: 'Only owners, admins, and operators can set disposition' } },
-        { status: 403 }
-      )
-    }
-
     // Verify call belongs to user's org
-    const { data: existingCall, error: existingError } = await supabaseAdmin
-      .from('calls')
-      .select('id, organization_id, status')
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
+    const { rows: calls } = await query(
+      `SELECT id, organization_id, status FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
+    const existingCall = calls[0]
 
-    if (existingError || !existingCall) {
+    if (!existingCall) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
@@ -205,50 +154,44 @@ export async function PUT(
     }
 
     // Update disposition
-    const { data: updatedCall, error: updateError } = await supabaseAdmin
-      .from('calls')
-      .update({
-        disposition,
-        disposition_notes: disposition_notes || null,
-        disposition_set_at: new Date().toISOString(),
-        disposition_set_by: userId
-      })
-      .eq('id', callId)
-      .select('id, disposition, disposition_set_at, disposition_set_by, disposition_notes')
-      .single()
+    const { rows: updatedCalls } = await query(
+      `UPDATE calls 
+         SET disposition = $1, 
+             disposition_notes = $2, 
+             disposition_set_at = NOW(), 
+             disposition_set_by = $3
+         WHERE id = $4
+         RETURNING id, disposition, disposition_set_at, disposition_set_by, disposition_notes`,
+      [disposition, disposition_notes || null, userId, callId]
+    )
+    const updatedCall = updatedCalls[0]
 
-    if (updateError) {
-      logger.error('[disposition PUT] Update error', updateError, { callId })
-      return NextResponse.json(
-        { success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update disposition' } },
-        { status: 500 }
-      )
-    }
-
-    // Log to audit (fire and forget)
-    ; (async () => {
-      try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: member.organization_id,
-          user_id: userId,
-          resource_type: 'call',
-          resource_id: callId,
-          action: 'disposition_set',
-          before: { disposition: existingCall.status },
-          after: { disposition, disposition_notes }
-        })
-      } catch (err) {
-        logger.error('[disposition PUT] Audit log error', err, { callId })
-      }
-    })()
+      // Log to audit (fire and forget)
+      ; (async () => {
+        try {
+          await query(
+            `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, before, after, created_at)
+             VALUES ($1, $2, $3, 'call', $4, 'disposition_set', 'human', $5, $6, NOW())`,
+            [
+              uuidv4(),
+              organizationId,
+              userId,
+              callId,
+              JSON.stringify({ disposition: existingCall.status }), // Note: 'status' in before might not be exact mapping, but kept per original logic
+              JSON.stringify({ disposition, disposition_notes })
+            ]
+          )
+        } catch (err) {
+          logger.error('[disposition PUT] Audit log error', err, { callId })
+        }
+      })()
 
       // Emit webhook event (fire and forget)
       ; (async () => {
         try {
           await emitDispositionSet({
             id: updatedCall.id,
-            organization_id: member.organization_id,
+            organization_id: organizationId,
             disposition: updatedCall.disposition,
             set_by: updatedCall.disposition_set_by || userId
           })
@@ -270,7 +213,7 @@ export async function PUT(
   } catch (error: any) {
     logger.error('[disposition PUT] Error', error)
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } },
       { status: 500 }
     )
   }

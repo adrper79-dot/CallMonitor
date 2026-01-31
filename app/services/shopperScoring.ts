@@ -1,5 +1,6 @@
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 /**
  * Secret Shopper Scoring Service
@@ -31,23 +32,22 @@ const DEFAULT_OUTCOMES: ExpectedOutcome[] = [
 async function getExpectedOutcomes(organizationId: string, scriptId?: string): Promise<ExpectedOutcome[]> {
   try {
     if (scriptId) {
-      const { data: scriptRows } = await supabaseAdmin
-        .from('shopper_scripts')
-        .select('expected_outcomes')
-        .eq('id', scriptId)
-        .limit(1)
-      
+      const { rows: scriptRows } = await query(
+        `SELECT expected_outcomes FROM shopper_scripts WHERE id = $1 LIMIT 1`,
+        [scriptId]
+      )
+
       if (scriptRows?.[0]?.expected_outcomes) {
         return scriptRows[0].expected_outcomes as ExpectedOutcome[]
       }
     }
 
-    const { data: configRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('shopper_expected_outcomes')
-      .eq('organization_id', organizationId)
-      .not('shopper_expected_outcomes', 'is', null)
-      .limit(1)
+    const { rows: configRows } = await query(
+      `SELECT shopper_expected_outcomes FROM voice_configs 
+       WHERE organization_id = $1 AND shopper_expected_outcomes IS NOT NULL 
+       LIMIT 1`,
+      [organizationId]
+    )
 
     if (configRows?.[0]?.shopper_expected_outcomes) {
       return configRows[0].shopper_expected_outcomes as ExpectedOutcome[]
@@ -67,20 +67,18 @@ export async function scoreShopperCall(
   scriptId?: string
 ): Promise<ScoringResult | null> {
   try {
-    const { data: callRows } = await supabaseAdmin
-      .from('calls')
-      .select('started_at, ended_at, status')
-      .eq('id', callId)
-      .limit(1)
+    const { rows: callRows } = await query(
+      `SELECT started_at, ended_at, status FROM calls WHERE id = $1 LIMIT 1`,
+      [callId]
+    )
 
     const call = callRows?.[0]
     if (!call) return null
 
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('duration_seconds, transcript_json')
-      .eq('id', recordingId)
-      .limit(1)
+    const { rows: recRows } = await query(
+      `SELECT duration_seconds, transcript_json FROM recordings WHERE id = $1 LIMIT 1`,
+      [recordingId]
+    )
 
     const recording = recRows?.[0]
     if (!recording) return null
@@ -114,7 +112,7 @@ export async function scoreShopperCall(
         case 'keyword':
           const transcript = recording.transcript_json?.text || ''
           const keywords = Array.isArray(outcome.value) ? outcome.value : [outcome.value]
-          const foundKeywords = keywords.filter(kw => 
+          const foundKeywords = keywords.filter((kw: string) =>
             transcript.toLowerCase().includes(kw.toLowerCase())
           )
           passed = foundKeywords.length > 0
@@ -123,8 +121,8 @@ export async function scoreShopperCall(
 
         case 'sentiment':
           const sentiment = recording.transcript_json?.sentiment || 'neutral'
-          passed = sentiment === outcome.value || 
-                   (outcome.value === 'positive' && ['positive', 'very_positive'].includes(sentiment))
+          passed = sentiment === outcome.value ||
+            (outcome.value === 'positive' && ['positive', 'very_positive'].includes(sentiment))
           reason = `Sentiment: ${sentiment} (required: ${outcome.value})`
           break
 
@@ -145,25 +143,30 @@ export async function scoreShopperCall(
 
     const result: ScoringResult = { score: finalScore, details }
 
-    const { data: systemsRows } = await supabaseAdmin
-      .from('systems')
-      .select('id')
-      .eq('key', 'system-ai')
-      .limit(1)
+    const { rows: systemsRows } = await query(
+      `SELECT id FROM systems WHERE key = 'system-ai' LIMIT 1`,
+      []
+    )
 
     const systemAiId = systemsRows?.[0]?.id
     if (systemAiId) {
-      await supabaseAdmin.from('ai_runs').insert({
-        id: require('uuid').v4(),
-        call_id: callId,
-        system_id: systemAiId,
-        model: 'shopper-scoring',
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        produced_by: 'model',
-        is_authoritative: true,
-        output: { score: finalScore, details, expected_outcomes: expectedOutcomes }
-      })
+      await query(
+        `INSERT INTO ai_runs (
+          id, call_id, system_id, model, status, completed_at, 
+          produced_by, is_authoritative, output
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          uuidv4(),
+          callId,
+          systemAiId,
+          'shopper-scoring',
+          'completed',
+          new Date().toISOString(),
+          'model',
+          true,
+          JSON.stringify({ score: finalScore, details, expected_outcomes: expectedOutcomes })
+        ]
+      )
     }
 
     return result

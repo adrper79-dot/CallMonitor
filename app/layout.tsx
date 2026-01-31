@@ -5,15 +5,17 @@ import AuthProvider from "../components/AuthProvider"
 import Navigation from "../components/Navigation"
 import { ErrorBoundary } from "../components/ErrorBoundary"
 import { ToastProvider } from "../components/ui/toast"
+import { ThemeProvider } from "../components/theme-provider"
+
 
 // Jetsons-inspired typography
-const spaceGrotesk = Space_Grotesk({ 
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
 })
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-body',
   display: 'swap',
@@ -54,10 +56,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-body min-h-screen">
         <ErrorBoundary>
           <AuthProvider>
-            <ToastProvider>
-              <Navigation />
-              {children}
-            </ToastProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+              <ToastProvider>
+                <Navigation />
+                {children}
+              </ToastProvider>
+            </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>
       </body>

@@ -8,10 +8,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/types/app-error'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -23,35 +24,45 @@ export const runtime = 'nodejs'
 export async function GET(req: NextRequest) {
   try {
     const session = await requireRole('viewer')
-    const { id: userId, organizationId } = session.user
+    if (session instanceof NextResponse) return session
+    const { organizationId } = session.user
 
-    // Get org from query - use session org if not provided
     const searchParams = req.nextUrl.searchParams
-    const orgId = searchParams.get('orgId') || organizationId
+    const orgIdArg = searchParams.get('orgId') || organizationId
 
-    // Verify access - user can only access their own org
-    if (orgId !== organizationId) {
+    if (orgIdArg !== organizationId) {
       throw new AppError('Unauthorized', 403)
     }
 
-    const { data: schedules, error } = await supabaseAdmin
-      .from('scheduled_reports')
-      .select(`
-        *,
-        report_templates (
-          id,
-          name,
-          report_type
-        )
-      `)
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: false })
+    // Fetch schedules with template info using JOIN
+    const { rows: schedules } = await query(
+      `SELECT sr.*,
+              rt.id as template_id,
+              rt.name as template_name,
+              rt.report_type as template_report_type
+       FROM scheduled_reports sr
+       LEFT JOIN report_templates rt ON sr.template_id = rt.id
+       WHERE sr.organization_id = $1
+       ORDER BY sr.created_at DESC`,
+      [organizationId]
+    )
 
-    if (error) {
-      throw new AppError('Failed to fetch schedules', 500, error.message)
-    }
+    // Map to expected structure
+    const mappedSchedules = schedules.map((s: any) => ({
+      ...s,
+      report_templates: s.template_id ? {
+        id: s.template_id,
+        name: s.template_name,
+        report_type: s.template_report_type
+      } : null,
+      // Cleanup flattened fields
+      template_id: undefined, // Keep id as template_id is likely expected in root too? Supabase returns foreign table as nested object.
+      // Actually sr.template_id is already in sr.*, so we keep it. Use alias for flattened ones.
+      template_name: undefined,
+      template_report_type: undefined
+    }))
 
-    return NextResponse.json({ schedules })
+    return NextResponse.json({ schedules: mappedSchedules })
   } catch (error: any) {
     logger.error('GET /api/reports/schedules error', error)
     return NextResponse.json(
@@ -68,7 +79,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole(['owner', 'admin'])
-    const { id: userId, organizationId, role } = session.user
+    if (session instanceof NextResponse) return session
+    const { id: userId, organizationId } = session.user
 
     const body = await req.json()
     const { templateId, cronPattern, deliveryConfig } = body
@@ -78,15 +90,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify template exists and belongs to org
-    const { data: template, error: templateError } = await supabaseAdmin
-      .from('report_templates')
-      .select('id, organization_id, name')
-      .eq('id', templateId)
-      .single()
+    const { rows: templates } = await query(
+      `SELECT id, organization_id, name FROM report_templates WHERE id = $1`,
+      [templateId]
+    )
 
-    if (templateError || !template) {
+    if (templates.length === 0) {
       throw new AppError('Template not found', 404)
     }
+
+    const template = templates[0]
 
     if (template.organization_id !== organizationId) {
       throw new AppError('Unauthorized', 403)
@@ -96,24 +109,27 @@ export async function POST(req: NextRequest) {
     const nextRun = calculateNextRun(cronPattern)
 
     // Create schedule
-    const { data: schedule, error: insertError } = await supabaseAdmin
-      .from('scheduled_reports')
-      .insert({
-        organization_id: organizationId,
-        template_id: templateId,
-        name: template.name || 'Scheduled Report', // Required field
-        schedule_pattern: cronPattern, // Fixed: was cron_pattern
-        delivery_config: deliveryConfig || {},
-        is_active: true,
-        next_run_at: nextRun, // Fixed: was next_run
-        created_by: userId,
-      })
-      .select()
-      .single()
+    const scheduleId = uuidv4()
+    const { rows: schedules } = await query(
+      `INSERT INTO scheduled_reports (
+         id, organization_id, template_id, name, schedule_pattern, delivery_config, 
+         is_active, next_run_at, created_by, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       RETURNING *`,
+      [
+        scheduleId,
+        organizationId,
+        templateId,
+        template.name || 'Scheduled Report',
+        cronPattern,
+        JSON.stringify(deliveryConfig || {}),
+        true,
+        nextRun,
+        userId
+      ]
+    )
 
-    if (insertError) {
-      throw new AppError('Failed to create schedule', 500, insertError.message)
-    }
+    const schedule = schedules[0]
 
     logger.info('Scheduled report created', {
       scheduleId: schedule.id,
@@ -165,4 +181,3 @@ function calculateNextRun(cronPattern: string): string {
   nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0)
   return nextHour.toISOString()
 }
-

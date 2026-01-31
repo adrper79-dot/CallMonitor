@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
 import { createEvidenceBundle } from '@/app/services/evidenceBundle'
@@ -51,13 +51,12 @@ export async function generateEvidenceManifest(
 ): Promise<string> {
   try {
     // Check for existing manifest (without scoring) - return if exists for idempotency
-    const { data: existing } = await supabaseAdmin
-      .from('evidence_manifests')
-      .select('id, version')
-      .eq('recording_id', recordingId)
-      .is('superseded_at', null)
-      .order('version', { ascending: false })
-      .limit(1)
+    const { rows: existing } = await query(
+      `SELECT id, version FROM evidence_manifests 
+       WHERE recording_id = $1 AND superseded_at IS NULL 
+       ORDER BY version DESC LIMIT 1`,
+      [recordingId]
+    )
 
     // If manifest exists and no new scorecard, return existing
     if (existing?.[0] && !scorecardId) {
@@ -70,11 +69,11 @@ export async function generateEvidenceManifest(
     const now = new Date().toISOString()
 
     // Get recording with source information
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('id, recording_url, duration_seconds, status, created_at, source, media_hash, created_by')
-      .eq('id', recordingId)
-      .limit(1)
+    const { rows: recRows } = await query(
+      `SELECT id, recording_url, duration_seconds, status, created_at, source, media_hash, created_by 
+       FROM recordings WHERE id = $1 LIMIT 1`,
+      [recordingId]
+    )
 
     const recording = recRows?.[0]
     if (recording) {
@@ -98,12 +97,13 @@ export async function generateEvidenceManifest(
     }
 
     // Get transcript from transcript_versions (preferred) or recordings.transcript_json (fallback)
-    const { data: transcriptVersionRows } = await supabaseAdmin
-      .from('transcript_versions')
-      .select('id, version, transcript_json, transcript_hash, produced_by, produced_by_model, created_at')
-      .eq('recording_id', recordingId)
-      .order('version', { ascending: false })
-      .limit(1)
+    const { rows: transcriptVersionRows } = await query(
+      `SELECT id, version, transcript_json, transcript_hash, produced_by, produced_by_model, created_at 
+       FROM transcript_versions 
+       WHERE recording_id = $1 
+       ORDER BY version DESC LIMIT 1`,
+      [recordingId]
+    )
 
     if (transcriptVersionRows?.[0]) {
       const tv = transcriptVersionRows[0]
@@ -124,11 +124,10 @@ export async function generateEvidenceManifest(
       provenance.transcription_model = tv.produced_by_model || 'assemblyai-v1'
     } else {
       // Fallback to recordings.transcript_json
-      const { data: transcriptRows } = await supabaseAdmin
-        .from('recordings')
-        .select('transcript_json')
-        .eq('id', recordingId)
-        .limit(1)
+      const { rows: transcriptRows } = await query(
+        `SELECT transcript_json FROM recordings WHERE id = $1 LIMIT 1`,
+        [recordingId]
+      )
 
       if (transcriptRows?.[0]?.transcript_json) {
         const transcript = transcriptRows[0].transcript_json
@@ -156,13 +155,13 @@ export async function generateEvidenceManifest(
     }
 
     // Get translation from ai_runs
-    const { data: translationRows } = await supabaseAdmin
-      .from('ai_runs')
-      .select('id, output, model, completed_at, system_id')
-      .eq('call_id', callId)
-      .ilike('model', '%translation%')
-      .eq('status', 'completed')
-      .limit(1)
+    const { rows: translationRows } = await query(
+      `SELECT id, output, model, completed_at, system_id 
+       FROM ai_runs 
+       WHERE call_id = $1 AND model ILIKE '%translation%' AND status = 'completed' 
+       LIMIT 1`,
+      [callId]
+    )
 
     if (translationRows?.[0]) {
       const translation = translationRows[0]
@@ -183,12 +182,15 @@ export async function generateEvidenceManifest(
     }
 
     // Get survey from ai_runs
-    const { data: surveyRows } = await supabaseAdmin
-      .from('ai_runs')
-      .select('id, output, completed_at')
-      .eq('call_id', callId)
-      .contains('output', { type: 'survey' })
-      .limit(1)
+    const { rows: surveyRows } = await query(
+      `SELECT id, output, completed_at 
+       FROM ai_runs 
+       WHERE call_id = $1 AND output->>'type' = 'survey' 
+       LIMIT 1`,
+      // Note: JSON query syntax may vary, but for refactor we assume similar logic or handle in code if complexity needed
+      // Standard Postgres JSONB: output @> '{"type": "survey"}'
+      [callId]
+    )
 
     if (surveyRows?.[0]) {
       const survey = surveyRows[0]
@@ -207,12 +209,13 @@ export async function generateEvidenceManifest(
 
     // Get score if scorecardId provided
     if (scorecardId) {
-      const { data: scoreRows } = await supabaseAdmin
-        .from('scored_recordings')
-        .select('id, scores_json, total_score, created_at, manual_overrides_json')
-        .eq('recording_id', recordingId)
-        .eq('scorecard_id', scorecardId)
-        .limit(1)
+      const { rows: scoreRows } = await query(
+        `SELECT id, scores_json, total_score, created_at, manual_overrides_json 
+         FROM scored_recordings 
+         WHERE recording_id = $1 AND scorecard_id = $2 
+         LIMIT 1`,
+        [recordingId, scorecardId]
+      )
 
       if (scoreRows?.[0]) {
         const score = scoreRows[0]
@@ -261,21 +264,22 @@ export async function generateEvidenceManifest(
     manifestData.manifest_hash = hashPayloadPrefixed(manifestData)
 
     // Insert new manifest (APPEND-ONLY - database trigger prevents updates)
-    const { error: insertErr } = await supabaseAdmin.from('evidence_manifests').insert({
-      id: manifestId,
-      organization_id: organizationId,
-      recording_id: recordingId,
-      scorecard_id: scorecardId || null,
-      manifest: manifestData,
-      created_at: now,
-      version: newVersion,
-      parent_manifest_id: parentManifestId
-    })
-
-    if (insertErr) {
-      logger.error('evidenceManifest: failed to insert manifest', insertErr, { callId, recordingId })
-      throw new Error(`Failed to store evidence manifest: ${insertErr.message}`)
-    }
+    await query(
+      `INSERT INTO evidence_manifests (
+        id, organization_id, recording_id, scorecard_id, manifest, 
+        created_at, version, parent_manifest_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        manifestId,
+        organizationId,
+        recordingId,
+        scorecardId || null,
+        JSON.stringify(manifestData),
+        now,
+        newVersion,
+        parentManifestId
+      ]
+    )
 
     // Create evidence bundle (custody-grade) for this manifest
     const bundleId = await createEvidenceBundle({
@@ -292,11 +296,13 @@ export async function generateEvidenceManifest(
     // Mark previous manifest as superseded (if exists)
     if (parentManifestId) {
       // Note: This update is allowed because we're only marking supersession, not changing content
-      // The trigger allows this specific operation via WHEN clause
       try {
-        await supabaseAdmin.from('evidence_manifests')
-          .update({ superseded_at: now, superseded_by: manifestId })
-          .eq('id', parentManifestId)
+        await query(
+          `UPDATE evidence_manifests 
+           SET superseded_at = $1, superseded_by = $2 
+           WHERE id = $3`,
+          [now, manifestId, parentManifestId]
+        )
       } catch {
         // If trigger blocks this, it's okay - the new manifest is still valid
         logger.warn('evidenceManifest: could not mark parent as superseded (trigger may prevent)', { parentManifestId })
@@ -326,14 +332,8 @@ export async function generateEvidenceManifest(
 
     // Mark evidence completeness on call and recording (best-effort)
     try {
-      await supabaseAdmin
-        .from('recordings')
-        .update({ evidence_completeness: 'complete' })
-        .eq('id', recordingId)
-      await supabaseAdmin
-        .from('calls')
-        .update({ evidence_completeness: 'complete' })
-        .eq('id', callId)
+      await query(`UPDATE recordings SET evidence_completeness = 'complete' WHERE id = $1`, [recordingId])
+      await query(`UPDATE calls SET evidence_completeness = 'complete' WHERE id = $1`, [callId])
     } catch (err) {
       logger.warn('evidenceManifest: could not update evidence completeness', {
         callId,
@@ -364,20 +364,18 @@ export async function checkAndGenerateManifest(
   callId: string, recordingId: string, organizationId: string
 ): Promise<string | null> {
   try {
-    const { data: recRows } = await supabaseAdmin
-      .from('recordings')
-      .select('status, transcript_json')
-      .eq('id', recordingId)
-      .limit(1)
+    const { rows: recRows } = await query(
+      `SELECT status, transcript_json FROM recordings WHERE id = $1 LIMIT 1`,
+      [recordingId]
+    )
 
     const recording = recRows?.[0]
     if (!recording || recording.status !== 'completed') return null
 
-    const { data: vcRows } = await supabaseAdmin
-      .from('voice_configs')
-      .select('transcribe')
-      .eq('organization_id', organizationId)
-      .limit(1)
+    const { rows: vcRows } = await query(
+      `SELECT transcribe FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
     const shouldHaveTranscript = vcRows?.[0]?.transcribe === true
     if (shouldHaveTranscript && !recording.transcript_json) return null
@@ -415,28 +413,28 @@ export async function recordArtifactProvenance(
   try {
     const provenanceId = uuidv4()
 
-    const { error } = await supabaseAdmin.from('artifact_provenance').insert({
-      id: provenanceId,
-      organization_id: organizationId,
-      artifact_type: artifactType,
-      artifact_id: artifactId,
-      parent_artifact_id: options.parent_artifact_id,
-      parent_artifact_type: options.parent_artifact_type,
-      produced_by: options.produced_by,
-      produced_by_model: options.produced_by_model,
-      produced_by_user_id: options.produced_by_user_id,
-      produced_by_system_id: options.produced_by_system_id,
-      input_refs: options.input_refs,
-      version: options.version || 1,
-      metadata: options.metadata,
-      produced_at: new Date().toISOString()
-    })
-
-    if (error) {
-      // Table may not exist yet - log warning but don't fail
-      logger.warn('evidenceManifest: could not record provenance', { error: error.message, artifactId })
-      return null
-    }
+    await query(
+      `INSERT INTO artifact_provenance (
+        id, organization_id, artifact_type, artifact_id, parent_artifact_id, 
+        parent_artifact_type, produced_by, produced_by_model, produced_by_user_id, 
+        produced_by_system_id, input_refs, version, metadata, produced_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())`,
+      [
+        provenanceId,
+        organizationId,
+        artifactType,
+        artifactId,
+        options.parent_artifact_id || null,
+        options.parent_artifact_type || null,
+        options.produced_by,
+        options.produced_by_model || null,
+        options.produced_by_user_id || null,
+        options.produced_by_system_id || null,
+        JSON.stringify(options.input_refs || []),
+        options.version || 1,
+        JSON.stringify(options.metadata || {})
+      ]
+    )
 
     return provenanceId
   } catch (err: any) {
@@ -466,12 +464,12 @@ export async function createTranscriptVersion(
 ): Promise<{ id: string; version: number } | null> {
   try {
     // Get current max version
-    const { data: existing } = await supabaseAdmin
-      .from('transcript_versions')
-      .select('version')
-      .eq('recording_id', recordingId)
-      .order('version', { ascending: false })
-      .limit(1)
+    const { rows: existing } = await query(
+      `SELECT version FROM transcript_versions 
+       WHERE recording_id = $1 
+       ORDER BY version DESC LIMIT 1`,
+      [recordingId]
+    )
 
     const newVersion = (existing?.[0]?.version || 0) + 1
     const transcriptHash = crypto.createHash('sha256')
@@ -480,23 +478,24 @@ export async function createTranscriptVersion(
 
     const versionId = uuidv4()
 
-    const { error } = await supabaseAdmin.from('transcript_versions').insert({
-      id: versionId,
-      recording_id: recordingId,
-      organization_id: organizationId,
-      version: newVersion,
-      transcript_json: transcriptJson,
-      transcript_hash: transcriptHash,
-      produced_by: options.produced_by,
-      produced_by_model: options.produced_by_model,
-      produced_by_user_id: options.produced_by_user_id,
-      input_refs: options.input_refs
-    })
-
-    if (error) {
-      logger.error('evidenceManifest: failed to create transcript version', error, { recordingId })
-      return null
-    }
+    await query(
+      `INSERT INTO transcript_versions (
+        id, recording_id, organization_id, version, transcript_json, 
+        transcript_hash, produced_by, produced_by_model, produced_by_user_id, input_refs
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        versionId,
+        recordingId,
+        organizationId,
+        newVersion,
+        JSON.stringify(transcriptJson),
+        transcriptHash,
+        options.produced_by,
+        options.produced_by_model || null,
+        options.produced_by_user_id || null,
+        JSON.stringify(options.input_refs || [])
+      ]
+    )
 
     // Record provenance
     await recordArtifactProvenance(organizationId, 'transcript', versionId, {

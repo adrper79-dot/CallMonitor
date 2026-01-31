@@ -21,9 +21,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { WebRPCMethod, WebRPCRequest, WebRPCResponse } from '@/types/tier1-features'
-import { emitCallStarted, emitCallCompleted } from '@/lib/webhookDelivery'
+import { emitCallCompleted } from '@/lib/webhookDelivery'
 import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
@@ -133,33 +133,33 @@ async function handleCallPlace(
     }
 
     // Update WebRTC session with call ID (state management only, not orchestration)
-    await supabaseAdmin
-      .from('webrtc_sessions')
-      .update({
-        call_id: result.call_id,
-        status: 'on_call',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId)
+    await query(
+      `UPDATE webrtc_sessions 
+         SET call_id = $1, status = 'on_call', updated_at = NOW() 
+         WHERE id = $2`,
+      [result.call_id, sessionId]
+    )
 
     // CORRECT: Audit log for WebRPC access
-    await supabaseAdmin.from('audit_logs').insert({
-      organization_id: organizationId,
-      user_id: userId,
-      resource_type: 'call',
-      resource_id: result.call_id,
-      action: 'webrpc:call.place',
-      actor_type: 'human',
-      actor_label: userId,
-      after: {
-        method: 'call.place',
-        to_number,
-        from_number,
-        session_id: sessionId,
-        call_id: result.call_id
-      },
-      created_at: new Date().toISOString()
-    })
+    await query(
+      `INSERT INTO audit_logs (
+            organization_id, user_id, resource_type, resource_id, action, 
+            actor_type, actor_label, after, created_at
+         ) VALUES ($1, $2, 'call', $3, 'webrpc:call.place', 'human', $4, $5, NOW())`,
+      [
+        organizationId,
+        userId,
+        result.call_id,
+        userId,
+        JSON.stringify({
+          method: 'call.place',
+          to_number,
+          from_number,
+          session_id: sessionId,
+          call_id: result.call_id
+        })
+      ]
+    )
 
     logger.info('WebRPC call placed successfully', {
       call_id: result.call_id,
@@ -200,11 +200,11 @@ async function handleCallHangup(
   sessionId: string
 ): Promise<WebRPCResponse['result'] | WebRPCResponse['error']> {
   // Get current call from session
-  const { data: session } = await supabaseAdmin
-    .from('webrtc_sessions')
-    .select('call_id, organization_id')
-    .eq('id', sessionId)
-    .single()
+  const { rows: sessions } = await query(
+    `SELECT call_id, organization_id FROM webrtc_sessions WHERE id = $1`,
+    [sessionId]
+  )
+  const session = sessions[0]
 
   if (!session?.call_id) {
     return { code: 'NO_ACTIVE_CALL', message: 'No active call to hang up' }
@@ -220,42 +220,34 @@ async function handleCallHangup(
   }
 
   // Update call status (limited mutability - state machine only)
-  const { error: updateError } = await supabaseAdmin
-    .from('calls')
-    .update({
-      status: 'completed',
-      ended_at: new Date().toISOString()
-    })
-    .eq('id', session.call_id)
-
-  if (updateError) {
-    logger.error('WebRPC failed to update call status', updateError)
-    return { code: 'UPDATE_FAILED', message: 'Failed to update call status' }
-  }
+  await query(
+    `UPDATE calls SET status = 'completed', ended_at = NOW() WHERE id = $1`,
+    [session.call_id]
+  )
 
   // Update session
-  await supabaseAdmin
-    .from('webrtc_sessions')
-    .update({
-      call_id: null,
-      status: 'connected',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', sessionId)
+  await query(
+    `UPDATE webrtc_sessions 
+     SET call_id = NULL, status = 'connected', updated_at = NOW() 
+     WHERE id = $1`,
+    [sessionId]
+  )
 
   // CORRECT: Audit log
-  await supabaseAdmin.from('audit_logs').insert({
-    organization_id: session.organization_id,
-    user_id: userId,
-    resource_type: 'call',
-    resource_id: session.call_id,
-    action: 'webrpc:call.hangup',
-    actor_type: 'human',
-    actor_label: userId,
-    before: { status: 'in_progress' },
-    after: { status: 'completed' },
-    created_at: new Date().toISOString()
-  })
+  await query(
+    `INSERT INTO audit_logs (
+        organization_id, user_id, resource_type, resource_id, action, 
+        actor_type, actor_label, before, after, created_at
+     ) VALUES ($1, $2, 'call', $3, 'webrpc:call.hangup', 'human', $4, $5, $6, NOW())`,
+    [
+      session.organization_id,
+      userId,
+      session.call_id,
+      userId,
+      JSON.stringify({ status: 'in_progress' }),
+      JSON.stringify({ status: 'completed' })
+    ]
+  )
 
   // Emit webhook event
   await emitCallCompleted({
@@ -318,10 +310,10 @@ async function handleSessionPing(
   sessionId: string
 ): Promise<WebRPCResponse['result']> {
   // Update session last activity
-  await supabaseAdmin
-    .from('webrtc_sessions')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', sessionId)
+  await query(
+    `UPDATE webrtc_sessions SET updated_at = NOW() WHERE id = $1`,
+    [sessionId]
+  )
 
   return {
     pong: true,
@@ -396,12 +388,14 @@ export async function POST(request: NextRequest) {
     })
 
     // Get user's active WebRTC session
-    const { data: webrtcSession } = await supabaseAdmin
-      .from('webrtc_sessions')
-      .select('id, organization_id, status, call_id, session_token')
-      .eq('user_id', userId)
-      .in('status', ['initializing', 'connecting', 'connected', 'on_call'])
-      .single()
+    const { rows: sessions } = await query(
+      `SELECT id, organization_id, status, call_id, session_token 
+       FROM webrtc_sessions 
+       WHERE user_id = $1 AND status IN ('initializing', 'connecting', 'connected', 'on_call')
+       LIMIT 1`,
+      [userId]
+    )
+    const webrtcSession = sessions[0]
 
     if (!webrtcSession && method !== 'session.end') {
       return NextResponse.json({
@@ -452,13 +446,12 @@ export async function POST(request: NextRequest) {
 
       case 'session.end':
         if (webrtcSession) {
-          await supabaseAdmin
-            .from('webrtc_sessions')
-            .update({
-              status: 'disconnected',
-              disconnected_at: new Date().toISOString()
-            })
-            .eq('id', webrtcSession.id)
+          await query(
+            `UPDATE webrtc_sessions 
+             SET status = 'disconnected', disconnected_at = NOW() 
+             WHERE id = $1`,
+            [webrtcSession.id]
+          )
         }
         result = { ended: true }
         break

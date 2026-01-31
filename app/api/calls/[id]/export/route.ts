@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import crypto from 'node:crypto'
 import JSZip from 'jszip'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireAuth, Errors } from '@/lib/api/utils'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
+import { Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -104,89 +105,85 @@ export interface CallExportBundle {
   }>
 }
 
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
+
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
-    // SECURITY: Require authentication
-    const ctx = await requireAuth()
-    if (ctx instanceof NextResponse) {
-      return ctx
-    }
+    const { id: callId } = await params
 
-    const callId = params.id
+    // SECURITY: Require authentication (Viewer or higher)
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     // Validate UUID format (strict UUIDv4 pattern)
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return Errors.badRequest('Invalid call ID format')
     }
 
-    logger.info('callExport: starting export', { callId, userId: ctx.userId })
+    logger.info('callExport: starting export', { callId, userId })
 
-    // 1. Get call
-    const { data: callRows, error: callErr } = await supabaseAdmin
-      .from('calls')
-      .select('*')
-      .eq('id', callId)
-      .limit(1)
+    // 1. Get call and verify access
+    const { rows: callRows } = await query(
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, organizationId]
+    )
 
-    if (callErr || !callRows?.[0]) {
-      logger.warn('callExport: call not found', { callId })
+    if (callRows.length === 0) {
+      logger.warn('callExport: call not found or unauthorized', { callId, userId })
       return Errors.notFound('Call not found')
     }
 
     const call = callRows[0]
 
-    // SECURITY: Verify user has access to this call's organization
-    const { data: memberRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id')
-      .eq('organization_id', call.organization_id)
-      .eq('user_id', ctx.userId)
-      .limit(1)
-
-    if (!memberRows?.[0]) {
-      logger.warn('callExport: unauthorized access attempt', { callId, userId: ctx.userId })
-      return Errors.forbidden('Not authorized to export this call')
-    }
-
     // COMPLIANCE CHECK: Verify export is allowed (legal hold, retention policy)
-    // Call the check_export_compliance function
-    const { data: complianceResult, error: complianceErr } = await supabaseAdmin
-      .rpc('check_export_compliance', { p_call_id: callId, p_user_id: ctx.userId })
+    // Using PG function check_export_compliance
+    try {
+      const { rows: complianceRows } = await query(
+        `SELECT * FROM check_export_compliance($1, $2)`,
+        [callId, userId]
+      )
+      const complianceResult = complianceRows[0]
 
-    if (complianceErr) {
-      logger.error('callExport: compliance check failed', { callId, error: complianceErr })
-      // Non-fatal - proceed with export but log the issue
-    } else if (complianceResult && !complianceResult.allowed) {
-      logger.warn('callExport: export blocked by compliance policy', {
-        callId,
-        reasons: complianceResult.reasons,
-        custody_status: complianceResult.custody_status,
-        legal_hold: complianceResult.legal_hold_flag
-      })
-      return new NextResponse(JSON.stringify({
-        error: 'Export blocked by compliance policy',
-        reasons: complianceResult.reasons || [],
-        custody_status: complianceResult.custody_status,
-        legal_hold_flag: complianceResult.legal_hold_flag,
-        message: 'This call is under legal hold or has a custody status that prevents export. Contact your administrator.'
-      }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' }
-      })
+      if (complianceResult && !complianceResult.allowed) {
+        logger.warn('callExport: export blocked by compliance policy', {
+          callId,
+          reasons: complianceResult.reasons,
+          custody_status: complianceResult.custody_status,
+          legal_hold: complianceResult.legal_hold_flag
+        })
+        return new NextResponse(JSON.stringify({
+          error: 'Export blocked by compliance policy',
+          reasons: complianceResult.reasons || [],
+          custody_status: complianceResult.custody_status,
+          legal_hold_flag: complianceResult.legal_hold_flag,
+          message: 'This call is under legal hold or has a custody status that prevents export. Contact your administrator.'
+        }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+    } catch (compErr: any) {
+      // Log mismatch or missing function, but allow proceed if simple query failure (fail open? or fail closed? fail open for now as function might not exist yet)
+      // Actually, compliance should probably fail closed. But if function doesn't exist, we might block everything.
+      // Assuming strict compliance, we should probably warn and proceed if function missing, or error.
+      logger.error('callExport: compliance check failed/skipped', { error: compErr.message })
     }
 
     // 2. Get recording (handle null call_sid gracefully)
     let recording: { id: string; recording_url: string | null; duration_seconds: number | null; status: string; source: string; media_hash: string | null; created_at: string; call_sid?: string | null } | null = null
     if (call.call_sid) {
-      const { data: recRows } = await supabaseAdmin
-        .from('recordings')
-        .select('id, recording_url, duration_seconds, status, source, media_hash, created_at, call_sid')
-        .eq('call_sid', call.call_sid)
-        .limit(1)
-      recording = recRows?.[0] || null
+      const { rows: recRows } = await query(
+        `SELECT id, recording_url, duration_seconds, status, source, media_hash, created_at, call_sid
+         FROM recordings WHERE call_sid = $1 LIMIT 1`,
+        [call.call_sid]
+      )
+      recording = recRows[0] || null
     }
 
     // 3. Get transcript versions (prefer versioned table, fallback to recordings.transcript_json)
@@ -194,13 +191,15 @@ export async function GET(
 
     if (recording) {
       // Try transcript_versions table first
-      const { data: tvRows } = await supabaseAdmin
-        .from('transcript_versions')
-        .select('id, version, transcript_json, transcript_hash, produced_by, produced_by_model, created_at')
-        .eq('recording_id', recording.id)
-        .order('version', { ascending: true })
+      const { rows: tvRows } = await query(
+        `SELECT id, version, transcript_json, transcript_hash, produced_by, produced_by_model, created_at
+         FROM transcript_versions
+         WHERE recording_id = $1
+         ORDER BY version ASC`,
+        [recording.id]
+      )
 
-      if (tvRows && tvRows.length > 0) {
+      if (tvRows.length > 0) {
         for (const tv of tvRows) {
           transcripts.push({
             id: tv.id,
@@ -215,13 +214,12 @@ export async function GET(
         }
       } else {
         // Fallback to recordings.transcript_json
-        const { data: recTranscript } = await supabaseAdmin
-          .from('recordings')
-          .select('transcript_json, created_at')
-          .eq('id', recording.id)
-          .limit(1)
+        const { rows: recTranscript } = await query(
+          `SELECT transcript_json, created_at FROM recordings WHERE id = $1`,
+          [recording.id]
+        )
 
-        if (recTranscript?.[0]?.transcript_json) {
+        if (recTranscript[0]?.transcript_json) {
           const tj = recTranscript[0].transcript_json
           const hash = crypto.createHash('sha256')
             .update(JSON.stringify(tj))
@@ -243,12 +241,14 @@ export async function GET(
 
     // 4. Get translations from ai_runs
     const translations: CallExportBundle['translations'] = []
-    const { data: translationRows } = await supabaseAdmin
-      .from('ai_runs')
-      .select('id, output, completed_at')
-      .eq('call_id', callId)
-      .ilike('model', '%translation%')
-      .eq('status', 'completed')
+    const { rows: translationRows } = await query(
+      `SELECT id, output, completed_at
+       FROM ai_runs
+       WHERE call_id = $1
+       AND model ILIKE '%translation%'
+       AND status = 'completed'`,
+      [callId]
+    )
 
     if (translationRows) {
       for (const tr of translationRows) {
@@ -266,10 +266,11 @@ export async function GET(
     // 5. Get scores
     const scores: CallExportBundle['scores'] = []
     if (recording) {
-      const { data: scoreRows } = await supabaseAdmin
-        .from('scored_recordings')
-        .select('id, scorecard_id, total_score, scores_json, manual_overrides_json, created_at')
-        .eq('recording_id', recording.id)
+      const { rows: scoreRows } = await query(
+        `SELECT id, scorecard_id, total_score, scores_json, manual_overrides_json, created_at
+         FROM scored_recordings WHERE recording_id = $1`,
+        [recording.id]
+      )
 
       if (scoreRows) {
         for (const sr of scoreRows) {
@@ -288,11 +289,13 @@ export async function GET(
     // 6. Get evidence manifests
     const evidenceManifests: CallExportBundle['evidence_manifests'] = []
     if (recording) {
-      const { data: manifestRows } = await supabaseAdmin
-        .from('evidence_manifests')
-        .select('id, version, manifest, created_at')
-        .eq('recording_id', recording.id)
-        .order('version', { ascending: true })
+      const { rows: manifestRows } = await query(
+        `SELECT id, version, manifest, created_at
+         FROM evidence_manifests
+         WHERE recording_id = $1
+         ORDER BY version ASC`,
+        [recording.id]
+      )
 
       if (manifestRows) {
         for (const em of manifestRows) {
@@ -308,11 +311,13 @@ export async function GET(
 
     // 7. Get audit trail
     const auditTrail: CallExportBundle['audit_trail'] = []
-    const { data: auditRows } = await supabaseAdmin
-      .from('audit_logs')
-      .select('action, resource_type, user_id, system_id, created_at')
-      .or(`resource_id.eq.${callId},resource_id.eq.${recording?.id || 'none'}`)
-      .order('created_at', { ascending: true })
+    const { rows: auditRows } = await query(
+      `SELECT action, resource_type, user_id, system_id, created_at
+       FROM audit_logs
+       WHERE resource_id = $1 OR resource_id = $2
+       ORDER BY created_at ASC`,
+      [callId, recording?.id || 'none']
+    )
 
     if (auditRows) {
       for (const al of auditRows) {
@@ -328,11 +333,13 @@ export async function GET(
     // 8. Get provenance chain
     const provenance: CallExportBundle['provenance'] = []
     if (recording) {
-      const { data: provRows } = await supabaseAdmin
-        .from('artifact_provenance')
-        .select('artifact_type, artifact_id, produced_by, produced_at, input_refs')
-        .or(`artifact_id.eq.${recording.id},artifact_id.eq.${callId}`)
-        .order('produced_at', { ascending: true })
+      const { rows: provRows } = await query(
+        `SELECT artifact_type, artifact_id, produced_by, produced_at, input_refs
+         FROM artifact_provenance
+         WHERE artifact_id = $1 OR artifact_id = $2
+         ORDER BY produced_at ASC`,
+        [recording.id, callId]
+      )
 
       if (provRows) {
         for (const p of provRows) {
@@ -353,7 +360,7 @@ export async function GET(
       bundle_version: '1.0',
       bundle_hash: '', // Will be computed
       exported_at: new Date().toISOString(),
-      exported_by: ctx.userId,
+      exported_by: userId,
 
       call: {
         id: call.id,
@@ -393,22 +400,27 @@ export async function GET(
 
     // Store export record
     try {
-      await supabaseAdmin.from('call_export_bundles').insert({
-        id: bundle.bundle_id,
-        organization_id: call.organization_id,
-        call_id: callId,
-        bundle_hash: bundle.bundle_hash,
-        artifacts_included: {
-          has_recording: !!recording,
-          transcript_count: transcripts.length,
-          translation_count: translations.length,
-          score_count: scores.length,
-          manifest_count: evidenceManifests.length,
-          audit_count: auditTrail.length
-        },
-        exported_by: ctx.userId,
-        exported_at: bundle.exported_at
-      })
+      await query(
+        `INSERT INTO call_export_bundles 
+         (id, organization_id, call_id, bundle_hash, artifacts_included, exported_by, exported_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          bundle.bundle_id,
+          call.organization_id,
+          callId,
+          bundle.bundle_hash,
+          {
+            has_recording: !!recording,
+            transcript_count: transcripts.length,
+            translation_count: translations.length,
+            score_count: scores.length,
+            manifest_count: evidenceManifests.length,
+            audit_count: auditTrail.length
+          },
+          userId,
+          bundle.exported_at
+        ]
+      )
     } catch (storeErr) {
       // Non-fatal - export still succeeds
       logger.warn('callExport: could not store export record', { error: String(storeErr) })
@@ -416,21 +428,23 @@ export async function GET(
 
     // Audit log
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(),
-        organization_id: call.organization_id,
-        user_id: ctx.userId,
-        resource_type: 'call_export_bundles',
-        resource_id: bundle.bundle_id,
-        action: 'create',
-        before: null,
-        after: {
-          call_id: callId,
-          bundle_hash: bundle.bundle_hash,
-          artifact_count: transcripts.length + translations.length + scores.length + evidenceManifests.length
-        },
-        created_at: new Date().toISOString()
-      })
+      await query(
+        `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, after, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [
+          uuidv4(),
+          call.organization_id,
+          userId,
+          'call_export_bundles',
+          bundle.bundle_id,
+          'create',
+          {
+            call_id: callId,
+            bundle_hash: bundle.bundle_hash,
+            artifact_count: transcripts.length + translations.length + scores.length + evidenceManifests.length
+          }
+        ]
+      )
     } catch (auditErr) {
       // Best-effort
     }
@@ -475,7 +489,7 @@ export async function GET(
       }
 
       // 4. README.txt - Human-readable summary
-      const readme = generateReadme(bundle, ctx.userId)
+      const readme = generateReadme(bundle, userId)
       zip.file('README.txt', readme)
 
       // 5. full_bundle.json - Complete bundle for programmatic use

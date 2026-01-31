@@ -5,8 +5,7 @@
  * Per ARCH_DOCS: Push evidence bundle links only, pull minimal metadata.
  */
 
-import { CRMService, OAuthTokens, encryptToken, decryptToken } from '../crmService'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { CRMService, OAuthTokens } from '../crmService'
 import { logger } from '@/lib/logger'
 
 // =============================================================================
@@ -366,8 +365,8 @@ export async function createNoteEngagement(params: CreateEngagementParams): Prom
 export class HubSpotService {
     private crmService: CRMService
 
-    constructor(private supabaseAdmin: SupabaseClient) {
-        this.crmService = new CRMService(supabaseAdmin)
+    constructor() {
+        this.crmService = new CRMService()
     }
 
     /**

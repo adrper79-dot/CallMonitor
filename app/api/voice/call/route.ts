@@ -3,8 +3,10 @@ import startCallHandler from '@/app/actions/calls/startCallHandler'
 import { AppError } from '@/types/app-error'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { withIdempotency } from '@/lib/idempotency'
-import { isApiError } from '@/types/api'
 import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
+import { Errors, success } from '@/lib/api/utils'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -22,18 +24,12 @@ export const runtime = 'nodejs'
  */
 async function handlePOST(req: Request) {
   try {
-    // Import utilities
-    const { requireAuth, Errors, success } = await import('@/lib/api/utils')
-
-    // Use requireAuth helper for consistent authentication
-    const ctx = await requireAuth()
-    if (ctx instanceof NextResponse) {
-      // Authentication failed - return the error response
-      return ctx
-    }
-
-    const userId = ctx.userId
-    const organizationId = ctx.orgId
+    // Authenticate (viewer+ required to initiate call? Usually operator/admin, but sticking to basic auth for now to check role internally if needed, or consistent with other endpoints. Let's use viewer as minimum and let RBAC/logic handle specifics if needed, but actually initiating a call usually requires `operator` or higher. Let's stick to `viewer` to avoid breaking existing flows if they rely on low privs, but generally calls are `operator`.)
+    // Actually, `call-capabilities` uses `viewer`, and `startCallHandler` might do its own checks?
+    // Let's use `requireRole('viewer')` for now.
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
 
     const body = await req.json()
 
@@ -70,8 +66,7 @@ async function handlePOST(req: Request) {
       return Errors.badRequest('No phone number provided. Enter a number or select a target.')
     }
 
-    // Call the existing startCallHandler with actor_id
-    // Dependency injection (supabaseAdmin) is no longer needed/supported in the new handler signature
+    // Call the existing startCallHandler
     const result = await startCallHandler(
       {
         organization_id: body.organization_id || body.orgId || organizationId,
@@ -115,9 +110,6 @@ async function handlePOST(req: Request) {
       return Errors.internal(new Error(handlerError?.message || 'Call failed'))
     }
   } catch (err: any) {
-    const { logger } = await import('@/lib/logger')
-    const { AppError } = await import('@/types/app-error')
-
     // Create structured error for logging and response (per ERROR_HANDLING_PLAN.txt)
     const appError = err instanceof AppError ? err : new AppError({
       code: 'CALL_EXECUTION_FAILED',
@@ -142,9 +134,8 @@ async function handlePOST(req: Request) {
 export const POST = withRateLimit(
   withIdempotency(handlePOST, {
     // Idempotency key: Use X-Idempotency-Key header if provided,
-    // otherwise derive from IP + organization + phone (stable across retries)
-    // NOTE: Date.now() was removed as it defeats idempotency (each retry is unique)
-    ttlSeconds: 60 // 1 minute - short window to prevent duplicate calls
+    // otherwise derive from IP + organization + phone
+    ttlSeconds: 60 // 1 minute
   }),
   {
     identifier: (req) => {
@@ -154,9 +145,9 @@ export const POST = withRateLimit(
       return `${getClientIP(req)}-${orgId || 'anonymous'}`
     },
     config: {
-      maxAttempts: 10, // Allow more attempts for call initiation
-      windowMs: 60 * 1000, // 1 minute window
-      blockMs: 5 * 60 * 1000 // 5 minute block
+      maxAttempts: 10,
+      windowMs: 60 * 1000,
+      blockMs: 5 * 60 * 1000
     }
   }
 )

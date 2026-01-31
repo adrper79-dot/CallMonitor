@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 import { AppError } from '@/types/app-error'
@@ -21,50 +21,35 @@ export const runtime = 'nodejs'
  * GET /api/campaigns/[id]/stats
  * Get campaign execution statistics
  */
+/**
+ * GET /api/campaigns/[id]/stats
+ * Get campaign execution statistics
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const session = await requireRole('viewer')
-    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const campaignId = params.id
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
+    // Verify campaign access and existence
+    const { rows: campaigns } = await query(
+      `SELECT id FROM campaigns WHERE id = $1 AND organization_id = $2`,
+      [campaignId, organizationId]
+    )
 
-    if (userError || !user?.organization_id) {
-      throw new AppError('Organization not found', 404)
-    }
-
-    const organizationId = user.organization_id
-
-    // Verify campaign access
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .select('organization_id')
-      .eq('id', campaignId)
-      .single()
-
-    if (campaignError || !campaign) {
+    if (campaigns.length === 0) {
       throw new AppError('Campaign not found', 404)
     }
 
-    if (campaign.organization_id !== organizationId) {
-      throw new AppError('Unauthorized', 403)
-    }
-
     // Get stats using database function
-    const { data: statsData, error: statsError } = await supabaseAdmin
-      .rpc('get_campaign_stats', { campaign_id_param: campaignId })
-
-    if (statsError) {
-      throw new AppError('Failed to fetch stats', 500, 'STATS_FETCH_ERROR', statsError)
-    }
+    // Equivalent to supabaseAdmin.rpc('get_campaign_stats')
+    const { rows: statsData } = await query(
+      `SELECT * FROM get_campaign_stats($1)`,
+      [campaignId]
+    )
 
     // Return first row (function returns table with one row)
     const stats = statsData && statsData.length > 0 ? statsData[0] : {

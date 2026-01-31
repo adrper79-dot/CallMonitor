@@ -1,8 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,11 +43,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Get user's organization
-        const { data: member } = await supabaseAdmin
-            .from('org_members')
-            .select('organization_id, role')
-            .eq('user_id', userId)
-            .single()
+        const { rows } = await query(
+            `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+            [userId]
+        )
+        const member = rows[0]
 
         if (!member) {
             return NextResponse.json(
@@ -72,26 +73,37 @@ export async function POST(request: NextRequest) {
         }
 
         // Create call record
-        const { v4: uuidv4 } = await import('uuid')
         const callId = uuidv4()
 
-        await supabaseAdmin.from('calls').insert({
-            id: callId,
-            organization_id: member.organization_id,
-            created_by: userId,
-            status: 'initiating',
-            caller_id_used: callerId
-        })
+        await query(
+            `INSERT INTO calls (id, organization_id, created_by, status, caller_id_used, created_at)
+             VALUES ($1, $2, $3, 'initiating', $4, NOW())`,
+            [callId, member.organization_id, userId, callerId],
+            { organizationId: member.organization_id }
+        )
+
+        // Audit log: call initiation
+        try {
+            await query(
+                `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+             VALUES ($1, $2, $3, 'call', $4, 'call.dial', 'human', $3, $5, NOW())`,
+                [
+                    uuidv4(),
+                    member.organization_id,
+                    userId,
+                    callId,
+                    JSON.stringify({ phoneNumber: phoneNumber, method: 'webrtc' })
+                ]
+            )
+        } catch { /* Best effort */ }
 
         // Update WebRTC session if provided
         if (sessionId) {
-            await supabaseAdmin
-                .from('webrtc_sessions')
-                .update({
-                    call_id: callId,
-                    status: 'on_call'
-                })
-                .eq('id', sessionId)
+            await query(
+                `UPDATE webrtc_sessions SET call_id = $1, status = 'on_call', updated_at = NOW() 
+                 WHERE id = $2`,
+                [callId, sessionId]
+            )
         }
 
 
@@ -140,13 +152,16 @@ export async function POST(request: NextRequest) {
         if (!response.ok) {
             const errorText = await response.text()
             let parsedError = {};
-            try { parsedError = JSON.parse(errorText || '{}'); } catch {}
+            try { parsedError = JSON.parse(errorText || '{}'); } catch { }
             if ((parsedError as any).code === '21211') {
                 logger.error('[WebRTC Dial] Missing To parameter', { requestBody });
             }
             logger.error('[WebRTC Dial] SignalWire Error', { status: response.status, error: errorText, requestBody })
 
-            await supabaseAdmin.from('calls').update({ status: 'failed' }).eq('id', callId)
+            await query(
+                `UPDATE calls SET status = 'failed', updated_at = NOW() WHERE id = $1`,
+                [callId]
+            )
 
             return NextResponse.json(
                 { success: false, error: { code: 'SIGNALWIRE_ERROR', message: `Dial failed: ${response.status}`, details: parsedError } },
@@ -157,11 +172,11 @@ export async function POST(request: NextRequest) {
         const data = await response.json()
 
         // Update call record
-        await supabaseAdmin.from('calls').update({
-            status: 'in-progress',
-            call_sid: data.sid,
-            started_at: new Date().toISOString()
-        }).eq('id', callId)
+        await query(
+            `UPDATE calls SET status = 'in-progress', call_sid = $1, started_at = NOW(), updated_at = NOW()
+             WHERE id = $2`,
+            [data.sid, callId]
+        )
 
         logger.info('[WebRTC Dial] PSTN call initiated', { callId, callSid: data.sid })
 
@@ -207,22 +222,37 @@ export async function DELETE(request: NextRequest) {
             )
         }
 
-        const { error: updateError } = await supabaseAdmin
-            .from('calls')
-            .update({
-                status: 'completed',
-                ended_at: new Date().toISOString()
-            })
-            .eq('id', callId)
-            .eq('created_by', userId)
+        const { rowCount, rows } = await query(
+            `UPDATE calls SET status = 'completed', ended_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND created_by = $2 RETURNING organization_id`,
+            [callId, userId]
+        )
 
-        if (updateError) {
-            logger.error('[WebRTC Dial] Failed to end call', { callId, error: updateError })
+        if (rowCount === 0) {
+            logger.error('[WebRTC Dial] Failed to end call - not found or unauthorized', { callId })
             return NextResponse.json(
                 { success: false, error: { code: 'DB_ERROR', message: 'Failed to end call' } },
                 { status: 500 }
             )
         }
+
+        // Audit log: call ended
+        try {
+            const orgId = rows[0]?.organization_id
+            if (orgId) {
+                await query(
+                    `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, after, created_at)
+               VALUES ($1, $2, $3, 'call', $4, 'call.end', 'human', $3, $5, NOW())`,
+                    [
+                        uuidv4(),
+                        orgId,
+                        userId,
+                        callId,
+                        JSON.stringify({ status: 'completed' })
+                    ]
+                )
+            }
+        } catch { /* Best effort */ }
 
         logger.info('[WebRTC Dial] Call ended', { callId })
 

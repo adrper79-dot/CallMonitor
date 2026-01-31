@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -11,14 +12,15 @@ export async function GET(req: NextRequest) {
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
-    const { data, error } = await supabaseAdmin
-      .from('scorecards')
-      .select('id,name,description,structure,created_at')
-      .eq('organization_id', ctx.orgId)
-      .order('created_at', { ascending: false })
-      .limit(50)
+    const { rows: data } = await query(
+      `SELECT id, name, description, structure, created_at 
+       FROM scorecards 
+       WHERE organization_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 50`,
+      [ctx.orgId]
+    )
 
-    if (error) throw error
     return success({ scorecards: data || [] })
   } catch (err: any) {
     logger.error('GET /api/scorecards error', err)
@@ -40,28 +42,32 @@ export async function POST(req: NextRequest) {
       return Errors.badRequest('Scorecard name and criteria are required')
     }
 
-    const { data: orgRows, error: orgErr } = await supabaseAdmin
-      .from('organizations')
-      .select('tool_id')
-      .eq('id', ctx.orgId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT tool_id FROM organizations WHERE id = $1 LIMIT 1`,
+      [ctx.orgId]
+    )
 
-    if (orgErr || !orgRows?.[0]?.tool_id) {
+    if (!orgRows?.[0]?.tool_id) {
       return Errors.internal(new Error('Organization tool_id not found'))
     }
 
-    const { error } = await supabaseAdmin.from('scorecards').insert({
-      organization_id: ctx.orgId,
-      name,
-      description,
-      structure,
-      tool_id: orgRows[0].tool_id,
-      created_by: ctx.userId,
-      is_template: false
-    })
+    const scorecardId = uuidv4()
+    await query(
+      `INSERT INTO scorecards (id, organization_id, name, description, structure, tool_id, created_by, is_template)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        scorecardId,
+        ctx.orgId,
+        name,
+        description,
+        JSON.stringify(structure),
+        orgRows[0].tool_id,
+        ctx.userId,
+        false
+      ]
+    )
 
-    if (error) throw error
-    return success({ ok: true })
+    return success({ ok: true, id: scorecardId })
   } catch (err: any) {
     logger.error('POST /api/scorecards error', err)
     return Errors.internal(err)

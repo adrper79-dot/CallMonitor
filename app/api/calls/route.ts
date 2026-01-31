@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { withRateLimit, getClientIP } from '@/lib/rateLimit'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
 
-// Force dynamic rendering - uses headers via getServerSession
+// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 async function handleGET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-    if (!userId) {
-      return ApiErrors.unauthorized()
-    }
+    // Authenticate and get user context
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const userOrgId = session.user.organizationId
 
     const searchParams = req.nextUrl.searchParams
     const orgId = searchParams.get('orgId')
@@ -25,60 +23,52 @@ async function handleGET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = (page - 1) * limit
 
-    if (!orgId) {
-      return ApiErrors.badRequest('orgId is required')
+    // If orgId is provided, verify it matches user's org (or user is super-admin - but for now strict isolation)
+    if (orgId && orgId !== userOrgId) {
+      return ApiErrors.forbidden('Unauthorized access to organization data')
     }
 
-    // SECURITY: Verify user belongs to the requested organization
-    const { data: membershipRows } = await supabaseAdmin
-      .from('org_members')
-      .select('id')
-      .eq('organization_id', orgId)
-      .eq('user_id', userId)
-      .limit(1)
+    // Use organizationId from session if not provided param, or verified param
+    const targetOrgId = orgId || userOrgId
 
-    if (!membershipRows || membershipRows.length === 0) {
-      return ApiErrors.notFound('Organization not found') // 404 prevents org probing
-    }
-
-    let query = (supabaseAdmin as any)
-      .from('calls')
-      .select('id,organization_id,system_id,status,started_at,ended_at,created_by,call_sid', { count: 'exact' })
-      .eq('organization_id', orgId)
-      .order('started_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    // Build Query
+    let sql = `
+      SELECT 
+        id, organization_id, system_id, status, started_at, ended_at, created_by, call_sid,
+        COUNT(*) OVER() as total_count
+      FROM calls
+      WHERE organization_id = $1
+    `
+    const params: any[] = [targetOrgId]
 
     if (status && status !== 'all') {
       if (status === 'active') {
-        query = query.in('status', ['in_progress', 'ringing'])
+        sql += ` AND status IN ('in_progress', 'ringing')`
       } else {
-        query = query.eq('status', status)
+        sql += ` AND status = $${params.length + 1}`
+        params.push(status)
       }
     }
 
-    const { data, error, count } = await query
+    sql += ` ORDER BY started_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
 
-    // If table doesn't exist (42P01 error), return empty array instead of failing
-    if (error) {
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        logger.info('calls table does not exist yet, returning empty array', { orgId })
-        return NextResponse.json({
-          success: true,
-          calls: [],
-          pagination: { page, limit, total: 0, totalPages: 0 },
-        })
-      }
-      throw error
-    }
+    const { rows } = await query(sql, params)
+
+    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0
+    const calls = rows.map(row => {
+      const { total_count, ...call } = row
+      return call
+    })
 
     return NextResponse.json({
       success: true,
-      calls: data || [],
+      calls,
       pagination: {
         page,
         limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     })
   } catch (err: any) {

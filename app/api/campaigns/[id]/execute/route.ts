@@ -9,12 +9,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query, withTransaction } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
-import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+import { ApiErrors } from '@/lib/errors/apiHandler'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -28,37 +26,25 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
+    // Role check - must be owner or admin
+    // requireRole handles session retrieval and db check for org/role
+    const session = await requireRole(['owner', 'admin'])
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const campaignId = params.id
 
-    // Get user's organization and role
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
-      .single()
+    // Get campaign with caller_id phone number
+    const { rows: campaigns } = await query(
+      `SELECT c.*, cid.phone_number as caller_id_phone 
+       FROM campaigns c
+       LEFT JOIN caller_ids cid ON c.caller_id_id = cid.id
+       WHERE c.id = $1 AND c.organization_id = $2`,
+      [campaignId, organizationId],
+      { organizationId }
+    )
+    const campaign = campaigns[0]
 
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
-
-    // Role check - must be owner or admin
-    await requireRole(['owner', 'admin'])
-
-    // Get campaign
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .select('*, caller_id:caller_ids(id, phone_number)')
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-      .single()
-
-    if (campaignError || !campaign) {
+    if (!campaign) {
       return ApiErrors.notFound('Campaign')
     }
 
@@ -68,80 +54,99 @@ export async function POST(
     }
 
     // Validate required fields
-    if (!campaign.caller_id) {
+    if (!campaign.caller_id_id) { // Checked via ID existence, effectively check if linked
       return ApiErrors.badRequest('Campaign must have a caller ID before execution')
     }
 
-    if (campaign.target_list.length === 0) {
-      return ApiErrors.badRequest('Campaign must have at least one target')
+    // Check targets count
+    if ((campaign.total_targets || 0) === 0) {
+      // Double check actual calls count just in case total_targets is out of sync
+      const { rows: countRows } = await query(
+        `SELECT COUNT(*) as count FROM campaign_calls WHERE campaign_id = $1`,
+        [campaignId]
+      )
+      if (parseInt(countRows[0].count) === 0) {
+        return ApiErrors.badRequest('Campaign must have at least one target')
+      }
     }
 
-    // Update campaign status to active
-    const { data: updatedCampaign, error: updateError } = await supabaseAdmin
-      .from('campaigns')
-      .update({
-        status: 'active',
-        started_at: campaign.started_at || new Date().toISOString()
-      })
-      .eq('id', campaignId)
-      .select()
-      .single()
+    // Count pending calls for reference
+    const { rows: pendingRows } = await query(
+      `SELECT COUNT(*) as count FROM campaign_calls 
+       WHERE campaign_id = $1 AND status = 'pending'`,
+      [campaignId]
+    )
+    const pendingCount = parseInt(pendingRows[0].count)
 
-    if (updateError) {
-      logger.error('Error updating campaign status', updateError, { campaignId })
-      return ApiErrors.dbError('Failed to start campaign')
-    }
+    // Update campaign status and log in transaction
+    const updatedCampaign = await withTransaction(async (client) => {
+      // Update status
+      const { rows: updated } = await client.query(
+        `UPDATE campaigns 
+         SET status = 'active', 
+             started_at = COALESCE(started_at, NOW()),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [campaignId]
+      )
 
-    // Get pending calls
-    const { data: pendingCalls, error: callsError } = await supabaseAdmin
-      .from('campaign_calls')
-      .select('id, target_phone, target_metadata, attempt_number, max_attempts')
-      .eq('campaign_id', campaignId)
-      .eq('status', 'pending')
-      .limit(100) // Process first 100 calls
+      if (!updated.length) {
+        throw new Error('Failed to update campaign status')
+      }
 
-    if (callsError) {
-      logger.error('Error fetching pending calls', callsError, { campaignId })
-      return ApiErrors.dbError('Failed to fetch pending calls')
-    }
+      // Audit Log
+      await client.query(
+        `INSERT INTO campaign_audit_log (campaign_id, user_id, action, changes, created_at)
+         VALUES ($1, $2, 'started', $3, NOW())`,
+        [
+          campaignId,
+          userId,
+          JSON.stringify({
+            campaign: updated[0],
+            pending_calls_count: pendingCount
+          })
+        ]
+      )
 
-    // Log audit event
-    await supabaseAdmin.from('campaign_audit_log').insert({
-      campaign_id: campaignId,
-      user_id: userId,
-      action: 'started',
-      changes: { campaign: updatedCampaign, pending_calls: pendingCalls?.length }
-    })
+      return updated[0]
+    }, { organizationId, userId })
 
     // Queue campaign for execution via campaign executor
     // This will handle rate limiting, retries, and progress tracking
     const { queueCampaignExecution } = await import('@/lib/services/campaignExecutor')
-    
+
     // Queue the campaign (non-blocking - runs in background)
-    queueCampaignExecution(campaignId).catch(error => {
+    queueCampaignExecution(campaignId).catch(async (error) => {
       logger.error('Campaign execution error', error, { campaignId })
       // Log to audit but don't fail the API response
-      void supabaseAdmin.from('campaign_audit_log').insert({
-        campaign_id: campaignId,
-        user_id: userId,
-        action: 'execution_error',
-        changes: { error: error.message }
-      })
+      try {
+        await query(
+          `INSERT INTO campaign_audit_log (campaign_id, user_id, action, changes, created_at)
+             VALUES ($1, $2, 'execution_error', $3, NOW())`,
+          [campaignId, userId, JSON.stringify({ error: error.message })]
+        )
+      } catch (e) {
+        logger.error('Failed to log execution error audit', e)
+      }
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       campaign: updatedCampaign,
-      message: `Campaign started with ${pendingCalls?.length || 0} pending calls`,
+      message: `Campaign started with ${pendingCount} pending calls`,
       execution: {
         campaign_id: campaignId,
         status: 'active',
-        pending_calls: pendingCalls?.length || 0,
+        pending_calls: pendingCount,
         note: 'Campaign execution engine is processing calls with rate limiting and retry logic'
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error in POST /api/campaigns/[id]/execute', error)
+    if (error.code === 'UNAUTHORIZED' || error.statusCode === 403) {
+      return ApiErrors.forbidden('Insufficient permissions')
+    }
     return ApiErrors.internal('Internal server error')
   }
 }

@@ -6,11 +6,12 @@
  */
 
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/api/utils'
 import { Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
+import { v4 as uuidv4 } from 'uuid'
 
 export const runtime = 'nodejs'
 
@@ -37,44 +38,39 @@ export async function GET() {
   try {
     const ctx = await requireRole(['owner', 'admin'])
     if (ctx instanceof NextResponse) return ctx
-    
-    const { data, error } = await supabaseAdmin
-      .from('legal_holds')
-      .select(`
-        *,
-        created_by_user:users!legal_holds_created_by_fkey(email),
-        released_by_user:users!legal_holds_released_by_fkey(email)
-      `)
-      .eq('organization_id', ctx.orgId)
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      logger.error('Failed to fetch legal holds', error, { orgId: ctx.orgId })
-      return Errors.internal(error)
-    }
-    
+
+    const { rows: holds } = await query(
+      `SELECT lh.*, 
+              (SELECT email FROM users WHERE id = lh.created_by) as created_by_email,
+              (SELECT email FROM users WHERE id = lh.released_by) as released_by_email
+       FROM legal_holds lh
+       WHERE lh.organization_id = $1
+       ORDER BY lh.created_at DESC`,
+      [ctx.orgId]
+    )
+
     // Get counts of affected calls
     const holdsWithCounts = await Promise.all(
-      (data || []).map(async (hold) => {
+      (holds || []).map(async (hold: any) => {
         let affectedCount = 0
-        
+
         if (hold.applies_to_all) {
-          const { count } = await supabaseAdmin
-            .from('calls')
-            .select('*', { count: 'exact', head: true })
-            .eq('organization_id', ctx.orgId)
-          affectedCount = count || 0
+          const { rows: countRows } = await query(
+            `SELECT COUNT(*) as count FROM calls WHERE organization_id = $1`,
+            [ctx.orgId]
+          )
+          affectedCount = parseInt(countRows?.[0]?.count || '0', 10)
         } else if (hold.call_ids?.length > 0) {
           affectedCount = hold.call_ids.length
         }
-        
+
         return {
           ...hold,
           affected_call_count: affectedCount,
         }
       })
     )
-    
+
     return success({ legal_holds: holdsWithCounts })
   } catch (err) {
     logger.error('Legal holds GET error', err)
@@ -90,74 +86,69 @@ export async function POST(req: Request) {
   try {
     const ctx = await requireRole(['owner', 'admin'])
     if (ctx instanceof NextResponse) return ctx
-    
+
     const body = await req.json()
     const parsed = createHoldSchema.safeParse(body)
-    
+
     if (!parsed.success) {
       return Errors.badRequest('Invalid hold data: ' + parsed.error.message)
     }
-    
+
     const holdData = parsed.data
-    
+
     // Validate call_ids if provided
     if (holdData.call_ids && holdData.call_ids.length > 0) {
-      const { data: validCalls, error: validErr } = await supabaseAdmin
-        .from('calls')
-        .select('id')
-        .eq('organization_id', ctx.orgId)
-        .in('id', holdData.call_ids)
-      
-      if (validErr || !validCalls || validCalls.length !== holdData.call_ids.length) {
+      const { rows: validCalls } = await query(
+        `SELECT id FROM calls WHERE organization_id = $1 AND id = ANY($2)`,
+        [ctx.orgId, holdData.call_ids]
+      )
+
+      if (!validCalls || validCalls.length !== holdData.call_ids.length) {
         return Errors.badRequest('Some call IDs are invalid or not in your organization')
       }
     }
-    
+
+    const holdId = uuidv4()
+
     // Create the hold
-    const { data, error } = await supabaseAdmin
-      .from('legal_holds')
-      .insert({
-        organization_id: ctx.orgId,
-        hold_name: holdData.hold_name,
-        matter_reference: holdData.matter_reference,
-        description: holdData.description,
-        applies_to_all: holdData.applies_to_all,
-        call_ids: holdData.call_ids || [],
-        effective_until: holdData.effective_until,
-        created_by: ctx.userId,
-      })
-      .select()
-      .single()
-    
-    if (error) {
-      logger.error('Failed to create legal hold', error, { orgId: ctx.orgId })
-      return Errors.internal(error)
-    }
-    
+    const { rows: newHoldRows } = await query(
+      `INSERT INTO legal_holds (
+        id, organization_id, hold_name, matter_reference, description, 
+        applies_to_all, call_ids, effective_until, created_by, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', NOW())
+      RETURNING *`,
+      [
+        holdId, ctx.orgId, holdData.hold_name, holdData.matter_reference || null,
+        holdData.description || null, holdData.applies_to_all, holdData.call_ids || [],
+        holdData.effective_until || null, ctx.userId
+      ]
+    )
+
+    const data = newHoldRows[0]
+
     // Audit log
-    await supabaseAdmin.from('audit_logs').insert({
-      organization_id: ctx.orgId,
-      user_id: ctx.userId,
-      resource_type: 'legal_hold',
-      resource_id: data.id,
-      action: 'retention:legal_hold.create',
-      actor_type: 'human',
-      actor_label: ctx.userId,
-      after: {
-        hold_name: holdData.hold_name,
-        applies_to_all: holdData.applies_to_all,
-        call_count: holdData.call_ids?.length || 0,
-      },
-      created_at: new Date().toISOString(),
-    })
-    
+    await query(
+      `INSERT INTO audit_logs (
+        id, organization_id, user_id, resource_type, resource_id, action, 
+        actor_type, actor_label, after, created_at
+      ) VALUES ($1, $2, $3, 'legal_hold', $4, 'retention:legal_hold.create', 'human', $5, $6, NOW())`,
+      [
+        uuidv4(), ctx.orgId, ctx.userId, data.id, ctx.userId,
+        JSON.stringify({
+          hold_name: holdData.hold_name,
+          applies_to_all: holdData.applies_to_all,
+          call_count: holdData.call_ids?.length || 0
+        })
+      ]
+    )
+
     logger.info('Legal hold created', {
       orgId: ctx.orgId,
       holdId: data.id,
       holdName: holdData.hold_name,
       appliesToAll: holdData.applies_to_all,
     })
-    
+
     return success({ legal_hold: data, message: 'Legal hold created' }, 201)
   } catch (err) {
     logger.error('Legal holds POST error', err)
@@ -173,99 +164,94 @@ export async function DELETE(req: Request) {
   try {
     const ctx = await requireRole(['owner', 'admin'])
     if (ctx instanceof NextResponse) return ctx
-    
+
     const body = await req.json()
     const parsed = releaseHoldSchema.safeParse(body)
-    
+
     if (!parsed.success) {
       return Errors.badRequest('Invalid release data: ' + parsed.error.message)
     }
-    
+
     const { hold_id, release_reason } = parsed.data
-    
+
     // Verify hold exists and belongs to org
-    const { data: existingHold, error: fetchErr } = await supabaseAdmin
-      .from('legal_holds')
-      .select('*')
-      .eq('id', hold_id)
-      .eq('organization_id', ctx.orgId)
-      .single()
-    
-    if (fetchErr || !existingHold) {
+    const { rows: holdRows } = await query(
+      `SELECT * FROM legal_holds WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [hold_id, ctx.orgId]
+    )
+    const existingHold = holdRows?.[0]
+
+    if (!existingHold) {
       return Errors.notFound('Legal hold not found')
     }
-    
+
     if (existingHold.status === 'released') {
       return Errors.badRequest('Legal hold is already released')
     }
-    
+
     // Release the hold
-    const { data, error } = await supabaseAdmin
-      .from('legal_holds')
-      .update({
-        status: 'released',
-        released_at: new Date().toISOString(),
-        released_by: ctx.userId,
-        release_reason,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', hold_id)
-      .select()
-      .single()
-    
-    if (error) {
-      logger.error('Failed to release legal hold', error, { holdId: hold_id })
-      return Errors.internal(error)
-    }
-    
+    const { rows: updatedRows } = await query(
+      `UPDATE legal_holds SET 
+        status = 'released', 
+        released_at = NOW(), 
+        released_by = $1, 
+        release_reason = $2, 
+        updated_at = NOW() 
+       WHERE id = $3 
+       RETURNING *`,
+      [ctx.userId, release_reason, hold_id]
+    )
+
+    const data = updatedRows[0]
+
     // Remove legal hold flags from affected calls (unless under another hold)
     if (existingHold.call_ids?.length > 0) {
       // Check if any calls are under other active holds
-      const { data: otherHolds } = await supabaseAdmin
-        .from('legal_holds')
-        .select('call_ids')
-        .eq('organization_id', ctx.orgId)
-        .eq('status', 'active')
-        .neq('id', hold_id)
-      
-      const stillHeldCallIds = new Set(
-        (otherHolds || []).flatMap(h => h.call_ids || [])
+      const { rows: otherHolds } = await query(
+        `SELECT call_ids FROM legal_holds 
+         WHERE organization_id = $1 AND status = 'active' AND id != $2`,
+        [ctx.orgId, hold_id]
       )
-      
+
+      const stillHeldCallIds = new Set(
+        (otherHolds || []).flatMap((h: any) => h.call_ids || [])
+      )
+
       const callsToRelease = existingHold.call_ids.filter(
         (id: string) => !stillHeldCallIds.has(id)
       )
-      
+
       if (callsToRelease.length > 0) {
-        await supabaseAdmin
-          .from('calls')
-          .update({
-            legal_hold_flag: false,
-            custody_status: 'active',
-            retention_class: 'default',
-          })
-          .in('id', callsToRelease)
+        await query(
+          `UPDATE calls SET 
+            legal_hold_flag = false, 
+            custody_status = 'active', 
+            retention_class = 'default' 
+           WHERE id = ANY($1)`,
+          [callsToRelease]
+        )
       }
     }
-    
+
     // Audit log
-    await supabaseAdmin.from('audit_logs').insert({
-      organization_id: ctx.orgId,
-      user_id: ctx.userId,
-      resource_type: 'legal_hold',
-      resource_id: hold_id,
-      action: 'retention:legal_hold.release',
-      before: { status: 'active' },
-      after: { status: 'released', release_reason },
-      created_at: new Date().toISOString(),
-    })
-    
+    await query(
+      `INSERT INTO audit_logs (
+        id, organization_id, user_id, resource_type, resource_id, action, 
+        before, after, created_at
+      ) VALUES ($1, $2, $3, 'legal_hold', $4, 'retention:legal_hold.release', $5, $6, NOW())`,
+      [
+        uuidv4(), ctx.orgId, ctx.userId, hold_id,
+        JSON.stringify({ status: 'active' }),
+        JSON.stringify({ status: 'released', release_reason })
+      ]
+    )
+
     logger.info('Legal hold released', {
       orgId: ctx.orgId,
       holdId: hold_id,
       releaseReason: release_reason,
     })
-    
+
     return success({ legal_hold: data, message: 'Legal hold released' })
   } catch (err) {
     logger.error('Legal holds DELETE error', err)

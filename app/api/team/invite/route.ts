@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireRole, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 import { sendEmail } from '@/app/services/emailService'
@@ -16,6 +16,8 @@ export const runtime = 'nodejs'
 async function handlePOST(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
+  const organizationId = ctx.user.organizationId
+  const userId = ctx.user.id
 
   try {
     const body = await req.json()
@@ -36,35 +38,31 @@ async function handlePOST(req: Request) {
     }
 
     // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .limit(1)
+    const { rows: existingUsers } = await query(
+      `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+      [email]
+    )
 
-    if (existingUsers?.[0]) {
-      const { data: existingMember } = await supabaseAdmin
-        .from('org_members')
-        .select('id')
-        .eq('organization_id', ctx.orgId)
-        .eq('user_id', existingUsers[0].id)
-        .limit(1)
+    if (existingUsers.length > 0) {
+      const { rows: existingMember } = await query(
+        `SELECT id FROM org_members WHERE organization_id = $1 AND user_id = $2 LIMIT 1`,
+        [organizationId, existingUsers[0].id]
+      )
 
-      if (existingMember?.[0]) {
+      if (existingMember.length > 0) {
         return Errors.badRequest('User is already a member of this organization')
       }
     }
 
     // Check for pending invite
-    const { data: pendingInvites } = await supabaseAdmin
-      .from('team_invites')
-      .select('id')
-      .eq('organization_id', ctx.orgId)
-      .eq('email', email)
-      .eq('status', 'pending')
-      .limit(1)
+    const { rows: pendingInvites } = await query(
+      `SELECT id FROM team_invites 
+       WHERE organization_id = $1 AND email = $2 AND status = 'pending' 
+       LIMIT 1`,
+      [organizationId, email]
+    )
 
-    if (pendingInvites?.[0]) {
+    if (pendingInvites.length > 0) {
       return Errors.badRequest('An invitation is already pending for this email')
     }
 
@@ -74,33 +72,20 @@ async function handlePOST(req: Request) {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
-    const { error: insertErr } = await supabaseAdmin
-      .from('team_invites')
-      .insert({
-        id: inviteId,
-        organization_id: ctx.orgId,
-        email,
-        role,
-        token,
-        status: 'pending',
-        invited_by: ctx.userId,
-        created_at: new Date().toISOString(),
-        expires_at: expiresAt.toISOString()
-      })
-
-    if (insertErr) {
-      logger.error('Failed to create invite', insertErr)
-      return Errors.internal(insertErr)
-    }
+    await query(
+      `INSERT INTO team_invites (
+         id, organization_id, email, role, token, status, invited_by, created_at, expires_at
+       ) VALUES ($1, $2, $3, $4, $5, 'pending', $6, NOW(), $7)`,
+      [inviteId, organizationId, email, role, token, userId, expiresAt.toISOString()]
+    )
 
     // Get org name
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('name')
-      .eq('id', ctx.orgId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT name FROM organizations WHERE id = $1 LIMIT 1`,
+      [organizationId]
+    )
 
-    const orgName = orgRows?.[0]?.name || 'Your organization'
+    const orgName = orgRows[0]?.name || 'Your organization'
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.callmonitor.com'
     const inviteUrl = `${appUrl}/invite/${token}`
 
@@ -132,9 +117,9 @@ async function handlePOST(req: Request) {
       logger.warn('Failed to send invite email', { email, error: emailResult.error })
     }
 
-    logger.info('Team invite created', { inviteId, email, role, orgId: ctx.orgId })
+    logger.info('Team invite created', { inviteId, email, role, orgId: organizationId })
 
-    return success({ 
+    return success({
       message: 'Invitation sent',
       invite_id: inviteId,
       email_sent: emailResult.success
@@ -152,6 +137,7 @@ async function handlePOST(req: Request) {
 async function handleDELETE(req: Request) {
   const ctx = await requireRole(['owner', 'admin'])
   if (ctx instanceof NextResponse) return ctx
+  const organizationId = ctx.user.organizationId
 
   const { searchParams } = new URL(req.url)
   const inviteId = searchParams.get('invite_id')
@@ -160,18 +146,17 @@ async function handleDELETE(req: Request) {
     return Errors.badRequest('Invite ID required')
   }
 
-  const { error: deleteErr } = await supabaseAdmin
-    .from('team_invites')
-    .update({ status: 'cancelled' })
-    .eq('id', inviteId)
-    .eq('organization_id', ctx.orgId)
-    .eq('status', 'pending')
+  try {
+    await query(
+      `UPDATE team_invites SET status = 'cancelled' 
+       WHERE id = $1 AND organization_id = $2 AND status = 'pending'`,
+      [inviteId, organizationId]
+    )
 
-  if (deleteErr) {
-    return Errors.internal(deleteErr)
+    return success({ message: 'Invitation cancelled' })
+  } catch (err: any) {
+    return Errors.internal(err)
   }
-
-  return success({ message: 'Invitation cancelled' })
 }
 
 // Rate limiting configuration for team invite operations

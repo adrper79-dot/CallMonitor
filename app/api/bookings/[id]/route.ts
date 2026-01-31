@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { v4 as uuidv4 } from 'uuid'
 import { requireAuth, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
@@ -16,9 +16,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (ctx instanceof NextResponse) return ctx
 
     const { id } = await params
-      .single()
 
-    if (error || !booking) {
+    const { rows } = await query(
+      `SELECT * FROM booking_events WHERE id = $1 LIMIT 1`,
+      [id]
+    )
+    const booking = rows?.[0]
+
+    if (!booking) {
       return Errors.notFound('Booking')
     }
 
@@ -44,13 +49,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json()
     const { id } = await params
 
-    const { data: existing, error: fetchError } = await supabaseAdmin
-      .from('booking_events')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const { rows } = await query(
+      `SELECT * FROM booking_events WHERE id = $1 LIMIT 1`,
+      [id]
+    )
+    const existing = rows?.[0]
 
-    if (fetchError || !existing) {
+    if (!existing) {
       return Errors.notFound('Booking')
     }
 
@@ -63,42 +68,54 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const allowedFields = [
-      'title', 'description', 'start_time', 'end_time', 
-      'duration_minutes', 'timezone', 'attendee_name', 
+      'title', 'description', 'start_time', 'end_time',
+      'duration_minutes', 'timezone', 'attendee_name',
       'attendee_email', 'attendee_phone', 'modulations', 'notes', 'status'
     ]
-    
+
+    const updates: any[] = []
+    const values: any[] = []
     const updatePayload: any = {}
+
     for (const key of allowedFields) {
-      if (body[key] !== undefined) updatePayload[key] = body[key]
+      if (body[key] !== undefined) {
+        updatePayload[key] = body[key]
+        updates.push(`${key} = $${values.length + 1}`)
+        values.push(key === 'modulations' ? JSON.stringify(body[key]) : body[key])
+      }
     }
 
     if (updatePayload.start_time && new Date(updatePayload.start_time) <= new Date()) {
       return Errors.badRequest('start_time must be in the future')
     }
 
-    const { data: booking, error: updateError } = await supabaseAdmin
-      .from('booking_events')
-      .update(updatePayload)
-      .eq('id', id)
-      .select()
-      .single()
+    if (updates.length > 0) {
+      values.push(id)
+      const { rows: updatedRows } = await query(
+        `UPDATE booking_events SET ${updates.join(', ')} WHERE id = $${values.length} RETURNING *`,
+        values
+      )
 
-    if (updateError) {
-      logger.error('PATCH /api/bookings/[id] error', updateError)
-      return Errors.internal(updateError)
+      const booking = updatedRows[0]
+
+      try {
+        await query(
+          `INSERT INTO audit_logs (
+            id, organization_id, user_id, resource_type, resource_id, action, 
+            before, after, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+          [
+            uuidv4(), existing.organization_id, ctx.userId, 'booking_events', id, 'update',
+            JSON.stringify({ status: existing.status, start_time: existing.start_time }),
+            JSON.stringify(updatePayload)
+          ]
+        )
+      } catch { /* Best effort */ }
+
+      return success({ booking })
     }
 
-    try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
-        resource_type: 'booking_events', resource_id: id, action: 'update',
-        before: { status: existing.status, start_time: existing.start_time },
-        after: updatePayload, created_at: new Date().toISOString()
-      })
-    } catch { /* Best effort */ }
-
-    return success({ booking })
+    return success({ booking: existing })
   } catch (error: any) {
     logger.error('PATCH /api/bookings/[id] error', error)
     return Errors.internal(error)
@@ -115,13 +132,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const { id } = await params
 
-    const { data: existing, error: fetchError } = await supabaseAdmin
-      .from('booking_events')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const { rows } = await query(
+      `SELECT * FROM booking_events WHERE id = $1 LIMIT 1`,
+      [id]
+    )
+    const existing = rows?.[0]
 
-    if (fetchError || !existing) {
+    if (!existing) {
       return Errors.notFound('Booking')
     }
 
@@ -138,23 +155,23 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return Errors.badRequest('Cannot delete a booking while call is in progress')
     }
 
-    const { error: deleteError } = await supabaseAdmin
-      .from('booking_events')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-
-    if (deleteError) {
-      logger.error('DELETE /api/bookings/[id] error', deleteError)
-      return Errors.internal(deleteError)
-    }
+    await query(
+      `UPDATE booking_events SET status = 'cancelled' WHERE id = $1`,
+      [id]
+    )
 
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(), organization_id: existing.organization_id, user_id: ctx.userId,
-        resource_type: 'booking_events', resource_id: id, action: 'delete',
-        before: { status: existing.status }, after: { status: 'cancelled' },
-        created_at: new Date().toISOString()
-      })
+      await query(
+        `INSERT INTO audit_logs (
+          id, organization_id, user_id, resource_type, resource_id, action, 
+          before, after, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          uuidv4(), existing.organization_id, ctx.userId, 'booking_events', id, 'delete',
+          JSON.stringify({ status: existing.status }),
+          JSON.stringify({ status: 'cancelled' })
+        ]
+      )
     } catch { /* Best effort */ }
 
     return success({ message: 'Booking cancelled' })

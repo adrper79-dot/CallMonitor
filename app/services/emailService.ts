@@ -2,8 +2,9 @@
  * Email Service - Sends emails with artifact attachments using Resend.
  */
 
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { logger } from '@/lib/logger'
+import crypto from 'node:crypto'
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
 
@@ -84,11 +85,10 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
   const { callId, organizationId, recipientEmail, includeRecording = true, includeTranscript = true, includeTranslation = true } = options
 
   try {
-    const { data: callRows } = await supabaseAdmin
-      .from('calls')
-      .select('id, started_at, ended_at, status')
-      .eq('id', callId)
-      .limit(1)
+    const { rows: callRows } = await query(
+      `SELECT id, started_at, ended_at, status FROM calls WHERE id = $1 LIMIT 1`,
+      [callId]
+    )
 
     const call = callRows?.[0]
     if (!call) {
@@ -99,11 +99,10 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     const artifactSummary: string[] = []
 
     if (includeRecording) {
-      const { data: recRows } = await supabaseAdmin
-        .from('recordings')
-        .select('id, recording_url, duration, created_at')
-        .eq('call_id', callId)
-        .limit(1)
+      const { rows: recRows } = await query(
+        `SELECT id, recording_url, duration_seconds as duration, created_at FROM recordings WHERE call_id = $1 LIMIT 1`,
+        [callId]
+      )
 
       const recording = recRows?.[0]
       if (recording?.recording_url) {
@@ -128,11 +127,10 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     }
 
     if (includeTranscript) {
-      const { data: recRows } = await supabaseAdmin
-        .from('recordings')
-        .select('transcript_json')
-        .eq('call_id', callId)
-        .limit(1)
+      const { rows: recRows } = await query(
+        `SELECT transcript_json FROM recordings WHERE call_id = $1 AND transcript_json IS NOT NULL LIMIT 1`,
+        [callId]
+      )
 
       const transcriptJson = recRows?.[0]?.transcript_json
       if (transcriptJson) {
@@ -161,13 +159,14 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
     }
 
     if (includeTranslation) {
-      const { data: aiRows } = await supabaseAdmin
-        .from('ai_runs')
-        .select('output, status')
-        .eq('call_id', callId)
-        .in('model', ['assemblyai-translation', 'openai-translation'])
-        .eq('status', 'completed')
-        .limit(1)
+      const { rows: aiRows } = await query(
+        `SELECT output, status FROM ai_runs 
+         WHERE call_id = $1 
+         AND model IN ('assemblyai-translation', 'openai-translation')
+         AND status = 'completed'
+         LIMIT 1`,
+        [callId]
+      )
 
       const translation = aiRows?.[0]
       if (translation?.output) {
@@ -240,18 +239,23 @@ export async function sendArtifactEmail(options: ArtifactEmailOptions): Promise<
 
     if (result.success) {
       try {
-        await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
-          organization_id: organizationId,
-          user_id: null, system_id: null,
-          resource_type: 'calls', resource_id: callId, action: 'email_artifacts',
-          actor_type: 'system',
-          actor_label: 'email-service',
-          before: null,
-          after: { recipient: recipientEmail, attachments: attachments.map(a => a.filename), messageId: result.messageId },
-          created_at: new Date().toISOString()
-        })
-      } catch { /* Best effort */ }
+        await query(
+          `INSERT INTO audit_logs (id, organization_id, user_id, system_id, resource_type, resource_id, action, actor_type, actor_label, before, after)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            crypto.randomUUID(),
+            organizationId,
+            null, null,
+            'calls', callId, 'email_artifacts',
+            'system',
+            'email-service',
+            null,
+            { recipient: recipientEmail, attachments: attachments.map(a => a.filename), messageId: result.messageId }
+          ]
+        )
+      } catch (err: any) {
+        logger.warn('emailService: audit log failed', { error: err.message })
+      }
     }
 
     return result

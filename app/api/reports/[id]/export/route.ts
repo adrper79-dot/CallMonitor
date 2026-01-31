@@ -5,9 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { exportToCSV, exportToJSON } from '@/lib/reports/generator'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
@@ -24,45 +23,39 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
+    const session = await requireRole('viewer')
+    if (session instanceof NextResponse) return session
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const reportId = params.id
     const searchParams = request.nextUrl.searchParams
     const format = searchParams.get('format') || 'json'
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
+    // Get report and verify ownership
+    const { rows: reports } = await query(
+      `SELECT name, report_data 
+       FROM generated_reports 
+       WHERE id = $1 AND organization_id = $2`,
+      [reportId, organizationId]
+    )
 
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
-
-    // Get report
-    const { data: report, error: reportError } = await supabaseAdmin
-      .from('generated_reports')
-      .select('*')
-      .eq('id', reportId)
-      .eq('organization_id', user.organization_id)
-      .single()
-
-    if (reportError || !report) {
+    if (reports.length === 0) {
       return ApiErrors.notFound('Report')
     }
 
+    const report = reports[0]
+
     // Log access
-    await supabaseAdmin.from('report_access_log').insert({
-      report_id: reportId,
-      user_id: userId,
-      action: 'downloaded'
-    })
+    try {
+      await query(
+        `INSERT INTO report_access_log (report_id, user_id, action, created_at)
+         VALUES ($1, $2, 'downloaded', NOW())`,
+        [reportId, userId]
+      )
+    } catch (e) {
+      // Ignore log error
+      logger.warn('Failed to log report access', e)
+    }
 
     // Export report data
     let content: string

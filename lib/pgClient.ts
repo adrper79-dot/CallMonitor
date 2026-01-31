@@ -38,12 +38,52 @@ if (pool && process.env.NODE_ENV === 'production' && !(globalThis as any).HYPERD
   // Console warning for direct connection without Hyperdrive
 }
 
-export async function query(text: string, params?: any[]) {
+export interface QueryOptions {
+  organizationId?: string
+  userId?: string
+}
+
+export async function query(text: string, params?: any[], options?: QueryOptions) {
   if (!pool) throw new Error('No Postgres connection configured (set NEON_PG_CONN or configure Hyperdrive)')
   const client = await pool.connect()
   try {
+    // If context is provided, set session variables for RLS
+    if (options?.organizationId) {
+      await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [options.organizationId])
+    }
+    if (options?.userId) {
+      await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [options.userId])
+    }
+
     const res = await client.query(text, params)
     return res
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Transaction helper with RLS context
+ */
+export async function withTransaction<T>(
+  callback: (client: any) => Promise<T>,
+  options?: QueryOptions
+): Promise<T> {
+  if (!pool) throw new Error('No Postgres connection')
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    if (options?.organizationId) {
+      await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [options.organizationId])
+    }
+
+    const result = await callback(client)
+    await client.query('COMMIT')
+    return result
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
   } finally {
     client.release()
   }

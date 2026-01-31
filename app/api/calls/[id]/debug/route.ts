@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { requireAuth, Errors, success } from '@/lib/api/utils'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
+import { Errors } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -103,62 +104,70 @@ export interface CallDebugView {
   }
 }
 
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
+
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
-    const ctx = await requireAuth()
-    if (ctx instanceof NextResponse) return ctx
-
-    const callId = params.id
+    const { id: callId } = await params
     const startTime = Date.now()
 
-    // Fetch call with org verification
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select('*')
-      .eq('id', callId)
-      .eq('organization_id', ctx.orgId)
-      .single()
+    // Authenticate (Viewer+ allowed)
+    const session = await requireRole('viewer')
+    const organizationId = session.user.organizationId
 
-    if (callError || !call) {
+    // Fetch call with org verification
+    const { rows: callRows } = await query(
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [callId, organizationId]
+    )
+
+    if (callRows.length === 0) {
       return Errors.notFound('Call not found')
     }
 
+    const call = callRows[0]
+
     // Fetch recording
-    const { data: recording } = await supabaseAdmin
-      .from('recordings')
-      .select('id, status, source, duration_seconds, transcript_json, media_hash, is_deleted')
-      .eq('call_sid', call.call_sid)
-      .single()
+    let recording: any = null
+    if (call.call_sid) {
+      const { rows: recRows } = await query(
+        `SELECT id, status, source, duration_seconds, transcript_json, media_hash, is_deleted 
+             FROM recordings WHERE call_sid = $1 LIMIT 1`,
+        [call.call_sid]
+      )
+      recording = recRows[0] || null
+    }
 
     // Fetch AI runs
-    const { data: aiRuns } = await supabaseAdmin
-      .from('ai_runs')
-      .select('id, model, status, started_at, completed_at, output')
-      .eq('call_id', callId)
-      .order('started_at', { ascending: true })
+    const { rows: aiRuns } = await query(
+      `SELECT id, model, status, started_at, completed_at, output
+       FROM ai_runs WHERE call_id = $1 ORDER BY started_at ASC`,
+      [callId]
+    )
 
     // Fetch evidence manifest (current version)
     let manifest: { id: string; version: number; artifact_count: number; manifest_hash: string; created_at: string } | null = null
     if (recording) {
-      const { data: manifestRow } = await supabaseAdmin
-        .from('evidence_manifests')
-        .select('id, version, manifest, created_at')
-        .eq('recording_id', recording.id)
-        .is('superseded_at', null)
-        .order('version', { ascending: false })
-        .limit(1)
-        .single()
+      const { rows: manifestRow } = await query(
+        `SELECT id, version, manifest, created_at
+         FROM evidence_manifests
+         WHERE recording_id = $1 AND superseded_at IS NULL
+         ORDER BY version DESC LIMIT 1`,
+        [recording.id]
+      )
 
-      if (manifestRow) {
+      if (manifestRow.length > 0) {
         manifest = {
-          id: manifestRow.id,
-          version: manifestRow.version || 1,
-          artifact_count: manifestRow.manifest?.artifacts?.length || 0,
-          manifest_hash: manifestRow.manifest?.manifest_hash || '',
-          created_at: manifestRow.created_at
+          id: manifestRow[0].id,
+          version: manifestRow[0].version || 1,
+          artifact_count: manifestRow[0].manifest?.artifacts?.length || 0,
+          manifest_hash: manifestRow[0].manifest?.manifest_hash || '',
+          created_at: manifestRow[0].created_at
         }
       }
     }
@@ -166,29 +175,30 @@ export async function GET(
     // Fetch score
     let score: { id: string; scorecard_id: string; total_score: number; has_manual_overrides: boolean } | null = null
     if (recording) {
-      const { data: scoreRow } = await supabaseAdmin
-        .from('scored_recordings')
-        .select('id, scorecard_id, total_score, manual_overrides_json')
-        .eq('recording_id', recording.id)
-        .single()
+      const { rows: scoreRow } = await query(
+        `SELECT id, scorecard_id, total_score, manual_overrides_json
+         FROM scored_recordings WHERE recording_id = $1 LIMIT 1`,
+        [recording.id]
+      )
 
-      if (scoreRow) {
+      if (scoreRow.length > 0) {
         score = {
-          id: scoreRow.id,
-          scorecard_id: scoreRow.scorecard_id,
-          total_score: scoreRow.total_score,
-          has_manual_overrides: !!scoreRow.manual_overrides_json
+          id: scoreRow[0].id,
+          scorecard_id: scoreRow[0].scorecard_id,
+          total_score: scoreRow[0].total_score,
+          has_manual_overrides: !!scoreRow[0].manual_overrides_json
         }
       }
     }
 
     // Fetch error timeline (errors only from audit logs)
-    const { data: errorLogs } = await supabaseAdmin
-      .from('audit_logs')
-      .select('created_at, action, after, resource_type, resource_id')
-      .eq('resource_id', callId)
-      .eq('action', 'error')
-      .order('created_at', { ascending: true })
+    const { rows: errorLogs } = await query(
+      `SELECT created_at, action, after, resource_type, resource_id
+       FROM audit_logs
+       WHERE resource_id = $1 AND action = 'error'
+       ORDER BY created_at ASC`,
+      [callId]
+    )
 
     const errorTimeline = (errorLogs || []).map((el: any) => ({
       timestamp: el.created_at,
@@ -215,12 +225,14 @@ export async function GET(
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     // Fetch full audit timeline
-    const { data: auditLogs } = await supabaseAdmin
-      .from('audit_logs')
-      .select('created_at, action, user_id, system_id, resource_type, after')
-      .or(`resource_id.eq.${callId},resource_id.eq.${recording?.id || '00000000-0000-0000-0000-000000000000'}`)
-      .order('created_at', { ascending: true })
-      .limit(100)
+    const { rows: auditLogs } = await query(
+      `SELECT created_at, action, user_id, system_id, resource_type, after
+       FROM audit_logs
+       WHERE resource_id = $1 OR resource_id = $2
+       ORDER BY created_at ASC
+       LIMIT 100`,
+      [callId, recording?.id || '00000000-0000-0000-0000-000000000000']
+    )
 
     const auditTimeline = (auditLogs || []).map((al: any) => ({
       timestamp: al.created_at,
@@ -234,7 +246,7 @@ export async function GET(
     // Calculate diagnostics
     const hasRecording = !!recording && recording.status === 'completed'
     const hasTranscript = !!recording?.transcript_json
-    const hasTranslation = (aiRuns || []).some((ar: any) => 
+    const hasTranslation = (aiRuns || []).some((ar: any) =>
       ar.model?.includes('translation') && ar.status === 'completed'
     )
     const hasScore = !!score
@@ -250,7 +262,7 @@ export async function GET(
     if (hasRecording) completionSteps++
     if (hasTranscript) { totalSteps++; completionSteps++ }
     if (hasManifest) { totalSteps++; completionSteps++ }
-    
+
     const completionPercentage = Math.round((completionSteps / totalSteps) * 100)
 
     // Generate warnings

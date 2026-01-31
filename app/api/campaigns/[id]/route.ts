@@ -9,10 +9,19 @@
  * DELETE /api/campaigns/[id] - Delete campaign
  */
 
+/**
+ * Campaign Detail API
+ * 
+ * Endpoints for individual campaign operations
+ * RBAC: Owner/Admin can manage, all can view
+ * 
+ * GET /api/campaigns/[id] - Get campaign details
+ * PATCH /api/campaigns/[id] - Update campaign
+ * DELETE /api/campaigns/[id] - Delete campaign
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query, withTransaction } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
 import { logger } from '@/lib/logger'
@@ -29,63 +38,63 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const campaignId = params.id
 
-    // Get user's organization
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id')
-      .eq('id', userId)
-      .single()
+    // Get campaign with details
+    const { rows: campaigns } = await query(
+      `SELECT 
+            c.*,
+            json_build_object('id', u.id, 'name', u.name, 'email', u.email) as created_by,
+            json_build_object('id', cid.id, 'phone_number', cid.phone_number) as caller_id,
+            json_build_object('id', s.id, 'name', s.name) as script,
+            json_build_object('id', sv.id, 'name', sv.name) as survey
+         FROM campaigns c
+         LEFT JOIN users u ON c.created_by = u.id
+         LEFT JOIN caller_ids cid ON c.caller_id_id = cid.id
+         LEFT JOIN shopper_scripts s ON c.script_id = s.id
+         LEFT JOIN surveys sv ON c.survey_id = sv.id
+         WHERE c.id = $1 AND c.organization_id = $2`,
+      [campaignId, organizationId]
+    )
+    const campaign = campaigns[0]
 
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
-
-    // Get campaign with creator info
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .select(`
-        *,
-        created_by:users!campaigns_created_by_fkey(id, name, email),
-        caller_id:caller_ids(id, phone_number),
-        script:shopper_scripts(id, name),
-        survey:surveys(id, name)
-      `)
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-      .single()
-
-    if (campaignError || !campaign) {
+    if (!campaign) {
       return ApiErrors.notFound('Campaign')
     }
 
-    // Get campaign calls summary
-    const { data: calls, error: callsError } = await supabaseAdmin
-      .from('campaign_calls')
-      .select('status, outcome, duration_seconds')
-      .eq('campaign_id', campaignId)
+    // Get aggregated stats directly from DB instead of fetching all rows
+    const { rows: statsRows } = await query(
+      `SELECT 
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending,
+            COUNT(*) FILTER (WHERE status = 'calling') as calling,
+            COUNT(*) FILTER (WHERE status = 'completed') as completed,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COUNT(*) FILTER (WHERE outcome = 'answered') as answered,
+            COUNT(*) FILTER (WHERE outcome = 'no_answer') as no_answer,
+            COALESCE(AVG(duration_seconds), 0) as avg_duration
+         FROM campaign_calls
+         WHERE campaign_id = $1`,
+      [campaignId]
+    )
 
+    // Parse counts as integers (COUNT returns bigint/string)
+    const rawStats = statsRows[0]
     const callStats = {
-      total: calls?.length || 0,
-      pending: calls?.filter(c => c.status === 'pending').length || 0,
-      calling: calls?.filter(c => c.status === 'calling').length || 0,
-      completed: calls?.filter(c => c.status === 'completed').length || 0,
-      failed: calls?.filter(c => c.status === 'failed').length || 0,
-      answered: calls?.filter(c => c.outcome === 'answered').length || 0,
-      no_answer: calls?.filter(c => c.outcome === 'no_answer').length || 0,
-      avg_duration: (calls?.filter(c => c.duration_seconds) || [])
-        .reduce((sum, c) => sum + (c.duration_seconds || 0), 0) / 
-        (calls?.filter(c => c.duration_seconds).length || 1)
+      total: parseInt(rawStats.total),
+      pending: parseInt(rawStats.pending),
+      calling: parseInt(rawStats.calling),
+      completed: parseInt(rawStats.completed),
+      failed: parseInt(rawStats.failed),
+      answered: parseInt(rawStats.answered),
+      no_answer: parseInt(rawStats.no_answer),
+      avg_duration: parseFloat(rawStats.avg_duration)
     }
 
-    return apiSuccess({ 
+    return apiSuccess({
       campaign: {
         ...campaign,
         call_stats: callStats
@@ -107,40 +116,10 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
+    const session = await requireRole(['owner', 'admin'])
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const campaignId = params.id
-
-    // Get user's organization and role
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
-      .single()
-
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
-
-    // Check RBAC
-    await requireRole(['owner', 'admin'])
-
-    // Get existing campaign
-    const { data: existingCampaign, error: fetchError } = await supabaseAdmin
-      .from('campaigns')
-      .select('*')
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-      .single()
-
-    if (fetchError || !existingCampaign) {
-      return ApiErrors.notFound('Campaign')
-    }
-
     const body = await request.json()
     const {
       name,
@@ -151,62 +130,93 @@ export async function PATCH(
       call_config
     } = body
 
-    // Validate status transitions
-    const validTransitions: Record<string, string[]> = {
-      draft: ['scheduled', 'active', 'canceled'],
-      scheduled: ['active', 'paused', 'canceled'],
-      active: ['paused', 'completed', 'canceled'],
-      paused: ['active', 'canceled'],
-      completed: [],
-      canceled: []
-    }
+    // Perform update in transaction for integrity and audit logging
+    const updated = await withTransaction(async (client) => {
+      // Get existing campaign for checks and audit diff
+      const { rows: existingRows } = await client.query(
+        `SELECT * FROM campaigns WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+        [campaignId, organizationId]
+      )
+      const existingCampaign = existingRows[0]
 
-    if (status && !validTransitions[existingCampaign.status]?.includes(status)) {
-      return ApiErrors.badRequest(`Invalid status transition from ${existingCampaign.status} to ${status}`)
-    }
-
-    // Build update object
-    const updates: any = {}
-    if (name !== undefined) updates.name = name
-    if (description !== undefined) updates.description = description
-    if (status !== undefined) {
-      updates.status = status
-      if (status === 'active' && !existingCampaign.started_at) {
-        updates.started_at = new Date().toISOString()
+      if (!existingCampaign) {
+        throw new AppError('Campaign not found', 404)
       }
-      if (status === 'completed') {
-        updates.completed_at = new Date().toISOString()
+
+      // Validate status transitions
+      if (status) {
+        const validTransitions: Record<string, string[]> = {
+          draft: ['scheduled', 'active', 'canceled'],
+          scheduled: ['active', 'paused', 'canceled'],
+          active: ['paused', 'completed', 'canceled'],
+          paused: ['active', 'canceled'],
+          completed: [],
+          canceled: []
+        }
+        if (!validTransitions[existingCampaign.status]?.includes(status)) {
+          throw new AppError(`Invalid status transition from ${existingCampaign.status} to ${status}`, 400)
+        }
       }
-    }
-    if (scheduled_at !== undefined) updates.scheduled_at = scheduled_at
-    if (recurring_pattern !== undefined) updates.recurring_pattern = recurring_pattern
-    if (call_config !== undefined) updates.call_config = call_config
 
-    // Update campaign
-    const { data: campaign, error: updateError } = await supabaseAdmin
-      .from('campaigns')
-      .update(updates)
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-      .select()
-      .single()
+      // Build dynamic update query
+      const updates: string[] = []
+      const values: any[] = []
+      let paramIdx = 1
 
-    if (updateError) {
-      logger.error('Error updating campaign', updateError, { campaignId })
-      return ApiErrors.dbError('Failed to update campaign')
-    }
+      const addUpdate = (field: string, value: any) => {
+        updates.push(`${field} = $${paramIdx++}`)
+        values.push(value)
+      }
 
-    // Log audit event
-    await supabaseAdmin.from('campaign_audit_log').insert({
-      campaign_id: campaignId,
-      user_id: userId,
-      action: 'updated',
-      changes: { before: existingCampaign, after: campaign }
-    })
+      if (name !== undefined) addUpdate('name', name)
+      if (description !== undefined) addUpdate('description', description)
+      if (status !== undefined) {
+        addUpdate('status', status)
+        if (status === 'active' && !existingCampaign.started_at) {
+          addUpdate('started_at', new Date().toISOString())
+        }
+        if (status === 'completed') {
+          addUpdate('completed_at', new Date().toISOString())
+        }
+      }
+      if (scheduled_at !== undefined) addUpdate('scheduled_at', scheduled_at)
+      if (recurring_pattern !== undefined) addUpdate('recurring_pattern', recurring_pattern ? JSON.stringify(recurring_pattern) : null)
+      if (call_config !== undefined) addUpdate('call_config', JSON.stringify(call_config))
 
-    return apiSuccess({ campaign })
-  } catch (error) {
+      if (updates.length === 0) return existingCampaign
+
+      // Add updated_at
+      updates.push(`updated_at = NOW()`)
+
+      // Add WHERE clause params
+      values.push(campaignId, organizationId)
+
+      const queryStr = `
+            UPDATE campaigns 
+            SET ${updates.join(', ')} 
+            WHERE id = $${paramIdx++} AND organization_id = $${paramIdx++}
+            RETURNING *
+        `
+
+      const { rows: updatedRows } = await client.query(queryStr, values)
+      const campaign = updatedRows[0]
+
+      // Audit Log
+      await client.query(
+        `INSERT INTO campaign_audit_log (campaign_id, user_id, action, changes, created_at)
+             VALUES ($1, $2, 'updated', $3, NOW())`,
+        [campaignId, userId, JSON.stringify({ before: existingCampaign, after: campaign })]
+      )
+
+      return campaign
+    }, { organizationId, userId })
+
+    return apiSuccess({ campaign: updated })
+  } catch (error: any) {
     logger.error('PATCH /api/campaigns/[id] failed', error)
+    if (error instanceof AppError) {
+      return ApiErrors.badRequest(error.message)
+    }
     return ApiErrors.internal('Failed to update campaign')
   }
 }
@@ -221,61 +231,53 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return ApiErrors.unauthorized()
-    }
-
-    const userId = (session.user as any).id
+    const session = await requireRole(['owner', 'admin'])
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const campaignId = params.id
 
-    // Get user's organization and role
-    const { data: user, error: userError } = await supabaseAdmin
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
-      .single()
+    await withTransaction(async (client) => {
+      // Get existing campaign
+      const { rows: existingRows } = await client.query(
+        `SELECT status FROM campaigns WHERE id = $1 AND organization_id = $2 FOR UPDATE`,
+        [campaignId, organizationId]
+      )
+      const campaign = existingRows[0]
 
-    if (userError || !user?.organization_id) {
-      return ApiErrors.notFound('Organization')
-    }
+      if (!campaign) {
+        throw new AppError('Campaign not found', 404)
+      }
 
-    // Check RBAC
-    await requireRole(['owner', 'admin'])
+      // Can only delete draft or completed campaigns
+      // Active campaigns must be canceled first
+      if (!['draft', 'completed', 'canceled'].includes(campaign.status)) {
+        throw new AppError('Can only delete draft, completed, or canceled campaigns. Please cancel active campaigns first.', 400)
+      }
 
-    // Get existing campaign
-    const { data: campaign, error: fetchError } = await supabaseAdmin
-      .from('campaigns')
-      .select('status')
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-      .single()
-
-    if (fetchError || !campaign) {
-      return ApiErrors.notFound('Campaign')
-    }
-
-    // Can only delete draft or completed campaigns
-    // Active campaigns must be canceled first
-    if (!['draft', 'completed', 'canceled'].includes(campaign.status)) {
-      return ApiErrors.badRequest('Can only delete draft, completed, or canceled campaigns. Please cancel active campaigns first.')
-    }
-
-    // Hard delete campaign (cascades to campaign_calls and campaign_audit_log)
-    const { error: deleteError } = await supabaseAdmin
-      .from('campaigns')
-      .delete()
-      .eq('id', campaignId)
-      .eq('organization_id', user.organization_id)
-
-    if (deleteError) {
-      logger.error('Error deleting campaign', deleteError, { campaignId })
-      return ApiErrors.dbError('Failed to delete campaign')
-    }
+      // Hard delete campaign (cascades to campaign_calls and campaign_audit_log)
+      // Ensure cascading is handled by DB FKs. If not, this might fail or leave orphans.
+      // Assuming FKs are set with ON DELETE CASCADE based on standard practice for this project.
+      await client.query(
+        `DELETE FROM campaigns WHERE id = $1 AND organization_id = $2`,
+        [campaignId, organizationId]
+      )
+    }, { organizationId, userId })
 
     return apiSuccess({ deleted: true })
-  } catch (error) {
+  } catch (error: any) {
     logger.error('DELETE /api/campaigns/[id] failed', error)
+    if (error instanceof AppError && error.statusCode === 404) return ApiErrors.notFound(error.message)
+    if (error instanceof AppError) return ApiErrors.badRequest(error.message)
+
     return ApiErrors.internal('Failed to delete campaign')
+  }
+}
+
+// Helper class for transaction logic errors to bubble up clearly
+class AppError extends Error {
+  statusCode: number
+  constructor(message: string, statusCode: number) {
+    super(message)
+    this.statusCode = statusCode
   }
 }

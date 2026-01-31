@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { v4 as uuidv4 } from 'uuid'
 import { planSupportsFeature } from '@/lib/rbac'
 import { requireAuth, Errors, success } from '@/lib/api/utils'
@@ -18,11 +18,10 @@ export async function GET(req: NextRequest) {
     const ctx = await requireAuth()
     if (ctx instanceof NextResponse) return ctx
 
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('plan, booking_enabled')
-      .eq('id', ctx.orgId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT plan, booking_enabled FROM organizations WHERE id = $1 LIMIT 1`,
+      [ctx.orgId]
+    )
 
     const org = orgRows?.[0]
     if (!planSupportsFeature(org?.plan || 'free', 'booking')) {
@@ -36,31 +35,50 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(url.searchParams.get('limit') || '50', 10)
     const offset = parseInt(url.searchParams.get('offset') || '0', 10)
 
-    let query = supabaseAdmin
-      .from('booking_events')
-      .select('*, calls(id, status, started_at, ended_at)')
-      .eq('organization_id', ctx.orgId)
-      .order('start_time', { ascending: true })
-      .range(offset, offset + limit - 1)
+    const conditions: string[] = [`b.organization_id = $1`]
+    const params: any[] = [ctx.orgId]
 
-    if (status) query = query.eq('status', status)
-    if (from) query = query.gte('start_time', from)
-    if (to) query = query.lte('start_time', to)
-
-    const { data: bookings, error, count } = await query
-
-    // If table doesn't exist (42P01 error), return empty array instead of failing
-    if (error) {
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        logger.info('booking_events table does not exist yet, returning empty array')
-        return success({ bookings: [], total: 0, limit, offset })
-      }
-      logger.error('GET /api/bookings error', error)
-      return Errors.internal(error)
+    if (status) {
+      conditions.push(`b.status = $${params.length + 1}`)
+      params.push(status)
     }
+    if (from) {
+      conditions.push(`b.start_time >= $${params.length + 1}`)
+      params.push(from)
+    }
+    if (to) {
+      conditions.push(`b.start_time <= $${params.length + 1}`)
+      params.push(to)
+    }
+
+    const whereClause = conditions.join(' AND ')
+
+    // Get count
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*) as count FROM booking_events b WHERE ${whereClause}`,
+      params
+    )
+    const count = parseInt(countRows?.[0]?.count || '0', 10)
+
+    // Get data
+    const { rows: bookings } = await query(
+      `SELECT b.*, 
+              c.id as call_id, c.status as call_status, c.started_at as call_started_at, c.ended_at as call_ended_at
+       FROM booking_events b
+       LEFT JOIN calls c ON b.id = c.booking_id
+       WHERE ${whereClause}
+       ORDER BY b.start_time ASC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    )
 
     return success({ bookings: bookings || [], total: count, limit, offset })
   } catch (error: any) {
+    // If table doesn't exist (Postgres 42P01), return empty array
+    if (error.code === '42P01') {
+      logger.info('booking_events table does not exist yet, returning empty array')
+      return success({ bookings: [], total: 0, limit: 50, offset: 0 })
+    }
     logger.error('GET /api/bookings error', error)
     return Errors.internal(error)
   }
@@ -91,14 +109,9 @@ export async function POST(req: NextRequest) {
 
     const now = new Date()
 
-    // Handle timezone conversion
-    // If start_time is an ISO string without offset (e.g. 2026-01-20T10:00:00), it's treated as local to the specified timezone.
-    // fromZonedTime converts that "Wall Time" in "Timezone" to absolute UTC Date.
     let startDate: Date
     try {
       if (timezone && timezone !== 'UTC') {
-        // If start_time string has 'Z' or offset, fromZonedTime respects it.
-        // If it has no offset, it applies the timezone.
         startDate = fromZonedTime(start_time, timezone)
       } else {
         startDate = new Date(start_time)
@@ -115,11 +128,10 @@ export async function POST(req: NextRequest) {
       return Errors.badRequest('start_time cannot be in the past')
     }
 
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('plan, booking_enabled')
-      .eq('id', ctx.orgId)
-      .limit(1)
+    const { rows: orgRows } = await query(
+      `SELECT plan, booking_enabled FROM organizations WHERE id = $1 LIMIT 1`,
+      [ctx.orgId]
+    )
 
     if (!planSupportsFeature(orgRows?.[0]?.plan || 'free', 'booking')) {
       return Errors.unauthorized('Booking feature not available on your plan')
@@ -128,33 +140,35 @@ export async function POST(req: NextRequest) {
     const endTime = end_time || new Date(startDate.getTime() + duration_minutes * 60000).toISOString()
 
     const bookingId = uuidv4()
-    const insertData: any = {
-      id: bookingId, organization_id: ctx.orgId, user_id: ctx.userId,
-      title, description, start_time, end_time: endTime, duration_minutes,
-      timezone, attendee_name, attendee_email, attendee_phone,
-      modulations, notes, status: 'pending', created_by: ctx.userId
-    }
+    const dbNow = now.toISOString()
 
-    if (from_number) insertData.from_number = from_number
+    const { rows: bookingRows } = await query(
+      `INSERT INTO booking_events (
+        id, organization_id, user_id, title, description, start_time, end_time, 
+        duration_minutes, timezone, attendee_name, attendee_email, attendee_phone, 
+        from_number, modulations, notes, status, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18)
+      RETURNING *`,
+      [
+        bookingId, ctx.orgId, ctx.userId, title, description, start_time, endTime,
+        duration_minutes, timezone, attendee_name, attendee_email, attendee_phone,
+        from_number || null, JSON.stringify(modulations), notes, 'pending', ctx.userId, dbNow
+      ]
+    )
 
-    const { data: booking, error } = await supabaseAdmin
-      .from('booking_events')
-      .insert(insertData)
-      .select()
-      .single()
-
-    if (error) {
-      logger.error('POST /api/bookings error', error)
-      return Errors.internal(error)
-    }
+    const booking = bookingRows[0]
 
     try {
-      await supabaseAdmin.from('audit_logs').insert({
-        id: uuidv4(), organization_id: ctx.orgId, user_id: ctx.userId,
-        resource_type: 'booking_events', resource_id: bookingId, action: 'create',
-        before: null, after: { title, start_time, attendee_phone: '[REDACTED]' },
-        created_at: new Date().toISOString()
-      })
+      await query(
+        `INSERT INTO audit_logs (
+          id, organization_id, user_id, resource_type, resource_id, action, 
+          before, after, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [
+          uuidv4(), ctx.orgId, ctx.userId, 'booking_events', bookingId, 'create',
+          null, JSON.stringify({ title, start_time, attendee_phone: '[REDACTED]' })
+        ]
+      )
     } catch { /* Best effort */ }
 
     logger.info('Booking created', { bookingId, orgId: ctx.orgId })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,7 +22,7 @@ export const runtime = 'nodejs'
 export async function GET(req: Request) {
   let organizationId: string | null = null
   let userId: string | null = null
-  
+
   try {
     const session = await getServerSession(authOptions)
     userId = (session?.user as any)?.id ?? null
@@ -54,17 +54,13 @@ export async function GET(req: Request) {
     }
 
     // Fetch surveys
-    const { data: surveys, error: surveysErr } = await supabaseAdmin
-      .from('surveys')
-      .select('id, name, description, questions, is_active, created_at')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-
-    if (surveysErr) {
-      logger.error('Failed to fetch surveys', surveysErr, { organizationId, userId })
-      const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch surveys', user_message: 'Could not retrieve surveys', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+    const { rows: surveys } = await query(
+      `SELECT id, name, description, questions, is_active, created_at 
+       FROM surveys 
+       WHERE organization_id = $1 
+       ORDER BY created_at DESC`,
+      [organizationId]
+    )
 
     return NextResponse.json({
       success: true,
@@ -121,51 +117,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 403 })
     }
 
-    const surveyData = {
-      organization_id,
-      name,
-      description: description || null,
-      questions: questions || [],
-      is_active: is_active ?? true,
-      updated_at: new Date().toISOString()
-    }
-
     let survey
+    const now = new Date().toISOString()
+
     if (id) {
       // Update existing survey
-      const { data, error: updateErr } = await supabaseAdmin
-        .from('surveys')
-        .update(surveyData)
-        .eq('id', id)
-        .eq('organization_id', organization_id)
-        .select()
-        .single()
+      const { rows } = await query(
+        `UPDATE surveys 
+         SET name = $1, description = $2, questions = $3, is_active = $4, updated_at = $5
+         WHERE id = $6 AND organization_id = $7
+         RETURNING *`,
+        [name, description || null, JSON.stringify(questions || []), is_active ?? true, now, id, organization_id]
+      )
 
-      if (updateErr) {
-        logger.error('Failed to update survey', updateErr)
-        const err = new AppError({ code: 'DB_UPDATE_FAILED', message: 'Failed to update survey', user_message: 'Could not update survey', severity: 'HIGH' })
-        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
+      if (!rows || rows.length === 0) {
+        throw new Error('Survey not found or not owned by organization')
       }
-      survey = data
+      survey = rows[0]
     } else {
       // Create new survey
       const surveyId = uuidv4()
-      const { data, error: insertErr } = await supabaseAdmin
-        .from('surveys')
-        .insert({
-          id: surveyId,
-          ...surveyData,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single()
+      const { rows } = await query(
+        `INSERT INTO surveys (id, organization_id, name, description, questions, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+         RETURNING *`,
+        [
+          surveyId,
+          organization_id,
+          name,
+          description || null,
+          JSON.stringify(questions || []),
+          is_active ?? true,
+          now
+        ]
+      )
 
-      if (insertErr) {
-        logger.error('Failed to create survey', insertErr)
-        const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to create survey', user_message: 'Could not create survey', severity: 'HIGH' })
-        return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-      }
-      survey = data
+      survey = rows[0]
     }
 
     return NextResponse.json({
@@ -213,17 +200,10 @@ export async function DELETE(req: Request) {
     }
 
     // Delete survey
-    const { error: deleteErr } = await supabaseAdmin
-      .from('surveys')
-      .delete()
-      .eq('id', surveyId)
-      .eq('organization_id', organizationId)
-
-    if (deleteErr) {
-      logger.error('Failed to delete survey', deleteErr)
-      const err = new AppError({ code: 'DB_DELETE_FAILED', message: 'Failed to delete survey', user_message: 'Could not delete survey', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+    await query(
+      `DELETE FROM surveys WHERE id = $1 AND organization_id = $2`,
+      [surveyId, organizationId]
+    )
 
     return NextResponse.json({
       success: true

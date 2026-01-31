@@ -9,13 +9,10 @@
 
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { query } from '@/lib/pgClient'
 
 import { AppError } from '@/types/app-error'
 import type { UserRole } from './rbac'
-
-// Create supabase admin client
-// Use shared supabaseAdmin instance (lazy-initialized)
-import supabaseAdmin from '@/lib/supabaseAdmin'
 
 export interface RBACSession {
   user: {
@@ -49,14 +46,13 @@ export async function requireRole(role: UserRole | UserRole[]): Promise<RBACSess
   }
 
   // Get user role from org_members table
-  const { data: membership, error: membershipError } = await supabaseAdmin
-    .from('org_members')
-    .select('role, organization_id')
-    .eq('user_id', userId)
-    .limit(1)
-    .single()
+  const { rows } = await query(
+    `SELECT role, organization_id FROM org_members WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  )
+  const membership = rows[0]
 
-  if (membershipError || !membership) {
+  if (!membership) {
     throw new AppError('User is not part of an organization', 404, 'NO_ORGANIZATION')
   }
 

@@ -23,11 +23,11 @@ export /**
  * Create a SignalWire SWML JSON response (modern)
  * Serializes SWML object to JSON with correct Content-Type
  */
-function swmlJsonResponse(
-  swml: { version: string; sections: { main: any[] } },
-  status = 200,
-  headers: Record<string, string> = {}
-): NextResponse {
+  function swmlJsonResponse(
+    swml: { version: string; sections: { main: any[] } },
+    status = 200,
+    headers: Record<string, string> = {}
+  ): NextResponse {
   return new NextResponse(JSON.stringify(swml), {
     status,
     headers: {
@@ -49,7 +49,7 @@ export const xmlResponse = swmlResponse;
 // ...existing code...
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
 
@@ -114,19 +114,19 @@ export function parseFormEncoded(text: string): Record<string, string | string[]
  * @param skipLog - Set to true to skip logging (useful for expected errors like 401 on public polling)
  */
 export function errorResponse(
-  code: string, 
-  message: string, 
-  userMessage: string, 
+  code: string,
+  message: string,
+  userMessage: string,
   status: number,
   skipLog = false
 ): NextResponse {
-  const err = new AppError({ 
-    code, 
-    message, 
-    user_message: userMessage, 
-    severity: status >= 500 ? 'CRITICAL' : status >= 400 ? 'HIGH' : 'MEDIUM' 
+  const err = new AppError({
+    code,
+    message,
+    user_message: userMessage,
+    severity: status >= 500 ? 'CRITICAL' : status >= 400 ? 'HIGH' : 'MEDIUM'
   })
-  
+
   // Only log server errors (5xx) and unexpected client errors
   // Skip logging for expected auth failures (401) and rate limits to reduce noise
   if (!skipLog && status >= 500) {
@@ -136,14 +136,14 @@ export function errorResponse(
     logger.warn(`API Error: ${code}`, { status, message })
   }
   // 401s are not logged - they're expected for unauthenticated requests
-  
-  return NextResponse.json({ 
-    success: false, 
-    error: { 
-      id: err.id, 
-      code: err.code, 
-      message: err.user_message 
-    } 
+
+  return NextResponse.json({
+    success: false,
+    error: {
+      id: err.id,
+      code: err.code,
+      message: err.user_message
+    }
   }, { status })
 }
 
@@ -171,9 +171,9 @@ export const Errors = {
 export async function getAuthUser(): Promise<{ id: string; email?: string } | null> {
   const session = await getServerSession(authOptions)
   const userId = (session?.user as any)?.id
-  
+
   if (!userId) return null
-  
+
   return {
     id: userId,
     email: session?.user?.email || undefined
@@ -185,14 +185,18 @@ export async function getAuthUser(): Promise<{ id: string; email?: string } | nu
  * Per ARCH_DOCS: org_members is the source of truth for user-org relationships
  */
 export async function getUserOrgAndRole(userId: string): Promise<{ orgId: string | null; role: string | null }> {
-  const { data } = await supabaseAdmin
-    .from('org_members')
-    .select('organization_id, role')
-    .eq('user_id', userId)
-    .limit(1)
-  return {
-    orgId: data?.[0]?.organization_id || null,
-    role: data?.[0]?.role || null
+  try {
+    const { rows } = await query(
+      `SELECT organization_id, role FROM org_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    )
+    return {
+      orgId: rows?.[0]?.organization_id || null,
+      role: rows?.[0]?.role || null
+    }
+  } catch (err) {
+    logger.error('getUserOrgAndRole error', err)
+    return { orgId: null, role: null }
   }
 }
 
@@ -254,4 +258,3 @@ export async function requireRole(roles: string | string[]): Promise<AuthContext
 export function success<T>(data: T, status = 200): NextResponse {
   return NextResponse.json({ success: true, data }, { status })
 }
-

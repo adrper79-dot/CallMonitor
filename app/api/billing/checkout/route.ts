@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/rbac-server'
 import { createCheckoutSession } from '@/lib/services/stripeService'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
 import { ApiErrors } from '@/lib/errors/apiHandler'
@@ -17,20 +17,11 @@ import { ApiErrors } from '@/lib/errors/apiHandler'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Rate limiting commented out for build
-// const rateLimiter = rateLimit({
-//   interval: 60 * 1000,
-//   uniqueTokenPerInterval: 500,
-// })
-
 export async function POST(req: NextRequest) {
   try {
-    // Rate limiting
-    // await rateLimiter.check(req, 10)
-
-    // Authenticate user
+    // Authenticate user (Owner/Admin only)
     const session = await requireRole(['owner', 'admin'])
-    const userId = session.user.id
+    const organizationId = session.user.organizationId
     const userEmail = session.user.email || ''
 
     // Parse request body
@@ -41,21 +32,20 @@ export async function POST(req: NextRequest) {
       throw new AppError('Price ID is required', 400, 'MISSING_PRICE_ID')
     }
 
-    // Get user's organization
-    const { data: membership, error: membershipError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id, organizations(id, name)')
-      .eq('user_id', userId)
-      .single()
-
-    if (membershipError || !membership) {
-      throw new AppError('User is not part of an organization', 404, 'NO_ORGANIZATION')
+    // Get organization name for display
+    let organizationName = 'Your Organization'
+    try {
+      const { rows } = await query(
+        'SELECT name FROM organizations WHERE id = $1 LIMIT 1',
+        [organizationId]
+      )
+      if (rows.length > 0) {
+        organizationName = rows[0].name
+      }
+    } catch (e) {
+      // Fallback to default name if query fails
+      logger.warn('Failed to fetch org name for checkout', { organizationId })
     }
-
-    const organizationId = membership.organization_id
-    const organizationName = (membership.organizations as any)?.name || 'Your Organization'
-
-    // Role already checked by requireRole at start
 
     // Create checkout session
     const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/settings?tab=billing&session=success`
@@ -73,11 +63,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: checkoutUrl })
   } catch (error: any) {
     logger.error('POST /api/billing/checkout failed', error)
-    
+
     if (error instanceof AppError) {
       return ApiErrors.internal(error.message)
     }
-    
+
     return ApiErrors.internal('Failed to create checkout session')
   }
 }

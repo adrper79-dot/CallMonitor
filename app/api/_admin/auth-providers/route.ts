@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { query } from '@/lib/pgClient'
+import { v4 as uuidv4 } from 'uuid'
+import { logger } from '@/lib/logger'
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -36,10 +39,28 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const overrides = getOverrides()
+    const before = { ...overrides }
+
     if (Object.prototype.hasOwnProperty.call(body, 'emailEnabled')) {
       const val = body.emailEnabled
       overrides.emailEnabled = val === null ? undefined : Boolean(val)
     }
+
+    // Audit log: Auth Provider Change
+    try {
+      await query(
+        `INSERT INTO audit_logs (id, organization_id, user_id, resource_type, resource_id, action, actor_type, actor_label, before, after, created_at)
+         VALUES ($1, null, null, 'system_config', 'auth_providers', 'admin:config.update', 'system', 'admin-api', $2, $3, NOW())`,
+        [
+          uuidv4(),
+          JSON.stringify(before),
+          JSON.stringify(overrides)
+        ]
+      )
+    } catch (auditErr) {
+      logger.error('Admin auth-providers: Failed to write audit log', auditErr)
+    }
+
     return NextResponse.json({ ok: true, overrides })
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: String(err?.message ?? err) }, { status: 500 })

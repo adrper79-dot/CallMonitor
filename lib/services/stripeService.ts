@@ -14,10 +14,10 @@
  */
 
 import Stripe from 'stripe'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
-import { writeAuditLegacy as writeAudit, writeAuditErrorLegacy as writeAuditError, writeSubscriptionAudit } from '@/lib/audit/auditLogger'
+import { writeAuditLegacy as writeAudit, writeAuditErrorLegacy as writeAuditError } from '@/lib/audit/auditLogger'
 
 // Initialize Stripe lazily
 let stripeInstance: Stripe | null = null
@@ -29,7 +29,7 @@ export function getStripe() {
       throw new Error('STRIPE_SECRET_KEY not configured')
     }
     stripeInstance = new Stripe(apiKey, {
-      apiVersion: '2025-12-15.clover',
+      apiVersion: '2025-12-15.clover' as any, // Type cast for newer version
       typescript: true,
       httpClient: Stripe.createFetchHttpClient()
     })
@@ -80,13 +80,14 @@ export async function getOrCreateCustomer(params: CreateCustomerParams): Promise
 
   try {
     // Check if customer already exists in our database
-    const { data: existingSub } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('stripe_customer_id')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT stripe_customer_id FROM stripe_subscriptions 
+       WHERE organization_id = $1 
+       ORDER BY created_at DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    const existingSub = rows[0]
 
     if (existingSub?.stripe_customer_id) {
       logger.info('getOrCreateCustomer: existing customer found', { organizationId, customerId: existingSub.stripe_customer_id })
@@ -171,15 +172,16 @@ export async function createCheckoutSession(params: CreateCheckoutSessionParams)
 export async function createBillingPortalSession(organizationId: string, returnUrl: string): Promise<string> {
   try {
     // Get customer ID from database
-    const { data: sub, error } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('stripe_customer_id')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT stripe_customer_id FROM stripe_subscriptions 
+       WHERE organization_id = $1 
+       ORDER BY created_at DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    const sub = rows[0]
 
-    if (error || !sub?.stripe_customer_id) {
+    if (!sub?.stripe_customer_id) {
       throw new AppError('No active subscription found', 404, 'NO_SUBSCRIPTION')
     }
 
@@ -207,19 +209,15 @@ export async function createBillingPortalSession(organizationId: string, returnU
  */
 export async function getSubscription(organizationId: string) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('current_period_end', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT * FROM stripe_subscriptions 
+       WHERE organization_id = $1 
+       ORDER BY current_period_end DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-      throw error
-    }
-
-    return data
+    return rows[0] || null
   } catch (error: any) {
     logger.error('getSubscription: failed', error, { organizationId })
     throw new AppError('Failed to fetch subscription', 500, 'SUBSCRIPTION_FETCH_ERROR', error)
@@ -232,16 +230,16 @@ export async function getSubscription(organizationId: string) {
 export async function cancelSubscription(organizationId: string): Promise<void> {
   try {
     // Get active subscription
-    const { data: sub, error } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('stripe_subscription_id')
-      .eq('organization_id', organizationId)
-      .in('status', ['active', 'trialing'])
-      .order('current_period_end', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT stripe_subscription_id FROM stripe_subscriptions 
+       WHERE organization_id = $1 AND status IN ('active', 'trialing')
+       ORDER BY current_period_end DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    const sub = rows[0]
 
-    if (error || !sub) {
+    if (!sub) {
       throw new AppError('No active subscription found', 404, 'NO_ACTIVE_SUBSCRIPTION')
     }
 
@@ -270,17 +268,18 @@ export async function cancelSubscription(organizationId: string): Promise<void> 
 export async function reactivateSubscription(organizationId: string): Promise<void> {
   try {
     // Get subscription scheduled for cancellation
-    const { data: sub, error } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('stripe_subscription_id')
-      .eq('organization_id', organizationId)
-      .eq('cancel_at_period_end', true)
-      .in('status', ['active', 'trialing'])
-      .order('current_period_end', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT stripe_subscription_id FROM stripe_subscriptions 
+       WHERE organization_id = $1 
+       AND cancel_at_period_end = true
+       AND status IN ('active', 'trialing')
+       ORDER BY current_period_end DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    const sub = rows[0]
 
-    if (error || !sub) {
+    if (!sub) {
       throw new AppError('No subscription scheduled for cancellation', 404, 'NO_PENDING_CANCELLATION')
     }
 
@@ -308,16 +307,16 @@ export async function reactivateSubscription(organizationId: string): Promise<vo
 export async function updateSubscription(organizationId: string, newPriceId: string): Promise<void> {
   try {
     // Get active subscription
-    const { data: sub, error } = await supabaseAdmin
-      .from('stripe_subscriptions')
-      .select('stripe_subscription_id')
-      .eq('organization_id', organizationId)
-      .in('status', ['active', 'trialing'])
-      .order('current_period_end', { ascending: false })
-      .limit(1)
-      .single()
+    const { rows } = await query(
+      `SELECT stripe_subscription_id FROM stripe_subscriptions 
+       WHERE organization_id = $1 AND status IN ('active', 'trialing')
+       ORDER BY current_period_end DESC LIMIT 1`,
+      [organizationId],
+      { organizationId }
+    )
+    const sub = rows[0]
 
-    if (error || !sub) {
+    if (!sub) {
       throw new AppError('No active subscription found', 404, 'NO_ACTIVE_SUBSCRIPTION')
     }
 
@@ -358,18 +357,15 @@ export async function updateSubscription(organizationId: string, newPriceId: str
  */
 export async function getInvoices(organizationId: string, limit: number = 10) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('stripe_invoices')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('invoice_date', { ascending: false })
-      .limit(limit)
+    const { rows } = await query(
+      `SELECT * FROM stripe_invoices 
+       WHERE organization_id = $1 
+       ORDER BY invoice_date DESC LIMIT $2`,
+      [organizationId, limit],
+      { organizationId }
+    )
 
-    if (error) {
-      throw error
-    }
-
-    return data || []
+    return rows || []
   } catch (error: any) {
     logger.error('getInvoices: failed', error, { organizationId })
     throw new AppError('Failed to fetch invoices', 500, 'INVOICES_FETCH_ERROR', error)
@@ -381,17 +377,15 @@ export async function getInvoices(organizationId: string, limit: number = 10) {
  */
 export async function getPaymentMethods(organizationId: string) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('stripe_payment_methods')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('is_default', { ascending: false })
+    const { rows } = await query(
+      `SELECT * FROM stripe_payment_methods 
+       WHERE organization_id = $1 
+       ORDER BY is_default DESC`,
+      [organizationId],
+      { organizationId }
+    )
 
-    if (error) {
-      throw error
-    }
-
-    return data || []
+    return rows || []
   } catch (error: any) {
     logger.error('getPaymentMethods: failed', error, { organizationId })
     throw new AppError('Failed to fetch payment methods', 500, 'PAYMENT_METHODS_FETCH_ERROR', error)

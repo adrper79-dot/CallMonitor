@@ -23,7 +23,7 @@ export function TroubleshootChatToggle() {
             </div>
 
             {isOpen && (
-                <div className="fixed bottom-20 right-4 z-50 w-[400px] h-[600px] bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden flex flex-col">
+                <div className="fixed bottom-20 right-4 z-50 w-[400px] h-[600px] bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col">
                     <div className="bg-[#0f172a] text-white p-3 flex justify-between items-center">
                         <h3 className="font-semibold text-sm">Stack Troubleshoot Bot</h3>
                         <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">

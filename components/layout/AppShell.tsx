@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Logo } from '@/components/Logo'
+import { BottomNav } from './BottomNav'
+import { ModeToggle } from '@/components/mode-toggle'
 
 interface NavItemProps {
   href: string
@@ -163,6 +165,9 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{userEmail}</p>
               </div>
+
+              <ModeToggle />
+
               <Link
                 href="/api/auth/signout"
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
@@ -218,7 +223,10 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
             {userEmail && (
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600 truncate">{userEmail}</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm text-gray-600 truncate">{userEmail}</p>
+                    <ModeToggle />
+                  </div>
                   <Link
                     href="/api/auth/signout"
                     className="text-sm text-gray-500 hover:text-gray-700"
@@ -233,9 +241,12 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
       </header>
 
       {/* Main Content */}
-      <main className="lg:pl-64">
+      <main className="lg:pl-64 pb-20 lg:pb-0">
         {children}
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
     </div>
   )
 }

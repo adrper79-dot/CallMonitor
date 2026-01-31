@@ -11,10 +11,11 @@
  * - Rate limiting
  */
 
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { WebhookEventType, WebhookPayload, WebhookSubscription } from '@/types/tier1-features'
 import crypto from 'node:crypto'
 import { logger } from '@/lib/logger'
+import { v4 as uuidv4 } from 'uuid'
 
 /**
  * Generate HMAC signature for webhook payload
@@ -92,20 +93,15 @@ export async function queueWebhookEvent(
 ): Promise<void> {
   try {
     // Find all active subscriptions for this event type
-    const { data: subscriptions, error: fetchError } = await supabaseAdmin
-      .from('webhook_subscriptions')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('active', true)
-      .contains('events', [eventType])
-
-    if (fetchError) {
-      logger.error('webhookDelivery: failed to fetch subscriptions', fetchError, {
-        organizationId,
-        eventType
-      })
-      return
-    }
+    // This query uses the Postgres JSONB containment operator @> to valid json arrays of strings
+    // assuming 'events' is a jsonb/json column
+    const { rows: subscriptions } = await query(
+      `SELECT * FROM webhook_subscriptions 
+       WHERE organization_id = $1 
+       AND active = true 
+       AND events @> $2::jsonb`,
+      [organizationId, JSON.stringify([eventType])]
+    )
 
     if (!subscriptions || subscriptions.length === 0) {
       return  // No subscribers for this event
@@ -121,29 +117,28 @@ export async function queueWebhookEvent(
     }
 
     // Queue delivery for each subscription
-    const deliveries = subscriptions.map(sub => ({
-      subscription_id: sub.id,
-      event_type: eventType,
-      event_id: eventId,
-      payload,
-      status: 'pending',
-      max_attempts: sub.max_retries + 1
-    }))
-
-    const { error: insertError } = await supabaseAdmin
-      .from('webhook_deliveries')
-      .insert(deliveries)
-
-    if (insertError) {
-      // Ignore duplicate errors (idempotency)
-      if (insertError.code !== '23505') {
-        logger.error('webhookDelivery: failed to queue deliveries', insertError, {
-          organizationId,
-          eventType,
-          eventId
-        })
+    for (const sub of subscriptions) {
+      try {
+        await query(
+          `INSERT INTO webhook_deliveries (
+            id, subscription_id, event_type, event_id, payload, status, max_attempts, created_at, attempts
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 0)
+          ON CONFLICT DO NOTHING`, // idempotency safely
+          [
+            uuidv4(),
+            sub.id,
+            eventType,
+            eventId,
+            JSON.stringify(payload),
+            'pending',
+            (sub.max_retries || 3) + 1
+          ]
+        )
+      } catch (insertError: any) {
+        logger.error('webhookDelivery: failed to queue delivery', insertError, { subscriptionId: sub.id })
       }
     }
+
   } catch (error) {
     logger.error('webhookDelivery: queueWebhookEvent failed', error, {
       organizationId,
@@ -159,36 +154,39 @@ export async function queueWebhookEvent(
 export async function deliverWebhook(deliveryId: string): Promise<boolean> {
   try {
     // Get delivery with subscription details
-    const { data: delivery, error: fetchError } = await supabaseAdmin
-      .from('webhook_deliveries')
-      .select(`
-        *,
-        subscription:webhook_subscriptions (
-          url,
-          secret,
-          headers,
-          timeout_ms,
-          retry_policy
-        )
-      `)
-      .eq('id', deliveryId)
-      .single()
+    const { rows: deliveryRows } = await query(
+      `SELECT d.*, 
+              s.url as sub_url, 
+              s.secret as sub_secret, 
+              s.headers as sub_headers, 
+              s.timeout_ms as sub_timeout_ms, 
+              s.retry_policy as sub_retry_policy
+       FROM webhook_deliveries d
+       JOIN webhook_subscriptions s ON d.subscription_id = s.id
+       WHERE d.id = $1 LIMIT 1`,
+      [deliveryId]
+    )
 
-    if (fetchError || !delivery || !delivery.subscription) {
-      logger.error('webhookDelivery: delivery not found', fetchError, {
-        deliveryId
-      })
+    if (!deliveryRows || deliveryRows.length === 0) {
+      logger.error('webhookDelivery: delivery not found', undefined, { deliveryId })
       return false
     }
 
-    // Mark as processing
-    await supabaseAdmin
-      .from('webhook_deliveries')
-      .update({ status: 'processing' })
-      .eq('id', deliveryId)
+    const delivery = deliveryRows[0]
 
-    const { subscription } = delivery
-    const payloadString = JSON.stringify(delivery.payload)
+    // Construct subscription object from joined fields
+    const subscription = {
+      url: delivery.sub_url,
+      secret: delivery.sub_secret,
+      headers: delivery.sub_headers,
+      timeout_ms: delivery.sub_timeout_ms,
+      retry_policy: delivery.sub_retry_policy
+    }
+
+    // Mark as processing
+    await query(`UPDATE webhook_deliveries SET status = 'processing' WHERE id = $1`, [deliveryId])
+
+    const payloadString = typeof delivery.payload === 'string' ? delivery.payload : JSON.stringify(delivery.payload)
     const signature = generateSignature(payloadString, subscription.secret)
 
     // Prepare headers
@@ -197,7 +195,7 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
       'X-Webhook-Signature': signature,
       'X-Webhook-Event': delivery.event_type,
       'X-Webhook-Delivery-Id': deliveryId,
-      ...subscription.headers
+      ...(subscription.headers || {})
     }
 
     const startTime = Date.now()
@@ -224,16 +222,23 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
         subscription.retry_policy !== 'none' &&
         newAttempts < delivery.max_attempts
 
-      await supabaseAdmin
-        .from('webhook_deliveries')
-        .update({
-          status: shouldRetry ? 'retrying' : 'failed',
-          attempts: newAttempts,
-          last_error: fetchError.message,
-          response_time_ms: responseTime,
-          next_retry_at: shouldRetry ? calculateNextRetry(newAttempts) : null
-        })
-        .eq('id', deliveryId)
+      await query(
+        `UPDATE webhook_deliveries SET 
+           status = $1, 
+           attempts = $2, 
+           last_error = $3, 
+           response_time_ms = $4, 
+           next_retry_at = $5
+         WHERE id = $6`,
+        [
+          shouldRetry ? 'retrying' : 'failed',
+          newAttempts,
+          fetchError.message,
+          responseTime,
+          shouldRetry ? calculateNextRetry(newAttempts).toISOString() : null,
+          deliveryId
+        ]
+      )
 
       return false
     }
@@ -243,17 +248,23 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
 
     // Check if successful (2xx status)
     if (response.ok) {
-      await supabaseAdmin
-        .from('webhook_deliveries')
-        .update({
-          status: 'delivered',
-          attempts: delivery.attempts + 1,
-          response_status: response.status,
-          response_body: responseBody.slice(0, 1000),  // Truncate
-          response_time_ms: responseTime,
-          delivered_at: new Date().toISOString()
-        })
-        .eq('id', deliveryId)
+      await query(
+        `UPDATE webhook_deliveries SET 
+           status = 'delivered', 
+           attempts = $1, 
+           response_status = $2, 
+           response_body = $3, 
+           response_time_ms = $4, 
+           delivered_at = NOW()
+         WHERE id = $5`,
+        [
+          delivery.attempts + 1,
+          response.status,
+          responseBody.slice(0, 1000), // Truncate
+          responseTime,
+          deliveryId
+        ]
+      )
 
       return true
     }
@@ -265,18 +276,27 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
       newAttempts < delivery.max_attempts &&
       response.status >= 500  // Only retry on server errors
 
-    await supabaseAdmin
-      .from('webhook_deliveries')
-      .update({
-        status: shouldRetry ? 'retrying' : 'failed',
-        attempts: newAttempts,
-        response_status: response.status,
-        response_body: responseBody.slice(0, 1000),
-        response_time_ms: responseTime,
-        last_error: `HTTP ${response.status}`,
-        next_retry_at: shouldRetry ? calculateNextRetry(newAttempts) : null
-      })
-      .eq('id', deliveryId)
+    await query(
+      `UPDATE webhook_deliveries SET 
+         status = $1, 
+         attempts = $2, 
+         response_status = $3, 
+         response_body = $4, 
+         response_time_ms = $5, 
+         last_error = $6,
+         next_retry_at = $7
+       WHERE id = $8`,
+      [
+        shouldRetry ? 'retrying' : 'failed',
+        newAttempts,
+        response.status,
+        responseBody.slice(0, 1000),
+        responseTime,
+        `HTTP ${response.status}`,
+        shouldRetry ? calculateNextRetry(newAttempts).toISOString() : null,
+        deliveryId
+      ]
+    )
 
     return false
   } catch (error: any) {
@@ -285,13 +305,10 @@ export async function deliverWebhook(deliveryId: string): Promise<boolean> {
     })
 
     // Mark as failed
-    await supabaseAdmin
-      .from('webhook_deliveries')
-      .update({
-        status: 'failed',
-        last_error: error.message
-      })
-      .eq('id', deliveryId)
+    await query(
+      `UPDATE webhook_deliveries SET status = 'failed', last_error = $1 WHERE id = $2`,
+      [error.message, deliveryId]
+    )
 
     return false
   }
@@ -309,15 +326,16 @@ export async function processWebhookQueue(batchSize: number = 10): Promise<{
 
   try {
     // Get pending and retrying deliveries
-    const { data: deliveries, error: fetchError } = await supabaseAdmin
-      .from('webhook_deliveries')
-      .select('id')
-      .or('status.eq.pending,and(status.eq.retrying,next_retry_at.lte.now())')
-      .order('created_at', { ascending: true })
-      .limit(batchSize)
+    const { rows: deliveries } = await query(
+      `SELECT id FROM webhook_deliveries 
+       WHERE status = 'pending' 
+       OR (status = 'retrying' AND next_retry_at <= NOW()) 
+       ORDER BY created_at ASC 
+       LIMIT $1`,
+      [batchSize]
+    )
 
-    if (fetchError || !deliveries) {
-      logger.error('webhookDelivery: failed to fetch queue', fetchError)
+    if (!deliveries) {
       return results
     }
 

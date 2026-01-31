@@ -7,9 +7,8 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -17,39 +16,16 @@ export const runtime = 'nodejs'
 
 export async function GET() {
   try {
-    // Get authenticated user
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
+    // Authenticate user
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
+    // Note: requireRole ensures the user is a member of *an* organization.
+    // If we want to support users with no org, we'd need requireAuth and check org existence separate.
+    // But `organizations/current` implies fetching *the* org.
 
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
-
-    // Get user's organization membership
-    const { data: membership, error: membershipError } = await supabaseAdmin
-      .from('org_members')
-      .select(`
-        role,
-        organization_id,
-        organizations (
-          id,
-          name,
-          plan,
-          plan_status,
-          stripe_customer_id,
-          stripe_subscription_id,
-          created_at
-        )
-      `)
-      .eq('user_id', userId)
-      .limit(1)
-      .single()
-
-    if (membershipError || !membership) {
-      // User might not have an organization yet - return null org
+    if (!organizationId) {
+      // Should be caught by requireRole, but safe check
       return NextResponse.json({
         success: true,
         organization: null,
@@ -58,52 +34,68 @@ export async function GET() {
       })
     }
 
-    const org = membership.organizations as any
+    // Get organization details via JOIN
+    const { rows: orgRows } = await query(
+      `SELECT om.role, om.organization_id,
+              o.id, o.name, o.plan, o.plan_status, o.stripe_customer_id, o.stripe_subscription_id, o.created_at
+       FROM org_members om
+       JOIN organizations o ON om.organization_id = o.id
+       WHERE om.user_id = $1 AND om.organization_id = $2
+       LIMIT 1`,
+      [userId, organizationId]
+    )
 
-    // Get member count
-    const { count: memberCount } = await supabaseAdmin
-      .from('org_members')
-      .select('*', { count: 'exact', head: true })
-      .eq('organization_id', org.id)
-
-    // Get subscription status from stripe_subscriptions if available
-    let subscription: any = null
-    try {
-      const { data: sub } = await supabaseAdmin
-        .from('stripe_subscriptions')
-        .select('status, plan, current_period_end, cancel_at_period_end')
-        .eq('organization_id', org.id)
-        .order('current_period_end', { ascending: false })
-        .limit(1)
-        .single()
-      
-      if (sub) {
-        subscription = sub
-      }
-    } catch {
-      // No subscription found - that's okay for free tier
+    if (orgRows.length === 0) {
+      return NextResponse.json({
+        success: true,
+        organization: null,
+        role: null,
+        message: 'Organization not found'
+      })
     }
 
-    const planValue: any = subscription?.plan ?? (org as any).plan ?? 'free'
-    const planStatusValue: any = subscription?.status ?? (org as any).plan_status ?? 'active'
+    const orgRow = orgRows[0]
+
+    // Get member count
+    const { rows: countRows } = await query(
+      `SELECT COUNT(*) as head_count FROM org_members WHERE organization_id = $1`,
+      [organizationId]
+    )
+    const memberCount = parseInt(countRows[0]?.head_count || '1', 10)
+
+    // Get subscription status
+    const { rows: subRows } = await query(
+      `SELECT status, plan, current_period_end, cancel_at_period_end
+       FROM stripe_subscriptions
+       WHERE organization_id = $1
+       ORDER BY current_period_end DESC
+       LIMIT 1`,
+      [organizationId]
+    )
+    const subscription = subRows[0] || null
+
+    // Determine plan values
+    const planValue = subscription?.plan ?? orgRow.plan ?? 'free'
+    const planStatusValue = subscription?.status ?? orgRow.plan_status ?? 'active'
 
     return NextResponse.json({
       success: true,
       organization: {
-        id: org.id,
-        name: org.name,
+        id: orgRow.id,
+        name: orgRow.name,
         plan: planValue,
         plan_status: planStatusValue,
-        member_count: memberCount || 1,
-        created_at: (org as any).created_at,
+        member_count: memberCount,
+        created_at: orgRow.created_at,
         subscription: subscription ? {
           status: subscription.status,
           current_period_end: subscription.current_period_end,
           cancel_at_period_end: subscription.cancel_at_period_end
         } : null
       },
-      role: membership.role
+      role: orgRow.role
     })
+
   } catch (error: any) {
     logger.error('GET /api/organizations/current failed', error)
     return NextResponse.json(

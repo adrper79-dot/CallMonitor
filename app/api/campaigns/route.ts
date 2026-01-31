@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query, withTransaction } from '@/lib/pgClient'
 import { getRBACContext } from '@/lib/middleware/rbac'
 import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
@@ -20,7 +20,7 @@ export const runtime = 'nodejs'
 export async function GET(req: Request) {
   let organizationId: string | null = null
   let userId: string | null = null
-  
+
   try {
     const session = await getServerSession(authOptions)
     userId = (session?.user as any)?.id ?? null
@@ -51,47 +51,65 @@ export async function GET(req: Request) {
     const status = url.searchParams.get('status')
     const offset = (page - 1) * limit
 
-    let query = supabaseAdmin
-      .from('campaigns')
-      .select('*, created_by:users!campaigns_created_by_fkey(id, name, email)', { count: 'exact' })
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    let sql = `
+      SELECT 
+        c.*, 
+        u.id as user_id, 
+        u.name as user_name, 
+        u.email as user_email,
+        COUNT(*) OVER() as total_count
+      FROM campaigns c
+      LEFT JOIN users u ON c.created_by = u.id
+      WHERE c.organization_id = $1
+    `
+    const params = [organizationId] as any[]
 
     if (status) {
-      query = query.eq('status', status)
+      sql += ` AND c.status = $${params.length + 1}`
+      params.push(status)
     }
 
-    const { data: campaigns, error: campaignsErr, count } = await query
+    sql += ` ORDER BY c.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
+    params.push(limit, offset)
 
-    // If table doesn't exist (42P01 error), return empty array instead of failing
-    if (campaignsErr) {
-      if (campaignsErr.code === '42P01' || campaignsErr.message?.includes('does not exist')) {
-        logger.info('Campaigns table does not exist yet, returning empty array', { organizationId })
-        return NextResponse.json({
-          success: true,
-          campaigns: [],
-          pagination: { page, limit, total: 0, pages: 0 }
-        })
-      }
-      
-      logger.error('Failed to fetch campaigns', campaignsErr, { organizationId, userId })
-      const err = new AppError({ code: 'DB_QUERY_FAILED', message: 'Failed to fetch campaigns', user_message: 'Could not retrieve campaigns', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+    const { rows } = await query(sql, params, { organizationId })
+
+    const campaigns = rows.map(row => ({
+      ...row,
+      created_by: {
+        id: row.user_id,
+        name: row.user_name,
+        email: row.user_email
+      },
+      user_id: undefined,
+      user_name: undefined,
+      user_email: undefined,
+      total_count: undefined
+    }))
+
+    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0
 
     return NextResponse.json({
       success: true,
-      campaigns: campaigns || [],
+      campaigns,
       pagination: {
         page,
         limit,
-        total: count || 0,
-        pages: Math.ceil((count || 0) / limit)
+        total,
+        pages: Math.ceil(total / limit)
       }
     })
   } catch (err: any) {
     logger.error('GET /api/campaigns failed', err, { organizationId, userId })
+    // Check for "relation does not exist" error
+    if (err.message?.includes('does not exist')) {
+      logger.info('Campaigns table does not exist yet, returning empty', { organizationId })
+      return NextResponse.json({
+        success: true,
+        campaigns: [],
+        pagination: { page: 1, limit: 20, total: 0, pages: 0 }
+      })
+    }
     const e = err instanceof AppError ? err : new AppError({ code: 'CAMPAIGNS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to fetch campaigns', severity: 'HIGH' })
     return NextResponse.json({ success: false, error: { id: e.id, code: e.code, message: e.user_message, severity: e.severity } }, { status: 500 })
   }
@@ -155,67 +173,78 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 400 })
     }
 
-    // Create campaign
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .insert({
-        organization_id: organizationId,
-        name,
-        description,
-        call_flow_type,
-        target_list,
-        caller_id_id,
-        script_id,
-        survey_id,
-        custom_prompt,
-        schedule_type: schedule_type || 'immediate',
-        scheduled_at,
-        recurring_pattern,
-        call_config: call_config || {},
-        total_targets: target_list.length,
-        created_by: userId,
-        status: 'draft'
-      })
-      .select()
-      .single()
+    // Create campaign and calls in transaction
+    const result = await withTransaction(async (client) => {
+      // 1. Insert Campaign
+      const { rows: campaignRows } = await client.query(
+        `INSERT INTO campaigns (
+           organization_id, name, description, call_flow_type, target_list,
+           caller_id_id, script_id, survey_id, custom_prompt,
+           schedule_type, scheduled_at, recurring_pattern, call_config,
+           total_targets, created_by, status, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'draft', NOW(), NOW())
+         RETURNING *`,
+        [
+          organizationId,
+          name,
+          description || null,
+          call_flow_type,
+          JSON.stringify(target_list),
+          caller_id_id || null,
+          script_id || null,
+          survey_id || null,
+          custom_prompt || null,
+          schedule_type || 'immediate',
+          scheduled_at || null,
+          recurring_pattern ? JSON.stringify(recurring_pattern) : null,
+          JSON.stringify(call_config || {}),
+          target_list.length,
+          userId
+        ]
+      )
 
-    if (campaignError) {
-      logger.error('Error creating campaign', campaignError, { organizationId, userId })
-      const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to create campaign', user_message: 'Could not create campaign', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+      const campaign = campaignRows[0]
+      if (!campaign) throw new Error('Failed to create campaign record')
 
-    // Create campaign_calls records
-    const campaignCalls = target_list.map((target: any) => ({
-      campaign_id: campaign.id,
-      target_phone: target.phone,
-      target_metadata: target.metadata || {},
-      status: 'pending',
-      max_attempts: call_config?.retry_attempts || 3,
-      scheduled_for: schedule_type === 'immediate' ? null : scheduled_at
-    }))
+      // 2. Insert Campaign Calls (Batch Insert)
+      if (target_list.length > 0) {
+        const values: any[] = []
+        const placeholders: string[] = []
 
-    const { error: callsError } = await supabaseAdmin
-      .from('campaign_calls')
-      .insert(campaignCalls)
+        target_list.forEach((target: any, index: number) => {
+          const pIndex = index * 6
+          placeholders.push(`($${pIndex + 1}, $${pIndex + 2}, $${pIndex + 3}, $${pIndex + 4}, $${pIndex + 5}, $${pIndex + 6})`)
+          values.push(
+            campaign.id,
+            target.phone,
+            JSON.stringify(target.metadata || {}),
+            'pending',
+            call_config?.retry_attempts || 3,
+            schedule_type === 'immediate' ? null : scheduled_at
+          )
+        })
 
-    if (callsError) {
-      logger.error('Error creating campaign calls', callsError, { campaignId: campaign.id })
-      // Rollback campaign
-      await supabaseAdmin.from('campaigns').delete().eq('id', campaign.id)
-      const err = new AppError({ code: 'DB_INSERT_FAILED', message: 'Failed to create campaign calls', user_message: 'Could not create campaign calls', severity: 'HIGH' })
-      return NextResponse.json({ success: false, error: { id: err.id, code: err.code, message: err.user_message, severity: err.severity } }, { status: 500 })
-    }
+        // Split into chunks if too large (Postgres param limit is 65535, safe limit ~1000 targets per batch)
+        // For now assuming reasonable list size < 500
+        const insertQuery = `
+          INSERT INTO campaign_calls (
+            campaign_id, target_phone, target_metadata, status, max_attempts, scheduled_for
+          ) VALUES ${placeholders.join(', ')}
+        `
+        await client.query(insertQuery, values)
+      }
 
-    // Audit log
-    await supabaseAdmin.from('campaign_audit_log').insert({
-      campaign_id: campaign.id,
-      user_id: userId,
-      action: 'created',
-      changes: { campaign }
-    })
+      // 3. Audit Log
+      await client.query(
+        `INSERT INTO campaign_audit_log (campaign_id, user_id, action, changes, created_at)
+         VALUES ($1, $2, 'created', $3, NOW())`,
+        [campaign.id, userId, JSON.stringify({ campaign })]
+      )
 
-    return NextResponse.json({ success: true, campaign }, { status: 201 })
+      return campaign
+    }, { organizationId, userId })
+
+    return NextResponse.json({ success: true, campaign: result }, { status: 201 })
   } catch (err: any) {
     logger.error('POST /api/campaigns failed', err, { organizationId, userId })
     const e = err instanceof AppError ? err : new AppError({ code: 'CAMPAIGNS_ERROR', message: err?.message ?? 'Unexpected', user_message: 'Failed to create campaign', severity: 'HIGH' })

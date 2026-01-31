@@ -8,10 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { TimelineEvent, TimelineEventType, CallTimeline } from '@/types/tier1-features'
+import { query } from '@/lib/pgClient'
+import { requireRole } from '@/lib/rbac-server'
+import { TimelineEvent, CallTimeline } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -31,18 +30,12 @@ export async function GET(
 ) {
   try {
     const { id: callId } = await params
-    
+
     // Authenticate
-    const session = await getServerSession(authOptions)
-    const userId = (session?.user as any)?.id
-    
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
-        { status: 401 }
-      )
-    }
-    
+    const session = await requireRole('viewer')
+    const userId = session.user.id
+    const organizationId = session.user.organizationId
+
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
       return NextResponse.json(
@@ -50,43 +43,31 @@ export async function GET(
         { status: 400 }
       )
     }
-    
-    // Get user's organization
-    const { data: member, error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .select('organization_id')
-      .eq('user_id', userId)
-      .single()
-    
-    if (memberError || !member) {
-      return NextResponse.json(
-        { success: false, error: { code: 'ACCESS_DENIED', message: 'Organization membership not found' } },
-        { status: 403 }
-      )
-    }
-    
+
     // Get call with related data
-    const { data: call, error: callError } = await supabaseAdmin
-      .from('calls')
-      .select(`
-        *,
-        created_by_user:users!calls_created_by_fkey (email),
-        disposition_user:users!calls_disposition_set_by_fkey (email)
-      `)
-      .eq('id', callId)
-      .eq('organization_id', member.organization_id)
-      .single()
-    
-    if (callError || !call) {
+    const { rows: calls } = await query(
+      `SELECT 
+        c.*,
+        json_build_object('email', u1.email) as created_by_user,
+        json_build_object('email', u2.email) as disposition_user
+       FROM calls c
+       LEFT JOIN users u1 ON c.created_by = u1.id
+       LEFT JOIN users u2 ON c.disposition_set_by = u2.id
+       WHERE c.id = $1 AND c.organization_id = $2`,
+      [callId, organizationId]
+    )
+    const call = calls[0]
+
+    if (!call) {
       return NextResponse.json(
         { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
         { status: 404 }
       )
     }
-    
+
     // Build timeline events
     const events: TimelineEvent[] = []
-    
+
     // 1. Call started
     if (call.started_at) {
       events.push({
@@ -101,13 +82,13 @@ export async function GET(
         }
       })
     }
-    
+
     // 2. Call completed
     if (call.ended_at) {
-      const duration = call.started_at 
+      const duration = call.started_at
         ? new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()
         : 0
-      
+
       events.push({
         id: `${callId}-completed`,
         call_id: callId,
@@ -124,7 +105,7 @@ export async function GET(
         }
       })
     }
-    
+
     // 3. Consent captured
     if (call.consent_timestamp) {
       events.push({
@@ -132,14 +113,14 @@ export async function GET(
         call_id: callId,
         event_type: 'consent_captured',
         timestamp: call.consent_timestamp,
-        actor_id: null, // consent_verified_by column not yet in production schema
+        actor_id: null,
         actor_name: null,
         details: {
           method: call.consent_method
         }
       })
     }
-    
+
     // 3.5 Disclosure given (AI Role Compliance)
     if (call.disclosure_given && call.disclosure_timestamp) {
       events.push({
@@ -155,7 +136,7 @@ export async function GET(
         }
       })
     }
-    
+
     // 4. Disposition set
     if (call.disposition_set_at) {
       events.push({
@@ -171,19 +152,31 @@ export async function GET(
         }
       })
     }
-    
-    // 5. Get recordings
-    const { data: recordings } = await supabaseAdmin
-      .from('recordings')
-      .select('*')
-      .eq('call_sid', call.call_sid)
-    
+
+    // Parallel fetch for related artifacts
+    const [recordingsResult, aiRunsResult, notesResult] = await Promise.all([
+      query(`SELECT * FROM recordings WHERE call_sid = $1`, [call.call_sid]),
+      query(`SELECT * FROM ai_runs WHERE call_id = $1`, [callId]),
+      query(
+        `SELECT n.*, json_build_object('email', u.email) as creator 
+           FROM call_notes n 
+           LEFT JOIN users u ON n.created_by = u.id 
+           WHERE n.call_id = $1`,
+        [callId]
+      )
+    ])
+
+    const recordings = recordingsResult.rows
+    const aiRuns = aiRunsResult.rows
+    const notes = notesResult.rows
+
     let hasRecording = false
     let hasTranscript = false
-    
+
+    // 5. Recordings & Transcripts
     for (const recording of recordings || []) {
       hasRecording = true
-      
+
       // Recording available
       events.push({
         id: `${recording.id}-recording`,
@@ -200,7 +193,7 @@ export async function GET(
           artifact_id: recording.id
         }
       })
-      
+
       // Transcript completed
       if (recording.transcript_json) {
         hasTranscript = true
@@ -218,15 +211,10 @@ export async function GET(
         })
       }
     }
-    
-    // 6. Get AI runs (translations, etc)
-    const { data: aiRuns } = await supabaseAdmin
-      .from('ai_runs')
-      .select('*')
-      .eq('call_id', callId)
-    
+
+    // 6. AI Runs (translations, etc)
     let hasTranslation = false
-    
+
     for (const run of aiRuns || []) {
       if (run.model?.includes('translation') && run.status === 'completed') {
         hasTranslation = true
@@ -246,16 +234,8 @@ export async function GET(
         })
       }
     }
-    
-    // 7. Get notes
-    const { data: notes } = await supabaseAdmin
-      .from('call_notes')
-      .select(`
-        *,
-        creator:users!call_notes_created_by_fkey (email)
-      `)
-      .eq('call_id', callId)
-    
+
+    // 7. Notes
     for (const note of notes || []) {
       events.push({
         id: `${note.id}-note`,
@@ -270,68 +250,69 @@ export async function GET(
         }
       })
     }
-    
-    // 8. Get scorecards
-    const { data: scoredRecordings } = await supabaseAdmin
-      .from('scored_recordings')
-      .select('*')
-      .in('recording_id', (recordings || []).map(r => r.id))
-    
+
+    // 8. Scorecards (fetch if we have recordings)
     let hasScorecard = false
-    
-    for (const scored of scoredRecordings || []) {
-      hasScorecard = true
-      events.push({
-        id: `${scored.id}-scorecard`,
-        call_id: callId,
-        event_type: 'scorecard_generated',
-        timestamp: scored.created_at,
-        actor_id: null,
-        actor_name: null,
-        details: {
-          total_score: scored.total_score
-        },
-        metadata: {
-          artifact_id: scored.id
-        }
-      })
+    if (recordings.length > 0) {
+      const recordingIds = recordings.map((r: any) => r.id)
+      // Need to handle array param safely. using ANY for PG array
+      const { rows: scoredRecordings } = await query(
+        `SELECT * FROM scored_recordings WHERE recording_id = ANY($1)`,
+        [recordingIds]
+      )
+
+      for (const scored of scoredRecordings || []) {
+        hasScorecard = true
+        events.push({
+          id: `${scored.id}-scorecard`,
+          call_id: callId,
+          event_type: 'scorecard_generated',
+          timestamp: scored.created_at,
+          actor_id: null,
+          actor_name: null,
+          details: {
+            total_score: scored.total_score
+          },
+          metadata: {
+            artifact_id: scored.id
+          }
+        })
+      }
+
+      // 9. Evidence Exports
+      const { rows: manifests } = await query(
+        `SELECT * FROM evidence_manifests WHERE recording_id = ANY($1)`,
+        [recordingIds]
+      )
+      for (const manifest of manifests || []) {
+        events.push({
+          id: `${manifest.id}-export`,
+          call_id: callId,
+          event_type: 'evidence_exported',
+          timestamp: manifest.created_at,
+          actor_id: null,
+          actor_name: null,
+          details: {},
+          metadata: {
+            artifact_id: manifest.id
+          }
+        })
+      }
     }
-    
-    // 9. Get evidence exports
-    const { data: manifests } = await supabaseAdmin
-      .from('evidence_manifests')
-      .select('*')
-      .in('recording_id', (recordings || []).map(r => r.id))
-    
-    for (const manifest of manifests || []) {
-      events.push({
-        id: `${manifest.id}-export`,
-        call_id: callId,
-        event_type: 'evidence_exported',
-        timestamp: manifest.created_at,
-        actor_id: null,
-        actor_name: null,
-        details: {},
-        metadata: {
-          artifact_id: manifest.id
-        }
-      })
-    }
-    
+
     // 10. Get survey responses (if any)
-    // Note: This would require a survey_responses table linked to calls
     let hasSurvey = false
-    
+
     // Sort events by timestamp
-    events.sort((a, b) => 
+    events.sort((a, b) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     )
-    
+
     // Calculate total duration
     const totalDuration = call.started_at && call.ended_at
       ? new Date(call.ended_at).getTime() - new Date(call.started_at).getTime()
       : 0
-    
+
     // Build timeline response
     const timeline: CallTimeline = {
       call_id: callId,
@@ -347,7 +328,7 @@ export async function GET(
         disposition: call.disposition
       }
     }
-    
+
     return NextResponse.json({
       success: true,
       timeline

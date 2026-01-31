@@ -131,7 +131,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'The recording disclosure was played at call start. Mark confirmed when customer continues.',
     isRequired: true,
     useCases: ['general'],
-    icon: '🔊',
+    icon: 'Volume2',
     displayOrder: 1,
   },
   {
@@ -142,7 +142,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Obtain explicit verbal consent to record the call.',
     isRequired: true,
     useCases: ['compliance', 'legal', 'healthcare'],
-    icon: '🎙️',
+    icon: 'Mic',
     displayOrder: 2,
   },
   {
@@ -153,7 +153,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Verify the caller\'s identity before discussing sensitive information.',
     isRequired: false,
     useCases: ['finance', 'healthcare', 'compliance'],
-    icon: '🪪',
+    icon: 'BadgeCheck',
     displayOrder: 3,
   },
   {
@@ -164,7 +164,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Confirm the customer understands and agrees to terms.',
     isRequired: false,
     useCases: ['sales', 'legal', 'finance'],
-    icon: '📜',
+    icon: 'FileText',
     displayOrder: 4,
   },
   {
@@ -175,7 +175,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Obtain verbal confirmation of pricing or amounts.',
     isRequired: false,
     useCases: ['sales', 'finance'],
-    icon: '💰',
+    icon: 'DollarSign',
     displayOrder: 5,
   },
   {
@@ -186,7 +186,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Confirm understanding of what is included/excluded.',
     isRequired: false,
     useCases: ['sales', 'support'],
-    icon: '📋',
+    icon: 'ClipboardList',
     displayOrder: 6,
   },
   {
@@ -197,7 +197,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Obtain explicit authorization for an action.',
     isRequired: false,
     useCases: ['finance', 'healthcare', 'legal'],
-    icon: '✅',
+    icon: 'CheckCircle',
     displayOrder: 7,
   },
   {
@@ -208,7 +208,7 @@ export const DEFAULT_CONFIRMATION_TEMPLATES: ConfirmationTemplate[] = [
     description: 'Confirm the customer understands the key points.',
     isRequired: false,
     useCases: ['general', 'compliance'],
-    icon: '💡',
+    icon: 'Lightbulb',
     displayOrder: 8,
   },
 ]
@@ -292,55 +292,55 @@ export const CONFIRMATION_TYPE_CONFIG: Record<ConfirmationType, {
   disclosure_accepted: {
     label: 'Disclosure Accepted',
     description: 'Recording disclosure was acknowledged',
-    icon: '🔊',
+    icon: 'Volume2',
     color: 'bg-blue-100 text-blue-800',
   },
   recording_consent: {
     label: 'Recording Consent',
     description: 'Explicit consent to record',
-    icon: '🎙️',
+    icon: 'Mic',
     color: 'bg-purple-100 text-purple-800',
   },
   terms_agreed: {
     label: 'Terms Agreed',
     description: 'Terms and conditions accepted',
-    icon: '📜',
+    icon: 'FileText',
     color: 'bg-indigo-100 text-indigo-800',
   },
   price_confirmed: {
     label: 'Price Confirmed',
     description: 'Pricing/amount confirmed',
-    icon: '💰',
+    icon: 'DollarSign',
     color: 'bg-green-100 text-green-800',
   },
   scope_confirmed: {
     label: 'Scope Confirmed',
     description: 'Scope of work confirmed',
-    icon: '📋',
+    icon: 'ClipboardList',
     color: 'bg-orange-100 text-orange-800',
   },
   identity_verified: {
     label: 'Identity Verified',
     description: 'Caller identity confirmed',
-    icon: '🪪',
+    icon: 'BadgeCheck',
     color: 'bg-cyan-100 text-cyan-800',
   },
   authorization_given: {
     label: 'Authorization Given',
     description: 'Action authorized',
-    icon: '✅',
+    icon: 'CheckCircle',
     color: 'bg-emerald-100 text-emerald-800',
   },
   understanding_confirmed: {
     label: 'Understanding Confirmed',
     description: 'Comprehension verified',
-    icon: '💡',
+    icon: 'Lightbulb',
     color: 'bg-yellow-100 text-yellow-800',
   },
   custom: {
     label: 'Custom',
     description: 'Custom confirmation type',
-    icon: '📝',
+    icon: 'MoreHorizontal',
     color: 'bg-gray-100 text-gray-800',
   },
 }

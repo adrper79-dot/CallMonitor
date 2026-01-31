@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+import { query } from '@/lib/pgClient'
 import { requireAuth, requireRole, Errors, success } from '@/lib/api/utils'
 import { logger } from '@/lib/logger'
 
@@ -27,7 +27,7 @@ export async function GET() {
     if (ctx instanceof NextResponse) return ctx
 
     const { projectId, token, space } = getSignalWireCredentials()
-    
+
     if (!projectId || !token || !space) {
       return Errors.badRequest('SignalWire not configured')
     }
@@ -44,7 +44,7 @@ export async function GET() {
     }
 
     const data = await response.json()
-    
+
     const numbers = (data.incoming_phone_numbers || []).map((num: any) => ({
       sid: num.sid, phoneNumber: num.phone_number, friendlyName: num.friendly_name,
       voiceUrl: num.voice_url, voiceMethod: num.voice_method,
@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { projectId, token, space } = getSignalWireCredentials()
-    
+
     if (!projectId || !token || !space) {
       return Errors.badRequest('SignalWire not configured')
     }
@@ -102,9 +102,10 @@ export async function PATCH(req: NextRequest) {
 
     const data = await response.json()
 
-    await supabaseAdmin.from('voice_configs')
-      .update({ survey_inbound_number: numberSid, updated_at: new Date().toISOString() })
-      .eq('organization_id', ctx.orgId)
+    await query(
+      `UPDATE voice_configs SET survey_inbound_number = $1, updated_at = NOW() WHERE organization_id = $2`,
+      [numberSid, ctx.orgId]
+    )
 
     logger.info('SignalWire number updated', { numberSid, orgId: ctx.orgId })
 
