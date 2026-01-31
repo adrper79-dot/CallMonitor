@@ -72,6 +72,7 @@
     "cloudflare": "^5.2.0",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
+    "eslint-config-next": "15.5.11",
     "glob": "^13.0.0",
     "nodemailer": "^7.0.12",
     "open-next": "^3.1.3",
