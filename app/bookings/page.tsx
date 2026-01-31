@@ -36,12 +36,12 @@ export default function BookingsPage() {
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const url = filter === 'all' 
+      const url = filter === 'all'
         ? '/api/bookings?limit=50'
         : `/api/bookings?limit=50&status=${filter}`
       const response = await fetch(url, { credentials: 'include' })
       const data = await response.json()
-      
+
       if (data.success) {
         setBookings(data.bookings || [])
       } else {
@@ -99,7 +99,7 @@ export default function BookingsPage() {
 
   const handleCancelBooking = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this scheduled call?')) return
-    
+
     try {
       const response = await fetch(`/api/bookings/${id}`, {
         method: 'PATCH',
@@ -107,7 +107,7 @@ export default function BookingsPage() {
         credentials: 'include',
         body: JSON.stringify({ status: 'cancelled' })
       })
-      
+
       if (response.ok) {
         fetchBookings()
       }
@@ -132,7 +132,7 @@ export default function BookingsPage() {
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={() => window.location.href = '/voice'}
+              onClick={() => window.location.href = '/voice-operations'}
             >
               ← Back to Voice
             </Button>
@@ -154,11 +154,10 @@ export default function BookingsPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === f
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === f
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
+                }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
@@ -187,7 +186,7 @@ export default function BookingsPage() {
               No scheduled calls
             </h3>
             <p className="text-slate-400 mb-6">
-              {filter === 'all' 
+              {filter === 'all'
                 ? "You haven't scheduled any calls yet."
                 : `No ${filter} calls found.`}
             </p>
@@ -218,7 +217,7 @@ export default function BookingsPage() {
                         {getStatusIcon(booking.status)} {booking.status}
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-slate-400">Contact:</span>

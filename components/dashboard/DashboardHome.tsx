@@ -47,7 +47,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
 
   useEffect(() => {
     if (!organizationId) return
-    
+
     // Fetch dashboard stats
     Promise.all([
       fetch(`/api/calls?orgId=${organizationId}&limit=5`, { credentials: 'include' }).then(r => r.json()),
@@ -55,18 +55,18 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
     ]).then(([callsData, bookingsData]) => {
       const calls = callsData.calls || []
       const bookings = bookingsData.bookings || []
-      
+
       // Calculate stats
       const today = new Date().toDateString()
-      const callsToday = calls.filter((c: any) => 
+      const callsToday = calls.filter((c: any) =>
         new Date(c.created_at).toDateString() === today
       ).length
-      
+
       // Calculate average sentiment from recent calls
       const sentimentCalls = calls.filter((c: any) => c.sentiment_summary?.positive_percent)
       const avgSentiment = sentimentCalls.length > 0
-        ? Math.round(sentimentCalls.reduce((acc: number, c: any) => 
-            acc + (c.sentiment_summary?.positive_percent || 50), 0) / sentimentCalls.length)
+        ? Math.round(sentimentCalls.reduce((acc: number, c: any) =>
+          acc + (c.sentiment_summary?.positive_percent || 50), 0) / sentimentCalls.length)
         : 50
 
       setStats({
@@ -77,7 +77,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         recordingsCount: calls.filter((c: any) => c.recording_url).length,
         translationsCount: calls.filter((c: any) => c.translation).length
       })
-      
+
       setRecentCalls(calls.slice(0, 5))
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -87,7 +87,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => (
+          {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-24 bg-gray-100 rounded-md animate-pulse" />
           ))}
         </div>
@@ -126,10 +126,10 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         {/* Quick Actions */}
         <section aria-label="Quick Actions" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
-          
+
           {/* PRIMARY CTA - Make a Call */}
           <Link
-            href="/voice"
+            href="/voice-operations"
             className="block w-full py-4 px-6 bg-primary-600 hover:bg-primary-700 text-white text-center font-semibold rounded-lg shadow-sm transition-colors"
           >
             <span className="flex items-center justify-center gap-2">
@@ -139,7 +139,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
               Make a Call
             </span>
           </Link>
-          
+
           {/* Secondary Actions */}
           <div className="bg-white border border-gray-200 rounded-md p-4 space-y-1">
             <ActionLink href="/bookings" title="Schedule Call" description="Book a future call" />
@@ -153,7 +153,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         {/* Recent Calls */}
         <section aria-label="Recent Activity" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Recent Calls</h2>
-          
+
           <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
             {recentCalls.length === 0 ? (
               <div className="p-8 text-center">
@@ -161,7 +161,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 <p className="text-sm text-gray-500 mb-2">No calls yet</p>
-                <Link href="/voice" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                <Link href="/voice-operations" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
                   Make your first call
                 </Link>
               </div>
@@ -169,8 +169,8 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
               <ul className="divide-y divide-gray-100">
                 {recentCalls.map(call => (
                   <li key={call.id}>
-                    <Link 
-                      href={`/voice?callId=${call.id}`}
+                    <Link
+                      href={`/voice-operations?callId=${call.id}`}
                       className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
@@ -195,10 +195,10 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
               </ul>
             )}
           </div>
-          
+
           {recentCalls.length > 0 && (
-            <Link 
-              href="/voice" 
+            <Link
+              href="/voice-operations"
               className="block text-center text-sm text-primary-600 hover:text-primary-700 font-medium"
             >
               View all calls
@@ -209,7 +209,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         {/* Intelligence Panel */}
         <section aria-label="Intelligence" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Intelligence</h2>
-          
+
           <div className="space-y-4">
             {hasSurveyAnalytics && (
               <SurveyAnalyticsWidget organizationId={organizationId} />
@@ -217,8 +217,8 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
             {/* Sentiment Overview */}
             <div className="bg-white border border-gray-200 rounded-md p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Sentiment Trend</h3>
-              <ProgressBar 
-                value={stats?.avgSentiment || 50} 
+              <ProgressBar
+                value={stats?.avgSentiment || 50}
                 color={stats?.avgSentiment && stats.avgSentiment >= 60 ? 'green' : stats?.avgSentiment && stats.avgSentiment >= 40 ? 'orange' : 'red'}
                 showValue={true}
               />
@@ -226,7 +226,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
                 Based on recent call analysis
               </p>
             </div>
-            
+
             {/* Feature Status */}
             <div className="bg-white border border-gray-200 rounded-md p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-3">Active Features</h3>
@@ -238,7 +238,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
                 <FeatureStatus label="Secret Shopper" enabled={plan === 'business' || plan === 'enterprise'} />
               </div>
             </div>
-            
+
             {/* Plan Info */}
             <div className="bg-white border border-gray-200 rounded-md p-4">
               <div className="flex items-center justify-between">
@@ -246,7 +246,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
                   <p className="text-xs text-gray-500 uppercase tracking-wide">Current Plan</p>
                   <p className="text-lg font-semibold text-gray-900 capitalize mt-1">{plan || 'Free'}</p>
                 </div>
-                <Link 
+                <Link
                   href="/settings?tab=billing"
                   className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
@@ -279,7 +279,7 @@ function ActionLink({ href, title, description }: {
   description: string
 }) {
   return (
-    <Link 
+    <Link
       href={href}
       className="block p-3 rounded-md hover:bg-gray-50 transition-colors group"
     >
@@ -304,7 +304,7 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'Pending',
     queued: 'Queued',
   }
-  
+
   return (
     <Badge variant={variants[status] || 'default'}>
       {labels[status] || status}
@@ -318,7 +318,7 @@ function SentimentBadge({ sentiment }: { sentiment: string }) {
     NEGATIVE: 'error',
     NEUTRAL: 'default',
   }
-  
+
   return (
     <Badge variant={variants[sentiment] || 'default'}>
       {sentiment.charAt(0) + sentiment.slice(1).toLowerCase()}

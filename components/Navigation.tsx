@@ -21,7 +21,7 @@ export default function Navigation() {
   // Per ARCH_DOCS UX_DESIGN_PRINCIPLES: No emojis in professional UI
   const protectedNavItems = [
     { href: '/dashboard', label: 'Dashboard' },
-    { href: '/voice', label: 'Calls' },
+    { href: '/voice-operations', label: 'Calls' },
     { href: '/analytics', label: 'Analytics' },
     { href: '/bookings', label: 'Schedule' },
     { href: '/settings', label: 'Settings' },
@@ -31,7 +31,7 @@ export default function Navigation() {
   const isPublicPage = ['/', '/signin', '/signup', '/forgot-password', '/reset-password', '/pricing', '/trust'].includes(pathname || '')
 
   return (
-    <nav 
+    <nav
       className="fixed top-0 left-0 right-0 z-40 feng-fire"
       style={{
         background: 'linear-gradient(180deg, rgba(10, 10, 26, 0.95) 0%, rgba(10, 10, 26, 0.8) 100%)',
@@ -44,7 +44,7 @@ export default function Navigation() {
           <Link href="/" className="flex items-center gap-3 group">
             <Logo size="sm" animated={false} />
             <div className="hidden sm:block">
-              <span 
+              <span
                 className="font-display text-lg tracking-wider block leading-tight transition-all group-hover:tracking-widest"
                 style={{
                   background: 'linear-gradient(135deg, #C5A045 0%, #00CED1 100%)',
@@ -52,7 +52,7 @@ export default function Navigation() {
                   WebkitTextFillColor: 'transparent',
                 }}
               >
-              WORDIS BOND
+                WORDIS BOND
               </span>
               <span className="text-[10px] tracking-[0.3em] text-[#C0C0C0]/60 uppercase">
                 System of Record
@@ -62,7 +62,7 @@ export default function Navigation() {
 
           {/* Navigation Links - Only show for authenticated users */}
           {isAuthenticated && !isPublicPage && (
-            <div 
+            <div
               className="flex items-center gap-1 p-1 rounded-full"
               style={{
                 background: 'rgba(30, 30, 63, 0.5)',
@@ -79,8 +79,8 @@ export default function Navigation() {
                       relative px-4 py-3 min-h-[44px] rounded-full text-sm font-medium
                       transition-all duration-300 ease-out
                       flex items-center justify-center gap-2
-                      ${isActive 
-                        ? 'text-[#0A0A1A]' 
+                      ${isActive
+                        ? 'text-[#0A0A1A]'
                         : 'text-[#FFF8E7]/70 hover:text-[#FFF8E7]'
                       }
                     `}
@@ -91,7 +91,7 @@ export default function Navigation() {
                   >
                     {/* Hover glow effect for inactive items */}
                     {!isActive && (
-                      <span 
+                      <span
                         className="absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity"
                         style={{
                           background: 'rgba(30, 58, 95, 0.1)',
@@ -144,7 +144,7 @@ export default function Navigation() {
       </div>
 
       {/* Bottom accent line */}
-      <div 
+      <div
         className="h-[2px]"
         style={{
           background: 'linear-gradient(90deg, transparent 0%, rgba(0, 206, 209, 0.5) 20%, rgba(197, 160, 69, 0.5) 50%, rgba(0, 206, 209, 0.5) 80%, transparent 100%)',

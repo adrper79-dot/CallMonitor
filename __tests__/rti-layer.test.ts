@@ -46,11 +46,10 @@ describe('Return-Traffic Intelligence Layer', () => {
 
         // Create a test policy
         testPolicyId = uuidv4()
-        await neon.queryWithRLS('attention_policies').insert({
-            idpool.query(`
+        await pool.query(`
             INSERT INTO attention_policies (id, organization_id, name, policy_type, policy_config, priority, is_enabled, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [testPolicyId, TEST_ORG_ID, 'Test Threshold Policy', 'threshold', JSON.stringify({ severity_minimum: 5 }), 10, true, TEST_USER_ID]
+        `, [testPolicyId, TEST_ORG_ID, 'Test Threshold Policy', 'threshold', JSON.stringify({ severity_minimum: 5 }), 10, true, TEST_USER_ID])
 
     describe('Event Emission and Decisions', () => {
         test('emitEvent creates event and decision', async () => {

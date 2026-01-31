@@ -3,7 +3,7 @@
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node tools/verify_evidence_bundle.ts --bundleId <uuid>
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node tools/verify_evidence_bundle.ts --manifestId <uuid>
 
-import { createClient } from '@supabase/supabase-js'
+import { neon } from '@neondatabase/serverless'
 import { hashPayloadPrefixed } from '@/lib/crypto/canonicalize'
 
 type ArtifactHash = { type: string; id: string; sha256?: string | null }
@@ -45,25 +45,19 @@ async function main() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) fail('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
 
-  const supabase = createClient(url, key)
+  const sql = neon(process.env.NEON_PG_CONNSTRING || '')
 
   if (bundleId) {
-    const { data: bundleRows, error: bundleErr } = await supabase
-      .from('evidence_bundles')
-      .select('*')
-      .eq('id', bundleId)
-      .limit(1)
+    const bundleRows = await sql`SELECT * FROM evidence_bundles WHERE id = ${bundleId}`.then(r => r.rows)
+const bundleErr = bundleRows.length === 0 ? new Error('Not found') : null
 
-    if (bundleErr || !bundleRows?.[0]) fail('Evidence bundle not found')
+    if (bundleErr || !bundleRows[0]) fail('Evidence bundle not found')
     const bundle = bundleRows[0]
 
-    const { data: manifestRows, error: manifestErr } = await supabase
-      .from('evidence_manifests')
-      .select('id, manifest, cryptographic_hash')
-      .eq('id', bundle.manifest_id)
-      .limit(1)
+    const manifestRows = await sql`SELECT id, manifest, cryptographic_hash FROM evidence_manifests WHERE id = ${bundle.manifest_id}`.then(r => r.rows)
+const manifestErr = manifestRows.length === 0 ? new Error('Not found') : null
 
-    if (manifestErr || !manifestRows?.[0]) fail('Manifest missing for bundle')
+    if (manifestErr || !manifestRows[0]) fail('Manifest missing for bundle')
     const manifest = manifestRows[0]
 
     const bundlePayload = bundle.bundle_payload
@@ -114,25 +108,17 @@ async function main() {
   }
 
   if (manifestId) {
-    const { data: manifestRows, error: manifestErr } = await supabase
-      .from('evidence_manifests')
-      .select('id, manifest, cryptographic_hash')
-      .eq('id', manifestId)
-      .limit(1)
+    const manifestRows = await sql`SELECT id, manifest, cryptographic_hash FROM evidence_manifests WHERE id = ${manifestId}`.then(r => r.rows)
+const manifestErr = manifestRows.length === 0 ? new Error('Not found') : null
 
-    if (manifestErr || !manifestRows?.[0]) fail('Evidence manifest not found')
+    if (manifestErr || !manifestRows[0]) fail('Evidence manifest not found')
     const manifest = manifestRows[0]
 
     const computedManifestHash = hashPayloadPrefixed(manifest.manifest)
     const storedManifestHash = manifest.manifest?.manifest_hash || manifest.cryptographic_hash || null
     const manifestHashMatch = computedManifestHash === storedManifestHash
 
-    const { data: bundleRows } = await supabase
-      .from('evidence_bundles')
-      .select('id')
-      .eq('manifest_id', manifestId)
-      .is('superseded_at', null)
-      .limit(1)
+    const bundleRows = await sql`SELECT id FROM evidence_bundles WHERE manifest_id = ${manifestId} AND superseded_at IS NULL`.then(r => r.rows)
 
     console.log(JSON.stringify({
       ok: manifestHashMatch && !!bundleRows?.[0],

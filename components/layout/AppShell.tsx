@@ -19,8 +19,8 @@ function NavItem({ href, icon, label, badge, isActive }: NavItemProps) {
       href={href}
       className={`
         flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors
-        ${isActive 
-          ? 'bg-primary-50 text-primary-700' 
+        ${isActive
+          ? 'bg-primary-50 text-primary-700'
           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
         }
       `}
@@ -68,7 +68,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
       ),
     },
     {
-      href: '/voice',
+      href: '/voice-operations',
       label: 'Calls',
       icon: (
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
