@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
-import { AppError } from '@/lib/errors'
+import { AppError } from '@/types/app-error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

@@ -5,6 +5,7 @@ import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { AlertTriangle } from 'lucide-react'
+import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -78,6 +79,18 @@ export default async function VoiceOperationsPage(_props: PageProps) {
 
       organizationName = orgData?.name || null
     }
+
+    // Fetch Role for Troubleshoot Bot
+    let userRole = 'viewer'
+    if (organizationId && actualUserId) {
+      const { data: memberData } = await (supabaseAdmin as any)
+        .from('org_members')
+        .select('role')
+        .eq('organization_id', organizationId)
+        .eq('user_id', actualUserId)
+        .single()
+      if (memberData) userRole = memberData.role
+    }
   } catch (e) {
     logger.error('Failed to fetch organization for voice page', e)
   }
@@ -116,10 +129,13 @@ export default async function VoiceOperationsPage(_props: PageProps) {
   }
 
   return (
-    <VoiceOperationsClient
-      initialCalls={calls}
-      organizationId={organizationId}
-      organizationName={organizationName || undefined}
-    />
+    <>
+      <VoiceOperationsClient
+        initialCalls={calls}
+        organizationId={organizationId}
+        organizationName={organizationName || undefined}
+      />
+      {['owner', 'admin'].includes(userRole) && <TroubleshootChatToggle />}
+    </>
   )
 }

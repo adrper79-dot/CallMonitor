@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
-import { AppError } from '@/lib/errors'
+import { AppError } from '@/types/app-error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Test connection to SignalWire API
     // Note: SignalWire doesn't have a direct "test agent" endpoint,
     // so we validate the format and attempt to use it in a dry-run mode
-    
+
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(aiAgentId)) {

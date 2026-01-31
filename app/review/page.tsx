@@ -4,18 +4,19 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense, useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import ReviewMode from '@/components/review/ReviewMode'
+import { ProductTour, REVIEW_TOUR } from '@/components/tour'
 
 function ReviewPageContent() {
   const searchParams = useSearchParams()
   const callId = searchParams.get('callId')
   const { data: session } = useSession()
   const [organizationId, setOrganizationId] = useState<string | null>(null)
-  
+
   // Fetch organization from user
   useEffect(() => {
     const userId = (session?.user as any)?.id
     if (!userId) return
-    
+
     fetch(`/api/users/${userId}/organization`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -25,7 +26,7 @@ function ReviewPageContent() {
       })
       .catch(console.error)
   }, [session])
-  
+
   if (!callId) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -43,12 +44,15 @@ function ReviewPageContent() {
       </div>
     )
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-4xl mx-auto">
         <ReviewMode callId={callId} organizationId={organizationId} />
       </div>
+
+      {/* Tutorial Tour */}
+      <ProductTour tourId="review" steps={REVIEW_TOUR} />
     </div>
   )
 }

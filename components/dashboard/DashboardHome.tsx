@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import ActivityFeedEmbed from '@/components/voice/ActivityFeedEmbed'
 import ScorecardAlerts from '@/components/voice/ScorecardAlerts'
 import SurveyAnalyticsWidget from '@/components/dashboard/SurveyAnalyticsWidget'
+import { ProductTour, DASHBOARD_TOUR } from '@/components/tour'
 
 interface DashboardStats {
   totalCalls: number
@@ -267,6 +268,9 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         </div>
         <ScorecardAlerts organizationId={organizationId} />
       </section>
+
+      {/* Tutorial Tour */}
+      <ProductTour tourId="dashboard" steps={DASHBOARD_TOUR} />
     </div>
   )
 }

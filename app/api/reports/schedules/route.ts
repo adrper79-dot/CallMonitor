@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
-import { AppError } from '@/lib/errors'
+import { AppError } from '@/types/app-error'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
  */
 function calculateNextRun(cronPattern: string): string {
   const now = new Date()
-  
+
   if (cronPattern.includes('0 0 * * *')) {
     // Daily at midnight
     const tomorrow = new Date(now)
@@ -159,7 +159,7 @@ function calculateNextRun(cronPattern: string): string {
     nextMonth.setHours(0, 0, 0, 0)
     return nextMonth.toISOString()
   }
-  
+
   // Default: next hour
   const nextHour = new Date(now)
   nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0)

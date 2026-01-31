@@ -11,7 +11,7 @@
  */
 
 import { query } from '@/lib/pgClient'
-import { AppError } from '@/lib/errors/AppError'
+import { AppError } from '@/types/app-error'
 import { logger } from '@/lib/logger'
 
 export type UsageMetric = 'call' | 'minute' | 'transcription' | 'translation' | 'ai_run'

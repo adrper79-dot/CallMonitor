@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { AppShell } from '@/components/layout/AppShell'
 import { logger } from '@/lib/logger'
+import { ProductTour, SETTINGS_TOUR } from '@/components/tour'
 
 type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'webhooks' | 'billing'
 
@@ -31,7 +32,7 @@ function SettingsPageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const userId = (session?.user as any)?.id
-  
+
   // Get tab from URL or default to 'call-config'
   const tabParam = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState<TabId>((tabParam as TabId) || 'call-config')
@@ -50,7 +51,7 @@ function SettingsPageContent() {
       try {
         const res = await fetch(`/api/users/${userId}/organization`, { credentials: 'include' })
         if (!res.ok) throw new Error('Failed to fetch organization')
-        
+
         const data = await res.json()
         if (data.organization_id) {
           setOrganizationId(data.organization_id)
@@ -88,8 +89,8 @@ function SettingsPageContent() {
         <div className="max-w-md mx-auto text-center px-6">
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">Sign in required</h2>
           <p className="text-gray-600 mb-6">Please sign in to access your settings.</p>
-          <a 
-            href="/signin?callbackUrl=/settings" 
+          <a
+            href="/signin?callbackUrl=/settings"
             className="inline-flex items-center justify-center px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             Sign In
@@ -150,11 +151,10 @@ function SettingsPageContent() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
             >
               {tab.label}
             </button>
@@ -175,7 +175,7 @@ function SettingsPageContent() {
                 </div>
                 <VoiceTargetManager organizationId={organizationId} />
               </section>
-              
+
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
@@ -194,7 +194,7 @@ function SettingsPageContent() {
           {activeTab === 'ai-control' && (
             <div className="space-y-8">
               <AIControlSection organizationId={organizationId} canEdit={role === 'owner' || role === 'admin'} />
-              
+
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
@@ -203,14 +203,14 @@ function SettingsPageContent() {
                       Configure live translation, voice cloning, and AI model settings.
                     </p>
                   </div>
-                  <AIAgentConfig 
-                    organizationId={organizationId} 
+                  <AIAgentConfig
+                    organizationId={organizationId}
                     plan={plan || 'free'}
-                    canEdit={role === 'owner' || role === 'admin'} 
+                    canEdit={role === 'owner' || role === 'admin'}
                   />
                 </section>
               </div>
-              
+
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
@@ -252,8 +252,8 @@ function SettingsPageContent() {
 
           {/* Compliance - Retention & Legal Holds */}
           {activeTab === 'compliance' && (
-            <RetentionSettings 
-              organizationId={organizationId} 
+            <RetentionSettings
+              organizationId={organizationId}
               canEdit={role === 'owner' || role === 'admin'}
             />
           )}
@@ -267,8 +267,8 @@ function SettingsPageContent() {
           {activeTab === 'webhooks' && (
             <div className="space-y-8">
               <section className="space-y-6">
-                <WebhookList 
-                  organizationId={organizationId} 
+                <WebhookList
+                  organizationId={organizationId}
                   canEdit={role === 'owner' || role === 'admin'}
                 />
               </section>
@@ -284,32 +284,32 @@ function SettingsPageContent() {
                   Manage your subscription and payment methods.
                 </p>
               </div>
-              
+
               {/* Usage Display */}
               <UsageDisplay organizationId={organizationId} plan={plan || 'free'} />
 
               {/* Subscription Manager - New Component */}
-              <SubscriptionManager 
-                organizationId={organizationId} 
+              <SubscriptionManager
+                organizationId={organizationId}
                 role={role || 'viewer'}
               />
 
               {/* Payment Methods - New Component */}
-              <PaymentMethodManager 
-                organizationId={organizationId} 
+              <PaymentMethodManager
+                organizationId={organizationId}
                 role={role || 'viewer'}
               />
 
               {/* Invoice History - New Component */}
-              <InvoiceHistory 
-                organizationId={organizationId} 
+              <InvoiceHistory
+                organizationId={organizationId}
                 role={role || 'viewer'}
               />
 
               {/* Plan Comparison - New Component */}
-              <PlanComparisonTable 
+              <PlanComparisonTable
                 currentPlan={plan as 'free' | 'pro' | 'enterprise' || 'free'}
-                organizationId={organizationId} 
+                organizationId={organizationId}
                 role={role || 'viewer'}
               />
 
@@ -349,6 +349,9 @@ function SettingsPageContent() {
           )}
         </div>
       </div>
+
+      {/* Tutorial Tour */}
+      <ProductTour tourId="settings" steps={SETTINGS_TOUR} />
     </AppShell>
   )
 }
@@ -357,15 +360,15 @@ function SettingsPageContent() {
  * AI Control & Independence Section
  * Reference: ROLLOUT_EXECUTION_PLAN.md TASK 5
  */
-function AIControlSection({ 
-  organizationId, 
-  canEdit 
-}: { 
+function AIControlSection({
+  organizationId,
+  canEdit
+}: {
   organizationId: string
-  canEdit: boolean 
+  canEdit: boolean
 }) {
   const { config, updateConfig, loading } = useVoiceConfig(organizationId)
-  
+
   const features = [
     {
       key: 'transcribe',
@@ -388,7 +391,7 @@ function AIControlSection({
       ),
     },
   ]
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -397,7 +400,7 @@ function AIControlSection({
       </div>
     )
   }
-  
+
   return (
     <section className="space-y-6">
       <div>
@@ -406,7 +409,7 @@ function AIControlSection({
           You own your data. We make that real.
         </p>
       </div>
-      
+
       <div className="bg-white rounded-md border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-md bg-success-light flex items-center justify-center">
@@ -419,10 +422,10 @@ function AIControlSection({
             <p className="text-sm text-gray-500">Disable any AI feature without losing your source evidence</p>
           </div>
         </div>
-        
+
         <div className="space-y-4">
           {features.map(feature => (
-            <div 
+            <div
               key={feature.key}
               className="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-200"
             >
@@ -444,17 +447,17 @@ function AIControlSection({
             </div>
           ))}
         </div>
-        
+
         <div className="mt-6 p-4 bg-info-light rounded-md border border-blue-200">
           <p className="text-sm text-gray-700">
-            <strong className="text-gray-900">Why this matters:</strong> Your call 
-            evidence must be defensible in disputes, audits, and legal proceedings. 
-            AI assists — but never replaces — the source of truth. Source recordings 
+            <strong className="text-gray-900">Why this matters:</strong> Your call
+            evidence must be defensible in disputes, audits, and legal proceedings.
+            AI assists — but never replaces — the source of truth. Source recordings
             and canonical transcripts are always preserved, regardless of AI settings.
           </p>
         </div>
       </div>
-      
+
       {/* Evidence Guarantee */}
       <div className="bg-white rounded-md border border-gray-200 p-6">
         <h3 className="text-base font-semibold text-gray-900 mb-4">Evidence Guarantee</h3>

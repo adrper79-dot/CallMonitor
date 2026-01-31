@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/pgClient'
 import { requireRole } from '@/lib/rbac-server'
 import { logger } from '@/lib/logger'
-import { AppError } from '@/lib/errors'
+import { AppError } from '@/types/app-error'
 import { randomBytes } from 'node:crypto'
 
 export const dynamic = 'force-dynamic'

@@ -16,7 +16,7 @@
 
 import supabaseAdmin from '@/lib/supabaseAdmin'
 import { logger } from '@/lib/logger'
-import { AppError } from '@/lib/errors/AppError'
+import { AppError } from '@/types/app-error'
 
 interface CampaignCall {
   id: string
@@ -156,7 +156,7 @@ async function processCalls(
 
   for (let i = 0; i < calls.length; i += callsPerBatch) {
     const batch = calls.slice(i, i + callsPerBatch)
-    
+
     // Process batch concurrently
     await Promise.allSettled(
       batch.map(call => executeCall(campaign, call))
