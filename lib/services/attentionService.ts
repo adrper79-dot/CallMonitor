@@ -8,7 +8,7 @@
  * - Explainability required for escalate/suppress
  */
 
-import { SupabaseClient } from '@supabase/supabase-js'
+import { Pool } from 'pg'
 import { v4 as uuidv4 } from 'uuid'
 import { logger } from '@/lib/logger'
 import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
@@ -109,7 +109,7 @@ export interface DigestSummary {
 // =============================================================================
 
 export class AttentionService {
-    constructor(private supabaseAdmin: SupabaseClient) { }
+    constructor(private pool: Pool) { }
 
     // ---------------------------------------------------------------------------
     // EVENT EMISSION
@@ -130,18 +130,14 @@ export class AttentionService {
     ): Promise<{ success: boolean; eventId?: string; error?: string }> {
         const eventId = uuidv4()
 
-        const { error } = await this.supabaseAdmin
-            .from('attention_events')
-            .insert({
-                id: eventId,
-                organization_id: organizationId,
-                event_type: eventType,
-                source_table: sourceTable,
-                source_id: sourceId,
-                occurred_at: occurredAt.toISOString(),
-                payload_snapshot: payloadSnapshot,
-                input_refs: inputRefs
-            })
+        try {
+            await this.pool.query(`
+                INSERT INTO attention_events (id, organization_id, event_type, source_table, source_id, occurred_at, payload_snapshot, input_refs)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [eventId, organizationId, eventType, sourceTable, sourceId, occurredAt.toISOString(), JSON.stringify(payloadSnapshot), JSON.stringify(inputRefs)])
+        } catch (error) {
+            return { success: false, error: (error as Error).message }
+        }
 
         if (error) {
             logger.error('Failed to emit attention event', error)
@@ -166,21 +162,14 @@ export class AttentionService {
         eventId: string
     ): Promise<void> {
         // Get the event
-        const { data: event } = await this.supabaseAdmin
-            .from('attention_events')
-            .select('*')
-            .eq('id', eventId)
-            .single()
+        const eventResult = await this.pool.query('SELECT * FROM attention_events WHERE id = $1', [eventId])
+        const event = eventResult.rows[0]
 
         if (!event) return
 
         // Get enabled policies ordered by priority
-        const { data: policies } = await this.supabaseAdmin
-            .from('attention_policies')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .eq('is_enabled', true)
-            .order('priority', { ascending: true })
+        const policiesResult = await this.pool.query('SELECT * FROM attention_policies WHERE organization_id = $1 AND is_enabled = true ORDER BY priority ASC', [organizationId])
+        const policies = policiesResult.rows
 
         let decision: DecisionType = 'include_in_digest'  // Default
         let reason = 'No policy matched; included in digest'
@@ -359,41 +348,23 @@ export class AttentionService {
     ): Promise<{ success: boolean; decisionId?: string; error?: string }> {
         const decisionId = uuidv4()
 
-        const { error } = await this.supabaseAdmin
-            .from('attention_decisions')
-            .insert({
-                id: decisionId,
-                organization_id: organizationId,
-                attention_event_id: eventId,
-                decision,
-                reason,
-                policy_id: policyId,
-                confidence,
-                uncertainty_notes: uncertaintyNotes,
-                produced_by: producedBy,
-                produced_by_model: producedByModel,
-                produced_by_user_id: producedByUserId,
-                input_refs: inputRefs
-            })
-
-        if (error) {
+        try {
+            await this.pool.query(`
+                INSERT INTO attention_decisions (id, organization_id, attention_event_id, decision, reason, policy_id, confidence, uncertainty_notes, produced_by, produced_by_model, produced_by_user_id, input_refs)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            `, [decisionId, organizationId, eventId, decision, reason, policyId, confidence, uncertaintyNotes, producedBy, producedByModel, producedByUserId, JSON.stringify(inputRefs)])
+        } catch (error) {
             logger.error('Failed to create attention decision', error)
-            return { success: false, error: error.message }
+            return { success: false, error: (error as Error).message }
         }
 
         // Audit log for escalations
         if (decision === 'escalate') {
             await bestEffortAuditLog(
-                async () => await this.supabaseAdmin.from('audit_logs').insert({
-                    id: uuidv4(),
-                    organization_id: organizationId,
-                    resource_type: 'attention_decision',
-                    resource_id: decisionId,
-                    action: 'escalate',
-                    actor_type: producedBy === 'human' ? 'human' : 'system',
-                    actor_label: producedBy === 'model' ? producedByModel : producedBy,
-                    after: { event_id: eventId, reason, policy_id: policyId }
-                }),
+                async () => await this.pool.query(`
+                    INSERT INTO audit_logs (id, organization_id, resource_type, resource_id, action, actor_type, actor_label, after)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                `, [uuidv4(), organizationId, 'attention_decision', decisionId, 'escalate', producedBy === 'human' ? 'human' : 'system', producedBy === 'model' ? producedByModel : producedBy, JSON.stringify({ event_id: eventId, reason, policy_id: policyId })]),
                 { resource: 'attention_decision', resourceId: decisionId, action: 'escalate' }
             )
         }
@@ -412,10 +383,8 @@ export class AttentionService {
         userId: string
     ): Promise<{ success: boolean; decisionId?: string; error?: string }> {
         // Get original event's input_refs
-        const { data: event } = await this.supabaseAdmin
-            .from('attention_events')
-            .select('input_refs')
-            .eq('id', eventId)
+        const eventResult = await this.pool.query('SELECT input_refs FROM attention_events WHERE id = $1', [eventId])
+        const event = eventResult.rows[0]
             .single()
 
         if (!event) {
@@ -455,13 +424,12 @@ export class AttentionService {
         const digestId = uuidv4()
 
         // Get decisions in period
-        const { data: decisions } = await this.supabaseAdmin
-            .from('attention_decisions')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .gte('created_at', periodStart.toISOString())
-            .lte('created_at', periodEnd.toISOString())
-            .order('created_at', { ascending: true })
+        const decisionsResult = await this.pool.query(`
+            SELECT * FROM attention_decisions
+            WHERE organization_id = $1 AND created_at >= $2 AND created_at <= $3
+            ORDER BY created_at ASC
+        `, [organizationId, periodStart.toISOString(), periodEnd.toISOString()])
+        const decisions = decisionsResult.rows
 
         if (!decisions) {
             return { success: false, error: 'Failed to fetch decisions' }
@@ -485,25 +453,13 @@ export class AttentionService {
             : 'No events in this period'
 
         // Create digest
-        const { error } = await this.supabaseAdmin
-            .from('digests')
-            .insert({
-                id: digestId,
-                organization_id: organizationId,
-                digest_type: digestType,
-                period_start: periodStart.toISOString(),
-                period_end: periodEnd.toISOString(),
-                summary_text: summaryText,
-                total_events: decisions.length,
-                escalated_count: escalated,
-                suppressed_count: suppressed,
-                needs_review_count: needsReview,
-                generated_by: triggeredByUserId ? 'user-triggered' : 'system',
-                generated_by_user_id: triggeredByUserId
-            })
-
-        if (error) {
-            return { success: false, error: error.message }
+        try {
+            await this.pool.query(`
+                INSERT INTO digests (id, organization_id, digest_type, period_start, period_end, summary_text, total_events, escalated_count, suppressed_count, needs_review_count, generated_by, generated_by_user_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            `, [digestId, organizationId, digestType, periodStart.toISOString(), periodEnd.toISOString(), summaryText, decisions.length, escalated, suppressed, needsReview, triggeredByUserId ? 'user-triggered' : 'system', triggeredByUserId])
+        } catch (error) {
+            return { success: false, error: (error as Error).message }
         }
 
         // Create digest items for included decisions
@@ -514,13 +470,10 @@ export class AttentionService {
         )
 
         for (let i = 0; i < itemsToInclude.length; i++) {
-            await this.supabaseAdmin.from('digest_items').insert({
-                id: uuidv4(),
-                digest_id: digestId,
-                attention_decision_id: itemsToInclude[i].id,
-                item_order: i + 1,
-                is_highlighted: itemsToInclude[i].decision === 'escalate'
-            })
+            await this.pool.query(`
+                INSERT INTO digest_items (id, digest_id, attention_decision_id, item_order, is_highlighted)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [uuidv4(), digestId, itemsToInclude[i].id, i + 1, itemsToInclude[i].decision === 'escalate'])
         }
 
         logger.info('Digest generated', { digestId, type: digestType, totalEvents: decisions.length })
@@ -578,13 +531,13 @@ export class AttentionService {
         organizationId: string,
         limit: number = 10
     ): Promise<DigestSummary[]> {
-        const { data } = await this.supabaseAdmin
-            .from('digests')
-            .select('*')
-            .eq('organization_id', organizationId)
-            .order('generated_at', { ascending: false })
-            .limit(limit)
+        const result = await this.pool.query(`
+            SELECT * FROM digests
+            WHERE organization_id = $1
+            ORDER BY generated_at DESC
+            LIMIT $2
+        `, [organizationId, limit])
 
-        return (data || []) as DigestSummary[]
+        return (result.rows || []) as DigestSummary[]
     }
 }

@@ -8,15 +8,9 @@
  * 4. Decisions include provenance
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pool, setRLSSession } from '@/lib/neon'
 import { v4 as uuidv4 } from 'uuid'
 import { AttentionService } from '@/lib/services/attentionService'
-
-// Test setup
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-)
 
 const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
 const TEST_USER_ID = uuidv4()
@@ -27,42 +21,36 @@ describe('Return-Traffic Intelligence Layer', () => {
     let testPolicyId: string
 
     beforeAll(async () => {
-        attentionService = new AttentionService(supabase)
+        await setRLSSession(TEST_ORG_ID, TEST_USER_ID)
+        attentionService = new AttentionService(pool)
 
         // Create test organization
-        await supabase.from('organizations').upsert({
-            id: TEST_ORG_ID,
-            name: 'Test Org for RTI',
-            slug: 'test-rti-org'
-        })
+        await pool.query(`
+            INSERT INTO organizations (id, name, slug)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug
+        `, [TEST_ORG_ID, 'Test Org for RTI', 'test-rti-org'])
 
         // Create test user
-        await supabase.from('users').upsert({
-            id: TEST_USER_ID,
-            email: 'rti-admin@test.com',
-            name: 'RTI Test Admin'
-        })
+        await pool.query(`
+            INSERT INTO users (id, email, name)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name
+        `, [TEST_USER_ID, 'rti-admin@test.com', 'RTI Test Admin'])
 
-        await supabase.from('org_members').upsert({
-            id: uuidv4(),
-            organization_id: TEST_ORG_ID,
-            user_id: TEST_USER_ID,
-            role: 'admin'
-        })
+        await pool.query(`
+            INSERT INTO org_members (id, organization_id, user_id, role)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role
+        `, [uuidv4(), TEST_ORG_ID, TEST_USER_ID, 'admin'])
 
         // Create a test policy
         testPolicyId = uuidv4()
         await supabase.from('attention_policies').insert({
-            id: testPolicyId,
-            organization_id: TEST_ORG_ID,
-            name: 'Test Threshold Policy',
-            policy_type: 'threshold',
-            policy_config: { severity_minimum: 5 },
-            priority: 10,
-            is_enabled: true,
-            created_by: TEST_USER_ID
-        })
-    })
+            idpool.query(`
+            INSERT INTO attention_policies (id, organization_id, name, policy_type, policy_config, priority, is_enabled, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [testPolicyId, TEST_ORG_ID, 'Test Threshold Policy', 'threshold', JSON.stringify({ severity_minimum: 5 }), 10, true, TEST_USER_ID]
 
     describe('Event Emission and Decisions', () => {
         test('emitEvent creates event and decision', async () => {
@@ -138,47 +126,35 @@ describe('Return-Traffic Intelligence Layer', () => {
         })
 
         test('cannot update attention_decisions', async () => {
-            const { data: decision } = await supabase
-                .from('attention_decisions')
-                .select('id')
-                .eq('attention_event_id', testEventId)
-                .single()
+            const decisionResult = await pool.query('SELECT id FROM attention_decisions WHERE attention_event_id = $1 LIMIT 1', [testEventId])
+            const decision = decisionResult.rows[0]
 
-            const { error } = await supabase
-                .from('attention_decisions')
-                .update({ decision: 'suppress' })
-                .eq('id', decision?.id)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('UPDATE attention_decisions SET decision = $1 WHERE id = $2', ['suppress', decision.id])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
 
         test('cannot delete attention_decisions', async () => {
-            const { data: decision } = await supabase
-                .from('attention_decisions')
-                .select('id')
-                .eq('attention_event_id', testEventId)
-                .single()
+            const decisionResult = await pool.query('SELECT id FROM attention_decisions WHERE attention_event_id = $1 LIMIT 1', [testEventId])
+            const decision = decisionResult.rows[0]
 
-            const { error } = await supabase
-                .from('attention_decisions')
-                .delete()
-                .eq('id', decision?.id)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('DELETE FROM attention_decisions WHERE id = $1', [decision.id])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
     })
 
     describe('Human Override (LAW RTI-05)', () => {
         test('human override creates new decision (does not update)', async () => {
             // Get count before
-            const { data: beforeDecisions } = await supabase
-                .from('attention_decisions')
-                .select('id')
-                .eq('attention_event_id', testEventId)
-
-            const countBefore = beforeDecisions?.length || 0
+            const beforeResult = await pool.query('SELECT id FROM attention_decisions WHERE attention_event_id = $1', [testEventId])
+            const countBefore = beforeResult.rows.length
 
             // Human override
             const result = await attentionService.humanOverride(
@@ -192,23 +168,16 @@ describe('Return-Traffic Intelligence Layer', () => {
             expect(result.success).toBe(true)
 
             // Get count after
-            const { data: afterDecisions } = await supabase
-                .from('attention_decisions')
-                .select('id')
-                .eq('attention_event_id', testEventId)
-
-            expect(afterDecisions?.length).toBe(countBefore + 1)
+            const afterResult = await pool.query('SELECT id FROM attention_decisions WHERE attention_event_id = $1', [testEventId])
+            expect(afterResult.rows.length).toBe(countBefore + 1)
         })
 
         test('human override decision marked as produced_by: human', async () => {
-            const { data: decisions } = await supabase
-                .from('attention_decisions')
-                .select('*')
-                .eq('attention_event_id', testEventId)
-                .eq('produced_by', 'human')
+            const decisionsResult = await pool.query('SELECT * FROM attention_decisions WHERE attention_event_id = $1 AND produced_by = $2', [testEventId, 'human'])
+            const decisions = decisionsResult.rows
 
-            expect(decisions?.length).toBeGreaterThan(0)
-            expect(decisions?.[0].produced_by_user_id).toBe(TEST_USER_ID)
+            expect(decisions.length).toBeGreaterThan(0)
+            expect(decisions[0].produced_by_user_id).toBe(TEST_USER_ID)
         })
     })
 
@@ -229,54 +198,38 @@ describe('Return-Traffic Intelligence Layer', () => {
             expect(result.digestId).toBeDefined()
 
             // Verify digest contents
-            const { data: digest } = await supabase
-                .from('digests')
-                .select('*')
-                .eq('id', result.digestId)
-                .single()
+            const digestResult = await pool.query('SELECT * FROM digests WHERE id = $1', [result.digestId])
+            const digest = digestResult.rows[0]
 
             expect(digest).not.toBeNull()
-            expect(digest?.total_events).toBeGreaterThan(0)
-            expect(digest?.summary_text).toBeDefined()
+            expect(digest.total_events).toBeGreaterThan(0)
+            expect(digest.summary_text).toBeDefined()
         })
 
         test('cannot update digest', async () => {
-            const { data: digest } = await supabase
-                .from('digests')
-                .select('id')
-                .eq('organization_id', TEST_ORG_ID)
-                .limit(1)
-                .single()
+            const digestResult = await pool.query('SELECT id FROM digests WHERE organization_id = $1 LIMIT 1', [TEST_ORG_ID])
+            const digest = digestResult.rows[0]
 
-            const { error } = await supabase
-                .from('digests')
-                .update({ summary_text: 'Modified' })
-                .eq('id', digest?.id)
-
-            expect(error).not.toBeNull()
-            expect(error?.message).toContain('append-only')
+            try {
+                await pool.query('UPDATE digests SET summary_text = $1 WHERE id = $2', ['Modified', digest.id])
+                expect(true).toBe(false) // should not reach
+            } catch (error) {
+                expect((error as Error).message).toContain('append-only')
+            }
         })
     })
 
     describe('Audit Logging (LAW RTI-05)', () => {
         test('escalation creates audit log entry', async () => {
             // Find an escalated decision
-            const { data: escalated } = await supabase
-                .from('attention_decisions')
-                .select('id')
-                .eq('organization_id', TEST_ORG_ID)
-                .eq('decision', 'escalate')
-                .limit(1)
-                .single()
+            const escalatedResult = await pool.query('SELECT id FROM attention_decisions WHERE organization_id = $1 AND decision = $2 LIMIT 1', [TEST_ORG_ID, 'escalate'])
+            const escalated = escalatedResult.rows[0]
 
             if (escalated) {
-                const { data: auditLogs } = await supabase
-                    .from('audit_logs')
-                    .select('*')
-                    .eq('resource_type', 'attention_decision')
-                    .eq('resource_id', escalated.id)
+                const auditResult = await pool.query('SELECT * FROM audit_logs WHERE resource_type = $1 AND resource_id = $2', ['attention_decision', escalated.id])
+                const auditLogs = auditResult.rows
 
-                expect(auditLogs?.length).toBeGreaterThan(0)
+                expect(auditLogs.length).toBeGreaterThan(0)
             }
         })
     })
@@ -285,16 +238,10 @@ describe('Return-Traffic Intelligence Layer', () => {
         test('quiet hours policy suppresses during quiet time', async () => {
             // Create quiet hours policy (always active for test)
             const quietPolicyId = uuidv4()
-            await supabase.from('attention_policies').insert({
-                id: quietPolicyId,
-                organization_id: TEST_ORG_ID,
-                name: 'Test Quiet Hours',
-                policy_type: 'quiet_hours',
-                policy_config: { start_hour: 0, end_hour: 24 },  // Always quiet for test
-                priority: 1,  // Higher priority
-                is_enabled: true,
-                created_by: TEST_USER_ID
-            })
+            await pool.query(`
+                INSERT INTO attention_policies (id, organization_id, name, policy_type, policy_config, priority, is_enabled, created_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [quietPolicyId, TEST_ORG_ID, 'Test Quiet Hours', 'quiet_hours', JSON.stringify({ start_hour: 0, end_hour: 24 }), 1, true, TEST_USER_ID])
 
             const result = await attentionService.emitEvent(
                 TEST_ORG_ID,
@@ -307,16 +254,14 @@ describe('Return-Traffic Intelligence Layer', () => {
             )
 
             // Should be suppressed or in digest due to quiet hours
-            const { data: decisions } = await supabase
-                .from('attention_decisions')
-                .select('decision, reason')
-                .eq('attention_event_id', result.eventId)
+            const decisionsResult = await pool.query('SELECT decision, reason FROM attention_decisions WHERE attention_event_id = $1', [result.eventId])
+            const decisions = decisionsResult.rows
 
-            expect(['include_in_digest', 'suppress']).toContain(decisions?.[0].decision)
-            expect(decisions?.[0].reason.toLowerCase()).toContain('quiet')
+            expect(['include_in_digest', 'suppress']).toContain(decisions[0].decision)
+            expect(decisions[0].reason.toLowerCase()).toContain('quiet')
 
             // Cleanup
-            await supabase.from('attention_policies').update({ is_enabled: false }).eq('id', quietPolicyId)
+            await pool.query('UPDATE attention_policies SET is_enabled = $1 WHERE id = $2', [false, quietPolicyId])
         })
     })
 })

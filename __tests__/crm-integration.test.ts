@@ -8,15 +8,9 @@
  * 4. Immutability of crm_sync_log
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { pool, setRLSSession } from '@/lib/neon'
 import { v4 as uuidv4 } from 'uuid'
 import { encryptToken, decryptToken } from '@/lib/services/crmService'
-
-// Test setup
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key'
-)
 
 const TEST_ORG_ID = process.env.TEST_ORG_ID || uuidv4()
 const TEST_ADMIN_USER = uuidv4()
