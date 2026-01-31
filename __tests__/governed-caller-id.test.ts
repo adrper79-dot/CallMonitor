@@ -137,8 +137,8 @@ describe('Governed Caller ID', () => {
             const newUserId = uuidv4()
 
             // Create user and membership
-            await supabase.from('users').insert({ id: newUserId, email: 'new-user@test.com' })
-            await supabase.from('org_members').insert({
+            await neon.queryWithRLS('users').insert({ id: newUserId, email: 'new-user@test.com' })
+            await neon.queryWithRLS('org_members').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_ID,
                 user_id: newUserId,
@@ -208,8 +208,8 @@ describe('Governed Caller ID', () => {
         test('operator only sees permitted caller IDs', async () => {
             // Create fresh operator
             const freshOperatorId = uuidv4()
-            await supabase.from('users').insert({ id: freshOperatorId, email: 'fresh-op@test.com' })
-            await supabase.from('org_members').insert({
+            await neon.queryWithRLS('users').insert({ id: freshOperatorId, email: 'fresh-op@test.com' })
+            await neon.queryWithRLS('org_members').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_ID,
                 user_id: freshOperatorId,
@@ -254,8 +254,8 @@ describe('Governed Caller ID', () => {
 
             // Create user with no explicit permission
             const noPermUserId = uuidv4()
-            await supabase.from('users').insert({ id: noPermUserId, email: 'no-perm@test.com' })
-            await supabase.from('org_members').insert({
+            await neon.queryWithRLS('users').insert({ id: noPermUserId, email: 'no-perm@test.com' })
+            await neon.queryWithRLS('org_members').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_ID,
                 user_id: noPermUserId,
@@ -277,7 +277,7 @@ describe('Governed Caller ID', () => {
         test('retirement does not break existing call records', async () => {
             // Create a call with caller_id_number_id
             const callId = uuidv4()
-            await supabase.from('calls').insert({
+            await neon.queryWithRLS('calls').insert({
                 id: callId,
                 organization_id: TEST_ORG_ID,
                 status: 'completed',
@@ -287,7 +287,7 @@ describe('Governed Caller ID', () => {
 
             // Retire the number (TEST_CALLER_ID_1 was used, create a new one to retire)
             const retirableId = uuidv4()
-            await supabase.from('caller_id_numbers').insert({
+            await neon.queryWithRLS('caller_id_numbers').insert({
                 id: retirableId,
                 organization_id: TEST_ORG_ID,
                 phone_number: '+15551111111',
@@ -297,7 +297,7 @@ describe('Governed Caller ID', () => {
 
             // Create call with this number
             const callId2 = uuidv4()
-            await supabase.from('calls').insert({
+            await neon.queryWithRLS('calls').insert({
                 id: callId2,
                 organization_id: TEST_ORG_ID,
                 status: 'completed',
@@ -320,3 +320,4 @@ describe('Governed Caller ID', () => {
         })
     })
 })
+

@@ -24,20 +24,20 @@ const TEST_ADMIN_USER = uuidv4()
 describe('External Entity Overlay', () => {
     beforeAll(async () => {
         // Create test organizations
-        await supabase.from('organizations').upsert([
+        await neon.queryWithRLS('organizations').upsert([
             { id: TEST_ORG_A, name: 'Test Org A', slug: 'test-org-a' },
             { id: TEST_ORG_B, name: 'Test Org B', slug: 'test-org-b' }
         ])
 
         // Create test admin user
-        await supabase.from('users').upsert({
+        await neon.queryWithRLS('users').upsert({
             id: TEST_ADMIN_USER,
             email: 'test-admin@example.com',
             name: 'Test Admin'
         })
 
         // Create org membership
-        await supabase.from('org_members').upsert({
+        await neon.queryWithRLS('org_members').upsert({
             id: uuidv4(),
             organization_id: TEST_ORG_A,
             user_id: TEST_ADMIN_USER,
@@ -49,7 +49,7 @@ describe('External Entity Overlay', () => {
         test('entities are org-scoped', async () => {
             // Create entity in Org A
             const entityAId = uuidv4()
-            await supabase.from('external_entities').insert({
+            await neon.queryWithRLS('external_entities').insert({
                 id: entityAId,
                 organization_id: TEST_ORG_A,
                 display_name: 'Org A Entity',
@@ -59,7 +59,7 @@ describe('External Entity Overlay', () => {
 
             // Create entity in Org B
             const entityBId = uuidv4()
-            await supabase.from('external_entities').insert({
+            await neon.queryWithRLS('external_entities').insert({
                 id: entityBId,
                 organization_id: TEST_ORG_B,
                 display_name: 'Org B Entity',
@@ -81,7 +81,7 @@ describe('External Entity Overlay', () => {
             const sharedPhone = '+15551234567'
 
             // Insert same phone in Org A
-            const { error: errorA } = await supabase.from('external_entity_identifiers').insert({
+            const { error: errorA } = await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -92,7 +92,7 @@ describe('External Entity Overlay', () => {
             expect(errorA).toBeNull()
 
             // Insert same phone in Org B - should also succeed (different org)
-            const { error: errorB } = await supabase.from('external_entity_identifiers').insert({
+            const { error: errorB } = await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_B,
                 identifier_type: 'phone',
@@ -103,7 +103,7 @@ describe('External Entity Overlay', () => {
             expect(errorB).toBeNull()
 
             // Try to insert again in Org A - should fail (duplicate)
-            const { error: errorDup } = await supabase.from('external_entity_identifiers').insert({
+            const { error: errorDup } = await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -119,7 +119,7 @@ describe('External Entity Overlay', () => {
         test('links require created_by (human attribution)', async () => {
             // Create entity first
             const entityId = uuidv4()
-            await supabase.from('external_entities').insert({
+            await neon.queryWithRLS('external_entities').insert({
                 id: entityId,
                 organization_id: TEST_ORG_A,
                 display_name: 'Link Test Entity',
@@ -129,7 +129,7 @@ describe('External Entity Overlay', () => {
 
             // Create identifier
             const identifierId = uuidv4()
-            await supabase.from('external_entity_identifiers').insert({
+            await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: identifierId,
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -138,7 +138,7 @@ describe('External Entity Overlay', () => {
             })
 
             // Create link with created_by - should succeed
-            const { error: linkSuccess } = await supabase.from('external_entity_links').insert({
+            const { error: linkSuccess } = await neon.queryWithRLS('external_entity_links').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_A,
                 link_type: 'identifier_to_entity',
@@ -151,7 +151,7 @@ describe('External Entity Overlay', () => {
             expect(linkSuccess).toBeNull()
 
             // Try to create link WITHOUT created_by - should fail
-            const { error: linkFail } = await supabase.from('external_entity_links').insert({
+            const { error: linkFail } = await neon.queryWithRLS('external_entity_links').insert({
                 id: uuidv4(),
                 organization_id: TEST_ORG_A,
                 link_type: 'identifier_to_entity',
@@ -170,7 +170,7 @@ describe('External Entity Overlay', () => {
             const linkId = uuidv4()
 
             // Setup
-            await supabase.from('external_entities').insert({
+            await neon.queryWithRLS('external_entities').insert({
                 id: entityId,
                 organization_id: TEST_ORG_A,
                 display_name: 'Audit Test Entity',
@@ -178,7 +178,7 @@ describe('External Entity Overlay', () => {
                 created_by: TEST_ADMIN_USER
             })
 
-            await supabase.from('external_entity_identifiers').insert({
+            await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: identifierId,
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -187,7 +187,7 @@ describe('External Entity Overlay', () => {
             })
 
             // Create link
-            await supabase.from('external_entity_links').insert({
+            await neon.queryWithRLS('external_entity_links').insert({
                 id: linkId,
                 organization_id: TEST_ORG_A,
                 link_type: 'identifier_to_entity',
@@ -199,7 +199,7 @@ describe('External Entity Overlay', () => {
 
             // Insert audit log (simulating what the service does)
             const auditId = uuidv4()
-            await supabase.from('audit_logs').insert({
+            await neon.queryWithRLS('audit_logs').insert({
                 id: auditId,
                 organization_id: TEST_ORG_A,
                 user_id: TEST_ADMIN_USER,
@@ -233,7 +233,7 @@ describe('External Entity Overlay', () => {
         beforeEach(async () => {
             // Create identifier first
             const identifierId = uuidv4()
-            await supabase.from('external_entity_identifiers').insert({
+            await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: identifierId,
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -243,7 +243,7 @@ describe('External Entity Overlay', () => {
 
             // Create observation
             testObservationId = uuidv4()
-            await supabase.from('external_entity_observations').insert({
+            await neon.queryWithRLS('external_entity_observations').insert({
                 id: testObservationId,
                 organization_id: TEST_ORG_A,
                 identifier_id: identifierId,
@@ -280,7 +280,7 @@ describe('External Entity Overlay', () => {
             const unlinkedId = uuidv4()
 
             // Create unlinked identifier
-            await supabase.from('external_entity_identifiers').insert({
+            await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: unlinkedId,
                 organization_id: TEST_ORG_A,
                 identifier_type: 'phone',
@@ -304,7 +304,7 @@ describe('External Entity Overlay', () => {
             const linkedId = uuidv4()
 
             // Create entity
-            await supabase.from('external_entities').insert({
+            await neon.queryWithRLS('external_entities').insert({
                 id: entityId,
                 organization_id: TEST_ORG_A,
                 display_name: 'Linked Entity',
@@ -313,7 +313,7 @@ describe('External Entity Overlay', () => {
             })
 
             // Create identifier with entity_id
-            await supabase.from('external_entity_identifiers').insert({
+            await neon.queryWithRLS('external_entity_identifiers').insert({
                 id: linkedId,
                 organization_id: TEST_ORG_A,
                 entity_id: entityId,  // Linked!
@@ -333,3 +333,4 @@ describe('External Entity Overlay', () => {
         })
     })
 })
+

@@ -46,7 +46,7 @@ describe('Return-Traffic Intelligence Layer', () => {
 
         // Create a test policy
         testPolicyId = uuidv4()
-        await supabase.from('attention_policies').insert({
+        await neon.queryWithRLS('attention_policies').insert({
             idpool.query(`
             INSERT INTO attention_policies (id, organization_id, name, policy_type, policy_config, priority, is_enabled, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -265,3 +265,4 @@ describe('Return-Traffic Intelligence Layer', () => {
         })
     })
 })
+

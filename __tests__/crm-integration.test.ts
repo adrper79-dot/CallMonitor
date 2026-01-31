@@ -144,7 +144,7 @@ describe('CRM Integration', () => {
         test('can update status and completed_at', async () => {
             const logId = uuidv4()
 
-            await supabase.from('crm_sync_log').insert({
+            await neon.queryWithRLS('crm_sync_log').insert({
                 id: logId,
                 organization_id: TEST_ORG_ID,
                 integration_id: testIntegrationId,
@@ -167,7 +167,7 @@ describe('CRM Integration', () => {
     describe('Token Security', () => {
         test('oauth_tokens table has RLS blocking direct access', async () => {
             // Insert token via service role
-            await supabase.from('oauth_tokens').upsert({
+            await neon.queryWithRLS('oauth_tokens').upsert({
                 integration_id: testIntegrationId,
                 access_token_encrypted: encryptToken('test-access-token'),
                 refresh_token_encrypted: encryptToken('test-refresh-token'),
@@ -220,3 +220,4 @@ describe('CRM Integration', () => {
         })
     })
 })
+
