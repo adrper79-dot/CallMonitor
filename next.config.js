@@ -54,7 +54,7 @@ const nextConfig = {
 
       config.externals.push(edgeExternals);
 
-      config.externals.push('nodemailer', 'next-auth/providers/email', 'ws')
+      config.externals.push('nodemailer', 'next-auth/providers/email', 'ws', 'openai', 'ai')
     }
     return config
   },

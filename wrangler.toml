@@ -1,7 +1,7 @@
 name = "wordisbond"
 compatibility_date = "2026-01-27"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = "."
+pages_build_output_dir = ".open-next/assets"
 
 [vars]
 # Public Variables (Safe to commit)
