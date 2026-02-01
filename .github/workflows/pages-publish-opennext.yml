@@ -1,0 +1,40 @@
+name: Build and publish Open-Next to Cloudflare Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build OpenNext (Cloudflare)
+        run: npm run build:cloudflare
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@3
+
+      - name: Publish to Cloudflare Pages (assets + functions)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -e
+          wrangler pages publish .open-next \
+            --project-name "wordisbond" \
+            --branch main \
+            --commit-hash "${{ github.sha }}" \
+            --commit-msg "${{ github.event.head_commit.message || 'CI publish' }}"
