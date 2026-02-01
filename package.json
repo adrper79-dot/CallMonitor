@@ -8,7 +8,7 @@
     "build": "npx next build",
     "start": "next start",
     "vercel-build": "next build",
-    "pages:build": "npx open-next build",
+    "pages:build": "npx @opennextjs/cloudflare build",
     "build:cloudflare": "npx open-next build",
     "preview": "npm run build:cloudflare && wrangler pages dev .open-next/assets"
   },
@@ -84,6 +84,6 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16",
-    "wrangler": "^4.60.0"
+    "wrangler": "^4.61.1"
   }
 }

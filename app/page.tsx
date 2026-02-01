@@ -13,6 +13,8 @@ import { Logo } from '@/components/Logo'
  * Positioning: "The System of Record for Business Conversations"
  */
 
+export const dynamic = 'force-static'
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">

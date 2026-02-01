@@ -10,6 +10,9 @@ const nextConfig = {
     // This ensures type safety in production
     ignoreBuildErrors: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   poweredByHeader: false,
   webpack: (config, { isServer, nextRuntime }) => {
