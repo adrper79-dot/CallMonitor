@@ -1,0 +1,42 @@
+name: Build and Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Load minimal env (optional)
+        run: |
+          if [ -f .vercel/.env ]; then
+            grep -E '^(NEXT_PUBLIC_APP_URL|CF_PAGES_PROJECT_NAME|CLOUDFLARE_API_TOKEN|CF_ACCOUNT_ID)=' .vercel/.env > .env.ci || true
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build OpenNext for Cloudflare
+        env:
+          TMPDIR: /tmp
+        run: npm run build:cloudflare
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+          directory: .open-next
