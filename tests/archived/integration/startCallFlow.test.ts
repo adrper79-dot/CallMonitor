@@ -3,10 +3,10 @@ import { AppError } from '../../types/app-error'
 import { describe, vi } from 'vitest'
 
 /**
- * @integration: This test requires full Supabase + call flow mocking
- * Run with: RUN_INTEGRATION=1 npm test
+ * @legacy: Uses Supabase mocks but startCall/startCallHandler now use pgClient
+ * TODO: Migrate to pgClient mocking or real integration tests
  */
-const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
+const describeOrSkip = describe.skip
 
 // Shared state for tracking table access
 const sharedState = {

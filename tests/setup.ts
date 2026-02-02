@@ -8,6 +8,9 @@ try {
   console.log('No .env.test found, using default test environment')
 }
 
+// pg module is mocked via __mocks__/pg.ts when no DATABASE_URL
+// For integration tests (RUN_INTEGRATION=1), the real pg module will be used
+
 // Mock environment variables with fallbacks
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://test.supabase.co'
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key'

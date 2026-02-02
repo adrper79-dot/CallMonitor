@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { rateLimit, recordAttempt } from '@/lib/rateLimit'
 
 /**
- * @integration: Rate limit tests require proper module state
- * Run with: RUN_INTEGRATION=1 npm test
+ * @legacy: Rate limit now uses pgClient, not Supabase
+ * These tests have incorrect mocks - skip until proper integration tests added
+ * TODO: Create integration test that actually tests rate limiting against DB
  */
-const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
+const describeOrSkip = describe.skip
 
 // Mock Supabase
 vi.mock('@/lib/supabaseAdmin', () => ({

@@ -13,41 +13,15 @@
  */
 
 import { describe, test, expect, vi, beforeAll, beforeEach } from 'vitest'
+import { v4 as uuidv4 } from 'uuid'
 
 const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
 
-// Mock uuid
-vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-' + Math.random().toString(36).substring(7)
-}))
+// Dynamic imports to avoid Pool construction when tests are skipped
+let pool: any
+let CallerIdService: any
 
-// Mock pool
-const mockQuery = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
-const mockPool = { query: mockQuery }
-const mockSetRLSSession = vi.fn()
-
-vi.mock('@/lib/neon', () => ({
-  pool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
-  setRLSSession: vi.fn()
-}))
-
-// Mock CallerIdService
-vi.mock('@/lib/services/callerIdService', () => ({
-  CallerIdService: vi.fn().mockImplementation(() => ({
-    validateCallerIdForUser: vi.fn().mockImplementation((orgId, userId, phone) => {
-      // Admin always allowed, operator needs permission
-      if (userId.includes('admin')) {
-        return { allowed: true, callerIdNumberId: 'test-caller-id-1' }
-      }
-      return { allowed: false, reason: 'No permission granted for this caller ID' }
-    }),
-    grantPermission: vi.fn().mockResolvedValue({ success: true }),
-    revokePermission: vi.fn().mockResolvedValue({ success: true }),
-    retireNumber: vi.fn().mockResolvedValue({ success: true })
-  }))
-}))
-
-import { CallerIdService } from '@/lib/services/callerIdService'
+// These tests require real DB - imports are done in beforeAll when tests actually run
 
 const TEST_ORG_ID = 'test-org-id'
 const TEST_ADMIN_USER = 'admin-user-id'
@@ -56,9 +30,14 @@ const TEST_CALLER_ID_1 = 'test-caller-id-1'
 const TEST_CALLER_ID_2 = 'test-caller-id-2'
 
 describeOrSkip('Governed Caller ID', () => {
-    let callerIdService: CallerIdService
+    let callerIdService: any
 
     beforeAll(async () => {
+        // Dynamic imports to avoid Pool construction when tests are skipped
+        const neonModule = await import('@/lib/neon')
+        pool = neonModule.pool
+        const callerIdModule = await import('@/lib/services/callerIdService')
+        CallerIdService = callerIdModule.CallerIdService
         callerIdService = new CallerIdService()
     })
 

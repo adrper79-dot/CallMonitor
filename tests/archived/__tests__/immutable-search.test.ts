@@ -11,30 +11,28 @@
  */
 
 import { describe, test, expect, vi, beforeAll, beforeEach } from 'vitest'
+import { v4 as uuidv4 } from 'uuid'
 
 const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
 
-// Mock uuid
-vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-' + Math.random().toString(36).substring(7)
-}))
+// Dynamic imports to avoid Pool construction when tests are skipped
+let pool: any
 
-// Mock pool
+// These tests require real DB - imports are done in beforeAll when tests actually run
+// Mock pool for tests that don't need real DB
 const mockQuery = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
 const mockPool = { query: mockQuery }
 
-vi.mock('@/lib/neon', () => ({
-  pool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
-  setRLSSession: vi.fn()
-}))
-
 const TEST_ORG_ID = 'test-org-id'
-
-// Run integration tests only when explicitly enabled
-const describeIfIntegration = (process.env.RUN_INTEGRATION === '1' || process.env.RUN_INTEGRATION === 'true') ? describe : describe.skip
 
 describeOrSkip('Immutable Search Layer (Unit)', () => {
     let testDocId = 'test-doc-id'
+
+    beforeAll(async () => {
+        // Dynamic imports to avoid Pool construction when tests are skipped
+        const neonModule = await import('@/lib/neon')
+        pool = neonModule.pool
+    })
 
     beforeEach(() => {
         vi.clearAllMocks()

@@ -12,44 +12,32 @@
  */
 
 import { describe, test, expect, vi, beforeAll, beforeEach } from 'vitest'
+import { v4 as uuidv4 } from 'uuid'
 
 const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
 
-// Mock uuid
-vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-' + Math.random().toString(36).substring(7)
-}))
+// Dynamic imports to avoid Pool construction when tests are skipped
+let pool: any
+let AttentionService: any
 
-// Mock pool
-const mockQuery = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
-const mockPool = { query: mockQuery }
-
-vi.mock('@/lib/neon', () => ({
-  pool: { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) },
-  setRLSSession: vi.fn()
-}))
-
-// Mock AttentionService
-vi.mock('@/lib/services/attentionService', () => ({
-  AttentionService: vi.fn().mockImplementation(() => ({
-    emitEvent: vi.fn().mockResolvedValue({ success: true, eventId: 'test-event-id', decisionId: 'test-decision-id' }),
-    getDecisionsByEvent: vi.fn().mockResolvedValue([{ id: 'test-decision-id', action: 'notify' }]),
-    cancelDecision: vi.fn().mockResolvedValue({ success: true })
-  }))
-}))
-
-import { AttentionService } from '@/lib/services/attentionService'
+// These tests require real DB - imports are done in beforeAll when tests actually run
 
 const TEST_ORG_ID = 'test-org-id'
 const TEST_USER_ID = 'test-user-id'
 
 describeOrSkip('Return-Traffic Intelligence Layer', () => {
-    let attentionService: AttentionService
+    let attentionService: any
     let testEventId = 'test-event-id'
     let testPolicyId = 'test-policy-id'
 
     beforeAll(async () => {
-        attentionService = new AttentionService(mockPool as any)
+        // Dynamic imports to avoid Pool construction when tests are skipped
+        const neonModule = await import('@/lib/neon')
+        pool = neonModule.pool
+        const attentionModule = await import('@/lib/services/attentionService')
+        AttentionService = attentionModule.AttentionService
+        // Use real pool for integration tests
+        attentionService = new AttentionService(pool)
     })
 
     beforeEach(() => {

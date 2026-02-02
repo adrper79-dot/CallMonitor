@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * @integration: This test requires SignalWire + full DB mocking
- * Run with: RUN_INTEGRATION=1 npm test
+ * @legacy: API routes have been migrated to Workers (Hono)
+ * @/app/api/voice/call/route and @/app/api/voice/swml/outbound-v2/route no longer exist
+ * TODO: Create Workers integration tests instead
  */
-const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
+const describeOrSkip = describe.skip
 
 // Mock uuid
 vi.mock('uuid', () => ({

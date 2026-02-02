@@ -63,7 +63,8 @@ describeOrSkip('Tier 1: Core Features (Must Always Pass)', () => {
         return uuidRegex.test(uuid)
       }
 
-      expect(isValidUUID('a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(true)
+      // Valid UUID v4 format
+      expect(isValidUUID('a1b2c3d4-e5f6-4890-abcd-ef1234567890')).toBe(true)
       expect(isValidUUID('invalid-uuid')).toBe(false)
       expect(isValidUUID('trans-123')).toBe(false) // This was causing failures
     })
