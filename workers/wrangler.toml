@@ -3,13 +3,14 @@ name = "wordisbond-api"
 main = "src/index.ts"
 compatibility_date = "2026-02-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 # Account settings (optional - wrangler auto-detects)
 # account_id = ""
 
 [vars]
 NODE_ENV = "production"
-CORS_ORIGIN = "https://wordisbond.pages.dev"
+CORS_ORIGIN = "https://wordis-bond.com"
 
 # Hyperdrive for Neon Postgres
 [[hyperdrive]]
@@ -44,7 +45,12 @@ crons = [
 # - ASSEMBLYAI_API_KEY
 # - ELEVENLABS_API_KEY
 
-# Routes (if using custom domain)
-# routes = [
-#   { pattern = "api.wordisbond.com/*", zone_name = "wordisbond.com" }
-# ]
+# Routes for custom domain - add manually via Dashboard instead
+# Error 10013 when deploying via wrangler, use Dashboard UI to add routes
+# [[routes]]
+# pattern = "wordis-bond.com/api/*"
+# zone_name = "wordis-bond.com"
+
+# [[routes]]
+# pattern = "www.wordis-bond.com/api/*"
+# zone_name = "wordis-bond.com"

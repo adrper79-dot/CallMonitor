@@ -1,8 +1,8 @@
 # Wordis Bond Architecture Documentation
 
-**Last Updated:** January 25, 2026  
-**Version:** 1.8  
-**Status:** Migrated to Cloudflare (95% Complete)
+**Last Updated:** February 2, 2026  
+**Version:** 2.0 - Hybrid Deployment  
+**Status:** ✅ Production Deployed (Static UI + Workers API)
 
 > **"The System of Record for Business Conversations"**  
 > *Company: Latimer + Woods Tech LLC*
@@ -11,22 +11,28 @@
 
 ## 📖 **Quick Navigation**
 
-### **🎯 Start Here:**
-- **[ARCH_DOCS/FINAL_STACK.md](ARCH_DOCS/FINAL_STACK.md)** ⭐ **CANONICAL** — Final consolidated production stack (edge-first) — use this as single source of truth
-- **[SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md](01-CORE/SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md)** - Complete architecture (Jan 17, 2026) with visual diagrams, site maps
+### **🎯 Start Here (Gospel Truth):**
+- **[CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md)** ⭐ **GOSPEL** — Hybrid architecture (Pages + Workers), deployment guide, best practices
+- **[MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md)** ⭐ **CANONICAL** — Complete system design, data flows, security architecture
+- **[../ROADMAP.md](../ROADMAP.md)** - Development roadmap with progress tracking (34/109 items)
+- **[../API_MIGRATION_GUIDE.md](../API_MIGRATION_GUIDE.md)** - Guide for migrating app/api → workers/src/routes
+- **[FINAL_STACK.md](FINAL_STACK.md)** - Final consolidated production stack (edge-first)
 - **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - System overview, health metrics, known gaps
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
+
+### **Historical Context:**
+- **[SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md](01-CORE/SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md)** - Complete architecture (Jan 17, 2026) with visual diagrams
 - **[COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md](01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md)** - Previous architecture (Jan 16, 2026)
 - **[FULL_SYSTEM_ARCHITECTURE.md](01-CORE/FULL_SYSTEM_ARCHITECTURE.md)** - Complete architecture with site maps
 - **[GAP_ANALYSIS.md](01-CORE/GAP_ANALYSIS.md)** - Gap analysis and resolution plan
-- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
-- **[MASTER_ARCHITECTURE.txt](01-CORE/MASTER_ARCHITECTURE.txt)** - Core system architecture
-- **[V5_Issues.txt](../V5_Issues.txt)** - Current status of fixes and issues
 
 ### **📁 Folder Structure:**
 
 ```
 ARCH_DOCS/
 ├── 00-README.md (this file) - Navigation index
+├── CLOUDFLARE_DEPLOYMENT.md ⭐ Gospel deployment guide
+├── MASTER_ARCHITECTURE.md ⭐ System architecture reference
 ├── CURRENT_STATUS.md - System status & health
 ├── QUICK_REFERENCE.md - Quick cheat sheet
 ├── 01-CORE/ - Core architecture & system design
@@ -42,17 +48,24 @@ ARCH_DOCS/
 ## 📊 **Current System Status**
 
 | Metric | Value | Status |
-|--------|-------|--------|95% ⬆️ | 🟢 Production Ready |
-| **Build** | Clean | ✅ |
-| **Tests** | 98.5% (64/65) | ✅ |
-| **API Routes** | 98+ endpoints | ✅ |
-| **Pages** | 17 routes (+3 new) | ✅ |
-| **Database Tables** | 54 tables (+7 new)
-| **Database Tables** | 47 tables | ✅ |
-| **Services** | 7 configured | ✅ |
-| **Critical Issues** | 0 | ✅ |
+|--------|-------|--------|
+| **Architecture** | Hybrid (Pages+Workers) | ✅ Deployed |
+| **Pages Deployment** | https://827487ca.wordisbond.pages.dev | ✅ Live |
+| **Workers API** | https://wordisbond-api.adrper79.workers.dev | ✅ Live |
+| **Build** | Clean (28 pages) | ✅ |
+| **Tests** | 123 passing, 87 skipped | ✅ |
+| **Lint** | 0 errors, 126 warnings | ✅ |
+| **API Migration** | 5+ critical routes in Workers | 🔄 In Progress |
+| **Client Pages** | 2 converted (dashboard, voice-ops) | 🔄 In Progress |
 
-**Services Verified:**
+**Recent Achievement (Feb 2, 2026):**
+- ✅ Successfully deployed hybrid architecture
+- ✅ Static UI build working (Next.js export)
+- ✅ Workers API operational (Hono framework)
+- ✅ Clean separation: Pages (UI) + Workers (API)
+- 🔄 API migration ongoing (~100+ routes to evaluate)
+
+**Services Integrated:**
 - ✅ Neon (DB) + Cloudflare R2 (Storage)
 - ✅ Telnyx (Voice)
 - ✅ AssemblyAI (Transcription)

@@ -23,17 +23,28 @@ healthRoutes.get('/', async (c) => {
   // 1. Database check via Hyperdrive
   try {
     const dbStart = Date.now()
-    const db = getDb(c.env)
-    const result = await db.query('SELECT 1 as check')
-    const dbTime = Date.now() - dbStart
+    
+    // Check if Hyperdrive is available
+    if (!c.env.HYPERDRIVE) {
+      checks.push({
+        service: 'database',
+        status: 'critical',
+        message: 'Hyperdrive binding not available',
+      })
+    } else {
+      const db = getDb(c.env)
+      const result = await db.query('SELECT 1 as check')
+      const dbTime = Date.now() - dbStart
 
-    checks.push({
-      service: 'database',
-      status: 'healthy',
-      message: 'Hyperdrive connection successful',
-      responseTime: dbTime,
-    })
+      checks.push({
+        service: 'database',
+        status: 'healthy',
+        message: 'Hyperdrive connection successful',
+        responseTime: dbTime,
+      })
+    }
   } catch (err: any) {
+    console.error('Database health check error:', err)
     checks.push({
       service: 'database',
       status: 'critical',

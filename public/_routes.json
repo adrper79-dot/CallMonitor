@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Proxy /api/* requests to Workers API, serve UI from Pages",
+  "include": ["/*"],
+  "exclude": []
+}

@@ -1,24 +1,23 @@
 /** @type {import('next').NextConfig} */
 
 /**
- * Next.js Configuration for Static Export
+ * Next.js Configuration for Cloudflare Pages
  * 
- * This config produces a fully static site deployed to Cloudflare Pages.
- * API routes are handled separately by Cloudflare Workers (see workers/).
+ * Static export for Cloudflare Pages deployment.
+ * Server-side features (auth, API routes) handled by Cloudflare Workers.
  * 
- * Build: npm run ui:build → outputs to 'out/'
- * Deploy: npm run ui:deploy → Cloudflare Pages
+ * Build: npm run build → outputs to 'out/'
+ * Deploy: wrangler pages deploy out
  */
 
 const nextConfig = {
-  // Static export for Cloudflare Pages - no adapter conflicts
   output: 'export',
   
   images: {
-    unoptimized: true, // CF Images can handle resizing if needed
+    unoptimized: true,
   },
 
-  // Trailing slashes help with static hosting
+  // Trailing slashes for static hosting
   trailingSlash: true,
 
   // Environment variables exposed to client
@@ -38,6 +37,19 @@ const nextConfig = {
 
   // Remove X-Powered-By header
   poweredByHeader: false,
+  
+  // Webpack config for Cloudflare compatibility
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = config.externals || []
+      config.externals.push({
+        'pg-native': 'commonjs pg-native',
+        bufferutil: 'bufferutil',
+        'utf-8-validate': 'utf-8-validate',
+      })
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig

@@ -1,11 +1,12 @@
-import React from 'react'
-import supabaseAdmin from '@/lib/supabaseAdmin'
-import { getServerSession } from 'next-auth/next'
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
-import { AlertTriangle } from 'lucide-react'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
+import { AlertTriangle } from 'lucide-react'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -19,17 +20,49 @@ export interface Call {
   call_sid: string | null
 }
 
-type PageProps = {}
+export default function VoiceOperationsPage() {
+  const { data: session, status } = useSession()
+  const [calls, setCalls] = useState<Call[]>([])
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [organizationName, setOrganizationName] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-export default async function VoiceOperationsPage(_props: PageProps) {
-  // server-side session check - import authOptions for proper session
-  const { authOptions } = await import('@/lib/auth')
-  const session = await getServerSession(authOptions)
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      // Fetch calls and organization data from API
+      Promise.all([
+        fetch('/api/calls').then((res) => res.json()),
+        fetch('/api/organizations/current').then((res) => res.json()),
+      ])
+        .then(([callsData, orgData]) => {
+          setCalls(callsData.calls || [])
+          setOrganizationId(orgData.organization?.id || null)
+          setOrganizationName(orgData.organization?.name || null)
+          setLoading(false)
+        })
+        .catch((err) => {
+          logger.error('Failed to fetch voice operations data', err)
+          setError(err.message || 'Failed to load data')
+          setLoading(false)
+        })
+    } else if (status === 'unauthenticated') {
+      setLoading(false)
+    }
+  }, [session, status])
 
-  // Check for user ID in either standard location or custom extension
-  const userId = (session?.user as any)?.id || session?.user?.email
+  if (status === 'loading' || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
-  if (!session?.user || !userId) {
+  if (status === 'unauthenticated' || !session?.user) {
     return (
       <ProtectedGate
         title="Voice Operations"
@@ -39,80 +72,7 @@ export default async function VoiceOperationsPage(_props: PageProps) {
     )
   }
 
-  // Get user ID - need to look up by email if id not in token
-  let actualUserId = (session.user as any)?.id
-  if (!actualUserId && session.user?.email) {
-    const { data: userData } = await (supabaseAdmin as any)
-      .from('users')
-      .select('id')
-      .eq('email', session.user.email)
-      .single()
-    actualUserId = userData?.id
-  }
-
-  // Get organization ID from session or user
-  let organizationId: string | null = null
-  let organizationName: string | null = null
-
-  try {
-    // Fetch user's organization using actual user ID
-    const userIdToQuery = actualUserId || (session.user as any)?.id
-    if (!userIdToQuery) {
-      logger.warn('Voice page: No user ID available for org lookup')
-    }
-
-    const { data: userData } = await (supabaseAdmin as any)
-      .from('users')
-      .select('organization_id')
-      .eq('id', userIdToQuery)
-      .single()
-
-    if (userData?.organization_id) {
-      organizationId = userData.organization_id
-
-      // Fetch organization name
-      const { data: orgData } = await (supabaseAdmin as any)
-        .from('organizations')
-        .select('name')
-        .eq('id', organizationId)
-        .single()
-
-      organizationName = orgData?.name || null
-    }
-
-    // Fetch Role for Troubleshoot Bot
-    let userRole = 'viewer'
-    if (organizationId && actualUserId) {
-      const { data: memberData } = await (supabaseAdmin as any)
-        .from('org_members')
-        .select('role')
-        .eq('organization_id', organizationId)
-        .eq('user_id', actualUserId)
-        .single()
-      if (memberData) userRole = memberData.role
-    }
-  } catch (e) {
-    logger.error('Failed to fetch organization for voice page', e)
-  }
-
-  // read-only: fetch calls using allowed columns from TOOL_TABLE_ALIGNMENT / Schema.txt
-  let calls: Call[] = []
-  try {
-    const query = (supabaseAdmin as any)
-      .from('calls')
-      .select('id,organization_id,system_id,status,started_at,ended_at,created_by,call_sid')
-      .order('started_at', { ascending: false })
-      .limit(50)
-
-    if (organizationId) {
-      query.eq('organization_id', organizationId)
-    }
-
-    const { data, error } = await query
-
-    if (error) throw error
-    calls = (data || []) as Call[]
-  } catch (e: any) {
+  if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-900">
         <div className="text-center max-w-sm px-4">
@@ -120,9 +80,7 @@ export default async function VoiceOperationsPage(_props: PageProps) {
             <AlertTriangle className="h-6 w-6 text-red-600" />
           </div>
           <h2 className="text-lg font-semibold text-gray-900">Unable to load calls</h2>
-          <p className="mt-2 text-sm text-gray-500">
-            {String(e?.message ?? 'We encountered an error loading your voice data. Please try again later.')}
-          </p>
+          <p className="mt-2 text-sm text-gray-500">{error}</p>
         </div>
       </div>
     )
@@ -135,7 +93,7 @@ export default async function VoiceOperationsPage(_props: PageProps) {
         organizationId={organizationId}
         organizationName={organizationName || undefined}
       />
-      {['owner', 'admin'].includes(userRole) && <TroubleshootChatToggle />}
+      <TroubleshootChatToggle />
     </>
   )
 }

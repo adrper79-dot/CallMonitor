@@ -1,0 +1,294 @@
+# Master Architecture Reference
+
+**Status**: Production Gospel | Updated: Feb 2, 2026  
+**Version**: 2.0 - Hybrid Deployment
+
+---
+
+## Architecture Overview
+
+**Wordis Bond** uses a **hybrid Cloudflare architecture**:
+- **Static UI** deployed to Cloudflare Pages (CDN-delivered HTML/CSS/JS)
+- **API layer** deployed to Cloudflare Workers (edge-native Hono framework)
+- **Clean separation** between presentation and business logic
+
+This aligns with modern edge-first patterns and provides:
+- ✅ Global CDN distribution for UI
+- ✅ Edge computing for APIs (low latency)
+- ✅ Immutable deployments (rollback-friendly)
+- ✅ Type safety (Zod validation + TypeScript)
+- ✅ Scalability (auto-scaling Workers)
+
+---
+
+## Component Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     CLIENT BROWSER                               │
+│  Next.js Static Pages (React) + Client-Side Routing             │
+│  Authentication: useSession() (NextAuth client)                 │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │ HTTPS
+                      │
+┌─────────────────────▼───────────────────────────────────────────┐
+│              CLOUDFLARE PAGES (CDN)                              │
+│  • Static HTML/CSS/JS from out/ directory                       │
+│  • No server-side rendering                                     │
+│  • Global edge caching                                          │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      │ API Calls (/api/*)
+                      │
+┌─────────────────────▼───────────────────────────────────────────┐
+│           CLOUDFLARE WORKERS (Edge APIs)                         │
+│  • Hono framework (Express-like)                                │
+│  • Zod validation                                               │
+│  • JWT auth (NextAuth)                                          │
+│  • Routes: /api/calls, /api/organizations, etc.                 │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┬─────────────┬──────────────┐
+        │             │             │             │              │
+┌───────▼─────┐ ┌────▼────┐  ┌─────▼─────┐ ┌────▼─────┐  ┌─────▼─────┐
+│   NEON PG   │ │   KV    │  │    R2     │ │  Telnyx  │  │  Stripe   │
+│ (Hyperdrive)│ │Sessions │  │Recordings │ │   Voice  │  │  Billing  │
+└─────────────┘ └─────────┘  └───────────┘ └──────────┘  └───────────┘
+```
+
+---
+
+## Technology Stack
+
+### Frontend (Pages)
+- **Next.js 15.5.2**: Static export mode (`output: 'export'`)
+- **React 19**: Client-side rendering only
+- **NextAuth**: Client-side session management (`useSession()`)
+- **Tailwind CSS**: Styling
+- **TypeScript**: Type safety
+
+### Backend (Workers)
+- **Hono 4.6+**: Web framework (Express-like)
+- **Node.js Compatibility**: `nodejs_compat` flag
+- **Zod 3.22+**: API validation
+- **TypeScript**: Type safety
+- **Neon SDK**: PostgreSQL client
+
+### Infrastructure
+- **Cloudflare Pages**: UI hosting
+- **Cloudflare Workers**: API hosting
+- **Cloudflare Hyperdrive**: Database connection pooling
+- **Cloudflare R2**: Object storage (recordings)
+- **Cloudflare KV**: Key-value store (sessions, cache)
+
+### External Services
+- **Neon**: PostgreSQL database (serverless)
+- **Telnyx**: Voice/SMS telephony
+- **Stripe**: Billing/subscriptions
+- **AssemblyAI**: Transcription
+- **OpenAI**: LLM reasoning
+- **ElevenLabs**: Text-to-speech
+- **Resend**: Transactional email
+
+---
+
+## Key Design Decisions
+
+### 1. Static Export (No SSR)
+
+**Decision**: Use Next.js static export instead of server-side rendering.
+
+**Rationale**:
+- Simpler deployment (just HTML/CSS/JS files)
+- Better CDN caching (immutable artifacts)
+- Aligns with Cloudflare Pages architecture
+- Avoids Vercel dependency (@cloudflare/next-on-pages complexity)
+
+**Trade-offs**:
+- ❌ No `getServerSideProps` or server components with data fetching
+- ❌ No API routes in `app/api/` directory
+- ✅ Faster builds, simpler deploys, better caching
+
+### 2. Workers for APIs (Hono)
+
+**Decision**: Build all APIs in Cloudflare Workers using Hono framework.
+
+**Rationale**:
+- Native Cloudflare (no adapter needed)
+- Edge computing (low latency globally)
+- Auto-scaling (no capacity planning)
+- Clean separation from UI
+
+**Trade-offs**:
+- ❌ Different framework than Next.js (learning curve)
+- ✅ Better performance, simpler architecture, native bindings
+
+### 3. Client-Side Auth Only
+
+**Decision**: Use NextAuth client-side hooks (`useSession()`) instead of server-side auth.
+
+**Rationale**:
+- Compatible with static export
+- Still secure (JWT tokens, HttpOnly cookies)
+- Simpler auth flow
+
+**Trade-offs**:
+- ❌ Initial page load shows "loading" state briefly
+- ✅ Works with static pages, still protected
+
+---
+
+## Data Flow Patterns
+
+### Authentication Flow
+
+```
+1. User visits /signin
+2. Client-side form submission → POST /api/auth/signin (Workers)
+3. Workers validates credentials → Issues JWT
+4. Client stores JWT in HttpOnly cookie
+5. Subsequent requests include JWT automatically
+6. Workers validate JWT on each API call
+```
+
+### API Request Flow
+
+```
+1. Client component (useEffect) → fetch('/api/organizations/current')
+2. Request hits Workers endpoint
+3. Workers:
+   a. Validate JWT (requireAuth middleware)
+   b. Extract user/org from session
+   c. Query Neon via Hyperdrive
+   d. Return JSON response
+4. Client component updates state
+```
+
+### Data Fetching Pattern
+
+```typescript
+'use client'
+
+import { useSession } from 'next-auth/react'
+import { useEffect, useState } from 'react'
+
+export default function Page() {
+  const { data: session } = useSession()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (session?.user) {
+      fetch('/api/endpoint')
+        .then(res => res.json())
+        .then(setData)
+        .finally(() => setLoading(false))
+    }
+  }, [session])
+
+  if (loading) return <Loading />
+  return <Content data={data} />
+}
+```
+
+---
+
+## Security Architecture
+
+### RBAC (Role-Based Access Control)
+
+Implemented at multiple layers:
+
+1. **Client-side** (UI visibility):
+   ```typescript
+   const { data: session } = useSession()
+   if (session?.user?.role !== 'admin') return null
+   ```
+
+2. **Workers API** (endpoint protection):
+   ```typescript
+   const session = await requireAuth(c)
+   if (session.role !== 'admin') {
+     return c.json({ error: 'Forbidden' }, 403)
+   }
+   ```
+
+3. **Database RLS** (data isolation):
+   ```sql
+   CREATE POLICY org_isolation ON calls
+   FOR SELECT USING (organization_id = current_setting('app.org_id')::uuid);
+   ```
+
+### Authentication
+
+- **JWT tokens**: Issued by Workers, stored in HttpOnly cookies
+- **Session validation**: Every API request validates JWT
+- **Expiration**: Configurable (default 7 days)
+- **Refresh**: Automatic with sliding window
+
+---
+
+## Deployment Strategy
+
+### Current Deployments
+
+**Pages (UI)**:
+- URL: https://827487ca.wordisbond.pages.dev
+- Build: `npm run build` → `out/` directory
+- Deploy: `wrangler pages deploy out --project-name=wordisbond`
+
+**Workers (API)**:
+- URL: https://wordisbond-api.adrper79.workers.dev
+- Build: TypeScript → JavaScript in `workers/`
+- Deploy: `cd workers && wrangler deploy`
+
+### Deployment Flow
+
+```bash
+# 1. Build UI
+npm run build
+
+# 2. Deploy Pages
+wrangler pages deploy out --project-name=wordisbond
+
+# 3. Deploy Workers
+cd workers
+wrangler deploy
+
+# 4. Verify
+curl -I https://827487ca.wordisbond.pages.dev
+curl https://wordisbond-api.adrper79.workers.dev/health
+```
+
+---
+
+## Migration Status
+
+### ✅ Completed
+
+- Static export build configuration
+- Client-side page conversions (dashboard, voice-operations)
+- Workers API scaffolding (calls, organizations, auth, webhooks)
+- Cloudflare deployment pipeline
+- Security headers configuration
+
+### 🔄 In Progress
+
+- API route migration from `app/_api_to_migrate/` to `workers/src/routes/`
+- On-demand migration as features are tested
+- Strategy: Migrate only what's actually used
+
+### 📋 Remaining
+
+- ~100+ API routes to evaluate and migrate
+- Invite acceptance flow (complex server logic)
+- Feature testing and endpoint discovery
+
+---
+
+## References
+
+- **Deployment Guide**: [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md)
+- **Migration Guide**: [../API_MIGRATION_GUIDE.md](../API_MIGRATION_GUIDE.md)
+- **Roadmap**: [../ROADMAP.md](../ROADMAP.md)
+- **Current Status**: [CURRENT_STATUS.md](CURRENT_STATUS.md)

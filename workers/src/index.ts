@@ -15,6 +15,7 @@ import { healthRoutes } from './routes/health'
 import { callsRoutes } from './routes/calls'
 import { authRoutes } from './routes/auth'
 import { webhooksRoutes } from './routes/webhooks'
+import { organizationsRoutes } from './routes/organizations'
 import { handleScheduled } from './scheduled'
 
 // Types for Cloudflare bindings
@@ -54,9 +55,9 @@ app.use('*', cors({
     // Allow configured origin and localhost for dev
     const allowed = [
       c.env.CORS_ORIGIN,
+      'https://wordis-bond.com',
+      'https://www.wordis-bond.com',
       'https://wordisbond.pages.dev',
-      'https://wordisbond.com',
-      'https://www.wordisbond.com',
       'http://localhost:3000',
     ]
     return allowed.includes(origin) ? origin : allowed[0]
@@ -71,6 +72,7 @@ app.route('/health', healthRoutes)
 app.route('/api/health', healthRoutes)
 app.route('/api/calls', callsRoutes)
 app.route('/api/auth', authRoutes)
+app.route('/api/organizations', organizationsRoutes)
 app.route('/webhooks', webhooksRoutes)
 
 // Root endpoint
@@ -94,10 +96,17 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
-  console.error('API Error:', err)
+  console.error('API Error:', {
+    error: err.message,
+    stack: err.stack,
+    path: c.req.path,
+    method: c.req.method,
+  })
+  
   return c.json({
     error: 'Internal Server Error',
-    message: c.env.NODE_ENV === 'production' ? 'An error occurred' : err.message,
+    message: err.message,
+    path: c.req.path,
   }, 500)
 })
 

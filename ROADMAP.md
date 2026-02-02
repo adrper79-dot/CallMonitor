@@ -1,8 +1,35 @@
 # Cloudflare & Codebase Roadmap (Updated: Feb 2, 2026)
 
-**Architecture**: Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)
-**Status**: 🚨 High (Blockers), ⚠️ Med (Scale), 🔧 DX, ✨ Polish, 🏆 Excellence.
-**Progress**: 34/92 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
+**Deployment**: ✅ Live at https://a4b3599d.wordisbond.pages.dev  
+**Status**: ❌ **AUTH BLOCKER** - NextAuth incompatible with static export (see AUTH_ARCHITECTURE_DECISION.md)  
+**Progress**: 34/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+
+> **Critical Issue**: Authentication broken in production. NextAuth requires API routes that don't exist in static Pages. Decision needed: Clerk (recommended), Custom JWT, or Port NextAuth to Workers. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md) for details.
+
+---
+
+## 🚨 NEW BLOCKER - Authentication (Discovered Feb 2)
+
+### Issue
+NextAuth.js is incompatible with static-only Pages deployment. All `/api/auth/*` endpoints return 404.
+
+**Symptoms:**
+- ❌ Cannot sign in/sign up
+- ❌ Session checks fail (404)
+- ❌ OAuth flows broken
+
+**Root Cause:**
+- Static export removed all `app/api/` routes
+- NextAuth requires server-side API routes
+- No `/api/auth/session`, `/api/auth/signin`, etc.
+
+### Options
+1. **Clerk/Auth0** (Recommended) - Client-side auth SaaS - 1-2 days
+2. **Custom JWT** - Build minimal auth in Workers - 2-3 days  
+3. **Port NextAuth** - Migrate to Workers - 3-5 days (complex)
+
+**Decision Document:** [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md)
 
 ---
 
@@ -256,4 +283,33 @@ Elegant: Libs modular, HOFs/hooks, perf Suspense.
 - [ ] Suspense Perf (app/): Streaming. **1hr**
 - [ ] Tailwind cva (components/ clsx): Variants. **2hr**
 
-Progress: 0/12 Excellence. Total 0/92.
+Progress: 0/12 Excellence. Total 34/97.
+
+---
+
+## 🚀 STACK EXCELLENCE (Full-Stack Integration)
+**Stack**: Cloudflare (Pages/Workers/Hyperdrive/R2/KV) + Neon (Postgres) + Telnyx (Voice) + Stripe (Billing) + AssemblyAI (Transcription) + OpenAI (LLM) + ElevenLabs (TTS)
+
+### Telephony (Telnyx VXML)
+- [ ] **Telnyx VXML Migration** (app/_api_to_migrate/calls*): Convert SWML → Telnyx Command API. **4hr**
+- [ ] **Webhook Handlers** (workers/src/routes/webhooks.ts): Telnyx call events. **2hr**
+- [ ] **Call Recording Storage** (lib/storage.ts): R2 bucket integration. **1hr**
+
+### Billing (Stripe)
+- [ ] **Stripe Webhooks** (workers/src/routes/stripe.ts): KV idempotency keys. **2hr**
+- [ ] **Usage Metering** (lib/billing.ts): Track call minutes, transcriptions. **2hr**
+- [ ] **Subscription Management** (workers/src/routes/subscriptions.ts): CRUD operations. **1hr**
+
+### AI Stack (Edge Proxies)
+- [ ] **AssemblyAI Proxy** (workers/src/routes/ai/transcribe.ts): Edge transcription. **1hr**
+- [ ] **OpenAI Rate Limiter** (lib/ai/openai.ts): KV-based throttling. **1hr**
+- [ ] **ElevenLabs TTS** (lib/ai/elevenlabs.ts): KV cache for voices. **1hr**
+
+### Database (Neon)
+- [ ] **Connection Pool Limits** (lib/pgClient.ts): Max connections = 20. **15min**
+- [ ] **Query Timeout Config** (lib/pgClient.ts): Statement timeout = 30s. **15min**
+- [ ] **RLS Policy Audit** (migrations/): Verify all tables have RLS. **1hr**
+
+Progress: 0/12 Stack. Total 34/109.
+
+---

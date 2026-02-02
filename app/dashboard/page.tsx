@@ -1,47 +1,61 @@
-import { redirect } from 'next/navigation'
-import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/lib/auth'
-import supabaseAdmin from '@/lib/supabaseAdmin'
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import DashboardHome from '@/components/dashboard/DashboardHome'
 import { AppShell } from '@/components/layout/AppShell'
+import { ProtectedGate } from '@/components/ui/ProtectedGate'
+import { logger } from '@/lib/logger'
 
-export const dynamic = 'force-dynamic'
+export default function DashboardPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [organizationName, setOrganizationName] = useState<string>('Your Organization')
+  const [loading, setLoading] = useState(true)
 
-export const metadata = {
-  title: 'Dashboard | Wordis Bond',
-  description: 'Your voice intelligence dashboard'
-}
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      // Fetch organization data from API
+      fetch('/api/organizations/current')
+        .then((res) => res.json())
+        .then((data) => {
+          setOrganizationId(data.organization?.id || null)
+          setOrganizationName(data.organization?.name || 'Your Organization')
+          setLoading(false)
+        })
+        .catch((err) => {
+          logger.error('Failed to fetch organization data', err)
+          setLoading(false)
+        })
+    } else if (status === 'unauthenticated') {
+      setLoading(false)
+    }
+  }, [session, status])
 
-export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user) {
-    redirect('/signin?callbackUrl=/dashboard')
+  if (status === 'loading' || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
-  const userId = (session.user as any).id
+  if (status === 'unauthenticated' || !session?.user) {
+    return (
+      <ProtectedGate
+        title="Dashboard"
+        description="Please sign in to access your dashboard."
+        redirectUrl="/dashboard"
+      />
+    )
+  }
+
   const userEmail = session.user.email || undefined
-
-  // Get user's organization
-  const { data: userRows } = await supabaseAdmin
-    .from('users')
-    .select('organization_id')
-    .eq('id', userId)
-    .limit(1)
-
-  const organizationId = userRows?.[0]?.organization_id || null
-
-  // Get organization details
-  let organizationName = 'Your Organization'
-  if (organizationId) {
-    const { data: orgRows } = await supabaseAdmin
-      .from('organizations')
-      .select('name')
-      .eq('id', organizationId)
-      .limit(1)
-    
-    organizationName = orgRows?.[0]?.name || organizationName
-  }
 
   return (
     <AppShell organizationName={organizationName} userEmail={userEmail}>

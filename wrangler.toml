@@ -1,35 +1,13 @@
-# Cloudflare Pages Configuration (Static UI)
-# This config is for the static Next.js export deployed to Pages
+# Cloudflare Pages Configuration (Static Site)
+# Static Next.js export - server features in Workers
 name = "wordisbond"
 pages_build_output_dir = "out"
 compatibility_date = "2026-02-01"
 
-# Note: The API is deployed separately via workers/wrangler.toml
-# UI → Pages (this config) at wordisbond.pages.dev
-# API → Workers (workers/wrangler.toml) at api.wordisbond.com
+# Build: npm run build (outputs to out/)
+# Deploy: wrangler pages deploy out
 
 # Environment variables for Pages (build-time)
 [vars]
 NODE_ENV = "production"
 NEXT_PUBLIC_API_URL = "https://wordisbond-api.adrper79.workers.dev"
-
-# Security headers for static pages
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "SAMEORIGIN"
-    X-Content-Type-Options = "nosniff"
-    X-XSS-Protection = "1; mode=block"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
-
-# Cache static assets aggressively
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/fonts/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"

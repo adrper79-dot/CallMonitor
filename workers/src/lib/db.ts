@@ -3,6 +3,7 @@
  * Uses Hyperdrive for connection pooling to Neon Postgres
  */
 
+import { neon } from '@neondatabase/serverless'
 import type { Env } from '../index'
 
 export interface DbClient {
@@ -13,23 +14,41 @@ export interface DbClient {
  * Get database client using Hyperdrive binding
  */
 export function getDb(env: Env): DbClient {
-  // Use Hyperdrive connection string for optimal edge performance
-  const connectionString = env.HYPERDRIVE?.connectionString || env.NEON_PG_CONN
-
-  if (!connectionString) {
-    throw new Error('No database connection available (HYPERDRIVE or NEON_PG_CONN required)')
+  // For Neon serverless driver, we need the HTTP connection string
+  // Hyperdrive provides a Postgres connection string, but neon() expects HTTP
+  // So we prefer NEON_PG_CONN secret if available
+  let connectionString: string
+  
+  if (env.NEON_PG_CONN) {
+    connectionString = env.NEON_PG_CONN
+  } else if (env.HYPERDRIVE) {
+    connectionString = env.HYPERDRIVE.connectionString
+  } else {
+    throw new Error('No database connection available (NEON_PG_CONN or HYPERDRIVE required)')
   }
 
   return {
     query: async (sql: string, params: any[] = []): Promise<{ rows: any[] }> => {
-      // Use @neondatabase/serverless for HTTP-based queries
-      // This works great with Cloudflare Workers
-      const { neon } = await import('@neondatabase/serverless')
-      const sql_fn = neon(connectionString)
+      try {
+        // Use @neondatabase/serverless for HTTP-based queries
+        const sqlClient = neon(connectionString)
 
-      // Execute query
-      const rows = await sql_fn(sql, params)
-      return { rows: Array.isArray(rows) ? rows : [] }
+        // neon client requires tagged template literals
+        // We create a template strings array from our SQL string
+        const strings = [sql] as unknown as TemplateStringsArray
+        Object.defineProperty(strings, 'raw', { value: [sql] })
+        
+        // Call with template literal format
+        const result = await sqlClient(strings, ...params)
+        
+        return { rows: Array.isArray(result) ? result : [result] }
+      } catch (error: any) {
+        console.error('Database query error:', {
+          message: error.message,
+          connectionHint: connectionString ? 'using ' + (connectionString.includes('neon.tech') ? 'NEON' : 'HYPERDRIVE') : 'no connection'
+        })
+        throw new Error(`Database query failed: ${error.message}`)
+      }
     },
   }
 }
