@@ -11,9 +11,20 @@ import { requireRole } from '@/lib/rbac-server'
 import { CallNoteTag, CALL_NOTE_TAGS } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+// Validation schema for POST request
+const addNoteSchema = z.object({
+  tags: z.array(
+    z.enum(['complaint', 'follow_up', 'escalation', 'positive_feedback', 'technical_issue', 'billing_question', 'general'] as const, {
+      errorMap: () => ({ message: `Valid tags are: ${CALL_NOTE_TAGS.join(', ')}` })
+    })
+  ).min(1, { message: 'At least one tag is required' }),
+  note: z.string().max(500, { message: 'Note must be 500 characters or less' }).optional().nullable(),
+})
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -104,40 +115,18 @@ export async function POST(
       )
     }
 
-    // Parse request body
+    // Parse and validate request body
     const body = await request.json()
-    const { tags, note } = body
-
-    // Validate tags
-    if (!tags || !Array.isArray(tags) || tags.length === 0) {
+    const parsed = addNoteSchema.safeParse(body)
+    
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: { code: 'TAGS_REQUIRED', message: 'At least one tag is required' } },
+        { success: false, error: { code: 'INVALID_INPUT', message: parsed.error.message } },
         { status: 400 }
       )
     }
 
-    // Validate each tag
-    const invalidTags = tags.filter((tag: string) => !CALL_NOTE_TAGS.includes(tag as CallNoteTag))
-    if (invalidTags.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_TAGS',
-            message: `Invalid tags: ${invalidTags.join(', ')}. Valid tags are: ${CALL_NOTE_TAGS.join(', ')}`
-          }
-        },
-        { status: 400 }
-      )
-    }
-
-    // Validate note length (max 500 chars)
-    if (note && note.length > 500) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOTE_TOO_LONG', message: 'Note must be 500 characters or less' } },
-        { status: 400 }
-      )
-    }
+    const { tags, note } = parsed.data
 
     // Verify call belongs to user's org
     const { rows: calls } = await query(

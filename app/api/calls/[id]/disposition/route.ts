@@ -12,6 +12,7 @@ import { emitDispositionSet } from '@/lib/webhookDelivery'
 import { CallDisposition } from '@/types/tier1-features'
 import { logger } from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -25,6 +26,14 @@ const VALID_DISPOSITIONS: CallDisposition[] = [
   'wrong_number',
   'other'
 ]
+
+// Validation schema for PUT request
+const setDispositionSchema = z.object({
+  disposition: z.enum(['sale', 'no_answer', 'voicemail', 'not_interested', 'follow_up', 'wrong_number', 'other'], {
+    errorMap: () => ({ message: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}` })
+  }),
+  disposition_notes: z.string().max(500, { message: 'Notes must be 500 characters or less' }).optional().nullable(),
+})
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -113,31 +122,18 @@ export async function PUT(
       )
     }
 
-    // Parse request body
+    // Parse and validate request body
     const body = await request.json()
-    const { disposition, disposition_notes } = body
-
-    // Validate disposition value
-    if (!disposition || !VALID_DISPOSITIONS.includes(disposition)) {
+    const parsed = setDispositionSchema.safeParse(body)
+    
+    if (!parsed.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_DISPOSITION',
-            message: `Invalid disposition. Must be one of: ${VALID_DISPOSITIONS.join(', ')}`
-          }
-        },
+        { success: false, error: { code: 'INVALID_INPUT', message: parsed.error.message } },
         { status: 400 }
       )
     }
 
-    // Validate notes length
-    if (disposition_notes && disposition_notes.length > 500) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOTES_TOO_LONG', message: 'Notes must be 500 characters or less' } },
-        { status: 400 }
-      )
-    }
+    const { disposition, disposition_notes } = parsed.data
 
     // Verify call belongs to user's org
     const { rows: calls } = await query(

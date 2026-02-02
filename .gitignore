@@ -1,35 +1,47 @@
 # Ignore local Vercel env preview files (do NOT commit secrets)
-.vercel/*.env*
+.vercel/
+
+# Testing
+/coverage
+*.lcov
+tests/.env
+
+# Environment files (NEVER commit secrets)
+.env
+.env.*
+.env.local
+.env.test
+.env.production
+!.env.example
 
 # Node/npm
-node_modules/
-/.next
-.env.local
 node_modules/
 .DS_Store
 .vscode/
 dist/
-.vercel
-.env*.local
-ARCH_DOCS/
-./TROUBLESHOOTING_LOG.md
+
 # Next.js build outputs
 .next/
-.next/*
 out/
 .open-next/
-
-# Build artifacts
 *.tsbuildinfo
 
+# Cloudflare build outputs
+.wrangler/
+.dev.vars
 
 # Scratchpad & Logs
 V5_Issues.txt
 finalization-prompts
+TROUBLESHOOTING_LOG.md
 
 # Large/Test Media
 /*.mp4
 *.uvz
 image (1).jpg
 
+# Scripts with secrets
 scripts/set_cloudflare_secrets.ps1
+
+# Legacy (migrated to Cloudflare)
+vercel.json

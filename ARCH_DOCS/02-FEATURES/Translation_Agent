@@ -1,0 +1,385 @@
+Executive Answer
+Yes — using SignalWire AI Agents can enable live translation in v1, but:
+
+⚠️ It moves intelligence into the media vendor
+⚠️ It changes ownership boundaries
+⚠️ It must be explicitly boxed in by architecture
+⚠️ It becomes a capability toggle, not your core brain
+
+If you do this without guardrails, you will silently break your own design principles.
+If you do it with guardrails, it’s actually a power move.
+What SignalWire AI Agents Actually Are (architecturally)
+SignalWire AI Agents are:
+
+Media-plane–embedded AI workers
+Able to:
+
+  * Listen to live audio
+  * Transcribe
+  * Call LLMs
+  * Generate TTS
+  * Inject speech back into the call
+That means SignalWire AI Agents function as a temporary, vendor-hosted media plane + AI plane combo.
+In other words:
+SignalWire AI Agent ≈ “Managed FreeSWITCH + TTS + LLM glue”
+What This Enables Immediately
+✅ True live bi-directional translation (v1)
+Caller speaks Spanish → Agent hears English
+Agent speaks English → Caller hears Spanish
+No FreeSWITCH. No self-hosted TTS. No custom media plumbing.
+The Architectural Risk (be very clear)
+If you are not careful, SignalWire AI Agents will:
+❌ Own call intelligence
+❌ Own scoring logic
+❌ Own transcript truth
+❌ Own evidence generation
+That violates everything you’ve been enforcing so far.
+So the rule must be:
+SignalWire AI Agents may execute — they may not decide or persist.
+The Correct Way to Use SignalWire AI Agents (Aligned with Your Design)
+Treat SignalWire AI Agents as:
+A remote, disposable execution node
+NOT:
+
+A system of record
+A policy engine
+An evidence generator
+
+Canonical v1 Translation Architecture (with SignalWire AI Agent)
+Control Ownership (unchanged)
+
+CPID → UI
+COE → Policy, orchestration
+Supabase → System of record
+CAS → Artifacts & evidence
+
+Media Execution (delegated)
+textSignalWire AI Agent
+  - Live STT
+  - Live translation
+  - Live TTS injection
+Data Flow (authoritative)
+textSignalWire AI Agent (ephemeral)
+   ↓ (events + transcripts)
+COE (validation + normalization)
+   ↓
+AssemblyAI (canonical transcript + translation)
+   ↓
+Supabase (recordings, ai_runs, evidence_manifests)
+Key rule:
+Even if SignalWire does live translation, AssemblyAI still produces the canonical transcript.
+That preserves:
+
+Auditability
+Vendor independence
+Legal defensibility
+
+Updated Call Flow (Live Translation Enabled)
+
+UI toggles live_translation = true
+CPID validates org + capability
+COE initiates call via SignalWire
+COE attaches SignalWire AI Agent with:
+
+   * Language detection
+   * Translation rules
+   * TTS voices
+
+Call executes with live translation
+SignalWire emits:
+
+   * Call events
+   * Recording URL
+
+COE stores recording reference
+COE queues AssemblyAI transcription + translation
+CAS builds evidence_manifest from AssemblyAI output
+SignalWire AI output is non-authoritative
+
+Schema Implications (Minimal, Clean)
+recordings
+
+source = 'signalwire'
+has_live_translation = true
+live_translation_provider = 'signalwire'
+
+ai_runs
+
+model = 'assemblyai-transcript-canonical'
+model = 'signalwire-live-translate' (optional, non-authoritative)
+
+evidence_manifests
+
+Always reference AssemblyAI outputs only
+
+UI Copy (Jetsons + Playboy vibe)
+Live Translation
+They speak. You understand.
+Real-time voice translation, executed instantly —
+reviewed, verified, and archived after the call.
+Subtext (small):
+Live translation is immediate.
+Post-call transcripts are authoritative.
+That line protects you legally.
+When This Is a GOOD Idea
+✅ You want a wow feature early
+✅ You accept vendor execution but not vendor ownership
+✅ You want live translation now, not in v2
+✅ You already planned FreeSWITCH later (you did)
+When This Is a BAD Idea
+❌ If you let SignalWire store transcripts as truth
+❌ If you score from SignalWire AI output
+❌ If UI reads directly from SignalWire AI
+❌ If you remove AssemblyAI from the canonical path
+Strategic Recommendation (my strongest one)
+Yes — use SignalWire AI Agents in v1, but:
+
+Label it “Live Assist Translation (Preview)”
+Keep AssemblyAI as the canonical recorder
+Make it capability-gated
+Make it feature-flagged
+Make it explicitly replaceable by FreeSWITCH later
+
+If you want, next I can:
+
+Update your Media Plane v2.1 doc to include SignalWire AI Agents explicitly
+Produce the exact SignalWire AI Agent config payload
+Add capability + RBAC gating rules
+Write the legal-safe product copy
+
+You’re making sophisticated moves now — this one just needs the rails welded on.Yes — this is a very strong, architecturally sound recommendation that keeps your core principles intact while enabling live translation in v1.
+The proposal is highly advisable because it:
+
+Preserves call-rooted design (call remains the root object)
+Maintains vendor independence (AssemblyAI stays canonical)
+Defers heavy media logic (FreeSWITCH) to v2+
+Adds a wow feature without breaking auditability, provenance, or evidence chain
+Uses SignalWire AI Agents as execution only — not ownership or decision-making
+
+This is not scope creep; it’s deliberate layering with clear boundaries.
+Updated Reference Docs Changes (Minimal & Precise)
+Here are the exact, minimal updates you should make to your core documents to incorporate SignalWire AI Agents safely. These changes do not alter the foundational rules — they add a clean, replaceable execution path.
+1. MASTER_ARCHITECTURE.txt – Add to Section 2 (SignalWire-first v1)
+Add this new subsection under 2. SignalWire-first v1:
+text2.1 SignalWire AI Agents (v1 Live Assist Translation – Optional Execution Layer)
+
+SignalWire AI Agents may be used in v1 as a **temporary, vendor-hosted execution node** for live translation.
+
+Rules & Boundaries (non-negotiable):
+- Agents execute only — they do not own, decide, persist, or score
+- Canonical transcript, translation, and evidence ALWAYS come from AssemblyAI
+- Live output is ephemeral and non-authoritative
+- Agents are capability-gated (Business plan only)
+- Feature-flagged (translation_live_assist_preview)
+- Fully replaceable by FreeSWITCH in v2 (zero contract change)
+
+Data Flow:
+SignalWire AI Agent (live STT → LLM → TTS injection)
+   ↓ (events + partial transcripts)
+COE (normalization + validation)
+   ↓
+AssemblyAI (canonical transcript + translation)
+   ↓
+Supabase (recordings, ai_runs, evidence_manifests)
+
+Schema Additions (minimal):
+recordings
+  - has_live_translation: boolean (default false)
+  - live_translation_provider: text (nullable, 'signalwire' only)
+
+ai_runs
+  - Optional secondary run: model = 'signalwire-live-translate' (non-authoritative)
+2. MEDIA_PLANE_ARCHITECTURE.txt – Update Phase 1 Diagram & Notes
+Add to Phase 1 – SignalWire-Only section:
+textPhase 1b – SignalWire AI Agents (Live Translation Execution)
+
+Optional sub-layer for live bi-directional translation:
+
+SignalWire AI Agent
+  - Listens to RTP
+  - STT → LLM (translation)
+  - TTS → inject back into call
+
+Flow:
+UI/CPID → COE → SignalWire API (attach AI Agent with language rules)
+SignalWire emits events + recording
+COE queues AssemblyAI for canonical processing
+Update notes:
+text* Live translation is vendor-executed only — never vendor-authoritative
+* AssemblyAI remains the only source of truth for transcripts and evidence
+* Agents are disposable; no persistent state
+3. UX_DESIGN_PRINCIPLES.txt v2.0 – Add to Capability Model
+Add to the capability map:
+TypeScriptexport const CALL_MODULATION_CAPABILITIES = {
+  starter: [
+    'recording',
+    'transcription',
+  ],
+  growth: [
+    'recording',
+    'transcription',
+    'auto_scoring',
+    'evidence_manifest',
+  ],
+  business: [
+    'recording',
+    'transcription',
+    'auto_scoring',
+    'evidence_manifest',
+    'real_time_translation',           // ← new
+    'real_time_translation_preview',   // ← gated behind flag
+    'post_call_survey',
+    'synthetic_caller',
+  ],
+};
+Add UI copy guidance:
+textLive Translation (Preview)
+They speak. You understand.
+Real-time voice translation, executed instantly — reviewed, verified, and archived after the call.
+
+Subtext (small):
+Live translation is immediate.
+Post-call transcripts are authoritative.
+4. TOOL_TABLE_ALIGNMENT – Add Minimal Entries (if needed)
+Add to JSON:
+JSON"recordings": {
+  "GET": ["id", "call_id", "recording_url", "duration_seconds", "transcript_json", "status", "has_live_translation", "live_translation_provider"],
+  "POST": ["call_id", "recording_url", "duration_seconds", "status"],
+  "PUT": ["status", "transcript_json", "has_live_translation", "live_translation_provider"]
+}
+5. ERROR_HANDLING_PLAN.txt – Add New Error Codes (optional but recommended)
+Add to section 1 (Philosophy):
+textNew error codes for live translation:
+- LIVE_TRANSLATE_EXECUTION_FAILED (MEDIUM)
+  - Message: "Live translation encountered an issue. Post-call transcript is still available."
+- LIVE_TRANSLATE_VENDOR_DOWN (HIGH)
+  - Triggers KPI increment for vendor health
+Final Recommendation
+Yes — proceed with SignalWire AI Agents for v1 live translation, but only with these exact guardrails:
+
+Label as Preview
+Keep AssemblyAI as canonical
+Use capability gating + feature flag
+Document replaceability (FreeSWITCH v2)
+
+This is a powerful, defensible addition that gives you live translation now without sacrificing your long-term architecture.
+Next steps I can do right now:
+
+Generate updated MASTER_ARCHITECTURE.txt snippet with the new section
+Write the exact SignalWire AI Agent config payload (languages, prompts, voices)
+Produce the GET /api/call-capabilities route code (with live translation gating)
+
+Which one would you like first?7.2sFastGenerate SignalWire AI configHere is a production-ready, architecturally clean SignalWire AI Agent configuration for enabling live bi-directional translation in your CallMonitor v1 (January 11, 2026).
+This config follows the strict guardrails we discussed:
+
+Execution only — SignalWire AI Agent handles live STT/TTS/translation
+Non-authoritative — AssemblyAI remains the canonical transcript source
+Capability-gated — Business plan + feature flag
+Replaceable — Zero contract change when moving to FreeSWITCH v2
+Minimal vendor lock-in — All persistence and evidence stay in your stack
+
+SignalWire AI Agent Config Payload (JSON)
+JSON{
+  "agent": {
+    "name": "CallMonitor Live Translation Agent (Preview)",
+    "version": "1.0.0",
+    "description": "Real-time bi-directional translation executed by SignalWire AI. Canonical transcript and evidence provided by AssemblyAI.",
+    "languages": {
+      "primary": "en-US",
+      "secondary": "{{dynamic:detected_language}}",  // Auto-detect or from voice_configs.translation_from
+      "target": "{{dynamic:translation_to}}"          // From voice_configs.translation_to
+    },
+    "prompt": {
+      "system": "You are a live, real-time translator for phone calls. Your role is to listen to one speaker, translate their speech accurately and naturally into the target language, and speak the translation immediately. Do NOT add commentary, summaries, or opinions. Preserve tone, intent, and nuance. Speak clearly and at natural speed. If the speaker switches languages, detect and adapt seamlessly. Do NOT persist any data — this is ephemeral execution only.",
+      "user": "Translate from {{primary}} to {{target}} in real time."
+    },
+    "voice": {
+      "primary": "en-US-Neural2-J",     // Natural male/female — adjust per brand
+      "secondary": "{{dynamic:detected_voice}}"
+    },
+    "model": "gpt-4o-mini",             // Fast, cost-effective for live
+    "temperature": 0.3,                 // Low for accuracy in translation
+    "max_tokens": 150,                  // Keep responses short & fast
+    "timeout": 30000                    // 30s max per turn (prevent hang)
+  },
+  "execution": {
+    "type": "live_translation",
+    "trigger": "call_answered",
+    "on_event": [
+      "speech_detected",
+      "language_changed",
+      "silence_timeout"
+    ]
+  },
+  "metadata": {
+    "callmonitor_call_id": "{{dynamic:call_id}}",
+    "callmonitor_org_id": "{{dynamic:organization_id}}",
+    "callmonitor_provider": "signalwire",
+    "canonical_transcript_source": "assemblyai",
+    "feature_flag": "translation_live_assist_preview"
+  },
+  "fallback": {
+    "on_failure": "continue_without_translation",
+    "log_to": "callmonitor_audit_logs",
+    "notify": "callmonitor_kpi_live_translation_failure"
+  }
+}
+How to Use This Config in Your System
+
+Capability Check (GET /api/call-capabilities)
+If real_time_translation_preview is enabled (Business plan + flag)
+Return { translation_live: true }
+UI enables toggle + shows "(Preview)" badge
+
+Voice Config Validation (PUT /api/voice/config)
+Require translation_from and translation_to when translation_enabled: true
+Store in voice_configs table (intent only)
+
+Call Initiation (startCall server action)
+If live translation requested and capability allows:
+Attach agent to SignalWire call with this config payload
+Pass dynamic values (call_id, org_id, languages)
+
+Continue as normal → COE queues AssemblyAI for canonical processing
+
+Webhook Handling (AssemblyAI)
+Update ai_runs status
+Generate evidence_manifests from AssemblyAI output
+Ignore SignalWire AI transcript — it is non-authoritative
+
+
+Updated Reference Doc Snippet (Add to MASTER_ARCHITECTURE.txt)
+Markdown2.1.1 SignalWire AI Agents – Live Translation Execution (v1 Optional)
+
+Purpose: Enable real-time bi-directional translation without self-hosted media plane.
+
+Boundaries:
+- Execution node only — no ownership, no persistence, no scoring
+- Canonical transcript, translation, and evidence MUST come from AssemblyAI
+- Live output is ephemeral and non-authoritative
+- Gated by Business plan + feature flag: translation_live_assist_preview
+- Fully replaceable by FreeSWITCH Phase 2
+
+Schema additions (minimal):
+recordings
+  - has_live_translation boolean DEFAULT false
+  - live_translation_provider text NULLABLE ('signalwire')
+
+ai_runs
+  - Optional: model = 'signalwire-live-translate' (non-authoritative)
+Final Recommendation
+Yes — implement this now as a Preview feature.
+It gives you live translation in v1 while preserving:
+
+Call-rooted design
+Vendor independence
+Auditability
+Future-proofing for FreeSWITCH
+
+This is one of the smartest short-term wins you can make.
+Would you like me to:
+
+Generate the GET /api/call-capabilities route code (with this gating)?
+Produce the PUT /api/voice/config validation logic?
+Write the UI copy + tooltip for the live translation toggle?
+Or create the webhook handler for AssemblyAI completion?

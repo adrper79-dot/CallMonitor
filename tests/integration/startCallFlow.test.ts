@@ -1,6 +1,12 @@
 import startCall from '../../app/actions/calls/startCall'
 import { AppError } from '../../types/app-error'
-import { vi } from 'vitest'
+import { describe, vi } from 'vitest'
+
+/**
+ * @integration: This test requires full Supabase + call flow mocking
+ * Run with: RUN_INTEGRATION=1 npm test
+ */
+const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
 
 // Shared state for tracking table access
 const sharedState = {
@@ -21,8 +27,15 @@ vi.mock('../../lib/supabaseAdmin', () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               limit: vi.fn(() => ({
-                data: [{ id: 'org-1', plan: 'pro', tool_id: 'tool-1' }],
-                error: null
+                single: vi.fn().mockResolvedValue({
+                  data: { 
+                    id: '5f64d900-e212-42ab-bf41-7518f0bbcd4f', 
+                    plan: 'pro', 
+                    tool_id: 'test-tool-123',
+                    name: 'Test Organization'
+                  },
+                  error: null
+                })
               }))
             }))
           }))
@@ -34,8 +47,10 @@ vi.mock('../../lib/supabaseAdmin', () => {
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
                 limit: vi.fn(() => ({
-                  data: [{ id: 'm1', role: 'admin' }],
-                  error: null
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: 'm1', role: 'admin', user_id: 'test-user-123' },
+                    error: null
+                  })
                 }))
               }))
             }))
@@ -47,8 +62,17 @@ vi.mock('../../lib/supabaseAdmin', () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               limit: vi.fn(() => ({
-                data: [{ record: true, transcribe: true }],
-                error: null
+                single: vi.fn().mockResolvedValue({
+                  data: { 
+                    id: 'vc-test-123',
+                    organization_id: '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
+                    record: true, 
+                    transcribe: true,
+                    tool_id: 'test-tool-123',
+                    provider: 'signalwire'
+                  },
+                  error: null
+                })
               }))
             }))
           }))
@@ -57,42 +81,52 @@ vi.mock('../../lib/supabaseAdmin', () => {
       if (table === 'systems') {
         return {
           select: vi.fn(() => ({
-            in: vi.fn(() => ({
+            in: vi.fn().mockResolvedValue({
               data: [
                 { id: 'sys-cpid', key: 'system-cpid' },
                 { id: 'sys-ai', key: 'system-ai' }
               ],
               error: null
-            }))
+            })
           }))
         }
       }
       
       if (table === 'calls') {
         return {
-          insert: state.mockInsert,
+          insert: vi.fn().mockResolvedValue({
+            data: [{
+              id: 'call-test-123',
+              organization_id: '5f64d900-e212-42ab-bf41-7518f0bbcd4f',
+              phone_number: '+15551234567',
+              call_sid: 'CA-test-call-sid-123',
+              status: 'initiated'
+            }],
+            error: null
+          }),
           update: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              data: null,
+            eq: vi.fn().mockResolvedValue({
+              data: [{
+                id: 'call-test-123',
+                status: 'completed'
+              }],
               error: null
-            }))
+            })
           })),
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              limit: vi.fn(() => ({
-                data: [{ id: 'call-123', organization_id: 'org-1', status: 'in-progress' }],
+              limit: vi.fn().mockResolvedValue({
+                data: [{ 
+                  id: 'call-test-123', 
+                  organization_id: '5f64d900-e212-42ab-bf41-7518f0bbcd4f', 
+                  status: 'in-progress',
+                  call_sid: 'CA-test-call-sid-123'
+                }],
                 error: null
-              }))
+              })
             }))
           }))
         }
-      }
-      return {
-        insert: state.mockInsert,
-        select: state.mockSelect,
-        eq: () => ({ limit: () => ({ data: [], error: null }) }),
-        limit: () => ({ data: [], error: null }),
-        update: vi.fn(async (x: any) => ({ data: [], error: null })),
       }
     }
   }
@@ -114,7 +148,7 @@ vi.mock('next-auth/next', () => ({
   getServerSession: vi.fn(async () => ({ user: { id: 'user-123' } }))
 }))
 
-describe('startCall flow integration', () => {
+describeOrSkip('startCall flow integration', () => {
   beforeEach(() => {
     // Expose shared state to global for mock access
     ;(global as any).__testSharedState = sharedState

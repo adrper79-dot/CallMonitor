@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+dist_deploy/
+.open-next/
+
+# Cache
+.wrangler/
+*.tsbuildinfo
+
+# Generated files
+cloudflare-env.d.ts
+cloudflare-env-custom.d.ts
+
+# Logs
+*.log
+build_*.txt
+*_error.txt
+
+# Database
+*.sql
+*.bak
+
+# Public assets
+public/branding/
+public/*.png
+public/*.ico

@@ -11,16 +11,33 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
+    include: ['**/__tests__/**/*.test.ts', '**/tests/**/*.test.ts'],
+    exclude: ['node_modules', 'dist', '.next', 'out', 'workers'],
+    env: {
+      NODE_ENV: 'test'
+    },
+    testTimeout: 30000,
+    hookTimeout: 30000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      thresholds: {
+        lines: 60,
+        branches: 50,
+        functions: 50,
+        statements: 60
+      },
       exclude: [
         'node_modules/',
         'tests/',
+        '__tests__/',
         '*.config.*',
         'migrations/',
         'docs/',
-        '**/*.d.ts'
+        'ARCH_DOCS/',
+        'workers/',
+        '**/*.d.ts',
+        'app/api/**' // API routes now in workers/
       ]
     }
   }

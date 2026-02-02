@@ -1,0 +1,329 @@
+# LAW — Return-Traffic Intelligence (RTI)
+
+## 1. Return-Traffic Intelligence (RTI) — Architecture Section
+
+### Purpose
+
+Return-Traffic Intelligence (RTI) is the **post-execution attention routing layer** of the platform.
+
+RTI exists to **reduce noise**, **compress outcomes**, and **route human attention** after execution has completed. It does not initiate execution, modify canonical artifacts, or declare outcomes.
+
+> RTI optimizes for the **absence of interruption**, not the presence of activity.
+
+---
+
+### Position in the Architecture
+
+RTI sits **after canonical artifacts are finalized** and **before humans are notified**.
+
+```
+Execution (SignalWire)
+→ Canonical Artifacts (calls, recordings, transcripts, evidence)
+→ Intelligence Layers (scoring, surveys, alerts)
+→ Return-Traffic Intelligence (RTI)
+→ Human Attention / Notifications
+```
+
+RTI consumes artifacts; it does not influence execution.
+
+---
+
+### Authority Boundary (Non-Negotiable)
+
+RTI **MUST NOT**:
+
+* initiate calls, campaigns, or schedules
+* modify execution state or configuration
+* mutate canonical artifacts
+* declare agreements, intent, or commitments
+* act as a workflow or automation engine
+
+RTI **MAY**:
+
+* summarize events
+* suppress noise
+* escalate attention
+* generate digests
+* recommend review (non-authoritative)
+
+RTI outputs are **derived, advisory, and non-authoritative**.
+
+---
+
+### Data Model (Conceptual)
+
+RTI operates through three immutable, append-only artifact types:
+
+1. **Attention Events**
+   Normalized “return traffic” signals emitted after execution
+   (e.g., call completed, alert triggered, delivery failed)
+
+2. **Attention Decisions**
+   Derived judgments applied to events
+   (`escalate | suppress | include_in_digest | needs_review`)
+
+3. **Digests**
+   Periodic summaries of decisions (e.g., overnight brief)
+
+All RTI artifacts:
+
+* are append-only
+* include provenance (`input_refs`)
+* include actor attribution
+* are org-scoped and RLS-protected
+
+---
+
+### Explainability Requirement
+
+Every RTI decision to **escalate** or **suppress** must include:
+
+* the policy or rule applied
+* the evidence references used
+* a human-readable reason
+
+If RTI cannot explain a decision, it must default to **needs_review**.
+
+---
+
+### Human Agency Gate
+
+RTI may recommend attention routing, but **any external side effect** (notification, CRM note, webhook) requires:
+
+* an explicit, human-authored policy
+* an audit log entry
+
+RTI drafts; humans authorize.
+
+---
+
+### Anti-Sprawl Clause
+
+RTI is a **layer**, not a product.
+
+RTI must not introduce:
+
+* a new tool category
+* a parallel execution surface
+* feature-specific navigation
+
+RTI surfaces appear only within existing dashboards and reports.
+
+---
+
+### Success Criterion
+
+RTI is successful when:
+
+* nothing wakes a human unnecessarily
+* silence is explainable
+* attention is earned, not triggered
+
+---
+
+## 2. Definition of Silence — Metric Specification
+
+### Definition of Silence
+
+**Silence** is an explicit, measurable outcome indicating that RTI correctly suppressed non-actionable return traffic.
+
+Silence is not absence of data.
+Silence is **intentional non-interruption with explanation**.
+
+---
+
+### Core Metrics
+
+#### 1. Silence Rate
+
+**Definition:**
+Percentage of attention events that result in **no human interruption**.
+
+```
+Silence Rate =
+  suppressed_events / total_attention_events
+```
+
+Target (v1): **≥ 85%**
+
+---
+
+#### 2. Explainable Silence Coverage
+
+**Definition:**
+Percentage of suppressed events that include an explicit reason and policy reference.
+
+```
+Explainable Silence =
+  suppressed_events_with_reason / suppressed_events
+```
+
+Target: **100%**
+
+Any unexplained suppression is a failure.
+
+---
+
+#### 3. Unnecessary Escalation Rate
+
+**Definition:**
+Escalations that are acknowledged by humans but later marked as “non-actionable.”
+
+```
+Unnecessary Escalations =
+  acknowledged_but_no_action / total_escalations
+```
+
+Target: **≤ 5%**
+
+This is the *alert fatigue* indicator.
+
+---
+
+#### 4. Morning Clean Slate Score
+
+**Definition:**
+Percentage of digests where:
+
+* no escalations occurred overnight
+* or escalations were already resolved
+
+This is a **positive success signal**, not inactivity.
+
+---
+
+### Forbidden Metrics (Explicitly Disallowed)
+
+RTI **must not** optimize for:
+
+* number of alerts sent
+* number of digests generated
+* number of escalations
+* engagement with notifications
+
+Volume is not value.
+
+---
+
+### Product Principle
+
+> If nothing important happened, the correct output is silence —
+> and the system must be able to explain why.
+
+---
+
+## 3. v1 RTI Policy Starter Pack
+
+These are **opinionated, constrained policies** designed to work immediately without user scripting.
+
+---
+
+### Policy 1 — Quiet Hours Suppression
+
+**Name:** Quiet Hours
+**Intent:** Prevent unnecessary interruptions during off-hours.
+
+**Rule:**
+
+* During configured quiet hours:
+
+  * suppress all non-critical events
+  * allow only explicit severity ≥ critical
+
+**Decision:**
+
+* `suppress` → include in next digest
+
+**Reason Template:**
+
+> Suppressed due to quiet hours policy. No critical threshold met.
+
+---
+
+### Policy 2 — Recurring Noise Suppression
+
+**Name:** Recurring Event Suppression
+**Intent:** Eliminate known, repetitive noise.
+
+**Rule:**
+
+* If the same event type + source occurs ≥ N times within M hours
+* and has never led to escalation or action
+* suppress subsequent occurrences
+
+**Decision:**
+
+* `suppress`
+
+**Reason Template:**
+
+> Suppressed as recurring, historically non-actionable event.
+
+---
+
+### Policy 3 — Escalation Threshold
+
+**Name:** Escalation Threshold
+**Intent:** Ensure real issues break through silence.
+
+**Rule:**
+
+* Escalate if:
+
+  * severity ≥ configured threshold
+  * OR evidence completeness is degraded
+  * OR failure blocks downstream processing
+
+**Decision:**
+
+* `escalate`
+
+**Reason Template:**
+
+> Escalated due to severity exceeding configured threshold.
+
+---
+
+### Policy 4 — Ambiguity Guardrail
+
+**Name:** Uncertain Outcome Review
+**Intent:** Prevent silent failure when confidence is low.
+
+**Rule:**
+
+* If confidence < threshold
+* OR conflicting signals detected
+
+**Decision:**
+
+* `needs_review`
+
+**Reason Template:**
+
+> Flagged for review due to insufficient confidence.
+
+---
+
+### Policy Ordering (v1 Default)
+
+Policies are evaluated in this order:
+
+1. Escalation Threshold
+2. Ambiguity Guardrail
+3. Quiet Hours
+4. Recurring Suppression
+
+First decisive match wins.
+
+---
+
+## v1 Design Constraint
+
+Policies are:
+
+* human-readable
+* explainable in one sentence
+* versioned, not edited
+* admin-authored only
+
+No free-form logic in v1.

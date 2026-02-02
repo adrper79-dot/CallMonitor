@@ -1,102 +1,43 @@
 /** @type {import('next').NextConfig} */
+
+/**
+ * Next.js Configuration for Static Export
+ * 
+ * This config produces a fully static site deployed to Cloudflare Pages.
+ * API routes are handled separately by Cloudflare Workers (see workers/).
+ * 
+ * Build: npm run ui:build → outputs to 'out/'
+ * Deploy: npm run ui:deploy → Cloudflare Pages
+ */
+
 const nextConfig = {
-  outputFileTracingRoot: __dirname,
-  // output: "standalone", // Cloudflare Pages does not support standalone mode
+  // Static export for Cloudflare Pages - no adapter conflicts
+  output: 'export',
+  
   images: {
-    unoptimized: true,
+    unoptimized: true, // CF Images can handle resizing if needed
   },
+
+  // Trailing slashes help with static hosting
+  trailingSlash: true,
+
+  // Environment variables exposed to client
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev',
+  },
+
   typescript: {
-    // TypeScript errors will now block production builds
-    // This ensures type safety in production
+    // Allow builds with TS errors during migration
     ignoreBuildErrors: true,
   },
+  
   eslint: {
+    // Allow builds with ESLint errors during migration
     ignoreDuringBuilds: true,
   },
 
+  // Remove X-Powered-By header
   poweredByHeader: false,
-  webpack: (config, { isServer, nextRuntime }) => {
-    // Fixes npm packages that depend on Node.js modules
-    if (isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        crypto: 'node:crypto',
-        stream: 'node:stream',
-        buffer: 'node:buffer',
-        util: 'node:util',
-        http: 'node:http',
-        https: 'node:https',
-        querystring: 'node:querystring',
-        url: 'node:url',
-        zlib: 'node:zlib',
-        net: 'node:net',
-        tls: 'node:tls',
-      }
-    }
-    if (nextRuntime === 'edge') {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'node:child_process': false,
-        'child_process': false,
-      }
-
-      // Explicitly externalize standard Node.js modules to use Cloudflare's nodejs_compat
-      // We map both bare names ('crypto') and prefixed names ('node:crypto') to the 'node:' prefixed require
-      const nodeModules = ['crypto', 'stream', 'buffer', 'util', 'http', 'https', 'querystring', 'url', 'zlib', 'net', 'tls', 'events', 'path', 'fs'];
-      const edgeExternals = {};
-
-      nodeModules.forEach(mod => {
-        // Force all imports to use the "node:" prefix in the final bundle
-        // The quotes are essential for Webpack to generate valid CommonJS require("node:...") syntax
-        edgeExternals[mod] = `commonjs "node:${mod}"`;
-        edgeExternals[`node:${mod}`] = `commonjs "node:${mod}"`;
-      });
-
-      config.externals.push(edgeExternals);
-
-      config.externals.push('nodemailer', 'next-auth/providers/email', 'ws', 'openai', 'ai')
-    }
-    return config
-  },
-
-  // Security headers
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on'
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block'
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin'
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(self), geolocation=()'
-          }
-        ],
-      },
-    ]
-  },
 }
 
 module.exports = nextConfig

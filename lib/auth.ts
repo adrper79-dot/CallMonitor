@@ -37,15 +37,17 @@ async function sendViaResend(to: string, html: string) {
 }
 
 import PostgresAdapter from "@auth/pg-adapter"
-import { pool } from "@/lib/pgClient"
+import { getPool } from "@/lib/pgClient"
 
 // ARCH_DOCS: Lazy Postgres adapter for Neon
 function getAdapter() {
-  if (!pool) {
+  try {
+    const pool = getPool()
+    return PostgresAdapter(pool)
+  } catch (e) {
     logger.warn('[Auth] Postgres pool not available - disabling adapter')
     return undefined
   }
-  return PostgresAdapter(pool)
 }
 
 /**
@@ -176,7 +178,6 @@ function getProviders(adapter: any) {
   // Nodemailer (used by EmailProvider) is incompatible with Edge
   if (adapter && process.env.NEXT_RUNTIME !== 'edge') {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const EmailProvider = require("next-auth/providers/email").default
 
       providers.push(EmailProvider({

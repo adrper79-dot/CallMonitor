@@ -187,7 +187,65 @@ export async function GET(req: Request) {
     })
   }
 
-  // 4. Storage check (Optional/Removed)
+  // 4. Cloudflare Bindings Check (Workers Environment)
+  try {
+    // Check R2 Storage Binding
+    const bucket = (globalThis as any).RECORDINGS_BUCKET
+    if (bucket) {
+      checks.push({
+        service: 'r2_storage',
+        status: 'healthy',
+        message: 'R2 bucket binding available'
+      })
+    }
+
+    // Check KV Binding
+    const kv = (globalThis as any).KV
+    if (kv) {
+      checks.push({
+        service: 'kv_store',
+        status: 'healthy',
+        message: 'KV namespace binding available'
+      })
+    }
+
+    // Check Hyperdrive Binding
+    const hyperdrive = (globalThis as any).HYPERDRIVE
+    if (hyperdrive) {
+      checks.push({
+        service: 'hyperdrive',
+        status: 'healthy',
+        message: 'Hyperdrive database accelerator available'
+      })
+    }
+
+    // Check Edge Cache
+    const cache = (globalThis as any).caches?.default
+    if (cache) {
+      checks.push({
+        service: 'edge_cache',
+        status: 'healthy',
+        message: 'Cloudflare Edge Cache API available'
+      })
+    }
+
+    // If no bindings detected, we're likely in non-Workers environment
+    if (!bucket && !kv && !hyperdrive && !cache) {
+      checks.push({
+        service: 'cloudflare_bindings',
+        status: 'degraded',
+        message: 'No Cloudflare bindings detected (non-Workers environment)'
+      })
+    }
+  } catch (err: any) {
+    checks.push({
+      service: 'cloudflare_bindings',
+      status: 'degraded',
+      message: `Cloudflare bindings check failed: ${err?.message || 'Unknown error'}`
+    })
+  }
+
+  // 5. Storage check (Optional/Removed)
   // We removed Supabase Storage check as we are migrating away from Supabase.
   // R2 check is implicit in successful application operation or could be added later if needed.
 

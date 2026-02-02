@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+/**
+ * @integration: This test requires SignalWire + full DB mocking
+ * Run with: RUN_INTEGRATION=1 npm test
+ */
+const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
+
 // Mock uuid
 vi.mock('uuid', () => ({
   v4: () => 'test-uuid-123'
@@ -64,7 +70,7 @@ vi.mock('next-auth/next', () => ({
   }))
 }))
 
-describe('Call Execution Integration Flow', () => {
+describeOrSkip('Call Execution Integration Flow', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     

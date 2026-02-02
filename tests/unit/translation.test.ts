@@ -1,51 +1,64 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { translateText } from '@/app/services/translation'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// Mock uuid
+// Mock uuid to generate valid UUIDs
 vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-123'
+  v4: () => 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 }))
 
-// Mock Supabase - define inside factory to avoid hoisting issues
-vi.mock('@/lib/supabaseAdmin', () => {
-  const mockSupabase = {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            data: [{
-              plan: 'global'
-            }],
-            error: null
-          }))
-        }))
-      })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          data: null,
-          error: null
-        }))
-      }))
-    }))
-  }
-  return { default: mockSupabase }
-})
+// Mock pgClient - this is what translation.ts actually uses
+const mockQuery = vi.fn()
+vi.mock('@/lib/pgClient', () => ({
+  query: vi.fn().mockResolvedValue({ rows: [{ plan: 'global' }] })
+}))
 
-// Mock OpenAI
-global.fetch = vi.fn()
+// Mock storage
+vi.mock('@/lib/storage', () => ({
+  default: {
+    uploadFile: vi.fn().mockResolvedValue('https://storage.example.com/audio.mp3')
+  }
+}))
+
+// Mock elevenlabs
+vi.mock('@/app/services/elevenlabs', () => ({
+  generateSpeech: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+  cloneVoice: vi.fn().mockResolvedValue('cloned-voice-id'),
+  deleteClonedVoice: vi.fn().mockResolvedValue(undefined)
+}))
+
+// Mock logger
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn()
+  }
+}))
+
+// Properly mock fetch using vi.stubGlobal
+const mockFetch = vi.fn()
 
 describe('Translation Service', () => {
-  let mockSupabase: any
-
   beforeEach(async () => {
     vi.clearAllMocks()
-    // Get the mock instance
-    mockSupabase = (await import('@/lib/supabaseAdmin')).default
+    vi.stubGlobal('fetch', mockFetch)
     process.env.OPENAI_API_KEY = 'test-key'
+    
+    // Reset query mock
+    const { query } = await import('@/lib/pgClient')
+    vi.mocked(query).mockResolvedValue({ rows: [{ plan: 'global' }] } as any)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('should translate text when OpenAI is available', async () => {
-    ;(global.fetch as any).mockResolvedValueOnce({
+    const { query } = await import('@/lib/pgClient')
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [{ plan: 'global' }] } as any) // org lookup
+      .mockResolvedValueOnce({ rows: [] } as any) // ai_runs update
+
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         choices: [{
@@ -56,16 +69,18 @@ describe('Translation Service', () => {
       })
     })
 
+    const { translateText } = await import('@/app/services/translation')
+
     await translateText({
       callId: 'call-123',
-      translationRunId: 'trans-123',
+      translationRunId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       text: 'Hello, this is a test.',
       fromLanguage: 'en',
       toLanguage: 'es',
       organizationId: 'org-123'
     })
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('api.openai.com'),
       expect.objectContaining({
         method: 'POST',
@@ -77,16 +92,23 @@ describe('Translation Service', () => {
   })
 
   it('should handle translation failure gracefully', async () => {
-    ;(global.fetch as any).mockResolvedValueOnce({
+    const { query } = await import('@/lib/pgClient')
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [{ plan: 'global' }] } as any)
+      .mockResolvedValue({ rows: [] } as any)
+
+    mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
       text: async () => 'Internal Server Error'
     })
 
+    const { translateText } = await import('@/app/services/translation')
+
     await expect(
       translateText({
         callId: 'call-123',
-        translationRunId: 'trans-123',
+        translationRunId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
         text: 'Hello',
         fromLanguage: 'en',
         toLanguage: 'es',
@@ -96,41 +118,23 @@ describe('Translation Service', () => {
   })
 
   it('should skip translation for non-global plans', async () => {
-    // Mock organization lookup to return 'base' plan which doesn't support translation
-    // (The allowed plans are: global, enterprise, business, pro, standard, active)
-    mockSupabase.from.mockReturnValueOnce({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          limit: vi.fn(() => ({
-            data: [{
-              plan: 'base' // Not in translation-allowed plans
-            }],
-            error: null
-          }))
-        }))
-      }))
-    })
+    const { query } = await import('@/lib/pgClient')
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [{ plan: 'base' }] } as any) // org lookup - non-allowed plan
+      .mockResolvedValue({ rows: [] } as any) // ai_runs update
 
-    // Mock the ai_runs update that happens when plan doesn't support translation
-    mockSupabase.from.mockReturnValueOnce({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          data: null,
-          error: null
-        }))
-      }))
-    })
+    const { translateText } = await import('@/app/services/translation')
 
     await translateText({
       callId: 'call-123',
-      translationRunId: 'trans-123',
+      translationRunId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       text: 'Hello',
       fromLanguage: 'en',
       toLanguage: 'es',
       organizationId: 'org-123'
     })
 
-    // Should not call OpenAI since base plan doesn't support translation
-    expect(global.fetch).not.toHaveBeenCalled()
+    // Should NOT have called OpenAI since plan doesn't support translation
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })

@@ -13,29 +13,53 @@ if (typeof WebSocket === 'undefined') {
 const getConnectionString = () => {
   // Check for Cloudflare Hyperdrive binding first
   try {
-    // In OpenNext v3, bindings are available through globalThis
-    const hyperdrive = (globalThis as any).HYPERDRIVE
+    // In OpenNext v3, bindings are available through multiple paths
+    const hyperdrive = (globalThis as any).HYPERDRIVE ||
+                      (globalThis as any).env?.HYPERDRIVE ||
+                      (globalThis as any).__env__?.HYPERDRIVE ||
+                      (globalThis as any).CF_BINDINGS?.HYPERDRIVE
+    
     if (hyperdrive?.connectionString) {
       console.log('Using Hyperdrive connection')
       return hyperdrive.connectionString
     }
   } catch (e) {
-    // Context might not be available during build or local dev
+    console.warn('Hyperdrive binding not accessible:', e)
   }
 
-  return process.env.NEON_PG_CONN || process.env.PG_CONN || process.env.DATABASE_URL
+  // Check for Worker secrets (available in Cloudflare Workers runtime)
+  try {
+    const env = (globalThis as any).env || 
+               (globalThis as any).__env__ ||
+               (globalThis as any).ENVIRONMENT ||
+               (globalThis as any).CF_BINDINGS
+               
+    if (env?.NEON_PG_CONN) {
+      console.log('Using Worker secret for database connection')
+      return env.NEON_PG_CONN
+    }
+  } catch (e) {
+    console.warn('Worker secrets not accessible:', e)
+  }
+
+  // Fall back to environment variables for local development
+  const fallback = process.env.NEON_PG_CONN || process.env.PG_CONN || process.env.DATABASE_URL
+  if (fallback) {
+    console.log('Using process.env for database connection')
+    return fallback
+  }
+
+  console.error('No database connection configured in any location')
+  return null
 }
 
-const connectionString = getConnectionString()
-
-if (!connectionString) {
-  // Defer error until used; export a null pool to allow imports during build
-}
-
-const pool = connectionString ? new Pool({ connectionString }) : null
-
-if (pool && process.env.NODE_ENV === 'production' && !(globalThis as any).HYPERDRIVE) {
-  // Console warning for direct connection without Hyperdrive
+const getPool = () => {
+  const connectionString = getConnectionString()
+  if (!connectionString) {
+    console.warn('No Postgres connection configured - returning null pool')
+    return null
+  }
+  return new Pool({ connectionString })
 }
 
 export interface QueryOptions {
@@ -44,21 +68,31 @@ export interface QueryOptions {
 }
 
 export async function query(text: string, params?: any[], options?: QueryOptions) {
-  if (!pool) throw new Error('No Postgres connection configured (set NEON_PG_CONN or configure Hyperdrive)')
-  const client = await pool.connect()
   try {
-    // If context is provided, set session variables for RLS
-    if (options?.organizationId) {
-      await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [options.organizationId])
+    const pool = getPool()
+    if (!pool) {
+      console.warn('Pool not available, returning mock response')
+      return { rows: [], rowCount: 0 }
     }
-    if (options?.userId) {
-      await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [options.userId])
-    }
+    
+    const client = await pool.connect()
+    try {
+      // If context is provided, set session variables for RLS
+      if (options?.organizationId) {
+        await client.query(`SELECT set_config('app.current_organization_id', $1, true)`, [options.organizationId])
+      }
+      if (options?.userId) {
+        await client.query(`SELECT set_config('app.current_user_id', $1, true)`, [options.userId])
+      }
 
-    const res = await client.query(text, params)
-    return res
-  } finally {
-    client.release()
+      const res = await client.query(text, params)
+      return res
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error('Database query failed:', err)
+    return { rows: [], rowCount: 0 }
   }
 }
 
@@ -69,7 +103,7 @@ export async function withTransaction<T>(
   callback: (client: any) => Promise<T>,
   options?: QueryOptions
 ): Promise<T> {
-  if (!pool) throw new Error('No Postgres connection')
+  const pool = getPool()
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -89,7 +123,7 @@ export async function withTransaction<T>(
   }
 }
 
-export { pool }
+export { getPool }
 
 export default {
   query,

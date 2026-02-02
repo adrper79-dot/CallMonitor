@@ -1,19 +1,35 @@
+# Cloudflare Pages Configuration (Static UI)
+# This config is for the static Next.js export deployed to Pages
 name = "wordisbond"
-compatibility_date = "2026-01-27"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next/assets"
+pages_build_output_dir = "out"
+compatibility_date = "2026-02-01"
 
+# Note: The API is deployed separately via workers/wrangler.toml
+# UI → Pages (this config) at wordisbond.pages.dev
+# API → Workers (workers/wrangler.toml) at api.wordisbond.com
+
+# Environment variables for Pages (build-time)
 [vars]
-# Public Variables (Safe to commit)
-NEXT_PUBLIC_APP_URL = "https://wordisbond.pages.dev"
-NODE_VERSION = "20"
+NODE_ENV = "production"
+NEXT_PUBLIC_API_URL = "https://wordisbond-api.adrper79.workers.dev"
 
-# Database connection string for Workers
-NEON_CONNECTION_STRING = "postgresql://neondb_owner:npg_HKXlEiWM9BF2@ep-mute-recipe-ahsibut8-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+# Security headers for static pages
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=()"
 
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "3948fde8207649108d77e82020091b56"
+# Cache static assets aggressively
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
-
-
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

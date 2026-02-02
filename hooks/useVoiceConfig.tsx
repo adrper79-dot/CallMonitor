@@ -188,18 +188,18 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
 export function useVoiceConfig(organizationId?: string | null) {
   const context = useContext(VoiceConfigContext)
   
-  // If used within provider, return context
-  if (context) {
-    return context
-  }
-  
-  // Fallback for components not wrapped in provider (backward compatibility)
-  // This creates isolated state - not recommended but prevents breaking existing code
+  // Fallback state for components not wrapped in provider (backward compatibility)
   const [config, setConfig] = useState<VoiceConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  
+  // If used within provider, return context (hooks already called above)
+  const hasContext = context !== null
+  
   useEffect(() => {
+    // Skip fallback fetch if using context
+    if (hasContext) return
+    
     if (!organizationId) {
       setConfig(null)
       setLoading(false)
@@ -228,9 +228,14 @@ export function useVoiceConfig(organizationId?: string | null) {
     }
 
     fetchConfig()
-  }, [organizationId])
+  }, [organizationId, hasContext])
 
   const updateConfig = useCallback(async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
+    // If using context, delegate to context's updateConfig
+    if (hasContext && context) {
+      return context.updateConfig(updates)
+    }
+    
     if (!organizationId) {
       throw new Error('Organization ID required')
     }
@@ -287,7 +292,12 @@ export function useVoiceConfig(organizationId?: string | null) {
     }
     setConfig(newConfig)
     return newConfig
-  }, [organizationId, config])
+  }, [organizationId, config, hasContext, context])
+
+  // If using context, return context values
+  if (hasContext && context) {
+    return context
+  }
 
   return { config, loading, error, updateConfig }
 }

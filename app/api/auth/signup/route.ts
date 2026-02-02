@@ -81,14 +81,21 @@ async function handleSignup(req: Request) {
 
     // Perform creation in transaction
     await withTransaction(async (client) => {
-      // 1. Create Organization
+      // 1. Create User first
+      await client.query(
+        `INSERT INTO users (id, email, password_hash, organization_id, role, is_admin, name, created_at)
+         VALUES ($1, $2, $3, $4, 'owner', true, $5, $6)`,
+        [userId, email, passwordHash, orgId, name || null, new Date().toISOString()]
+      )
+
+      // 2. Create Organization
       await client.query(
         `INSERT INTO organizations (id, name, plan, plan_status, created_by, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [orgId, `${name || email.split('@')[0]}'s Organization`, 'professional', 'active', userId, new Date().toISOString()]
       )
 
-      // 2. Create Default Tool & Link to Org
+      // 3. Create Default Tool & Link to Org
       await client.query(
         `INSERT INTO tools (id, name, description, created_at) 
          VALUES ($1, 'Default Voice Tool', 'Default tool for call recordings and AI services', $2)`,
@@ -98,13 +105,6 @@ async function handleSignup(req: Request) {
       await client.query(
         `UPDATE organizations SET tool_id = $1 WHERE id = $2`,
         [toolId, orgId]
-      )
-
-      // 3. Create User
-      await client.query(
-        `INSERT INTO users (id, email, password_hash, organization_id, role, is_admin, name, created_at)
-         VALUES ($1, $2, $3, $4, 'owner', true, $5, $6)`,
-        [userId, email, passwordHash, orgId, name || null, new Date().toISOString()]
       )
 
       // 4. Create Org Membership

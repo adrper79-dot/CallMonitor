@@ -7,6 +7,7 @@ import { recordErrorKPI, recordSuccessKPI } from './kpi'
  * API Handler Wrapper
  * 
  * Wraps API route handlers with error handling, tracking, and KPI collection.
+ * Enhanced for Cloudflare Workers environment with edge-aware error tracking.
  * Per ERROR_HANDLING_PLAN.txt
  */
 
@@ -16,6 +17,56 @@ export interface ApiHandlerContext {
   userId?: string | null
   organizationId?: string | null
   requestInfo?: Record<string, any>
+  isEdgeWorker?: boolean
+}
+
+// Enhanced error tracking for Cloudflare Workers
+async function trackErrorWithContext(error: Error, context: ApiHandlerContext, duration: number) {
+  try {
+    // Standard error tracking
+    if (error instanceof AppError) {
+      await trackAppError(error, context.organizationId)
+    } else {
+      await trackError(error, context.userId, context.organizationId)
+    }
+
+    // Edge-specific error metadata
+    const errorContext = {
+      ...context,
+      runtime: (globalThis as any).navigator?.userAgent?.includes('Cloudflare-Workers') ? 'cloudflare-workers' : 'node',
+      timestamp: new Date().toISOString(),
+      duration,
+      cfRay: (globalThis as any).cf?.ray || 'not-available',
+      datacenter: (globalThis as any).cf?.colo || 'unknown'
+    }
+
+    // Log structured error data for Cloudflare Logs
+    console.error('API_ERROR', {
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      },
+      context: errorContext
+    })
+
+    // Send to Sentry if available (with Cloudflare context)
+    if (typeof window !== 'undefined' || (globalThis as any).Sentry) {
+      const Sentry = (globalThis as any).Sentry
+      if (Sentry) {
+        Sentry.withScope((scope: any) => {
+          scope.setTag('runtime', errorContext.runtime)
+          scope.setTag('datacenter', errorContext.datacenter)
+          scope.setContext('request', errorContext)
+          if (errorContext.cfRay) scope.setTag('cf-ray', errorContext.cfRay)
+          Sentry.captureException(error)
+        })
+      }
+    }
+  } catch (trackingError) {
+    // Don't let error tracking break the main flow
+    console.error('Error tracking failed:', trackingError)
+  }
 }
 
 /**
@@ -27,13 +78,17 @@ export function withErrorHandling<T extends any[]>(
 ) {
   return async (...args: T): Promise<Response> => {
     const startTime = Date.now()
+    const enhancedContext = {
+      ...context,
+      isEdgeWorker: (globalThis as any).navigator?.userAgent?.includes('Cloudflare-Workers') || false
+    }
     let response: Response
 
     try {
       // Extract endpoint and method from request if available
       const req = args[0] as Request
-      const endpoint = context?.endpoint || new URL(req.url).pathname
-      const method = context?.method || req.method
+      const endpoint = enhancedContext?.endpoint || new URL(req.url).pathname
+      const method = enhancedContext?.method || req.method
 
       // Call handler
       response = await handler(...args)
@@ -41,28 +96,37 @@ export function withErrorHandling<T extends any[]>(
       // Record success KPI
       recordSuccessKPI(endpoint, method)
 
-      // Add performance header
+      // Add performance and Cloudflare headers
       const duration = Date.now() - startTime
       response.headers.set('X-Response-Time', `${duration}ms`)
+      
+      // Add Cloudflare-specific headers if in Workers environment
+      if (enhancedContext.isEdgeWorker) {
+        response.headers.set('X-Served-By', 'cloudflare-workers')
+        const cfRay = (globalThis as any).cf?.ray
+        if (cfRay) response.headers.set('CF-Ray', cfRay)
+      }
 
       return response
     } catch (err: any) {
-      // Track error
-      const tracked = trackError(err, {
-        endpoint: context?.endpoint,
-        method: context?.method,
-        userId: context?.userId,
-        organizationId: context?.organizationId,
-        requestInfo: context?.requestInfo
-      })
+      const duration = Date.now() - startTime
+      
+      // Enhanced error tracking with Cloudflare context
+      await trackErrorWithContext(err, enhancedContext, duration)
 
       // Record error KPI
-      recordErrorKPI(tracked)
+      recordErrorKPI({
+        code: err.code || 'UNKNOWN_ERROR',
+        message: err.message,
+        timestamp: new Date().toISOString(),
+        endpoint: enhancedContext.endpoint,
+        method: enhancedContext.method
+      })
 
       // Create AppError if not already
       const appError = err instanceof AppError ? err : new AppError({
-        code: tracked.code,
-        message: tracked.internalMessage,
+        code: err.code || 'INTERNAL_SERVER_ERROR',
+        message: err.message || 'An internal error occurred',
         user_message: tracked.userMessage,
         severity: tracked.severity as any,
         details: tracked.details

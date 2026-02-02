@@ -1,0 +1,50 @@
+# Workers API Configuration
+name = "wordisbond-api"
+main = "src/index.ts"
+compatibility_date = "2026-02-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Account settings (optional - wrangler auto-detects)
+# account_id = ""
+
+[vars]
+NODE_ENV = "production"
+CORS_ORIGIN = "https://wordisbond.pages.dev"
+
+# Hyperdrive for Neon Postgres
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3948fde8207649108d77e82020091b56"
+
+# KV for sessions/cache
+[[kv_namespaces]]
+binding = "KV"
+id = "928d90ba89524fdfa9fec1043abdb229"
+
+# R2 for recordings storage
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "wordisbond01"
+
+# Cron Triggers for scheduled jobs
+[triggers]
+crons = [
+  "*/5 * * * *",   # Every 5 min: retry failed transcriptions
+  "0 * * * *",     # Hourly: cleanup expired sessions
+  "0 0 * * *"      # Daily: usage aggregation
+]
+
+# Secrets (set via: wrangler secret put <NAME> --config workers/wrangler.toml)
+# - NEON_PG_CONN
+# - AUTH_SECRET
+# - OPENAI_API_KEY
+# - RESEND_API_KEY
+# - STRIPE_SECRET_KEY
+# - TELNYX_API_KEY
+# - ASSEMBLYAI_API_KEY
+# - ELEVENLABS_API_KEY
+
+# Routes (if using custom domain)
+# routes = [
+#   { pattern = "api.wordisbond.com/*", zone_name = "wordisbond.com" }
+# ]
