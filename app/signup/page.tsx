@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { signIn, useSession } from 'next-auth/react'
+import { signIn, useSession } from '@/components/AuthProvider'
 import { Logo } from '@/components/Logo'
 import { 
   EmailInput, 

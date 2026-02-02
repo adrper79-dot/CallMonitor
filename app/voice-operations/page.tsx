@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
 import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'

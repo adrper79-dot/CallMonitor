@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
 import ReviewMode from '@/components/review/ReviewMode'
 import { ProductTour, REVIEW_TOUR } from '@/components/tour'
 

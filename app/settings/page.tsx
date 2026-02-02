@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, Suspense } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
 import { useSearchParams } from 'next/navigation'
 import TeamManagement from '@/components/team/TeamManagement'
 import CallerIdManager from '@/components/voice/CallerIdManager'

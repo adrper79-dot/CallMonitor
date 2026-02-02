@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
 import { DateRangePicker } from '@/components/analytics/DateRangePicker'
 import { ExportButton } from '@/components/analytics/ExportButton'
 import { CallVolumeChart } from '@/components/analytics/CallVolumeChart'
@@ -75,6 +75,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const { data: session, status } = useSession()
   
   // Date range state (default: last 30 days)
   const [startDate, setStartDate] = useState(() => {
@@ -92,16 +93,18 @@ export default function AnalyticsPage() {
 
   // Authentication check
   useEffect(() => {
-    async function checkAuth() {
+    if (status === 'loading') return
+    
+    if (status === 'unauthenticated') {
+      router.push('/signin?callbackUrl=/analytics')
+      return
+    }
+
+    async function fetchOrg() {
       try {
-        const session = await getSession()
-        if (!session) {
-          router.push('/signin?callbackUrl=/analytics')
-          return
-        }
-        
         // Get organization
-        const response = await fetch('/api/organizations/current', { credentials: 'include' })
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+        const response = await fetch(`${API_BASE}/api/organizations/current`, { credentials: 'include' })
         const data = await response.json()
         
         if (!data.organization?.id) {
@@ -118,8 +121,8 @@ export default function AnalyticsPage() {
         setLoading(false)
       }
     }
-    checkAuth()
-  }, [router])
+    fetchOrg()
+  }, [router, status])
 
   // Fetch analytics data
   useEffect(() => {
