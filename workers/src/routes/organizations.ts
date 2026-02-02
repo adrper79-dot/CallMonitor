@@ -21,37 +21,75 @@ organizationsRoutes.get('/current', async (c) => {
     const { organizationId, userId } = session
     const db = getDb(c.env)
 
-    // Get user's organization from users table
-    const userResult = await db.query(
-      `SELECT organization_id FROM users WHERE id = $1`,
-      [userId]
-    )
-
-    const orgId = userResult.rows?.[0]?.organization_id || organizationId
-
-    if (!orgId) {
-      return c.json({ 
-        success: true, 
-        organization: null 
+    if (!organizationId) {
+      return c.json({
+        success: true,
+        organization: null,
+        role: null,
+        message: 'User is not part of any organization'
       })
     }
 
-    // Get organization details
-    const orgResult = await db.query(
-      `SELECT id, name, created_at FROM organizations WHERE id = $1`,
-      [orgId]
+    // Get organization details via JOIN
+    const { rows: orgRows } = await db.query(
+      `SELECT om.role, om.organization_id,
+              o.id, o.name, o.plan, o.plan_status, o.stripe_customer_id, o.stripe_subscription_id, o.created_at
+       FROM org_members om
+       JOIN organizations o ON om.organization_id = o.id
+       WHERE om.user_id = $1 AND om.organization_id = $2
+       LIMIT 1`,
+      [userId, organizationId]
     )
 
-    if (!orgResult.rows || orgResult.rows.length === 0) {
-      return c.json({ 
-        success: true, 
-        organization: null 
+    if (orgRows.length === 0) {
+      return c.json({
+        success: true,
+        organization: null,
+        role: null,
+        message: 'Organization not found'
       })
     }
 
-    return c.json({ 
-      success: true, 
-      organization: orgResult.rows[0] 
+    const orgRow = orgRows[0]
+
+    // Get member count
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) as head_count FROM org_members WHERE organization_id = $1`,
+      [organizationId]
+    )
+    const memberCount = parseInt(countRows[0]?.head_count || '1', 10)
+
+    // Get subscription status
+    const { rows: subRows } = await db.query(
+      `SELECT status, plan, current_period_end, cancel_at_period_end
+       FROM stripe_subscriptions
+       WHERE organization_id = $1
+       ORDER BY current_period_end DESC
+       LIMIT 1`,
+      [organizationId]
+    )
+    const subscription = subRows[0] || null
+
+    // Determine plan values
+    const planValue = subscription?.plan ?? orgRow.plan ?? 'free'
+    const planStatusValue = subscription?.status ?? orgRow.plan_status ?? 'active'
+
+    return c.json({
+      success: true,
+      organization: {
+        id: orgRow.id,
+        name: orgRow.name,
+        plan: planValue,
+        plan_status: planStatusValue,
+        member_count: memberCount,
+        created_at: orgRow.created_at,
+        subscription: subscription ? {
+          status: subscription.status,
+          current_period_end: subscription.current_period_end,
+          cancel_at_period_end: subscription.cancel_at_period_end
+        } : null
+      },
+      role: orgRow.role
     })
   } catch (err: any) {
     console.error('GET /api/organizations/current error:', err)

@@ -266,15 +266,24 @@ authRoutes.post('/callback/credentials', async (c) => {
       [sessionToken, user.id, expires.toISOString()]
     )
 
-    // Set session cookie
-    const isSecure = c.req.url.startsWith('https')
-    const cookieName = isSecure ? '__Secure-next-auth.session-token' : 'next-auth.session-token'
-    c.header('Set-Cookie', `${cookieName}=${sessionToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=Lax${isSecure ? '; Secure' : ''}; HttpOnly`)
+    // For cross-origin requests, we return the token in the response
+    // The frontend will store it and send it in Authorization header
+    // Also set cookie for same-origin requests with SameSite=None for cross-origin
+    c.header('Set-Cookie', `session-token=${sessionToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=None; Secure; HttpOnly`)
 
     return c.json({
       url: '/dashboard',
       ok: true,
-      status: 200
+      status: 200,
+      sessionToken,
+      expires: expires.toISOString(),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organizationId: org?.organization_id || null,
+        role: org?.role || null
+      }
     })
   } catch (err: any) {
     console.error('POST /api/auth/callback/credentials error:', err)

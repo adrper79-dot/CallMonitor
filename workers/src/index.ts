@@ -16,6 +16,8 @@ import { callsRoutes } from './routes/calls'
 import { authRoutes } from './routes/auth'
 import { webhooksRoutes } from './routes/webhooks'
 import { organizationsRoutes } from './routes/organizations'
+import { usersRoutes } from './routes/users'
+import { recordingsRoutes } from './routes/recordings'
 import { handleScheduled } from './scheduled'
 
 // Types for Cloudflare bindings
@@ -73,6 +75,8 @@ app.route('/api/health', healthRoutes)
 app.route('/api/calls', callsRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/organizations', organizationsRoutes)
+app.route('/api/users', usersRoutes)
+app.route('/api/recordings', recordingsRoutes)
 app.route('/webhooks', webhooksRoutes)
 app.route('/api/webhooks', webhooksRoutes)  // Also mount at /api/webhooks
 

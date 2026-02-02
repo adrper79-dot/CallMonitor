@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 // Workers API URL for auth endpoints
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+const SESSION_KEY = 'wb-session-token'
 
 interface User {
   id: string
@@ -34,6 +35,26 @@ export function useSession() {
   return useContext(AuthContext)
 }
 
+// Get stored session token
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SESSION_KEY)
+}
+
+// Store session token
+function storeToken(token: string, expires: string) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(SESSION_KEY, token)
+  localStorage.setItem(`${SESSION_KEY}-expires`, expires)
+}
+
+// Clear stored token
+function clearToken() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(`${SESSION_KEY}-expires`)
+}
+
 // Wrapper for signIn that works with Workers API
 export async function signIn(
   provider: string,
@@ -57,12 +78,17 @@ export async function signIn(
         return { error: data.error || 'Authentication failed', ok: false }
       }
       
+      // Store session token from response
+      if (data.sessionToken) {
+        storeToken(data.sessionToken, data.expires)
+      }
+      
       // Trigger session refresh
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('auth-change'))
       }
       
-      return { ok: true, url: options?.callbackUrl || '/dashboard' }
+      return { ok: true, url: options?.callbackUrl || '/dashboard', user: data.user }
     } catch (err: any) {
       return { error: err.message, ok: false }
     }
@@ -73,11 +99,16 @@ export async function signIn(
 
 // Wrapper for signOut
 export async function signOut(options?: { callbackUrl?: string }) {
+  // Clear local token
+  clearToken()
+  
   try {
-    // Clear session cookie by calling signout endpoint
+    // Also call signout endpoint to clear server session
+    const token = getStoredToken()
     await fetch(`${API_BASE}/api/auth/signout`, {
       method: 'POST',
-      credentials: 'include'
+      credentials: 'include',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     })
   } catch {
     // Ignore errors
@@ -97,12 +128,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const fetchSession = useCallback(async (): Promise<Session | null> => {
     try {
+      const token = getStoredToken()
+      
+      if (!token) {
+        setSession(null)
+        setStatus('unauthenticated')
+        return null
+      }
+      
       const res = await fetch(`${API_BASE}/api/auth/session`, {
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       })
       
       if (!res.ok) {
+        clearToken()
         setSession(null)
         setStatus('unauthenticated')
         return null
@@ -116,6 +159,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         setStatus('authenticated')
         return sess
       } else {
+        clearToken()
         setSession(null)
         setStatus('unauthenticated')
         return null
@@ -134,9 +178,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // Listen for auth changes
     const handleAuthChange = () => fetchSession()
     window.addEventListener('auth-change', handleAuthChange)
+    window.addEventListener('storage', handleAuthChange)
     
     return () => {
       window.removeEventListener('auth-change', handleAuthChange)
+      window.removeEventListener('storage', handleAuthChange)
     }
   }, [fetchSession])
 

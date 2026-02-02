@@ -30,8 +30,9 @@ export function parseSessionToken(c: Context<{ Bindings: Env }>): string | null 
   const cookieHeader = c.req.header('Cookie')
   if (cookieHeader) {
     const cookies = parseCookies(cookieHeader)
-    // NextAuth uses different cookie names in secure vs non-secure contexts
-    return cookies['next-auth.session-token'] || 
+    // Check our custom cookie first, then NextAuth cookies
+    return cookies['session-token'] ||
+           cookies['next-auth.session-token'] || 
            cookies['__Secure-next-auth.session-token'] ||
            cookies['__Host-next-auth.session-token'] ||
            null
@@ -57,7 +58,7 @@ export async function verifySession(
               om.organization_id, om.role
        FROM "authjs"."sessions" s
        JOIN "authjs"."users" u ON u.id = s."userId"
-       LEFT JOIN organization_members om ON om.user_id = u.id
+       LEFT JOIN org_members om ON om.user_id = u.id
        WHERE s."sessionToken" = $1 AND s.expires > NOW()
        LIMIT 1`,
       [token]

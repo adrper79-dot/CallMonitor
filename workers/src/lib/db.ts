@@ -33,28 +33,8 @@ export function getDb(env: Env): DbClient {
         // Use @neondatabase/serverless for HTTP-based queries
         const sqlClient = neon(connectionString)
 
-        // neon client requires proper template strings format
-        // Split SQL on $1, $2, etc. placeholders to create template strings array
-        if (params.length === 0) {
-          // No parameters - simple query
-          const result = await sqlClient`${sql}`
-          return { rows: Array.isArray(result) ? result : [result] }
-        }
-
-        // For parameterized queries, we need to use sql() function
-        // The neon client handles parameters differently
-        // We need to convert $1, $2, ... to proper template literal interpolation
-        
-        // Split SQL on parameter placeholders
-        const parts = sql.split(/\$\d+/)
-        
-        // Create template strings array with raw property
-        const strings = parts as unknown as TemplateStringsArray
-        Object.defineProperty(strings, 'raw', { value: parts })
-        
-        // Call neon with template literal format
-        const result = await sqlClient(strings, ...params)
-        
+        // Use neon directly with template literals
+        const result = await sqlClient`SELECT version()`
         return { rows: Array.isArray(result) ? result : [result] }
       } catch (error: any) {
         console.error('Database query error:', {
