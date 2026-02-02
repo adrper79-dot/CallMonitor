@@ -94,12 +94,18 @@ export default function SignUpPage() {
       })
 
       if (signInRes?.error) {
-        // Account created but sign-in failed
+        // Account created but sign-in failed - redirect to signin with message
+        console.error('Auto sign-in failed:', signInRes.error)
         router.push('/signin?message=account-created')
-      } else {
+      } else if (signInRes?.ok) {
+        // Successfully signed in - redirect to dashboard
         router.push('/dashboard')
+      } else {
+        // Fallback - redirect to signin
+        router.push('/signin?message=account-created')
       }
     } catch (err: any) {
+      console.error('Signup error:', err)
       setError(err?.message || 'Something went wrong')
       setLoading(false)
     }

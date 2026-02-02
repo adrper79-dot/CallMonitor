@@ -87,9 +87,11 @@ export default function SignInPage() {
 
         if (res?.error) {
           setError('Invalid email or password')
-        } else {
+        } else if (res?.ok) {
           const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
           router.push(callbackUrl)
+        } else {
+          setError('Sign in failed. Please try again.')
         }
       }
     } catch (err: any) {
