@@ -74,6 +74,7 @@ app.route('/api/calls', callsRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/organizations', organizationsRoutes)
 app.route('/webhooks', webhooksRoutes)
+app.route('/api/webhooks', webhooksRoutes)  // Also mount at /api/webhooks
 
 // Root endpoint
 app.get('/', (c) => {

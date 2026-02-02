@@ -19,7 +19,8 @@ webhooksRoutes.post('/telnyx', async (c) => {
     const body = await c.req.json()
     const eventType = body.data?.event_type
 
-    console.log('Telnyx webhook:', eventType, JSON.stringify(body).slice(0, 500))
+    // Log event type only (no sensitive payload data)
+    console.log('Telnyx webhook:', eventType)
 
     const db = getDb(c.env)
 
