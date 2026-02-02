@@ -117,3 +117,15 @@ healthRoutes.get('/', async (c) => {
 healthRoutes.get('/ping', (c) => {
   return c.text('pong')
 })
+
+// Auth providers status
+healthRoutes.get('/auth-providers', (c) => {
+  return c.json({
+    providers: [
+      { id: 'credentials', name: 'Email & Password', enabled: true },
+      { id: 'google', name: 'Google', enabled: false },
+      { id: 'github', name: 'GitHub', enabled: false },
+    ],
+    defaultProvider: 'credentials'
+  })
+})

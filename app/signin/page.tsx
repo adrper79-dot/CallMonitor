@@ -7,6 +7,9 @@ import { signIn, useSession } from 'next-auth/react'
 import { Logo } from '@/components/Logo'
 import { EmailInput, PasswordInput, isValidEmail } from '@/components/ui/form-validation'
 
+// API base URL for Workers API
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 /**
  * SIGN IN PAGE
  * 
@@ -38,7 +41,7 @@ export default function SignInPage() {
 
   // Check available auth providers
   useEffect(() => {
-    fetch('/api/health/auth-providers', { credentials: 'include' })
+    fetch(`${API_BASE}/api/health/auth-providers`, { credentials: 'include' })
       .then(r => r.json())
       .then(j => {
         setGoogleAvailable(Boolean(j?.googleEnv))

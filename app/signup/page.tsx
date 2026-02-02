@@ -12,6 +12,9 @@ import {
   getPasswordStrength 
 } from '@/components/ui/form-validation'
 
+// API base URL for Workers API
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 /**
  * SIGN UP PAGE
  * 
@@ -38,7 +41,7 @@ export default function SignUpPage() {
 
   // Check available auth providers
   useEffect(() => {
-    fetch('/api/health/auth-providers', { credentials: 'include' })
+    fetch(`${API_BASE}/api/health/auth-providers`, { credentials: 'include' })
       .then(r => r.json())
       .then(j => setGoogleAvailable(Boolean(j?.googleEnv)))
       .catch(() => setGoogleAvailable(false))
@@ -68,7 +71,7 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -78,7 +81,7 @@ export default function SignUpPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data?.error?.message || 'Failed to create account')
+        setError(data?.error?.message || data?.error || 'Failed to create account')
         setLoading(false)
         return
       }
