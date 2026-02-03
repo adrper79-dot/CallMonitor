@@ -1,3 +1,9 @@
+m-- Updated Feb 2, 2026: Includes migrations/2026-02-02-schema-drift-fixes.sql
+-- New tables: call_outcomes (outcomes/audit), call_outcome_history, ai_summaries (AI summaries/confidence)
+-- Column adds: ai_runs (error, assemblyai_status), booking_events (title, start/end_time, attendee_phone), caller_id_numbers (phone_number), campaigns (name/desc/status/target_count/completed_count/created_by), organizations (tool_id), users (normalized_email, organization_id)
+-- Indexes: call_outcomes/call_id/org_id, ai_summaries/call_id/org_id
+-- Triggers: updated_at on new tables
+
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 

@@ -62,13 +62,26 @@ export async function signIn(
 ) {
   if (provider === 'credentials') {
     try {
+      // First, get CSRF token
+      const csrfRes = await fetch(`${API_BASE}/api/auth/csrf`, {
+        credentials: 'include'
+      })
+      
+      if (!csrfRes.ok) {
+        return { error: 'Failed to get CSRF token', ok: false }
+      }
+      
+      const csrfData = await csrfRes.json()
+      
+      // Now make the credentials callback request with CSRF token
       const res = await fetch(`${API_BASE}/api/auth/callback/credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           username: options?.username,
-          password: options?.password
+          password: options?.password,
+          csrfToken: csrfData.csrfToken
         })
       })
       

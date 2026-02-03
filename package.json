@@ -14,7 +14,7 @@
     "cf:logs": "wrangler tail --format pretty",
     "cf:secrets": "wrangler secret list",
     "cf:typegen": "wrangler types",
-    "db:migrate": "psql $NEON_PG_CONN -f migrations/auth_pg_adapter.sql",
+    "db:migrate": "psql $NEON_PG_CONN -f schema.sql",
     "db:reset-test": "psql $NEON_PG_CONN -f migrations/reset_test.sql",
     "test": "vitest",
     "test:run": "vitest run",
@@ -39,8 +39,6 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.23",
     "@ai-sdk/react": "^3.0.66",
-    "@auth/core": "^0.34.3",
-    "@auth/pg-adapter": "^1.11.1",
     "@aws-sdk/client-s3": "^3.975.0",
     "@aws-sdk/s3-request-presigner": "^3.975.0",
     "@elevenlabs/elevenlabs-js": "^2.30.0",
@@ -58,6 +56,7 @@
     "@signalwire/webrtc": "^3.14.1",
     "@supabase/ssr": "^0.8.0",
     "ai": "^6.0.64",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
@@ -67,7 +66,6 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "next": "^15.5.2",
-    "next-auth": "^4.24.13",
     "next-themes": "^0.4.6",
     "openai": "^6.17.0",
     "pg": "^8.17.2",
@@ -83,9 +81,10 @@
     "zod": "^3.22.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250130.0",
+    "@cloudflare/workers-types": "^4.20260131.0",
     "@eslint/eslintrc": "^3.3.3",
     "@neondatabase/serverless": "^1.0.2",
+    "@playwright/test": "^1.58.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.0.6",
     "@types/react": "^18.2.0",
@@ -102,6 +101,7 @@
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16",
     "wrangler": "^4.61.1"

@@ -1,7 +1,7 @@
 # Master Architecture Reference
 
-**Status**: Production Gospel | Updated: Feb 2, 2026  
-**Version**: 2.0 - Hybrid Deployment
+**Status**: Production Gospel | Updated: Feb 2, 2026
+**Version**: 3.0 - Clean Custom Auth Architecture
 
 ---
 
@@ -27,7 +27,7 @@ This aligns with modern edge-first patterns and provides:
 ┌─────────────────────────────────────────────────────────────────┐
 │                     CLIENT BROWSER                               │
 │  Next.js Static Pages (React) + Client-Side Routing             │
-│  Authentication: useSession() (NextAuth client)                 │
+│  Authentication: Custom AuthProvider + useSession()             │
 └─────────────────────┬───────────────────────────────────────────┘
                       │ HTTPS
                       │
@@ -43,16 +43,16 @@ This aligns with modern edge-first patterns and provides:
 ┌─────────────────────▼───────────────────────────────────────────┐
 │           CLOUDFLARE WORKERS (Edge APIs)                         │
 │  • Hono framework (Express-like)                                │
-│  • Zod validation                                               │
-│  • JWT auth (NextAuth)                                          │
-│  • Routes: /api/calls, /api/organizations, etc.                 │
+│  • Custom authentication with CSRF protection                   │
+│  • Session-based auth with database persistence                 │
+│  • Routes: /api/auth, /api/calls, /api/organizations, etc.      │
 └─────────────────────┬───────────────────────────────────────────┘
                       │
         ┌─────────────┼─────────────┬─────────────┬──────────────┐
         │             │             │             │              │
 ┌───────▼─────┐ ┌────▼────┐  ┌─────▼─────┐ ┌────▼─────┐  ┌─────▼─────┐
 │   NEON PG   │ │   KV    │  │    R2     │ │  Telnyx  │  │  Stripe   │
-│ (Hyperdrive)│ │Sessions │  │Recordings │ │   Voice  │  │  Billing  │
+│ (Hyperdrive)│ │   N/A   │  │Recordings │ │   Voice  │  │  Billing  │
 └─────────────┘ └─────────┘  └───────────┘ └──────────┘  └───────────┘
 ```
 
@@ -63,7 +63,7 @@ This aligns with modern edge-first patterns and provides:
 ### Frontend (Pages)
 - **Next.js 15.5.2**: Static export mode (`output: 'export'`)
 - **React 19**: Client-side rendering only
-- **NextAuth**: Client-side session management (`useSession()`)
+- **Custom AuthProvider**: Client-side session management (`useSession()`)
 - **Tailwind CSS**: Styling
 - **TypeScript**: Type safety
 
@@ -72,14 +72,14 @@ This aligns with modern edge-first patterns and provides:
 - **Node.js Compatibility**: `nodejs_compat` flag
 - **Zod 3.22+**: API validation
 - **TypeScript**: Type safety
-- **Neon SDK**: PostgreSQL client
+- **Neon SDK**: PostgreSQL client (single client approach)
 
 ### Infrastructure
 - **Cloudflare Pages**: UI hosting
 - **Cloudflare Workers**: API hosting
 - **Cloudflare Hyperdrive**: Database connection pooling
 - **Cloudflare R2**: Object storage (recordings)
-- **Cloudflare KV**: Key-value store (sessions, cache)
+- **Cloudflare KV**: Key-value store (cache only - sessions in DB)
 
 ### External Services
 - **Neon**: PostgreSQL database (serverless)
@@ -123,18 +123,20 @@ This aligns with modern edge-first patterns and provides:
 - ❌ Different framework than Next.js (learning curve)
 - ✅ Better performance, simpler architecture, native bindings
 
-### 3. Client-Side Auth Only
+### 3. Custom Client-Side Auth
 
-**Decision**: Use NextAuth client-side hooks (`useSession()`) instead of server-side auth.
+**Decision**: Use custom AuthProvider with session-based authentication instead of NextAuth.
 
 **Rationale**:
 - Compatible with static export
-- Still secure (JWT tokens, HttpOnly cookies)
-- Simpler auth flow
+- Full control over auth flow
+- No external dependencies on auth libraries
+- Direct integration with Workers API
+- CSRF protection for cross-origin requests
 
 **Trade-offs**:
-- ❌ Initial page load shows "loading" state briefly
-- ✅ Works with static pages, still protected
+- ❌ More custom code to maintain
+- ✅ No library conflicts, cleaner architecture
 
 ---
 
@@ -144,20 +146,21 @@ This aligns with modern edge-first patterns and provides:
 
 ```
 1. User visits /signin
-2. Client-side form submission → POST /api/auth/signin (Workers)
-3. Workers validates credentials → Issues JWT
-4. Client stores JWT in HttpOnly cookie
-5. Subsequent requests include JWT automatically
-6. Workers validate JWT on each API call
+2. Client-side form submission → POST /api/auth/csrf (Workers) → Get CSRF token
+3. Client-side form submission → POST /api/auth/callback/credentials (Workers)
+4. Workers validates CSRF token + credentials → Creates session in DB
+5. Workers returns sessionToken → Client stores in localStorage
+6. Client calls /api/auth/session → Workers validates sessionToken
+7. Subsequent requests include sessionToken in Authorization header
 ```
 
 ### API Request Flow
 
 ```
 1. Client component (useEffect) → fetch('/api/organizations/current')
-2. Request hits Workers endpoint
+2. Request hits Workers endpoint with Authorization: Bearer <sessionToken>
 3. Workers:
-   a. Validate JWT (requireAuth middleware)
+   a. Validate sessionToken against DB (verifySession)
    b. Extract user/org from session
    c. Query Neon via Hyperdrive
    d. Return JSON response
@@ -169,24 +172,31 @@ This aligns with modern edge-first patterns and provides:
 ```typescript
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
 import { useEffect, useState } from 'react'
 
 export default function Page() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (session?.user) {
-      fetch('/api/endpoint')
+    if (status === 'authenticated' && session?.user) {
+      fetch('/api/organizations/current', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('wb-session-token')}`
+        }
+      })
         .then(res => res.json())
         .then(setData)
         .finally(() => setLoading(false))
+    } else if (status === 'unauthenticated') {
+      setLoading(false)
     }
-  }, [session])
+  }, [session, status])
 
-  if (loading) return <Loading />
+  if (status === 'loading' || loading) return <Loading />
+  if (status === 'unauthenticated') return <SignInPrompt />
   return <Content data={data} />
 }
 ```
@@ -195,9 +205,9 @@ export default function Page() {
 
 ## Security Architecture
 
-### RBAC (Role-Based Access Control)
+### Session-Based Authentication
 
-Implemented at multiple layers:
+Implemented with database persistence:
 
 1. **Client-side** (UI visibility):
    ```typescript

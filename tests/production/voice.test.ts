@@ -181,7 +181,9 @@ describeOrSkip('Production Voice Flow Tests', () => {
 
       expect(result.length).toBe(1)
       testCallId = result[0].id
-      createdCallIds.push(testCallId)
+      if (testCallId) {
+        createdCallIds.push(testCallId)
+      }
       
       console.log(`✅ Created test call: ${testCallId}`)
     })

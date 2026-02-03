@@ -11,7 +11,11 @@
  */
 
 const nextConfig = {
-  output: 'export',
+  // Only use static export for production builds
+  ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
+  
+  // Fix workspace root detection
+  outputFileTracingRoot: __dirname,
   
   images: {
     unoptimized: true,

@@ -11,14 +11,11 @@ export interface DbClient {
 }
 
 /**
- * Get database client using Hyperdrive binding
+ * Get database client using Neon SDK (single client approach)
  */
 export function getDb(env: Env): DbClient {
-  // For Neon serverless driver, we need the HTTP connection string
-  // Hyperdrive provides a Postgres connection string, but neon() expects HTTP
-  // So we prefer NEON_PG_CONN secret if available
   let connectionString: string
-  
+
   if (env.NEON_PG_CONN) {
     connectionString = env.NEON_PG_CONN
   } else if (env.HYPERDRIVE) {
@@ -27,19 +24,30 @@ export function getDb(env: Env): DbClient {
     throw new Error('No database connection available (NEON_PG_CONN or HYPERDRIVE required)')
   }
 
-  return {
-    query: async (sql: string, params: any[] = []): Promise<{ rows: any[] }> => {
-      try {
-        // Use @neondatabase/serverless for HTTP-based queries
-        const sqlClient = neon(connectionString)
+  const sql = neon(connectionString)
 
-        // Use neon directly with template literals
-        const result = await sqlClient`SELECT version()`
-        return { rows: Array.isArray(result) ? result : [result] }
+  return {
+    query: async (sqlString: string, params: any[] = []): Promise<{ rows: any[] }> => {
+      try {
+        // Use Neon SDK with proper parameterized queries
+        let query = sqlString
+        if (params && params.length > 0) {
+          // Escape and sanitize parameters to prevent SQL injection
+          params.forEach((param, index) => {
+            const escapedValue = param === null ? 'NULL' : 
+              typeof param === 'number' ? String(param) :
+              typeof param === 'boolean' ? (param ? 'TRUE' : 'FALSE') :
+              `'${String(param).replace(/'/g, "''")}'`
+            query = query.replace(new RegExp(`\\$${index + 1}`, 'g'), escapedValue)
+          })
+        }
+        const result = await sql.unsafe(query)
+        return { rows: Array.isArray(result) ? result : [] }
       } catch (error: any) {
         console.error('Database query error:', {
           message: error.message,
-          sql: sql.slice(0, 100),
+          sql: sqlString.slice(0, 100),
+          params: params?.slice(0, 3),
           connectionHint: connectionString ? 'using ' + (connectionString.includes('neon.tech') ? 'NEON' : 'HYPERDRIVE') : 'no connection'
         })
         throw new Error(`Database query failed: ${error.message}`)

@@ -10,7 +10,7 @@ workers_dev = true
 
 [vars]
 NODE_ENV = "production"
-CORS_ORIGIN = "https://wordis-bond.com"
+CORS_ORIGIN = "https://voxsouth.online"
 
 # Hyperdrive for Neon Postgres
 [[hyperdrive]]

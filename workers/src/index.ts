@@ -59,6 +59,8 @@ app.use('*', cors({
       c.env.CORS_ORIGIN,
       'https://wordis-bond.com',
       'https://www.wordis-bond.com',
+      'https://voxsouth.online',
+      'https://www.voxsouth.online',
       'https://wordisbond.pages.dev',
       'http://localhost:3000',
     ]

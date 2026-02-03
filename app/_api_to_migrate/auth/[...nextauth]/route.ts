@@ -1,16 +1,18 @@
 /**
- * NextAuth Route Handler
+ * NextAuth Route Handler - DISABLED
  * 
- * This file only exports the HTTP handlers.
- * Auth configuration is in lib/auth.ts to comply with App Router requirements.
+ * NextAuth has been disabled in favor of the custom Workers API authentication.
+ * All authentication is now handled by the Workers API endpoints.
  */
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-import NextAuth from "next-auth"
-import { getAuthOptions } from "@/lib/auth"
+// Disabled - return 404 for all NextAuth requests
+export async function GET() {
+  return new Response('NextAuth disabled - use Workers API authentication', { status: 404 })
+}
 
-const handler = NextAuth(getAuthOptions() as any)
-
-export { handler as GET, handler as POST }
+export async function POST() {
+  return new Response('NextAuth disabled - use Workers API authentication', { status: 404 })
+}

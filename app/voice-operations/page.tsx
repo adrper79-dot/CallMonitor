@@ -36,9 +36,9 @@ export default function VoiceOperationsPage() {
         fetch('/api/organizations/current').then((res) => res.json()),
       ])
         .then(([callsData, orgData]) => {
-          setCalls(callsData.calls || [])
-          setOrganizationId(orgData.organization?.id || null)
-          setOrganizationName(orgData.organization?.name || null)
+          setCalls((callsData as { calls?: Call[] }).calls || [])
+          setOrganizationId((orgData as { organization?: { id: string; name: string } }).organization?.id || null)
+          setOrganizationName((orgData as { organization?: { id: string; name: string } }).organization?.name || null)
           setLoading(false)
         })
         .catch((err) => {

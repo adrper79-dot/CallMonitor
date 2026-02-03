@@ -87,7 +87,7 @@ npx tsc --noEmit      # TypeScript check
 - `app/services/elevenlabs.ts` - TTS service
 - `app/services/translation.ts` - Translation service
 - `lib/pgClient.ts` - Database client (Neon)
-- `lib/auth.ts` - Authentication (NextAuth)
+- `lib/auth.ts` - Authentication (Custom Workers Auth)
 - `lib/rbac.ts` - Client-safe RBAC (planSupportsFeature)
 - `lib/rbac-server.ts` - Server-only RBAC (requireRole)
 - `lib/api/utils.ts` - API helpers (requireAuth, requireRole)
@@ -116,8 +116,9 @@ NEON_PG_CONN=postgres://user:pass@ep-host.region.aws.neon.tech/neondb
 TELNYX_API_KEY=xxx
 TELNYX_PUBLIC_KEY=xxx
 # SignalWire keys removed (Legacy)
-NEXTAUTH_SECRET=xxx               # Min 32 chars
-NEXT_PUBLIC_APP_URL=xxx
+# Custom Auth (Workers API)
+AUTH_SECRET=xxx                       # Session signing secret
+NEXT_PUBLIC_API_URL=https://wordisbond-api.adrper79.workers.dev
 ```
 
 ### **Recommended:**

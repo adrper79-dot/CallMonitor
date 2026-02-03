@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { signIn, useSession, signOut } from "next-auth/react"
+import { signIn, useSession, signOut } from "@/components/AuthProvider"
 
 export default function UnlockForm() {
   const { data: session } = useSession()
@@ -15,18 +15,10 @@ export default function UnlockForm() {
   const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null)
 
   useEffect(() => {
-    let mounted = true
-    fetch('/api/health/auth-providers', { credentials: 'include' })
-      .then(r => r.json())
-      .then((j) => {
-        if (!mounted) return
-        // adapterEnv must be true for Email provider to be usable
-        setEmailAvailable(Boolean(j?.adapterEnv && j?.resendEnv))
-        setGoogleAvailable(Boolean(j?.googleEnv))
-        if (!j?.adapterEnv) setAuthMethod('credentials')
-      })
-      .catch(() => { if (mounted) { setEmailAvailable(false); setGoogleAvailable(false) } })
-    return () => { mounted = false }
+    // Disable email and google for now
+    setEmailAvailable(false)
+    setGoogleAvailable(false)
+    setAuthMethod('credentials')
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -41,7 +33,7 @@ export default function UnlockForm() {
       }
 
       try {
-        const res = await fetch('/api/auth/signup', {
+        const res = await fetch(`${API_BASE}/api/auth/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name: name || undefined }),
@@ -62,7 +54,7 @@ export default function UnlockForm() {
           password, 
           redirect: false 
         })
-        if (signInRes && (signInRes as any).error) {
+        if (signInRes && !signInRes.ok) {
           setStatus('Account created, but sign-in failed. Please try signing in manually.')
         } else {
           setStatus('signed-in')
@@ -73,14 +65,15 @@ export default function UnlockForm() {
     } else {
       // Handle signin
       if (authMethod === 'email') {
+        // For now, treat as credentials
         const val = (email || '').trim()
         const looksLikeEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val)
         if (!looksLikeEmail) {
           setStatus('invalid email')
           return
         }
-        const res = await signIn('email', { email: val, redirect: false })
-        if (res && (res as any).error) setStatus('failed')
+        const res = await signIn('credentials', { username: val, password: '', redirect: false })
+        if (res && !res.ok) setStatus('failed')
         else setStatus('sent')
       } else {
         const id = (username || email).trim()
@@ -89,15 +82,15 @@ export default function UnlockForm() {
           return
         }
         const res = await signIn('credentials', { username: id, password, redirect: false })
-        if (res && (res as any).error) setStatus('failed')
+        if (res && !res.ok) setStatus('failed')
         else setStatus('signed-in')
       }
     }
   }
 
   async function handleGoogleSignIn() {
-    setStatus('redirecting')
-    await signIn('google', { callbackUrl: window.location.href })
+    setStatus('Google sign-in not available')
+    // await signIn('google', { callbackUrl: window.location.href })
   }
 
   if (session) {

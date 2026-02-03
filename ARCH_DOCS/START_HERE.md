@@ -1,4 +1,4 @@
-# ✅ ARCH_DOCS LIBRARY - REORGANIZATION COMPLETE!
+dade# ✅ ARCH_DOCS LIBRARY - REORGANIZATION COMPLETE!
 
 ---
 
@@ -17,10 +17,10 @@ ARCH_DOCS/
 ├── 🌟 QUICK_REFERENCE.md               - One-page cheat sheet
 │
 ├── 📘 01-CORE/ (4 files)               - Core Architecture
-│   ├── MASTER_ARCHITECTURE.txt         - Complete system design
+│   ├── FULL_SYSTEM_ARCHITECTURE.md     - Complete system design with diagrams
 │   ├── Schema.txt                      - Database schema  
 │   ├── ERROR_HANDLING_PLAN.txt         - Error patterns
-│   └── TOOL_TABLE_ALIGNMENT            - Tool mappings
+│   └── CLIENT_API_GUIDE.md             - Client API guide
 │
 ├── ✨ 02-FEATURES/ (7 files)           - Feature Docs
 │   ├── Translation_Agent               - Live translation guide
@@ -171,7 +171,7 @@ Check `archive/` for:
 | **Navigation** | `00-README.md` |
 | **System Status** | `CURRENT_STATUS.md` |
 | **Cheat Sheet** | `QUICK_REFERENCE.md` |
-| **Architecture** | `01-CORE/MASTER_ARCHITECTURE.txt` |
+| **Architecture** | `01-CORE/FULL_SYSTEM_ARCHITECTURE.md` |
 | **Database** | `01-CORE/Schema.txt` |
 | **Translation** | `02-FEATURES/Translation_Agent` |
 | **Bulk Upload** | `02-FEATURES/BULK_UPLOAD_FEATURE.md` |

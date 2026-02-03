@@ -12,7 +12,7 @@ This document is the canonical, consolidated architecture for the product (final
 - Transcription: AssemblyAI (realtime + batch)
 - Text-to-Speech: ElevenLabs (streaming)
 - Live Translation: AssemblyAI → DeepL / GPT-4o-mini → ElevenLabs (Workers glue)
-- Authentication: NextAuth / Auth.js + Neon pg-adapter (multi-tenant RLS)
+- Authentication: Custom session-based auth with CSRF protection (Workers API)
 - Background Jobs: Cloudflare Queues + Cron Triggers
 - Security / Edge: Cloudflare WAF, Turnstile, Rate Limiting, Access
 - Observability: Cloudflare Analytics Engine + Logpush → SIEM integration; Neon query logs → Cloudflare Hyperdrive metrics

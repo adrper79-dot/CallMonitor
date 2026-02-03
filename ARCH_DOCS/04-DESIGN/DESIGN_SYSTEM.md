@@ -272,14 +272,14 @@ Use CSS variables in `globals.css` for runtime theme switching:
 
 ---
 
-## Implementation Checklist (v4.0)
+## Implementation Checklist (v4.0) - COMPLETE Feb 2, 2026
 
-- [ ] Complete emoji audit (replace with Icons).
-- [ ] Enforce font-weight: 600 max (no bold/700).
-- [ ] Audit shadows (reduce usage of shadow-xl).
-- [ ] Implement dark mode toggle.
-- [ ] Verify mobile layout (bottom nav/sidebar sheet).
-- [ ] Add `data-tour` attributes to Billing/Settings pages.
+- [x] Complete emoji audit (replace with Icons).
+- [x] Enforce font-weight: 600 max (no bold/700).
+- [x] Audit shadows (reduce usage of shadow-xl).
+- [x] Implement dark mode toggle.
+- [x] Verify mobile layout (bottom nav/sidebar sheet).
+- [x] Add `data-tour` attributes to Billing/Settings pages.
 
 ---
 

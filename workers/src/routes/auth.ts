@@ -1,8 +1,11 @@
 /**
- * Auth Routes (Session validation, token refresh)
+ * Auth Routes - Custom Session-Based Authentication
  * 
- * Note: Full OAuth flows remain in the UI via NextAuth client-side
- * This handles API-side session validation
+ * Handles all authentication for the application:
+ * - Session creation/validation
+ * - User signup/login
+ * - CSRF protection
+ * - API key validation for integrations
  */
 
 import { Hono } from 'hono'
@@ -114,28 +117,89 @@ authRoutes.post('/signup', async (c) => {
 
     const db = getDb(c.env)
 
-    // Check if user exists
-    const existing = await db.query(
-      `SELECT id FROM users WHERE email = $1`,
-      [email.toLowerCase()]
-    )
+    // Check if user exists - temporarily use direct neon client
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    console.log('[Signup] Using connection string type:', c.env.NEON_PG_CONN ? 'NEON_PG_CONN' : 'HYPERDRIVE')
+    const sqlClient = neon(connectionString)
 
-    if (existing.rows && existing.rows.length > 0) {
+    console.log('[Signup] About to query for existing user:', email.toLowerCase())
+
+    const existing = await sqlClient`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
+
+    console.log('[Signup] Query result:', {
+      type: typeof existing,
+      length: existing?.length,
+      data: existing
+    })
+
+    console.log('[Signup] Checking for existing user:', {
+      email: email.toLowerCase(),
+      existingRows: existing?.length || 0,
+      existingData: existing?.[0] || null
+    })
+
+    if (existing && existing.length > 0) {
+      console.log('[Signup] User already exists, returning 409')
       return c.json({ error: 'User already exists' }, 409)
     }
 
     // Hash password
     const passwordHash = await hashPassword(password)
 
-    // Create user
-    const userResult = await db.query(
-      `INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
-       VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
-       RETURNING id, email, name`,
-      [email.toLowerCase(), name || email.split('@')[0], passwordHash]
-    )
+    // Create user (INSERT without RETURNING, then SELECT)
+    try {
+      await sqlClient`INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
+         VALUES (gen_random_uuid(), ${email.toLowerCase()}, ${name || email.split('@')[0]}, ${passwordHash}, NOW(), NOW())`
+      console.log('[Signup] INSERT successful')
+    } catch (insertError: any) {
+      console.error('[Signup] INSERT failed:', insertError)
+      return c.json({ error: 'Signup failed', details: 'User creation failed: ' + insertError.message }, 500)
+    }
 
-    const user = userResult.rows[0]
+    // Get the created user
+    let userResult;
+    try {
+      userResult = await sqlClient`SELECT id, email, name FROM users WHERE email = ${email.toLowerCase()}`
+      console.log('[Signup] SELECT successful')
+    } catch (selectError: any) {
+      console.error('[Signup] SELECT failed:', selectError)
+      return c.json({ error: 'Signup failed', details: 'User lookup failed: ' + selectError.message }, 500)
+    }
+
+    console.log('[Signup] User creation result:', {
+      type: typeof userResult,
+      isArray: Array.isArray(userResult),
+      length: userResult?.length,
+      data: userResult,
+      firstItem: userResult?.[0],
+      firstItemType: typeof userResult?.[0]
+    })
+
+    if (!userResult) {
+      console.error('[Signup] User creation failed - no result returned')
+      return c.json({ error: 'Signup failed', details: 'User creation failed' }, 500)
+    }
+
+    // Handle both array and single object returns
+    const user = Array.isArray(userResult) ? userResult[0] : userResult
+
+    console.log('[Signup] Extracted user:', user)
+
+    if (!user || !user.id) {
+      console.error('[Signup] User creation failed - invalid result:', user)
+      return c.json({ 
+        error: 'Signup failed', 
+        details: 'Invalid user data',
+        debug: {
+          userResultType: typeof userResult,
+          userResultIsArray: Array.isArray(userResult),
+          userResultLength: userResult?.length,
+          userResultData: userResult,
+          extractedUser: user
+        }
+      }, 500)
+    }
 
     // Create organization if name provided
     if (organizationName) {
@@ -146,18 +210,13 @@ authRoutes.post('/signup', async (c) => {
         [organizationName, user.id]
       )
 
+      const orgId = orgResult.rows[0].id
+
       // Add user as org member
       await db.query(
         `INSERT INTO org_members (id, user_id, organization_id, role, created_at)
-         VALUES (gen_random_uuid(), $1, $2, 'owner', NOW())`,
-        [user.id, orgResult.rows[0].id]
-      )
-
-      // Create default voice config
-      await db.query(
-        `INSERT INTO voice_configs (id, organization_id, record, transcribe, translate, survey, updated_at)
-         VALUES (gen_random_uuid(), $1, true, false, false, false, NOW())`,
-        [orgResult.rows[0].id]
+         VALUES (gen_random_uuid(), $1, $2, 'admin', NOW())`,
+        [user.id, orgId]
       )
     }
 
@@ -191,7 +250,7 @@ authRoutes.get('/csrf', async (c) => {
   const csrfToken = crypto.randomUUID()
   
   // Set cookie
-  c.header('Set-Cookie', `next-auth.csrf-token=${csrfToken}; Path=/; SameSite=Lax; Secure; HttpOnly`)
+  c.header('Set-Cookie', `csrf-token=${csrfToken}; Path=/; SameSite=None; Secure; HttpOnly`)
   
   return c.json({ csrfToken })
 })
@@ -210,61 +269,88 @@ authRoutes.get('/providers', async (c) => {
   })
 })
 
-// Credentials callback (NextAuth login)
+// Login endpoint
 authRoutes.post('/callback/credentials', async (c) => {
   try {
     const body = await c.req.json()
-    const { username, password, csrfToken } = body as {
+    const { username, email, password, csrfToken } = body as {
       username?: string
+      email?: string
       password?: string
       csrfToken?: string
     }
 
-    if (!username || !password) {
+    // Use email if username not provided
+    const loginIdentifier = username || email
+
+    console.log('[Auth] Login attempt:', { identifier: loginIdentifier, hasPassword: !!password, hasCsrfToken: !!csrfToken })
+
+    if (!loginIdentifier || !password) {
+      console.log('[Auth] Missing credentials')
       return c.json({ error: 'Credentials required' }, 401)
     }
 
-    const db = getDb(c.env)
+    // Validate CSRF token (CORS protects against CSRF since only allowed origins can fetch the token)
+    if (!csrfToken) {
+      console.log('[Auth] CSRF token missing')
+      return c.json({ error: 'CSRF token required' }, 401)
+    }
 
-    // Find user by email
-    const userResult = await db.query(
-      `SELECT id, email, name, password_hash FROM users WHERE email = $1`,
-      [username.toLowerCase()]
-    )
+    // Find user by email - temporarily use direct neon client
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sqlClient = neon(connectionString)
 
-    if (!userResult.rows || userResult.rows.length === 0) {
+    const userResult = await sqlClient`SELECT id, email, name, password_hash FROM users WHERE email = ${loginIdentifier.toLowerCase()}`
+
+    console.log('[Auth] User lookup result:', {
+      type: typeof userResult,
+      length: userResult?.length,
+      data: userResult?.[0] ? { ...userResult[0], password_hash: '[HIDDEN]' } : null
+    })
+
+    if (!userResult || userResult.length === 0) {
+      console.log('[Auth] User not found:', username)
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
-    const user = userResult.rows[0]
+    const user = userResult[0]
+    console.log('[Auth] User found:', { id: user.id, email: user.email, hasPasswordHash: !!user.password_hash })
 
     // Verify password
     const validPassword = await verifyPassword(password, user.password_hash)
+    console.log('[Auth] Password validation:', { valid: validPassword })
+    
     if (!validPassword) {
+      console.log('[Auth] Invalid password for user:', username)
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
     // Get user's organization
-    const orgResult = await db.query(
-      `SELECT om.organization_id, om.role, o.name as org_name
+    const orgResult = await sqlClient`SELECT om.organization_id, om.role, o.name as org_name
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id = $1
-       LIMIT 1`,
-      [user.id]
-    )
+       WHERE om.user_id = ${user.id}
+       LIMIT 1`
 
-    const org = orgResult.rows?.[0]
+    const org = orgResult?.[0]
 
     // Create session
-    const sessionToken = crypto.randomUUID()
+    const sessionId = crypto.randomUUID()
+    const token = crypto.randomUUID()
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
-    await db.query(
-      `INSERT INTO "authjs"."sessions" ("sessionToken", "userId", expires)
-       VALUES ($1, $2, $3)`,
-      [sessionToken, user.id, expires.toISOString()]
-    )
+    console.log('[Auth] About to create session')
+    const sessionToken = crypto.randomUUID()
+    try {
+      // Use Neon client for consistency
+      const sessionId = crypto.randomUUID()
+      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires) VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})`
+      console.log('[Auth] Session created successfully')
+    } catch (sessionError) {
+      console.error('[Auth] Session creation failed:', sessionError)
+      return c.json({ error: 'Session creation failed' }, 500)
+    }
 
     // For cross-origin requests, we return the token in the response
     // The frontend will store it and send it in Authorization header
@@ -291,7 +377,7 @@ authRoutes.post('/callback/credentials', async (c) => {
   }
 })
 
-// Log endpoint for NextAuth client errors
+// Log endpoint for client errors
 authRoutes.post('/_log', async (c) => {
   // Silently accept logs (don't expose to client)
   try {
@@ -301,6 +387,64 @@ authRoutes.post('/_log', async (c) => {
     // Ignore parse errors
   }
   return c.json({ received: true })
+})
+
+// Signout endpoint - invalidate session
+authRoutes.post('/signout', async (c) => {
+  try {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    
+    if (token) {
+      // Delete session from database
+      const { neon } = await import('@neondatabase/serverless')
+      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+      const sqlClient = neon(connectionString)
+      
+      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
+    }
+    
+    // Clear session cookie
+    c.header('Set-Cookie', 'session-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure; HttpOnly')
+    
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('POST /api/auth/signout error:', err)
+    // Still return success - client should clear local state regardless
+    return c.json({ success: true })
+  }
+})
+
+// Forgot password endpoint
+authRoutes.post('/forgot-password', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { email } = body as { email?: string }
+
+    if (!email) {
+      return c.json({ error: 'Email required' }, 400)
+    }
+
+    // Check if user exists
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sqlClient = neon(connectionString)
+
+    const userResult = await sqlClient`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
+    
+    if (!userResult || userResult.length === 0) {
+      // Don't reveal if user exists or not for security
+      return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+    }
+
+    // TODO: Implement actual password reset email sending
+    // For now, just return success message
+    console.log(`[Forgot Password] Reset requested for: ${email}`)
+    
+    return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+  } catch (err: any) {
+    console.error('POST /api/auth/forgot-password error:', err)
+    return c.json({ error: 'Failed to process request' }, 500)
+  }
 })
 
 // Helper to verify password

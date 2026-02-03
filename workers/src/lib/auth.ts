@@ -30,12 +30,7 @@ export function parseSessionToken(c: Context<{ Bindings: Env }>): string | null 
   const cookieHeader = c.req.header('Cookie')
   if (cookieHeader) {
     const cookies = parseCookies(cookieHeader)
-    // Check our custom cookie first, then NextAuth cookies
-    return cookies['session-token'] ||
-           cookies['next-auth.session-token'] || 
-           cookies['__Secure-next-auth.session-token'] ||
-           cookies['__Host-next-auth.session-token'] ||
-           null
+    return cookies['session-token'] || null
   }
 
   return null
@@ -49,26 +44,26 @@ export async function verifySession(
   token: string
 ): Promise<Session | null> {
   try {
-    const db = getDb(c.env)
+    // Use neon client for consistency
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sql = neon(connectionString)
 
-    // Query session from database (NextAuth pg-adapter schema)
-    // Note: NextAuth may store tokens hashed depending on configuration
-    const result = await db.query(
-      `SELECT s.*, u.email, u.name, u.id as user_id, 
-              om.organization_id, om.role
-       FROM "authjs"."sessions" s
-       JOIN "authjs"."users" u ON u.id = s."userId"
-       LEFT JOIN org_members om ON om.user_id = u.id
-       WHERE s."sessionToken" = $1 AND s.expires > NOW()
-       LIMIT 1`,
-      [token]
-    )
+    const result = await sql`
+      SELECT s.session_token, s.expires, u.email, u.name, u.id as user_id,
+             om.organization_id, om.role
+      FROM public.sessions s
+      JOIN public.users u ON u.id = s.user_id
+      LEFT JOIN org_members om ON om.user_id = u.id
+      WHERE s.session_token = ${token} AND s.expires > NOW()
+      LIMIT 1
+    `
 
-    if (!result.rows || result.rows.length === 0) {
+    if (!result || result.length === 0) {
       return null
     }
 
-    const row = result.rows[0]
+    const row = result[0]
 
     return {
       userId: row.user_id,
@@ -76,7 +71,7 @@ export async function verifySession(
       name: row.name,
       organizationId: row.organization_id,
       role: row.role || 'viewer',
-      expires: row.expires,
+      expires: row.expires.toISOString(),
     }
   } catch (error) {
     console.error('Session verification error:', error)

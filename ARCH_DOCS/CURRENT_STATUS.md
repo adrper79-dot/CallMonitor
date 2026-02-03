@@ -1,8 +1,8 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** January 19, 2026  
-**Version:** 3.3  
-**Status:** Production Ready (99% Complete) ⭐ 5-PASS DEEP VALIDATION COMPLETE
+**Last Updated:** February 2, 2026  
+**Version:** 4.0 - Hybrid Cloudflare Deploy  
+**Status:** Production Ready (97% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
 
@@ -19,17 +19,15 @@ Wordis Bond is the System of Record for business conversations - a platform that
 **Core Principle:** "People speak the commitments. The system ensures those commitments are captured correctly."
 
 **Core Technology Stack:**
-- **Frontend:** Next.js 14 (App Router) + React + TypeScript
-- **Backend:** Next.js API Routes + Server Actions
-- **Database:** Supabase (PostgreSQL) - 61+ tables (includes AI Role compliance tables)
-- **Auth:** NextAuth.js with Supabase Adapter
-- **Media Plane:** SignalWire (LaML for standard calls, SWML for AI Agents)
-- **Intelligence:** AssemblyAI (transcription, translation - authoritative)
-- **TTS:** ElevenLabs (text-to-speech + voice cloning for translated audio)
-- **Live Translation:** SignalWire AI Agents (SWML - real-time, non-authoritative)
-- **AI Survey Bot:** SignalWire AI Agents (SWML - inbound survey calls)
-- **Billing:** Stripe (subscriptions + usage-based billing)
-- **Email:** Resend (transactional emails + artifact delivery)
+- **Frontend:** Next.js 14 App Router static export on Cloudflare Pages
+- **Backend:** Hono API on Cloudflare Workers
+- **Database:** Neon Postgres (Hyperdrive pooling) - 61+ tables
+- **Auth:** Custom Workers Auth (session tokens, RBAC middleware)
+- **Media Plane:** SignalWire (LaML/SWML)
+- **Intelligence:** AssemblyAI (transcription/translation - authoritative)
+- **TTS:** ElevenLabs (voice cloning)
+- **Billing:** Stripe (subscriptions/usage)
+- **Email:** Resend (transactional)
 
 ---
 
@@ -343,6 +341,16 @@ lib/utils/validation.ts               - NEW: Validation utilities
 
 ---
 
+### **Feb 2 Updates:**
+- ✅ Hybrid Deployment: Cloudflare Pages (static UI) + Workers (API routes via Hono)
+  - Pages: https://827487ca.wordisbond.pages.dev
+  - Workers API: https://wordisbond-api.adrper79.workers.dev
+  - API Migration: Ongoing (~20/100+ routes to workers/src/routes/*.ts)
+- ✅ Schema Drift Fixes (migrations/2026-02-02-schema-drift-fixes.sql)
+  - New: call_outcomes, call_outcome_history, ai_summaries tables
+  - Columns: campaigns/orgs/users etc. aligned
+  - Schema.txt updated in ARCH_DOCS/01-CORE
+
 ### **Previous Deep Validation (v3.2):**
 
 **1. Call Placement Flow Fixes:**
@@ -526,7 +534,7 @@ gemini-project/
 ├── lib/
 │   ├── signalwire/       - SignalWire integrations
 │   ├── supabaseAdmin.ts  - Centralized Supabase client
-│   ├── auth.ts           - NextAuth configuration
+│   ├── auth.ts           - Custom Workers Auth configuration
 │   ├── env-validation.ts - Environment validation
 │   ├── rateLimit.ts      - Rate limiting
 │   ├── idempotency.ts    - Idempotency handling
@@ -695,9 +703,9 @@ SIGNALWIRE_TOKEN=PTxxx                    # Or SIGNALWIRE_API_TOKEN
 SIGNALWIRE_SPACE=xxx.signalwire.com
 SIGNALWIRE_NUMBER=+15551234567
 
-# NextAuth (Required)
-NEXTAUTH_SECRET=xxx                       # Min 32 characters
-NEXTAUTH_URL=https://your-domain.com
+# Custom Auth (Required)
+AUTH_SECRET=xxx                            # Session signing secret
+NEXT_PUBLIC_API_URL=https://wordisbond-api.adrper79.workers.dev
 
 # App URL (Required)
 NEXT_PUBLIC_APP_URL=https://your-domain.com
@@ -737,7 +745,7 @@ GOOGLE_CLIENT_SECRET=xxx
 | **AssemblyAI** | Transcription | ✅ Configured | Authoritative transcripts |
 | **ElevenLabs** | TTS | ✅ Configured | Translation audio |
 | **Resend** | Email | ✅ Configured | Transactional emails |
-| **NextAuth** | Authentication | ✅ Configured | Email + Credentials + Google |
+| **Custom Auth** | Authentication | ✅ Configured | Session-based with CSRF |
 
 ---
 

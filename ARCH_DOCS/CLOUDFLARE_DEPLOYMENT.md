@@ -267,35 +267,34 @@ app.use('*', cors({
 }))
 ```
 
-### Authentication Fails (NextAuth)
+### Authentication (Custom Workers Auth)
 
-**Cause**: ❌ **CRITICAL** - NextAuth incompatible with static-only Pages  
-**Symptoms**: 
+**Status**: ✅ **WORKING** - Custom session-based auth with CSRF protection
+**Architecture**:
+- Frontend: Custom AuthProvider with useSession() hook
+- Backend: Workers API with session tokens
+- Security: CSRF tokens + CORS protection
+
+**API Endpoints:**
 ```
-GET /api/auth/session → 404
-POST /api/auth/signin → 405  
-POST /api/auth/signup → 405
+GET  /api/auth/csrf → CSRF token
+POST /api/auth/callback/credentials → Login
+GET  /api/auth/session → Session validation
+POST /api/auth/signup → User registration
 ```
 
-**Explanation:**
-NextAuth requires server-side API routes (`app/api/auth/*`) that don't exist in static export. When we moved to `output: 'export'`, all API routes were removed.
+**Session Flow:**
+1. Client fetches CSRF token from Workers
+2. Client sends credentials + CSRF token to Workers
+3. Workers validates CSRF, creates session in DB
+4. Workers returns sessionToken to client
+5. Client stores sessionToken, validates via /api/auth/session
 
-**Fix Options:**
-1. **Clerk/Auth0** (Recommended) - Replace NextAuth with client-side auth SaaS
-2. **Custom JWT** - Build auth endpoints in Workers
-3. **Port NextAuth** - Migrate NextAuth to Workers (complex)
-
-**See:** [AUTH_ARCHITECTURE_DECISION.md](../AUTH_ARCHITECTURE_DECISION.md) for detailed analysis and recommendations.
-
-**Quick Workaround (Testing Only):**
-Mock the session for UI testing:
-```typescript
-// lib/mockSession.ts
-export const useMockSession = () => ({
-  data: { user: { id: '123', email: 'test@example.com' } },
-  status: 'authenticated'
-})
-```
+**Security Features:**
+- CSRF protection via token validation
+- Session persistence in database
+- CORS-restricted to allowed origins
+- No external auth dependencies
 
 ---
 
