@@ -47,12 +47,12 @@ export async function verifySession(
     const sql = neon(connectionString)
 
     const result = await sql`
-      SELECT s.session_token, s.expires, u.email, u.name, u.id as user_id,
+      SELECT s."sessionToken" as session_token, s.expires, u.email, u.name, u.id as user_id,
              om.organization_id, om.role
       FROM public.sessions s
-      JOIN public.users u ON u.id = s.user_id::text
+      JOIN public.users u ON u.id = s."userId"::text
       LEFT JOIN org_members om ON om.user_id = u.id
-      WHERE s.session_token = ${token} AND s.expires > NOW()
+      WHERE s."sessionToken" = ${token} AND s.expires > NOW()
       LIMIT 1
     `
 

@@ -340,16 +340,27 @@ authRoutes.post('/callback/credentials', async (c) => {
     const sessionToken = crypto.randomUUID()
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
-    console.log('[Auth] About to create session')
+    console.log('[Auth] About to create session', {
+      sessionId,
+      sessionToken: sessionToken.slice(0, 8) + '...',
+      userId: user.id,
+      expires: expires.toISOString()
+    })
     try {
-      // Use snake_case column names to match actual database schema
-      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
-        VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})
-        ON CONFLICT (session_token) DO NOTHING`
+      // Use camelCase column names to match actual database schema (sessionToken, userId)
+      await sqlClient`INSERT INTO public.sessions (id, "sessionToken", "userId", expires)
+        VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
+        ON CONFLICT ("sessionToken") DO NOTHING`
       console.log('[Auth] Session created successfully')
-    } catch (sessionError) {
-      console.error('[Auth] Session creation failed:', sessionError)
-      return c.json({ error: 'Session creation failed' }, 500)
+    } catch (sessionError: any) {
+      console.error('[Auth] Session creation failed:', {
+        error: sessionError?.message || String(sessionError),
+        code: sessionError?.code,
+        detail: sessionError?.detail,
+        constraint: sessionError?.constraint,
+        stack: sessionError?.stack?.slice(0, 500)
+      })
+      return c.json({ error: 'Session creation failed', details: sessionError?.message }, 500)
     }
 
     // For cross-origin requests, we return the token in the response
@@ -395,12 +406,12 @@ authRoutes.post('/signout', async (c) => {
     const token = c.req.header('Authorization')?.replace('Bearer ', '')
     
     if (token) {
-      // Delete session from database
+      // Delete session from database (using camelCase column name)
       const { neon } = await import('@neondatabase/serverless')
       const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
       const sqlClient = neon(connectionString)
       
-      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
+      await sqlClient`DELETE FROM public.sessions WHERE "sessionToken" = ${token}`
     }
     
     // Clear session cookie
