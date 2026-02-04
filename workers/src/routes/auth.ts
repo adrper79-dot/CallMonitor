@@ -347,10 +347,10 @@ authRoutes.post('/callback/credentials', async (c) => {
       expires: expires.toISOString()
     })
     try {
-      // Use camelCase column names to match actual database schema (sessionToken, userId)
-      await sqlClient`INSERT INTO public.sessions (id, "sessionToken", "userId", expires)
+      // Use snake_case column names per ARCH_DOCS/MASTER_ARCHITECTURE.md standard
+      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
         VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
-        ON CONFLICT ("sessionToken") DO NOTHING`
+        ON CONFLICT (session_token) DO NOTHING`
       console.log('[Auth] Session created successfully')
     } catch (sessionError: any) {
       console.error('[Auth] Session creation failed:', {
@@ -406,12 +406,12 @@ authRoutes.post('/signout', async (c) => {
     const token = c.req.header('Authorization')?.replace('Bearer ', '')
     
     if (token) {
-      // Delete session from database (using camelCase column name)
+      // Delete session from database (snake_case per standard)
       const { neon } = await import('@neondatabase/serverless')
       const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
       const sqlClient = neon(connectionString)
       
-      await sqlClient`DELETE FROM public.sessions WHERE "sessionToken" = ${token}`
+      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
     }
     
     // Clear session cookie
