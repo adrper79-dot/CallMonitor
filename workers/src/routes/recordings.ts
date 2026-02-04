@@ -33,7 +33,7 @@ recordingsRoutes.get('/:id', async (c) => {
        FROM recordings
        WHERE id = $1 AND organization_id = $2
        LIMIT 1`,
-      [recordingId, session.organizationId]
+      [recordingId, session.organization_id]
     )
 
     const recording = res.rows?.[0]
@@ -46,8 +46,8 @@ recordingsRoutes.get('/:id', async (c) => {
       `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        session.organizationId,
-        session.userId,
+        session.organization_id,
+        session.user_id,
         'recordings',
         recordingId,
         'recording:accessed',

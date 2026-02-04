@@ -21,6 +21,30 @@ This aligns with modern edge-first patterns and provides:
 
 ---
 
+## Coding Standards
+
+### Naming Convention: Snake Case Only
+
+**MANDATORY**: All database columns, API endpoints, and variable names MUST use **snake_case** exclusively.
+
+- ✅ **Correct**: `session_token`, `user_id`, `organization_name`, `created_at`
+- ❌ **Incorrect**: `sessionToken`, `userId`, `organizationName`, `createdAt`
+- ❌ **Incorrect**: `session-token`, `user-id`, `organization-name`, `created-at`
+
+**Rationale**:
+- PostgreSQL standard (snake_case columns)
+- API consistency (RESTful conventions)
+- TypeScript/JavaScript compatibility
+- Prevents database query failures from case mismatches
+
+**Enforcement**:
+- Database migrations: Always use snake_case column names
+- API responses: Always return snake_case keys
+- TypeScript interfaces: Use snake_case for API data types
+- Code review: Reject any camelCase database references
+
+---
+
 ## Component Architecture
 
 ```

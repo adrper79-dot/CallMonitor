@@ -8,10 +8,10 @@ import type { Env } from '../index'
 import { getDb } from './db'
 
 export interface Session {
-  userId: string
+  user_id: string
   email: string
   name: string
-  organizationId: string
+  organization_id: string
   role: string
   expires: string
 }
@@ -63,10 +63,10 @@ export async function verifySession(
     const row = result[0]
 
     return {
-      userId: row.user_id,
+      user_id: row.user_id,
       email: row.email,
       name: row.name,
-      organizationId: row.organization_id,
+      organization_id: row.organization_id,
       role: row.role || 'viewer',
       expires: row.expires.toISOString(),
     }

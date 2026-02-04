@@ -14,6 +14,6 @@ rbacRoutes.get('/context', async (c) => {
   return c.json({
     role: session.role,
     permissions: ['read', 'write'], // expand per org/role
-    orgId: orgId || session.organizationId
+    orgId: orgId || session.organization_id
   })
 })

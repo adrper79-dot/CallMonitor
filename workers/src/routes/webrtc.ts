@@ -31,7 +31,7 @@ webrtcRoutes.get('/token', async (c) => {
       },
       body: JSON.stringify({
         connection_id: c.env.TELNYX_CONNECTION_ID,
-        name: `user-${session.userId}`,
+        name: `user-${session.user_id}`,
         expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour
       }),
     })
@@ -93,7 +93,7 @@ webrtcRoutes.post('/dial', async (c) => {
     // Create call record
     const callResult = await sql`
       INSERT INTO calls (id, organization_id, user_id, direction, phone_number, status, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${session.organizationId}, ${session.userId}, 'outbound', ${phoneNumber}, 'initiated', NOW(), NOW())
+      VALUES (gen_random_uuid(), ${session.organization_id}, ${session.user_id}, 'outbound', ${phoneNumber}, 'initiated', NOW(), NOW())
       RETURNING id
     `
 
@@ -110,7 +110,7 @@ webrtcRoutes.post('/dial', async (c) => {
         connection_id: c.env.TELNYX_CONNECTION_ID,
         to: phoneNumber,
         from: c.env.TELNYX_NUMBER,
-        webhook_url: `${c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'}/api/webhooks/telnyx?callId=${callId}&orgId=${session.organizationId}`,
+        webhook_url: `${c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'}/api/webhooks/telnyx?callId=${callId}&orgId=${session.organization_id}`,
         record: 'record-from-answer',
         timeout_secs: 30,
       }),

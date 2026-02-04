@@ -16,7 +16,7 @@ auditRoutes.get('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    if (!session.organizationId) {
+    if (!session.organization_id) {
       // Return empty array if no organization (user might be in setup)
       return c.json({
         success: true,
@@ -40,7 +40,7 @@ auditRoutes.get('/', async (c) => {
       SELECT al.*, u.email as user_email, u.name as user_name
       FROM audit_logs al
       LEFT JOIN users u ON u.id = al.user_id
-      WHERE al.organization_id = ${session.organizationId}
+      WHERE al.organization_id = ${session.organization_id}
       ORDER BY al.created_at DESC
       LIMIT ${limit}
       OFFSET ${offset}

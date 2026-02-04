@@ -66,7 +66,7 @@ app.use('*', logger())
 app.use('*', secureHeaders())
 app.use('*', cors({
   origin: (origin, c) => {
-    // Allow configured origin and localhost for dev
+    // Allow configured origin, localhost for dev, and Cloudflare Pages preview URLs
     const allowed = [
       c.env.CORS_ORIGIN,
       'https://wordis-bond.com',
@@ -76,6 +76,12 @@ app.use('*', cors({
       'https://wordisbond.pages.dev',
       'http://localhost:3000',
     ]
+    
+    // Also allow any *.wordisbond.pages.dev preview URLs
+    if (origin && origin.endsWith('.wordisbond.pages.dev')) {
+      return origin
+    }
+    
     return allowed.includes(origin) ? origin : allowed[0]
   },
   credentials: true,

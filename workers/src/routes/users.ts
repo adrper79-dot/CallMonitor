@@ -19,7 +19,7 @@ userRoutes.get('/:id/organization', async (c) => {
     const userId = c.req.param('id')
 
     // Users can only access their own organization info
-    if (session.userId !== userId) {
+    if (session.user_id !== userId) {
       return c.json({ error: 'Forbidden' }, 403)
     }
 

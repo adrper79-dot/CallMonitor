@@ -20,7 +20,7 @@ bookingsRoutes.get('/', async (c) => {
     SELECT * FROM booking_events 
     WHERE organization_id = $1
   `
-  const params = [session.organizationId]
+  const params = [session.organization_id]
 
   if (status) {
     query += ` AND status = $2`

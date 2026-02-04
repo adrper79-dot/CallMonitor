@@ -19,7 +19,7 @@ callsRoutes.get('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const { organizationId, userId } = session
+    const { organization_id, user_id } = session
 
     // Parse query params
     const url = new URL(c.req.url)
@@ -38,7 +38,7 @@ callsRoutes.get('/', async (c) => {
       FROM calls
       WHERE organization_id = $1
     `
-    const params: any[] = [organizationId]
+    const params: any[] = [organization_id]
 
     if (status && status !== 'all') {
       if (status === 'active') {
@@ -90,7 +90,7 @@ callsRoutes.get('/:id', async (c) => {
 
     const result = await db.query(
       `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, session.organizationId]
+      [callId, session.organization_id]
     )
 
     if (!result.rows || result.rows.length === 0) {
@@ -126,7 +126,7 @@ callsRoutes.post('/start', async (c) => {
       `INSERT INTO calls (organization_id, system_id, status, created_by, phone_number, caller_id)
        VALUES ($1, $2, 'pending', $3, $4, $5)
        RETURNING *`,
-      [session.organizationId, systemId, session.userId, phoneNumber, callerId]
+      [session.organization_id, systemId, session.user_id, phoneNumber, callerId]
     )
 
     const call = result.rows[0]
@@ -157,7 +157,7 @@ callsRoutes.post('/:id/end', async (c) => {
        SET status = 'completed', ended_at = NOW()
        WHERE id = $1 AND organization_id = $2
        RETURNING *`,
-      [callId, session.organizationId]
+      [callId, session.organization_id]
     )
 
     if (!result.rows || result.rows.length === 0) {
@@ -205,7 +205,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
     }
 
     const callId = c.req.param('id')
-    const { organizationId } = session
+    const { organization_id } = session
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -217,7 +217,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, organizationId]
+      [callId, organization_id]
     )
 
     if (calls.length === 0) {
@@ -295,7 +295,7 @@ callsRoutes.post('/:id/outcome', async (c) => {
     }
 
     const callId = c.req.param('id')
-    const { organizationId, userId } = session
+    const { organization_id, user_id } = session
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -354,7 +354,7 @@ callsRoutes.post('/:id/outcome', async (c) => {
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, organizationId]
+      [callId, organization_id]
     )
     if (calls.length === 0) {
       return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
@@ -379,12 +379,12 @@ callsRoutes.post('/:id/outcome', async (c) => {
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1)
        RETURNING *`,
       [
-        callId, organizationId, outcome_status, confidence_level,
+        callId, organization_id, outcome_status, confidence_level,
         JSON.stringify(agreed_items), JSON.stringify(declined_items),
         JSON.stringify(ambiguities), JSON.stringify(follow_up_actions),
         summary_text, summary_source, readback_confirmed,
         readback_confirmed ? new Date().toISOString() : null,
-        userId
+        user_id
       ]
     )
     const outcome = newOutcomes[0]
@@ -418,7 +418,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
     }
 
     const callId = c.req.param('id')
-    const { organizationId, userId } = session
+    const { organization_id, user_id } = session
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -449,7 +449,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, organizationId]
+      [callId, organization_id]
     )
     if (calls.length === 0) {
       return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
@@ -496,7 +496,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
         ambiguities ? JSON.stringify(ambiguities) : null,
         follow_up_actions ? JSON.stringify(follow_up_actions) : null,
         summary_text, summary_source, readback_confirmed,
-        readbackTimestamp, userId, existingOutcome.id
+        readbackTimestamp, user_id, existingOutcome.id
       ]
     )
     const outcome = updatedOutcomes[0]
@@ -531,7 +531,7 @@ callsRoutes.post('/:id/summary', async (c) => {
     }
 
     const callId = c.req.param('id')
-    const { organizationId, userId } = session
+    const { organization_id, user_id } = session
 
     // Validate UUID format
     if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
@@ -555,7 +555,7 @@ callsRoutes.post('/:id/summary', async (c) => {
             caller_phone_number, destination_phone_number, started_at, ended_at
          FROM calls
          WHERE id = $1 AND organization_id = $2`,
-      [callId, organizationId]
+      [callId, organization_id]
     )
     const call = calls[0]
 
@@ -710,7 +710,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
              RETURNING id`,
         [
           callId,
-          organizationId,
+          organization_id,
           summaryResult.summary_text,
           JSON.stringify(summaryResult.topics_discussed || []),
           JSON.stringify(summaryResult.potential_agreements || []),
@@ -718,7 +718,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
           JSON.stringify(summaryResult.recommended_followup || []),
           0.85,
           'gpt-4-turbo-preview',
-          userId,
+          user_id,
           'pending',
           transcriptText.length
         ]

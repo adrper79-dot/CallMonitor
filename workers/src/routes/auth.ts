@@ -32,10 +32,10 @@ authRoutes.get('/session', async (c) => {
 
     return c.json({
       user: {
-        id: session.userId,
+        id: session.user_id,
         email: session.email,
         name: session.name,
-        organizationId: session.organizationId,
+        organization_id: session.organization_id,
         role: session.role,
       },
       expires: session.expires,
@@ -81,8 +81,8 @@ authRoutes.post('/validate-key', async (c) => {
 
     return c.json({
       valid: true,
-      organizationId: keyRecord.organization_id,
-      organizationName: keyRecord.organization_name,
+      organization_id: keyRecord.organization_id,
+      organization_name: keyRecord.organization_name,
       permissions: keyRecord.permissions,
     })
   } catch (err: any) {
@@ -337,16 +337,15 @@ authRoutes.post('/callback/credentials', async (c) => {
 
     // Create session
     const sessionId = crypto.randomUUID()
-    const token = crypto.randomUUID()
+    const sessionToken = crypto.randomUUID()
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     console.log('[Auth] About to create session')
-    const sessionToken = crypto.randomUUID()
     try {
-      // Recreate sessions table with correct schema (matching auth_pg_adapter.sql)
-      await sqlClient`INSERT INTO public.sessions ("sessionToken", "userId", expires)
-        VALUES (${sessionToken}, ${user.id}, ${expires.toISOString()})
-        ON CONFLICT ("sessionToken") DO NOTHING`
+      // Use snake_case column names to match actual database schema
+      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
+        VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})
+        ON CONFLICT (session_token) DO NOTHING`
       console.log('[Auth] Session created successfully')
     } catch (sessionError) {
       console.error('[Auth] Session creation failed:', sessionError)
@@ -368,7 +367,7 @@ authRoutes.post('/callback/credentials', async (c) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        organizationId: org?.organization_id || null,
+        organization_id: org?.organization_id || null,
         role: org?.role || null
       }
     })
@@ -401,7 +400,7 @@ authRoutes.post('/signout', async (c) => {
       const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
       const sqlClient = neon(connectionString)
       
-      await sqlClient`DELETE FROM public.sessions WHERE "sessionToken" = ${token}`
+      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
     }
     
     // Clear session cookie

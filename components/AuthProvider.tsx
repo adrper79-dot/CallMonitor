@@ -9,7 +9,7 @@ interface User {
   id: string
   email: string
   name: string | null
-  organizationId?: string
+  organization_id?: string
   role?: string
 }
 

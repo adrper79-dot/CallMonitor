@@ -41,7 +41,7 @@ voiceRoutes.get('/targets', async (c) => {
     const result = await sql`
       SELECT *
       FROM voice_targets
-      WHERE organization_id = ${session.organizationId}
+      WHERE organization_id = ${session.organization_id}
       ORDER BY created_at DESC
     `
 

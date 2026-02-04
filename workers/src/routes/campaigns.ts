@@ -16,7 +16,7 @@ campaignsRoutes.get('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    if (!session.organizationId) {
+    if (!session.organization_id) {
       return c.json({
         success: true,
         campaigns: []
@@ -48,7 +48,7 @@ campaignsRoutes.get('/', async (c) => {
     const result = await sql`
       SELECT *
       FROM campaigns
-      WHERE organization_id = ${session.organizationId}
+      WHERE organization_id = ${session.organization_id}
       ORDER BY created_at DESC
     `
 
@@ -84,7 +84,7 @@ campaignsRoutes.post('/', async (c) => {
 
     const result = await sql`
       INSERT INTO campaigns (organization_id, name, description, scenario, created_at)
-      VALUES (${session.organizationId}, ${name}, ${description || ''}, ${scenario}, NOW())
+      VALUES (${session.organization_id}, ${name}, ${description || ''}, ${scenario}, NOW())
       RETURNING *
     `
 

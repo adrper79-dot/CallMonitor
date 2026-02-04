@@ -14,8 +14,8 @@ organizationsRoutes.post('/', async (c) => {
     }
 
     console.log('Session object:', session)
-    const { userId } = session
-    console.log('Extracted userId:', userId)
+    const { user_id } = session
+    console.log('Extracted user_id:', user_id)
 
     // Use neon client directly
     const { neon } = await import('@neondatabase/serverless')
@@ -24,7 +24,7 @@ organizationsRoutes.post('/', async (c) => {
 
     // Check if user already has an organization
     const existingOrg = await sql`
-      SELECT organization_id FROM org_members WHERE user_id = ${userId}
+      SELECT organization_id FROM org_members WHERE user_id = ${user_id}
     `
 
     if (existingOrg.length > 0) {
@@ -44,7 +44,7 @@ organizationsRoutes.post('/', async (c) => {
     try {
       orgResult = await sql`
         INSERT INTO organizations (name, created_by)
-        VALUES (${name.trim()}, ${userId})
+        VALUES (${name.trim()}, ${user_id})
         RETURNING id, name, created_at
       `
       console.log('Org insert result:', orgResult)
@@ -59,7 +59,7 @@ organizationsRoutes.post('/', async (c) => {
     // Add user as admin member
     await sql`
       INSERT INTO org_members (organization_id, user_id, role)
-      VALUES (${org.id}, ${userId}, 'admin')
+      VALUES (${org.id}, ${user_id}, 'admin')
     `
 
     return c.json({
@@ -96,7 +96,7 @@ organizationsRoutes.get('/current', async (c) => {
     SELECT o.id, o.name, o.plan, om.role
     FROM organizations o
     JOIN org_members om ON om.organization_id = o.id
-    WHERE om.user_id = ${session.userId}
+    WHERE om.user_id = ${session.user_id}
     LIMIT 1
   `
 
