@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiDelete } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface ExpectedOutcome {
   type: 'keyword' | 'sentiment' | 'duration_min' | 'duration_max' | 'response_time'
@@ -85,8 +88,7 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
     
     try {
       setLoading(true)
-      const response = await fetch(`/api/shopper/scripts/manage?orgId=${organizationId}`, { credentials: 'include' })
-      const data = await response.json()
+      const data = await apiGet(`/api/shopper/scripts/manage?orgId=${organizationId}`)
       
       if (data.success) {
         setScripts(data.scripts || [])
@@ -152,17 +154,10 @@ Thank you for the information. I'll get back to you soon.`,
     
     try {
       setSaving(true)
-      const response = await fetch('/api/shopper/scripts/manage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          ...editingScript,
-          organization_id: organizationId
-        })
+      const data = await apiPost('/api/shopper/scripts/manage', {
+        ...editingScript,
+        organization_id: organizationId
       })
-      
-      const data = await response.json()
       
       if (data.success) {
         setShowEditor(false)
@@ -185,14 +180,8 @@ Thank you for the information. I'll get back to you soon.`,
     if (!confirm('Delete this script?')) return
     
     try {
-      const response = await fetch(`/api/shopper/scripts/manage?id=${scriptId}&orgId=${organizationId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      if (response.ok) {
-        fetchScripts()
-      }
+      await apiDelete(`/api/shopper/scripts/manage?id=${scriptId}&orgId=${organizationId}`)
+      fetchScripts()
     } catch (err) {
       logger.error('ShopperScriptManager: failed to delete script', err, {
         organizationId,

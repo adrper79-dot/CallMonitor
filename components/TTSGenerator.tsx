@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/apiClient'
 
 export interface TTSGeneratorProps {
   organizationId: string
@@ -49,24 +50,12 @@ export default function TTSGenerator({ organizationId }: TTSGeneratorProps) {
     setAudioUrl(null)
 
     try {
-      const response = await fetch('/api/tts/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          text: text.trim(),
-          voice_id: selectedVoice,
-          language: selectedLanguage,
-          organization_id: organizationId
-        })
+      const data = await apiPost('/api/tts/generate', {
+        text: text.trim(),
+        voice_id: selectedVoice,
+        language: selectedLanguage,
+        organization_id: organizationId
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Generation failed')
-      }
-
-      const data = await response.json()
       setAudioUrl(data.audio_url)
 
       toast({

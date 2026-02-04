@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { ClientDate } from '@/components/ui/ClientDate'
+import { apiGet } from '@/lib/apiClient'
 
 interface Booking {
   id: string
@@ -34,8 +35,7 @@ export function BookingsList({ onBookingClick, onNewBooking, limit = 5 }: Bookin
   const fetchBookings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/bookings?limit=${limit}&status=pending`, { credentials: 'include' })
-      const data = await response.json()
+      const data = await apiGet(`/api/bookings?limit=${limit}&status=pending`)
       
       if (data.success) {
         setBookings(data.bookings || [])

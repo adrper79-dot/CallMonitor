@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/apiClient'
 
 
 interface UsageData {
@@ -38,13 +39,7 @@ export function UsageDisplay({ organizationId, plan }: UsageDisplayProps) {
     async function fetchUsage() {
       try {
         setLoading(true)
-        const res = await fetch(`/api/usage`, { credentials: 'include' })
-        
-        if (!res.ok) {
-          throw new Error('Failed to fetch usage data')
-        }
-        
-        const result = await res.json()
+        const result = await apiGet<UsageData>('/api/usage')
         setData(result)
       } catch (err: any) {
         logger.error('Failed to fetch usage', err, { organizationId })

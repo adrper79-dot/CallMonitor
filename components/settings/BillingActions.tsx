@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/apiClient'
 
 interface BillingActionsProps {
   organizationId: string
@@ -34,34 +35,11 @@ export function BillingActions({ organizationId, plan, role }: BillingActionsPro
         // For now, default to Pro plan - could show plan selector modal
         const proPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_MONTHLY || 'price_pro_monthly'
         
-        const res = await fetch('/api/billing/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ priceId: proPriceId }),
-          credentials: 'include',
-        })
-
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || 'Failed to create checkout session')
-        }
-
-        const { url } = await res.json()
+        const { url } = await apiPost<{ url: string }>('/api/billing/checkout', { priceId: proPriceId })
         window.location.href = url
       } else {
         // If user has a plan, go to billing portal
-        const res = await fetch('/api/billing/portal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        })
-
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || 'Failed to create portal session')
-        }
-
-        const { url } = await res.json()
+        const { url } = await apiPost<{ url: string }>('/api/billing/portal', {})
         window.location.href = url
       }
     } catch (err: any) {

@@ -3,6 +3,8 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 type TestStatus = 'idle' | 'running' | 'passed' | 'failed' | 'warning'
 
 interface TestResult {
@@ -133,7 +135,7 @@ export default function TestPage() {
     updateTestStatus(categoryId, testId, { status: 'running', duration: undefined, error: undefined, details: undefined })
 
     try {
-      const response = await fetch('/api/test/run', {
+      const response = await fetch(`${API_BASE}/api/test/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categoryId, testId })

@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select'
 import { Languages, Save, TestTube2, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPut, apiPost } from '@/lib/apiClient'
 
 interface VoiceConfig {
   id: string
@@ -83,19 +84,14 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
   const fetchConfig = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/voice/config?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setConfig(data.config)
-        if (data.config) {
-          setFormData({
-            aiAgentId: data.config.ai_agent_id || '',
-            translationEnabled: data.config.translate || data.config.live_translate || false,
-            defaultLanguage: data.config.translate_to || 'es',
-          })
-        }
+      const data = await apiGet<{ config: VoiceConfig }>(`/api/voice/config?orgId=${organizationId}`)
+      setConfig(data.config)
+      if (data.config) {
+        setFormData({
+          aiAgentId: data.config.ai_agent_id || '',
+          translationEnabled: data.config.translate || data.config.live_translate || false,
+          defaultLanguage: data.config.translate_to || 'es',
+        })
       }
     } catch (error) {
       logger.error('Failed to fetch live translation config', error, { organizationId })
@@ -110,25 +106,15 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
       setTestResult(null)
 
       // Use PUT method with correct field names matching voice_configs schema
-      const res = await fetch('/api/voice/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orgId: organizationId,
-          modulations: {
-            translate: formData.translationEnabled,
-            live_translate: formData.translationEnabled,
-            translate_from: 'en', // Source language (English)
-            translate_to: formData.defaultLanguage,
-          }
-        }),
-        credentials: 'include'
+      await apiPut('/api/voice/config', {
+        orgId: organizationId,
+        modulations: {
+          translate: formData.translationEnabled,
+          live_translate: formData.translationEnabled,
+          translate_from: 'en', // Source language (English)
+          translate_to: formData.defaultLanguage,
+        }
       })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error?.message || error.message || 'Failed to save configuration')
-      }
 
       await fetchConfig()
       setTestResult({ success: true, message: 'Configuration saved successfully' })
@@ -150,34 +136,20 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
       setTesting(true)
       setTestResult(null)
 
-      const res = await fetch('/api/voice/config/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          organizationId,
-          aiAgentId: formData.aiAgentId,
-        }),
-        credentials: 'include'
+      const data = await apiPost<{ success?: boolean; error?: string }>('/api/voice/config/test', {
+        organizationId,
+        aiAgentId: formData.aiAgentId,
       })
 
-      const data = await res.json()
-
-      if (res.ok) {
-        setTestResult({
-          success: true,
-          message: 'AI Agent connection successful! Translation is configured correctly.',
-        })
-      } else {
-        setTestResult({
-          success: false,
-          message: data.error || 'Failed to connect to AI Agent',
-        })
-      }
+      setTestResult({
+        success: true,
+        message: 'AI Agent connection successful! Translation is configured correctly.',
+      })
     } catch (error: any) {
       logger.error('Failed to test AI agent connection', error, { organizationId, aiAgentId: formData.aiAgentId })
       setTestResult({
         success: false,
-        message: 'Network error: Could not test AI Agent connection',
+        message: error.message || 'Failed to connect to AI Agent',
       })
     } finally {
       setTesting(false)

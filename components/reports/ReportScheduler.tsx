@@ -41,6 +41,7 @@ import { Switch } from '@/components/ui/switch'
 import { Calendar, Mail, Loader2, Clock, Trash2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/apiClient'
 
 interface ScheduledReport {
   id: string
@@ -89,13 +90,8 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
   const fetchSchedules = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/reports/schedules?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setSchedules(data.schedules || [])
-      }
+      const data = await apiGet(`/api/reports/schedules?orgId=${organizationId}`)
+      setSchedules(data.schedules || [])
     } catch (error) {
       logger.error('Failed to fetch schedules', error, { organizationId })
     } finally {
@@ -116,21 +112,14 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
         monthly: '0 0 1 * *',   // Monthly on 1st
       }
 
-      const res = await fetch('/api/reports/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          organizationId,
-          templateId: formData.templateId,
-          cronPattern: cronPatterns[formData.frequency],
-          deliveryConfig: {
-            email_to: formData.emailTo,
-          },
-        }),
-        credentials: 'include'
+      await apiPost('/api/reports/schedules', {
+        organizationId,
+        templateId: formData.templateId,
+        cronPattern: cronPatterns[formData.frequency],
+        deliveryConfig: {
+          email_to: formData.emailTo,
+        },
       })
-
-      if (!res.ok) throw new Error('Failed to schedule report')
 
       // Reset form and refresh
       setFormData({ templateId: '', frequency: 'daily', emailTo: '' })
@@ -144,16 +133,8 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
 
   const toggleSchedule = async (scheduleId: string, isActive: boolean) => {
     try {
-      const res = await fetch(`/api/reports/schedules/${scheduleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive }),
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await fetchSchedules()
-      }
+      await apiPatch(`/api/reports/schedules/${scheduleId}`, { isActive })
+      await fetchSchedules()
     } catch (error) {
       logger.error('Failed to toggle schedule', error, { scheduleId, isActive })
     }
@@ -163,14 +144,8 @@ export function ReportScheduler({ organizationId, templates }: ReportSchedulerPr
     if (!confirm('Are you sure you want to delete this scheduled report?')) return
 
     try {
-      const res = await fetch(`/api/reports/schedules/${scheduleId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await fetchSchedules()
-      }
+      await apiDelete(`/api/reports/schedules/${scheduleId}`)
+      await fetchSchedules()
     } catch (error) {
       logger.error('Failed to delete schedule', error, { scheduleId })
     }

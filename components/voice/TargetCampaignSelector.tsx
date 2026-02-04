@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 export interface Target {
   id: string
   phone_number: string
@@ -67,10 +69,10 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       try {
         setLoading(true)
         const [targetsRes, campaignsRes] = await Promise.all([
-          fetch(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
+          fetch(`${API_BASE}/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
             credentials: 'include'
           }),
-          fetch(`/api/campaigns?orgId=${encodeURIComponent(organizationId)}`, {
+          fetch(`${API_BASE}/api/campaigns?orgId=${encodeURIComponent(organizationId)}`, {
             credentials: 'include'
           }),
         ])
@@ -203,7 +205,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
 
     try {
       setSaving(true)
-      const res = await fetch('/api/voice/targets', {
+      const res = await fetch(`${API_BASE}/api/voice/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -343,9 +343,10 @@ authRoutes.post('/callback/credentials', async (c) => {
     console.log('[Auth] About to create session')
     const sessionToken = crypto.randomUUID()
     try {
-      // Use Neon client for consistency
-      const sessionId = crypto.randomUUID()
-      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires) VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})`
+      // Recreate sessions table with correct schema (matching auth_pg_adapter.sql)
+      await sqlClient`INSERT INTO public.sessions ("sessionToken", "userId", expires)
+        VALUES (${sessionToken}, ${user.id}, ${expires.toISOString()})
+        ON CONFLICT ("sessionToken") DO NOTHING`
       console.log('[Auth] Session created successfully')
     } catch (sessionError) {
       console.error('[Auth] Session creation failed:', sessionError)
@@ -400,7 +401,7 @@ authRoutes.post('/signout', async (c) => {
       const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
       const sqlClient = neon(connectionString)
       
-      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
+      await sqlClient`DELETE FROM public.sessions WHERE "sessionToken" = ${token}`
     }
     
     // Clear session cookie

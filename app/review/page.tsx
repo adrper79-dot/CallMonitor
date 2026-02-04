@@ -5,6 +5,7 @@ import { Suspense, useState, useEffect } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import ReviewMode from '@/components/review/ReviewMode'
 import { ProductTour, REVIEW_TOUR } from '@/components/tour'
+import { apiGet } from '@/lib/apiClient'
 
 function ReviewPageContent() {
   const searchParams = useSearchParams()
@@ -17,8 +18,7 @@ function ReviewPageContent() {
     const userId = (session?.user as any)?.id
     if (!userId) return
 
-    fetch(`/api/users/${userId}/organization`, { credentials: 'include' })
-      .then(res => res.json())
+    apiGet<{ organization_id?: string }>(`/api/users/${userId}/organization`)
       .then(data => {
         if (data.organization_id) {
           setOrganizationId(data.organization_id)

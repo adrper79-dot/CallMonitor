@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useRBAC } from '@/hooks/useRBAC'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiDelete } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface SurveyQuestion {
   id: string
@@ -67,10 +70,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/surveys?orgId=${encodeURIComponent(organizationId)}`, {
-        credentials: 'include'
-      })
-      const data = await res.json()
+      const data = await apiGet(`/api/surveys?orgId=${encodeURIComponent(organizationId)}`)
       
       if (data.success) {
         setSurveys(data.surveys || [])
@@ -114,17 +114,10 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
       setSaving(true)
       setError(null)
       
-      const res = await fetch('/api/surveys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          ...editingSurvey,
-          organization_id: organizationId
-        })
+      const data = await apiPost('/api/surveys', {
+        ...editingSurvey,
+        organization_id: organizationId
       })
-      
-      const data = await res.json()
       
       if (data.success) {
         setShowEditor(false)
@@ -144,14 +137,8 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
     if (!confirm('Delete this survey?')) return
     
     try {
-      const res = await fetch(`/api/surveys?id=${surveyId}&orgId=${organizationId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      if (res.ok) {
-        fetchSurveys()
-      }
+      await apiDelete(`/api/surveys?id=${surveyId}&orgId=${organizationId}`)
+      fetchSurveys()
     } catch (err) {
       logger.error('SurveyBuilder: failed to delete survey', err, {
         organizationId,

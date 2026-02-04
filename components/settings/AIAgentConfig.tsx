@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { apiGet, apiPut } from '@/lib/apiClient'
 
 interface AIConfig {
   ai_agent_id?: string | null
@@ -74,13 +75,7 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
   async function loadConfig() {
     try {
       setLoading(true)
-      const res = await fetch('/api/ai-config', { credentials: 'include' })
-
-      if (!res.ok) {
-        throw new Error('Failed to load AI configuration')
-      }
-
-      const result: AIConfigSettings = await res.json()
+      const result = await apiGet<AIConfigSettings>('/api/ai-config')
       setData(result)
       setConfig(result.config)
     } catch (err: any) {
@@ -96,17 +91,7 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
       setError(null)
       setSuccess(null)
 
-      const res = await fetch('/api/ai-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Failed to save configuration')
-      }
+      await apiPut('/api/ai-config', config)
 
       setSuccess('Configuration saved successfully')
       setTimeout(() => setSuccess(null), 3000)

@@ -36,9 +36,6 @@ export function parseSessionToken(c: Context<{ Bindings: Env }>): string | null 
   return null
 }
 
-/**
- * Verify session token and return session data
- */
 export async function verifySession(
   c: Context<{ Bindings: Env }>,
   token: string
@@ -53,7 +50,7 @@ export async function verifySession(
       SELECT s.session_token, s.expires, u.email, u.name, u.id as user_id,
              om.organization_id, om.role
       FROM public.sessions s
-      JOIN public.users u ON u.id = s.user_id
+      JOIN public.users u ON u.id = s.user_id::text
       LEFT JOIN org_members om ON om.user_id = u.id
       WHERE s.session_token = ${token} AND s.expires > NOW()
       LIMIT 1

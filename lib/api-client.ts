@@ -8,6 +8,13 @@ import { sessionSchema, callsListSchema } from './schemas/api' // Add more
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
+const SESSION_KEY = 'wb-session-token'
+
+function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(SESSION_KEY)
+}
+
 export interface ApiResponse<T> {
   success: boolean
   data?: T
@@ -34,6 +41,12 @@ async function apiFetch<T>(
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...fetchOptions.headers,
+  }
+
+  // Add Authorization header if token exists
+  const token = getStoredToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
   }
 
   try {
@@ -87,29 +100,83 @@ export const api = {
   },
 
   auth: {
-    getSession: () => apiFetch('/api/auth/session', { schema: sessionSchema }),
+    getSession: () => apiFetch(`${API_BASE}/api/auth/session`, { schema: sessionSchema }),
     validateKey: (apiKey: string) =>
-      apiFetch('/api/auth/validate-key', {
+      apiFetch(`${API_BASE}/api/auth/validate-key`, {
         method: 'POST',
         body: JSON.stringify({ apiKey }),
       }),
   },
 
   calls: {
-    list: () => apiFetch('/api/calls', { schema: callsListSchema }),
-    get: (id: string) => apiFetch(`/api/calls/${id}`),
+    list: () => apiFetch(`${API_BASE}/api/calls`, { schema: callsListSchema }),
+    get: (id: string) => apiFetch(`${API_BASE}/api/calls/${id}`),
     start: (data: { phoneNumber: string; callerId?: string; systemId?: string }) =>
-      apiFetch('/api/calls/start', {
+      apiFetch(`${API_BASE}/api/calls/start`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     end: (id: string) =>
-      apiFetch(`/api/calls/${id}/end`, {
+      apiFetch(`${API_BASE}/api/calls/${id}/end`, {
         method: 'POST',
       }),
   },
 
+  organizations: {
+    create: (data: { name: string }) =>
+      apiFetch(`${API_BASE}/api/organizations`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getCurrent: () =>
+      apiFetch(`${API_BASE}/api/organizations/current`),
+    update: (id: string, data: { name?: string; plan?: string }) =>
+      apiFetch(`${API_BASE}/api/organizations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+
   // Add typed methods...
+}
+
+// Convenience functions for common operations
+export async function apiGet(endpoint: string) {
+  const response = await apiFetch(endpoint, { method: 'GET' })
+  if (!response.success) {
+    throw new Error(response.error || 'Request failed')
+  }
+  return response.data
+}
+
+export async function apiPost(endpoint: string, data: any) {
+  const response = await apiFetch(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!response.success) {
+    throw new Error(response.error || 'Request failed')
+  }
+  return response.data
+}
+
+export async function apiPut(endpoint: string, data: any) {
+  const response = await apiFetch(endpoint, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+  if (!response.success) {
+    throw new Error(response.error || 'Request failed')
+  }
+  return response.data
+}
+
+export async function apiDelete(endpoint: string) {
+  const response = await apiFetch(endpoint, { method: 'DELETE' })
+  if (!response.success) {
+    throw new Error(response.error || 'Request failed')
+  }
+  return response.data
 }
 
 export default api

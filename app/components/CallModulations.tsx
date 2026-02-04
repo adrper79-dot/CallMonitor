@@ -3,6 +3,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { logger } from "@/lib/logger";
+import { apiGet, apiPost } from "@/lib/api-client";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 // Mock server hook - replace with real server action call
 function useCapabilities(callId: string) {
@@ -12,8 +15,7 @@ function useCapabilities(callId: string) {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    fetch(`/api/call-capabilities?callId=${encodeURIComponent(callId)}`, { method: 'GET', credentials: 'include' })
-      .then((res) => res.json())
+    apiGet(`/api/call-capabilities?callId=${encodeURIComponent(callId)}`)
       .then((json) => {
         if (!mounted) return;
         setCapabilities(json?.allowed ?? {});
@@ -81,9 +83,8 @@ export default function CallModulations({ callId, initialModulations, onChange }
   const handleUnlock = async () => {
     setUnlocking(true)
     try {
-      const res = await fetch('/api/auth/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: authUser, password: authPass }), credentials: 'include' })
-      const j = await res.json()
-      if (res.ok && j?.success) {
+      const j = await apiPost('/api/auth/unlock', { username: authUser, password: authPass })
+      if (j?.success) {
         try { sessionStorage.setItem(`unlock:${callId}`, '1') } catch {}
         setUnlocked(true)
       } else {

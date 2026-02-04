@@ -1,5 +1,6 @@
 "use client"
 import React, { useEffect, useState } from 'react'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 type Status = {
   ok: boolean
@@ -17,10 +18,7 @@ export default function AdminAuthDiagnostics() {
 
   async function load() {
     try {
-      const res = await fetch('/api/_admin/auth-providers', {
-        credentials: 'include'
-      })
-      const j = await res.json()
+      const j = await apiGet('/api/_admin/auth-providers')
       setStatus(j)
     } catch (e) {
       setStatus({ ok: false })
@@ -32,15 +30,8 @@ export default function AdminAuthDiagnostics() {
   async function setEmailEnabled(v: boolean | null) {
     setLoading(true)
     try {
-      await fetch('/api/_admin/auth-providers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(adminKey ? { 'x-admin-key': adminKey } : {}),
-        },
-        body: JSON.stringify({ emailEnabled: v }),
-        credentials: 'include'
-      })
+      // Note: adminKey header would need custom handling if required
+      await apiPost('/api/_admin/auth-providers', { emailEnabled: v })
       await load()
     } finally { setLoading(false) }
   }

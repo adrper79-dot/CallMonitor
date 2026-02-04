@@ -23,6 +23,9 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { apiPut } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface CallDispositionProps {
   callId: string
@@ -88,20 +91,10 @@ export default function CallDisposition({
     setSaving(true)
     
     try {
-      const res = await fetch(`/api/calls/${callId}/disposition`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          disposition: disp,
-          disposition_notes: noteText || null
-        })
+      await apiPut(`/api/calls/${callId}/disposition`, {
+        disposition: disp,
+        disposition_notes: noteText || null
       })
-      
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error?.message || 'Failed to save disposition')
-      }
       
       toast({
         title: 'Disposition saved',

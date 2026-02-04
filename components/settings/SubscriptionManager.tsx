@@ -42,6 +42,7 @@ import {
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, CreditCard, XCircle, CheckCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 interface Subscription {
   id: string
@@ -81,24 +82,16 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/billing/subscription?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-      
-      if (!res.ok) {
-        if (res.status === 404) {
-          // No subscription found (free plan)
-          setSubscription(null)
-          return
-        }
-        throw new Error('Failed to fetch subscription')
-      }
-
-      const data = await res.json()
+      const data = await apiGet<{ subscription: Subscription }>(`/api/billing/subscription?orgId=${organizationId}`)
       setSubscription(data.subscription)
-    } catch (err) {
+    } catch (err: any) {
+      if (err.status === 404) {
+        // No subscription found (free plan)
+        setSubscription(null)
+        return
+      }
       logger.error('Error fetching subscription', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to load subscription')
+      setError(err.message || 'Failed to load subscription')
     } finally {
       setLoading(false)
     }
@@ -111,23 +104,14 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       setUpgrading(true)
       setError(null)
 
-      const res = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
-          organizationId
-        }),
-        credentials: 'include'
+      const { url } = await apiPost<{ url: string }>('/api/billing/checkout', {
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
+        organizationId
       })
-
-      if (!res.ok) throw new Error('Failed to create checkout session')
-
-      const { url } = await res.json()
       window.location.href = url
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error upgrading subscription', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to upgrade')
+      setError(err.message || 'Failed to upgrade')
     } finally {
       setUpgrading(false)
     }
@@ -140,20 +124,11 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       setUpgrading(true)
       setError(null)
 
-      const res = await fetch('/api/billing/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId }),
-        credentials: 'include'
-      })
-
-      if (!res.ok) throw new Error('Failed to access billing portal')
-
-      const { url } = await res.json()
+      const { url } = await apiPost<{ url: string }>('/api/billing/portal', { organizationId })
       window.location.href = url
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error accessing billing portal', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to access billing portal')
+      setError(err.message || 'Failed to access billing portal')
     } finally {
       setUpgrading(false)
     }
@@ -166,20 +141,13 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       setCanceling(true)
       setError(null)
 
-      const res = await fetch('/api/billing/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId }),
-        credentials: 'include'
-      })
-
-      if (!res.ok) throw new Error('Failed to cancel subscription')
+      await apiPost('/api/billing/cancel', { organizationId })
 
       await fetchSubscription()
       router.refresh()
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error canceling subscription', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to cancel subscription')
+      setError(err.message || 'Failed to cancel subscription')
     } finally {
       setCanceling(false)
     }

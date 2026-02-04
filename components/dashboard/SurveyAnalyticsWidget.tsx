@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/apiClient'
 
 type SurveyMetrics = {
   total_surveys: number
@@ -27,8 +28,7 @@ export function SurveyAnalyticsWidget({ organizationId }: { organizationId: stri
     setLoading(true)
     setError(null)
 
-    fetch('/api/analytics/surveys', { credentials: 'include' })
-      .then((res) => res.json())
+    apiGet<{ success?: boolean; error?: { message?: string }; metrics?: SurveyMetrics }>('/api/analytics/surveys')
       .then((data) => {
         if (!active) return
         if (data?.success === false) {

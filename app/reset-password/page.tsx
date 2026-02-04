@@ -5,6 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
 
+// Workers API URL
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 /**
  * Reset Password Page
  * 
@@ -49,9 +52,10 @@ function ResetPasswordForm() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ password }),
       })
 

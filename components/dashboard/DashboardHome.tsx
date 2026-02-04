@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRBAC } from '@/hooks/useRBAC'
+import { apiGet } from '@/lib/apiClient'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { ProgressBar } from '@/components/tableau/ProgressBar'
 import { ClientDate } from '@/components/ui/ClientDate'
@@ -51,8 +52,8 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
 
     // Fetch dashboard stats
     Promise.all([
-      fetch(`/api/calls?orgId=${organizationId}&limit=5`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`/api/bookings?status=pending&limit=3`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ bookings: [] }))
+      apiGet(`/api/calls?orgId=${organizationId}&limit=5`),
+      apiGet('/api/bookings?status=pending&limit=3').catch(() => ({ bookings: [] }))
     ]).then(([callsData, bookingsData]) => {
       const calls = callsData.calls || []
       const bookings = bookingsData.bookings || []

@@ -16,9 +16,18 @@ import { callsRoutes } from './routes/calls'
 import { authRoutes } from './routes/auth'
 import { webhooksRoutes } from './routes/webhooks'
 import { organizationsRoutes } from './routes/organizations'
-import { usersRoutes } from './routes/users'
+import { bookingsRoutes } from './routes/bookings'
+import { userRoutes as usersRoutes } from './routes/users'
 import { recordingsRoutes } from './routes/recordings'
+import { auditRoutes } from './routes/audit'
+import { webrtcRoutes } from './routes/webrtc'
 import { handleScheduled } from './scheduled'
+import { scorecardsRoutes } from './routes/scorecards'
+import { rbacRoutes } from './routes/rbac'
+import { analyticsRoutes } from './routes/analytics'
+import { campaignsRoutes } from './routes/campaigns'
+import { voiceRoutes } from './routes/voice'
+import { callCapabilitiesRoutes } from './routes/call-capabilities'
 
 // Types for Cloudflare bindings
 export interface Env {
@@ -42,8 +51,11 @@ export interface Env {
   RESEND_API_KEY: string
   STRIPE_SECRET_KEY: string
   TELNYX_API_KEY: string
+  TELNYX_CONNECTION_ID: string
+  TELNYX_NUMBER: string
   ASSEMBLYAI_API_KEY: string
   ELEVENLABS_API_KEY: string
+  NEXT_PUBLIC_APP_URL?: string
 }
 
 // Create Hono app with typed bindings
@@ -77,10 +89,19 @@ app.route('/api/health', healthRoutes)
 app.route('/api/calls', callsRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/organizations', organizationsRoutes)
+app.route('/api/bookings', bookingsRoutes)
 app.route('/api/users', usersRoutes)
 app.route('/api/recordings', recordingsRoutes)
+app.route('/api/audit-logs', auditRoutes)  // Mount audit routes at /api/audit-logs
+app.route('/api/webrtc', webrtcRoutes)  // Mount webrtc routes at /api/webrtc
 app.route('/webhooks', webhooksRoutes)
 app.route('/api/webhooks', webhooksRoutes)  // Also mount at /api/webhooks
+app.route('/api/scorecards', scorecardsRoutes)
+app.route('/api/rbac', rbacRoutes)
+app.route('/api/analytics', analyticsRoutes)
+app.route('/api/campaigns', campaignsRoutes)
+app.route('/api/voice', voiceRoutes)
+app.route('/api/call-capabilities', callCapabilitiesRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

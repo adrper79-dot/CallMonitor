@@ -1,18 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { apiPost, apiDelete } from '@/lib/apiClient'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 /**
- * WebRTC Hook (SIP.js Implementation)
- * 
- * Architecture: Per ARCH_DOCS - SignalWire-first execution via SIP over WebSockets
- * 
+ * WebRTC Hook (Telnyx WebRTC Implementation)
+ *
+ * Architecture: Browser-based calling using Telnyx WebRTC SDK
+ *
  * Flow:
- * 1. Get SIP credentials from /api/webrtc/session
- * 2. Connect to SignalWire via wss:// using sip.js
- * 3. Register SIP user agent
- * 4. Send SIP INVITE to dial PSTN numbers
+ * 1. Get WebRTC credentials from /api/webrtc/token
+ * 2. Initialize Telnyx WebRTC client
+ * 3. Use /api/webrtc/dial to initiate outbound calls
+ * 4. Handle incoming calls via WebRTC connection
  */
 
 export type WebRTCStatus =
@@ -76,14 +76,11 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [currentCall, setCurrentCall] = useState<CurrentCall | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [quality, setQuality] = useState<CallQuality | null>(null)  // Added for compatibility
+  const [quality, setQuality] = useState<CallQuality | null>(null)
 
-  // SIP.js refs
-  const userAgentRef = useRef<any>(null)
-  const registererRef = useRef<any>(null)
-  const sessionRef = useRef<any>(null)
+  // Telnyx WebRTC refs
+  const telnyxClientRef = useRef<any>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Create audio element on mount
@@ -122,234 +119,143 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current)
-      if (sessionRef.current) {
-        try { sessionRef.current.bye() } catch (e) { /* ignore */ }
-      }
-      if (registererRef.current) {
-        try { registererRef.current.unregister() } catch (e) { /* ignore */ }
-      }
-      if (userAgentRef.current) {
-        try { userAgentRef.current.stop() } catch (e) { /* ignore */ }
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(t => t.stop())
+      if (telnyxClientRef.current) {
+        try { telnyxClientRef.current.disconnect() } catch (e) { /* ignore */ }
+        telnyxClientRef.current = null
       }
     }
   }, [])
 
   /**
-   * Connect to SignalWire via SIP.js
+   * Connect to Telnyx WebRTC
    */
   const connect = useCallback(async () => {
-    if (!organizationId) {
-      setError('Organization ID required')
-      return
-    }
     if (status === 'registered' || status === 'connecting') return
 
     try {
       setStatus('initializing')
       setError(null)
 
-      // 1. Get SIP credentials from session endpoint
-      console.log('[SIP.js] Fetching SIP credentials...')
-      const sessionRes = await apiPost<{
-        success: boolean
-        session: {
-          id: string
-          sip_username: string
-          sip_password: string
-          sip_domain: string
-          websocket_url: string
-          ice_servers: any[]
-        }
-      }>('/api/webrtc/session')
+      console.log('[Telnyx] Fetching WebRTC credentials...')
 
-      if (!sessionRes.success || !sessionRes.session) {
-        throw new Error('Failed to get SIP session')
+      // 1. Get WebRTC credentials from server
+      const tokenRes = await apiGet<{
+        success: boolean
+        token: string
+        username: string
+        expires: string
+        rtcConfig: {
+          iceServers: any[]
+        }
+      }>('/api/webrtc/token')
+
+      if (!tokenRes.success || !tokenRes.token) {
+        throw new Error('Failed to get WebRTC token')
       }
 
-      const { id, sip_username, sip_password, sip_domain, websocket_url, ice_servers } = sessionRes.session
-      setSessionId(id)
-
-      console.log('[SIP.js] Got credentials, importing library...')
+      console.log('[Telnyx] Got credentials, initializing client...')
       setStatus('connecting')
 
-      // 2. Dynamic import of sip.js
-      const SIP = await import('sip.js')
-      const { UserAgent, Registerer } = SIP
+      // 2. Dynamic import of Telnyx WebRTC SDK
+      const { TelnyxRTC } = await import('@telnyx/webrtc')
 
-      // 3. Request microphone access
-      console.log('[SIP.js] Requesting microphone access...')
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      localStreamRef.current = localStream
+      // 3. Create Telnyx WebRTC client
+      const client = new TelnyxRTC({
+        login_token: tokenRes.token,
+        login: tokenRes.username,
+        iceServers: tokenRes.rtcConfig.iceServers,
+        ringtoneFile: null, // Disable default ringtone
+        ringbackFile: null, // Disable default ringback
+      })
 
-      // 4. Create SIP URI
-      const sipUri = `sip:${sip_username}@${sip_domain}`
-      console.log('[SIP.js] Connecting as:', sipUri)
+      telnyxClientRef.current = client
+      setSessionId(tokenRes.username)
 
-      // 5. Create UserAgent
-      const userAgent = new UserAgent({
-        uri: UserAgent.makeURI(sipUri)!,
-        transportOptions: {
-          server: websocket_url
-        },
-        authorizationUsername: sip_username,
-        authorizationPassword: sip_password,
-        sessionDescriptionHandlerFactoryOptions: {
-          peerConnectionConfiguration: {
-            iceServers: ice_servers
-          }
-        },
-        logLevel: 'warn',
-        delegate: {
-          onInvite: (invitation: any) => {
-            console.log('[SIP.js] Incoming call from:', invitation.remoteIdentity?.uri?.toString())
+      // 4. Setup event handlers
+      client.on('ready', () => {
+        console.log('[Telnyx] Client ready')
+        setStatus('registered')
+      })
 
-            // CRITICAL: Accept with local stream for bidirectional audio
-            invitation.accept({
-              sessionDescriptionHandlerOptions: {
-                constraints: { audio: true, video: false },
-                // Attach local microphone stream
-                peerConnectionConfiguration: {
-                  iceServers: ice_servers
-                }
-              }
-            }).then(() => {
-              console.log('[SIP.js] Call accepted')
-              sessionRef.current = invitation
-              setCallState('active')
-              setStatus('on_call')
+      client.on('error', (error: any) => {
+        console.error('[Telnyx] Client error:', error)
+        setError(error.message || 'WebRTC error')
+        setStatus('error')
+      })
 
-              // Setup bidirectional audio
-              const setupAudio = () => {
-                const sdh = invitation.sessionDescriptionHandler as any
-                if (sdh?.peerConnection) {
-                  // Add local stream to peer connection
-                  if (localStreamRef.current) {
-                    localStreamRef.current.getTracks().forEach(track => {
-                      sdh.peerConnection.addTrack(track, localStreamRef.current!)
-                      console.log('[SIP.js] Added local track:', track.kind)
-                    })
-                  }
+      client.on('callUpdate', (call: any) => {
+        console.log('[Telnyx] Call update:', call.state)
 
-                  // Setup remote audio playback
-                  sdh.peerConnection.ontrack = (event: RTCTrackEvent) => {
-                    if (event.track.kind === 'audio' && remoteAudioRef.current) {
-                      console.log('[SIP.js] Got remote audio track')
-                      const stream = new MediaStream([event.track])
-                      remoteAudioRef.current.srcObject = stream
-                      remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
-                    }
-                  }
-
-                  // Check if tracks are already there
-                  const receivers = sdh.peerConnection.getReceivers()
-                  receivers.forEach((receiver: RTCRtpReceiver) => {
-                    if (receiver.track?.kind === 'audio' && remoteAudioRef.current) {
-                      const stream = new MediaStream([receiver.track])
-                      remoteAudioRef.current.srcObject = stream
-                      remoteAudioRef.current.play().catch(e => console.error('[SIP.js] Audio play error', e))
-                    }
-                  })
-                }
-              }
-              setupAudio()
-
-              // Handle call termination
-              invitation.stateChange.addListener((state: any) => {
-                console.log('[SIP.js] Inbound call state:', state)
-                if (state === 'Terminated') {
-                  setCallState('idle')
-                  setCurrentCall(null)
-                  setStatus('registered')
-                  sessionRef.current = null
-                }
+        switch (call.state) {
+          case 'ringing':
+            setCallState('ringing')
+            break
+          case 'active':
+            setCallState('active')
+            setStatus('on_call')
+            if (!currentCall) {
+              setCurrentCall({
+                id: call.id,
+                phone_number: call.options?.remoteCallerNumber || 'Unknown',
+                started_at: new Date(),
+                duration: 0
               })
-            }).catch((err: any) => {
-              console.error('[SIP.js] Failed to accept call', err)
-              setError('Failed to accept incoming call')
-              setCallState('idle')
-            })
-          }
+            }
+            break
+          case 'hangup':
+          case 'destroy':
+            setCallState('idle')
+            setCurrentCall(null)
+            setStatus('registered')
+            break
         }
       })
 
-      userAgentRef.current = userAgent
-
-      // 6. Start UserAgent
-      await userAgent.start()
-      console.log('[SIP.js] UserAgent started')
-
-      // 7. Register
-      const registerer = new Registerer(userAgent)
-      registererRef.current = registerer
-
-      registerer.stateChange.addListener((state: any) => {
-        console.log('[SIP.js] Registerer state:', state)
-        if (state === 'Registered') {
-          setStatus('registered')
-        } else if (state === 'Unregistered') {
-          setStatus('disconnected')
+      client.on('media', (media: any) => {
+        console.log('[Telnyx] Media received')
+        if (media.stream && remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = media.stream
+          remoteAudioRef.current.play().catch(e => console.error('[Telnyx] Audio play error', e))
         }
       })
 
-      await registerer.register()
-      console.log('[SIP.js] Registration sent')
+      // 5. Connect
+      await client.connect()
+      console.log('[Telnyx] Connection initiated')
 
     } catch (err: any) {
-      console.error('[SIP.js] Connect Error', err)
+      console.error('[Telnyx] Connect Error', err)
       setError(err.message || 'Connection failed')
       setStatus('error')
     }
-  }, [organizationId, status])
+  }, [status])
 
   /**
-   * Disconnect from SIP server
+   * Disconnect from Telnyx WebRTC
    */
   const disconnect = useCallback(async () => {
     try {
-      if (sessionRef.current) {
-        try { sessionRef.current.bye() } catch (e) { /* ignore */ }
-        sessionRef.current = null
+      if (telnyxClientRef.current) {
+        await telnyxClientRef.current.disconnect()
+        telnyxClientRef.current = null
       }
-      if (registererRef.current) {
-        await registererRef.current.unregister()
-        registererRef.current = null
-      }
-      if (userAgentRef.current) {
-        await userAgentRef.current.stop()
-        userAgentRef.current = null
-      }
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(t => t.stop())
-        localStreamRef.current = null
-      }
-
-      // Notify server
-      await apiDelete('/api/webrtc/session').catch(() => { /* ignore */ })
 
       setStatus('disconnected')
       setCallState('idle')
       setCurrentCall(null)
+      setSessionId(null)
     } catch (err) {
-      console.error('[SIP.js] Disconnect error', err)
+      console.error('[Telnyx] Disconnect error', err)
       setStatus('disconnected')
     }
   }, [])
 
   /**
-   * Make outbound call via Server-Side Dial
-   * 
-   * Flow:
-   * 1. Call server /api/webrtc/dial
-   * 2. Server dials PSTN via REST API
-   * 3. When PSTN answers, SignalWire connects to our SIP endpoint
-   * 4. Browser receives inbound INVITE and accepts it
+   * Make outbound call via Telnyx Call Control API
    */
   const makeCall = useCallback(async (phoneNumber: string) => {
-    if (status !== 'registered') {
-      setError('Not registered with SIP server')
+    if (status !== 'registered' || !telnyxClientRef.current) {
+      setError('Not connected to WebRTC')
       return
     }
 
@@ -357,64 +263,59 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('dialing')
       setError(null)
 
-      console.log('[SIP.js] Requesting server-side dial:', phoneNumber)
+      console.log('[Telnyx] Initiating call to:', phoneNumber)
 
-      // Call server to initiate PSTN dial
-      const dialRes = await apiPost<{ success: boolean; callId?: string; callSid?: string; error?: any }>(
-        '/api/webrtc/dial',
-        { phoneNumber, sessionId }
-      )
+      // Use server-side dial via Call Control API
+      const dialRes = await apiPost<{
+        success: boolean
+        callId: string
+        callSid: string
+        status: string
+      }>('/api/webrtc/dial', { phoneNumber })
 
       if (!dialRes.success) {
-        throw new Error(dialRes.error?.message || 'Failed to dial')
+        throw new Error('Failed to initiate call')
       }
 
-      console.log('[SIP.js] Server dial initiated:', dialRes.callSid)
+      console.log('[Telnyx] Server dial initiated:', dialRes.callSid)
 
-      // Update state - the actual call will come as an inbound INVITE
+      // Update state
       setCurrentCall({
-        id: dialRes.callId || 'server-call',
+        id: dialRes.callId,
         phone_number: phoneNumber,
         started_at: new Date(),
         duration: 0
       })
 
-      // Note: We stay in 'dialing' state until we get an inbound INVITE
-      // The UserAgent delegate in connect() handles incoming calls
+      // The call will be answered via WebRTC when the PSTN connection is established
+      // The client will receive callUpdate events
 
     } catch (err: any) {
-      console.error('[SIP.js] Call error', err)
+      console.error('[Telnyx] Call error', err)
       setError(err.message || 'Call failed')
       setCallState('idle')
     }
-  }, [status, sessionId])
+  }, [status])
 
   /**
    * Hang up current call
    */
   const hangUp = useCallback(async () => {
-    if (!sessionRef.current) return
+    if (!telnyxClientRef.current) return
 
     try {
       setCallState('ending')
 
-      // Send BYE
-      if (sessionRef.current.state === 'Established') {
-        await sessionRef.current.bye()
-      } else {
-        // Cancel if still establishing
-        await sessionRef.current.cancel()
-      }
+      // Hang up via Telnyx client
+      await telnyxClientRef.current.hangup()
 
-      sessionRef.current = null
       setCallState('idle')
       setCurrentCall(null)
       setStatus('registered')
-    } catch (err: any) {
-      console.error('[SIP.js] Hangup error', err)
+    } catch (err) {
+      console.error('[Telnyx] Hangup error', err)
       setCallState('idle')
       setCurrentCall(null)
-      sessionRef.current = null
     }
   }, [])
 
@@ -422,10 +323,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
    * Mute microphone
    */
   const mute = useCallback(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = false
-      })
+    if (telnyxClientRef.current) {
+      telnyxClientRef.current.muteAudio()
       setIsMuted(true)
     }
   }, [])
@@ -434,10 +333,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
    * Unmute microphone
    */
   const unmute = useCallback(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = true
-      })
+    if (telnyxClientRef.current) {
+      telnyxClientRef.current.unmuteAudio()
       setIsMuted(false)
     }
   }, [])

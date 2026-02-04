@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/utils'
 import { Check, X, Loader2, Crown, Zap } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/apiClient'
 
 interface PlanFeature {
   name: string
@@ -80,23 +81,14 @@ export function PlanComparisonTable({
       setUpgrading(true)
       setError(null)
 
-      const res = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
-          organizationId
-        }),
-        credentials: 'include'
+      const { url } = await apiPost<{ url: string }>('/api/billing/checkout', {
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
+        organizationId
       })
-
-      if (!res.ok) throw new Error('Failed to create checkout session')
-
-      const { url } = await res.json()
       window.location.href = url
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error upgrading plan', err, { organizationId, currentPlan })
-      setError(err instanceof Error ? err.message : 'Failed to upgrade')
+      setError(err.message || 'Failed to upgrade')
     } finally {
       setUpgrading(false)
     }

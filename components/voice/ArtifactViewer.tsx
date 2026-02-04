@@ -10,6 +10,7 @@ import TranslationView from './TranslationView'
 import SurveyResults from './SurveyResults'
 import EvidenceManifestView from './EvidenceManifestView'
 import ScoreView from './ScoreView'
+import { apiPost } from '@/lib/apiClient'
 
 export interface ArtifactViewerProps {
   callId: string
@@ -69,19 +70,12 @@ export default function ArtifactViewer({
     setEmailStatus(null)
 
     try {
-      const res = await fetch(`/api/calls/${callId}/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: emailAddress,
-          includeRecording: hasRecording,
-          includeTranscript: hasTranscript,
-          includeTranslation: hasTranslation
-        })
+      const data = await apiPost(`/api/calls/${callId}/email`, {
+        email: emailAddress,
+        includeRecording: hasRecording,
+        includeTranscript: hasTranscript,
+        includeTranslation: hasTranslation
       })
-
-      const data = await res.json()
 
       if (data.success) {
         setEmailStatus({ type: 'success', message: `Artifacts sent to ${emailAddress}` })

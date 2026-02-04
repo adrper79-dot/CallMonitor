@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { logger } from '@/lib/logger'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 interface VoiceTarget {
   id: string
   phone_number: string
@@ -47,7 +49,7 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
+      const res = await fetch(`${API_BASE}/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
         credentials: 'include'
       })
       const data = await res.json()
@@ -82,7 +84,7 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
       setSaving(true)
       setError(null)
       
-      const res = await fetch('/api/voice/targets', {
+      const res = await fetch(`${API_BASE}/api/voice/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -133,7 +135,7 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
     if (!confirm('Delete this target number?')) return
     
     try {
-      const res = await fetch(`/api/voice/targets?id=${targetId}&orgId=${organizationId}`, {
+      const res = await fetch(`${API_BASE}/api/voice/targets?id=${targetId}&orgId=${organizationId}`, {
         method: 'DELETE',
         credentials: 'include'
       })

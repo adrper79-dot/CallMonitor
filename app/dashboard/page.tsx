@@ -7,6 +7,7 @@ import DashboardHome from '@/components/dashboard/DashboardHome'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/apiClient'
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
@@ -17,9 +18,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      // Fetch organization data from API
-      fetch('/api/organizations/current')
-        .then((res) => res.json())
+      // Check if user has organization from session first
+      if (!session.user.organizationId) {
+        // User doesn't have an organization, redirect to create one
+        router.push('/settings/org-create')
+        return
+      }
+
+      // Fetch organization data from API for additional details
+      apiGet('/api/organizations/current')
         .then((data) => {
           setOrganizationId(data.organization?.id || null)
           setOrganizationName(data.organization?.name || 'Your Organization')
@@ -32,7 +39,14 @@ export default function DashboardPage() {
     } else if (status === 'unauthenticated') {
       setLoading(false)
     }
-  }, [session, status])
+  }, [session, status, router])
+
+  // Additional check after organization fetch
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user && !loading && organizationId === null && !session.user.organizationId) {
+      router.push('/settings/org-create')
+    }
+  }, [status, session, loading, organizationId, router])
 
   if (status === 'loading' || loading) {
     return (

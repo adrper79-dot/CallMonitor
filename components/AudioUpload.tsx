@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 export interface AudioUploadProps {
   organizationId: string
@@ -26,15 +27,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
   // Poll for transcription status
   const pollStatus = useCallback(async (transcriptId: string) => {
     try {
-      const res = await fetch(`/api/audio/status/${transcriptId}`, {
-        credentials: 'include'
-      })
-      
-      if (!res.ok) {
-        throw new Error('Failed to fetch status')
-      }
-
-      const data = await res.json()
+      const data = await apiGet(`/api/audio/status/${transcriptId}`)
       
       if (data.status === 'completed') {
         // Success! Stop polling
@@ -154,13 +147,16 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
     setProgress(0)
 
     try {
-      // Step 1: Upload to Supabase Storage
+      // Step 1: Upload to Supabase Storage (FormData needs raw fetch with Bearer token)
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      const token = localStorage.getItem('wb-session-token')
       const formData = new FormData()
       formData.append('file', file)
       formData.append('organization_id', organizationId)
 
-      const uploadRes = await fetch('/api/audio/upload', {
+      const uploadRes = await fetch(`${API_BASE}/api/audio/upload`, {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         credentials: 'include',
         body: formData
       })
@@ -177,23 +173,11 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       setUploading(false)
       setTranscribing(true)
 
-      const transcribeRes = await fetch('/api/audio/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: organizationId,
-          audio_url: uploadData.url,
-          filename: file.name
-        })
+      const transcribeData = await apiPost('/api/audio/transcribe', {
+        organization_id: organizationId,
+        audio_url: uploadData.url,
+        filename: file.name
       })
-
-      if (!transcribeRes.ok) {
-        const error = await transcribeRes.json()
-        throw new Error(error.error || 'Transcription failed')
-      }
-
-      const transcribeData = await transcribeRes.json()
       setProgress(50)
 
       // Start polling for completion (webhook will update status)

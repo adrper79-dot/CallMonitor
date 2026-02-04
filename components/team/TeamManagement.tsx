@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient'
 
 interface TeamMember {
   id: string
@@ -69,8 +70,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     
     try {
       setLoading(true)
-      const res = await fetch('/api/team/members', { credentials: 'include' })
-      const data = await res.json()
+      const data = await apiGet('/api/team/members')
       
       if (data.success) {
         setMembers(data.members || [])
@@ -79,8 +79,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
       } else {
         setError(data.error?.message || 'Failed to load team')
       }
-    } catch (err) {
-      setError('Failed to load team')
+    } catch (err: any) {
+      setError(err.message || 'Failed to load team')
     } finally {
       setLoading(false)
     }
@@ -95,14 +95,10 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     setInviteSuccess(null)
 
     try {
-      const res = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole })
+      const data = await apiPost('/api/team/invite', { 
+        email: inviteEmail.trim(), 
+        role: inviteRole 
       })
-      
-      const data = await res.json()
       
       if (data.success) {
         setInviteSuccess(`Invitation sent to ${inviteEmail}`)
@@ -112,8 +108,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
       } else {
         setError(data.error?.message || 'Failed to send invitation')
       }
-    } catch (err) {
-      setError('Failed to send invitation')
+    } catch (err: any) {
+      setError(err.message || 'Failed to send invitation')
     } finally {
       setInviting(false)
     }
@@ -121,22 +117,18 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
   async function handleRoleChange(memberId: string, newRole: string) {
     try {
-      const res = await fetch('/api/team/members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ member_id: memberId, role: newRole })
+      const data = await apiPut('/api/team/members', { 
+        member_id: memberId, 
+        role: newRole 
       })
-      
-      const data = await res.json()
       
       if (data.success) {
         fetchTeam()
       } else {
         setError(data.error?.message || 'Failed to update role')
       }
-    } catch (err) {
-      setError('Failed to update role')
+    } catch (err: any) {
+      setError(err.message || 'Failed to update role')
     }
   }
 
@@ -144,39 +136,29 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     if (!confirm('Are you sure you want to remove this team member?')) return
 
     try {
-      const res = await fetch(`/api/team/members?member_id=${memberId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      const data = await res.json()
+      const data = await apiDelete(`/api/team/members?member_id=${memberId}`)
       
       if (data.success) {
         fetchTeam()
       } else {
         setError(data.error?.message || 'Failed to remove member')
       }
-    } catch (err) {
-      setError('Failed to remove member')
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove member')
     }
   }
 
   async function handleCancelInvite(inviteId: string) {
     try {
-      const res = await fetch(`/api/team/invite?invite_id=${inviteId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      
-      const data = await res.json()
+      const data = await apiDelete(`/api/team/invite?invite_id=${inviteId}`)
       
       if (data.success) {
         fetchTeam()
       } else {
         setError(data.error?.message || 'Failed to cancel invitation')
       }
-    } catch (err) {
-      setError('Failed to cancel invitation')
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel invitation')
     }
   }
 

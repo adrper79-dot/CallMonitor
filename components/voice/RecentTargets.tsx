@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface RecentTarget {
   number: string
@@ -39,16 +42,7 @@ export function RecentTargets({ organizationId, onSelect, limit = 5 }: RecentTar
       
       try {
         // Fetch recent calls to extract target numbers
-        const res = await fetch(`/api/calls?orgId=${encodeURIComponent(organizationId)}&limit=50`, {
-          credentials: 'include',
-        })
-        
-        if (!res.ok) {
-          setLoading(false)
-          return
-        }
-
-        const data = await res.json()
+        const data = await apiGet(`/api/calls?orgId=${encodeURIComponent(organizationId)}&limit=50`)
         const calls = data.calls || []
 
         // Aggregate targets from calls

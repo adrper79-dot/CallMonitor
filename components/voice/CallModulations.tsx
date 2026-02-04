@@ -10,6 +10,7 @@ import { planSupportsFeature } from '@/lib/rbac'
 import { NativeSelect as Select } from '@/components/ui/native-select'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import type { SurveyQuestionConfig, SurveyQuestionType } from '@/types/tier1-features'
+import { apiGet } from '@/lib/apiClient'
 
 export type ModKey = 'record' | 'transcribe' | 'translate' | 'survey' | 'synthetic_caller'
 
@@ -102,10 +103,7 @@ function useCallCapabilities(organizationId: string | null) {
     let mounted = true
     setLoading(true)
 
-    fetch(`/api/call-capabilities?orgId=${encodeURIComponent(organizationId)}`, {
-      credentials: 'include'
-    })
-      .then((res) => res.json())
+    apiGet(`/api/call-capabilities?orgId=${encodeURIComponent(organizationId)}`)
       .then((json) => {
         if (!mounted) return
         if (json.success && json.capabilities) {

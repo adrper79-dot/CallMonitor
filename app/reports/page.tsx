@@ -13,6 +13,7 @@ import { useSession } from '@/components/AuthProvider'
 import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { apiGet, apiPost } from '@/lib/apiClient'
 import {
   Card,
   CardContent,
@@ -66,12 +67,10 @@ export default function ReportsPage() {
 
   const fetchOrganization = async () => {
     try {
-      const res = await fetch(`/api/users/${userId}/organization`, {
-        credentials: 'include'
-      })
-      if (!res.ok) throw new Error('Failed to fetch organization')
-      const data = await res.json()
-      setOrganizationId(data.organization_id)
+      const data = await apiGet<{ organization_id?: string }>(
+        `/api/users/${userId}/organization`
+      )
+      setOrganizationId(data.organization_id || null)
     } catch (err) {
       logger.error('Error fetching organization', err, { userId })
       setError('Failed to load organization')
@@ -82,11 +81,7 @@ export default function ReportsPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`/api/reports`, {
-        credentials: 'include'
-      })
-      if (!res.ok) throw new Error('Failed to fetch reports')
-      const data = await res.json()
+      const data = await apiGet<{ reports?: GeneratedReport[] }>('/api/reports')
       setReports(data.reports || [])
     } catch (err) {
       logger.error('Error fetching reports', err)
@@ -101,25 +96,18 @@ export default function ReportsPage() {
       setGenerating(true)
       setError(null)
 
-      const res = await fetch('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `Call Volume Report - ${new Date().toLocaleDateString()}`,
-          report_type: 'call_volume',
-          filters: {
-            date_range: {
-              start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-              end: new Date().toISOString()
-            }
-          },
-          metrics: ['total_calls', 'successful_calls', 'avg_duration'],
-          file_format: 'json'
-        }),
-        credentials: 'include'
+      await apiPost('/api/reports', {
+        name: `Call Volume Report - ${new Date().toLocaleDateString()}`,
+        report_type: 'call_volume',
+        filters: {
+          date_range: {
+            start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            end: new Date().toISOString()
+          }
+        },
+        metrics: ['total_calls', 'successful_calls', 'avg_duration'],
+        file_format: 'json'
       })
-
-      if (!res.ok) throw new Error('Failed to generate report')
 
       await fetchReports()
     } catch (err) {

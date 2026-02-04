@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient'
 
 interface RetentionPolicy {
   organization_id: string
@@ -58,20 +59,16 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
   useEffect(() => {
     async function fetchData() {
       try {
-        const [policyRes, holdsRes] = await Promise.all([
-          fetch('/api/retention', { credentials: 'include' }),
-          fetch('/api/retention/legal-holds', { credentials: 'include' }),
+        const [policyData, holdsData] = await Promise.all([
+          apiGet<{ policy: RetentionPolicy }>('/api/retention').catch(() => ({ policy: null })),
+          apiGet<{ legal_holds: LegalHold[] }>('/api/retention/legal-holds').catch(() => ({ legal_holds: [] })),
         ])
         
-        if (policyRes.ok) {
-          const policyData = await policyRes.json()
+        if (policyData.policy) {
           setPolicy(policyData.policy)
         }
         
-        if (holdsRes.ok) {
-          const holdsData = await holdsRes.json()
-          setLegalHolds(holdsData.legal_holds || [])
-        }
+        setLegalHolds(holdsData.legal_holds || [])
       } catch (err) {
         setError('Failed to load retention settings')
         logger.error('RetentionSettings: failed to load policy or holds', err, {
@@ -91,18 +88,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
     setError(null)
     
     try {
-      const res = await fetch('/api/retention', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(updates),
-      })
-      
-      if (!res.ok) {
-        throw new Error('Failed to save policy')
-      }
-      
-      const data = await res.json()
+      const data = await apiPut<{ policy: RetentionPolicy }>('/api/retention', updates)
       setPolicy(data.policy)
     } catch (err) {
       setError('Failed to save retention policy')
@@ -123,22 +109,12 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
     setError(null)
     
     try {
-      const res = await fetch('/api/retention/legal-holds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          hold_name: newHoldName,
-          matter_reference: newHoldMatter || undefined,
-          applies_to_all: newHoldAppliesToAll,
-        }),
+      const data = await apiPost<{ legal_hold: LegalHold }>('/api/retention/legal-holds', {
+        hold_name: newHoldName,
+        matter_reference: newHoldMatter || undefined,
+        applies_to_all: newHoldAppliesToAll,
       })
       
-      if (!res.ok) {
-        throw new Error('Failed to create legal hold')
-      }
-      
-      const data = await res.json()
       setLegalHolds(prev => [data.legal_hold, ...prev])
       setShowNewHoldForm(false)
       setNewHoldName('')
@@ -162,16 +138,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
     setError(null)
     
     try {
-      const res = await fetch('/api/retention/legal-holds', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ hold_id: holdId, release_reason: reason }),
-      })
-      
-      if (!res.ok) {
-        throw new Error('Failed to release legal hold')
-      }
+      await apiDelete(`/api/retention/legal-holds?hold_id=${holdId}&release_reason=${encodeURIComponent(reason)}`)
       
       setLegalHolds(prev => prev.map(h => 
         h.id === holdId ? { ...h, status: 'released' as const } : h

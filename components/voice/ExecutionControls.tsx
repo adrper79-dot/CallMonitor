@@ -7,6 +7,9 @@ import { useRealtime } from '@/hooks/useRealtime'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { apiPost } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 export interface ExecutionControlsProps {
   organizationId: string | null
@@ -142,22 +145,7 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
         requestBody.flow_type = 'bridge'
       }
       
-      const res = await fetch('/api/voice/call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(requestBody),
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Failed to place call' }))
-        const errorMsg = typeof errorData.error === 'object' 
-          ? (errorData.error?.message || errorData.error?.code || JSON.stringify(errorData.error))
-          : (errorData.error || 'Failed to place call')
-        throw new Error(errorMsg)
-      }
-
-      const data = await res.json()
+      const data = await apiPost('/api/voice/call', requestBody)
       const callId = data.call_id
 
       setActiveCallId(callId)

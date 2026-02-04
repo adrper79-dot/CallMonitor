@@ -1,16 +1,11 @@
-/**
- * Organizations API Routes
- */
-
 import { Hono } from 'hono'
 import type { Env } from '../index'
-import { getDb } from '../lib/db'
 import { requireAuth } from '../lib/auth'
 
 export const organizationsRoutes = new Hono<{ Bindings: Env }>()
 
-// Get current user's organization
-organizationsRoutes.get('/current', async (c) => {
+// Create a new organization
+organizationsRoutes.post('/', async (c) => {
   try {
     // Authenticate
     const session = await requireAuth(c)
@@ -18,116 +13,107 @@ organizationsRoutes.get('/current', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const { organizationId, userId } = session
-    const db = getDb(c.env)
+    console.log('Session object:', session)
+    const { userId } = session
+    console.log('Extracted userId:', userId)
 
-    if (!organizationId) {
-      return c.json({
-        success: true,
-        organization: null,
-        role: null,
-        message: 'User is not part of any organization'
-      })
+    // Use neon client directly
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sql = neon(connectionString)
+
+    // Check if user already has an organization
+    const existingOrg = await sql`
+      SELECT organization_id FROM org_members WHERE user_id = ${userId}
+    `
+
+    if (existingOrg.length > 0) {
+      return c.json({ error: 'User is already part of an organization' }, 400)
     }
 
-    // Get organization details via JOIN
-    const { rows: orgRows } = await db.query(
-      `SELECT om.role, om.organization_id,
-              o.id, o.name, o.plan, o.plan_status, o.stripe_customer_id, o.stripe_subscription_id, o.created_at
-       FROM org_members om
-       JOIN organizations o ON om.organization_id = o.id
-       WHERE om.user_id = $1 AND om.organization_id = $2
-       LIMIT 1`,
-      [userId, organizationId]
-    )
+    // Parse request body
+    const body = await c.req.json()
+    const { name } = body
 
-    if (orgRows.length === 0) {
-      return c.json({
-        success: true,
-        organization: null,
-        role: null,
-        message: 'Organization not found'
-      })
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return c.json({ error: 'Organization name is required' }, 400)
     }
 
-    const orgRow = orgRows[0]
+    // Create organization
+    let orgResult
+    try {
+      orgResult = await sql`
+        INSERT INTO organizations (name, created_by)
+        VALUES (${name.trim()}, ${userId})
+        RETURNING id, name, created_at
+      `
+      console.log('Org insert result:', orgResult)
+      console.log('First row:', orgResult[0])
+    } catch (insertError) {
+      console.error('INSERT error:', insertError)
+      throw insertError
+    }
 
-    // Get member count
-    const { rows: countRows } = await db.query(
-      `SELECT COUNT(*) as head_count FROM org_members WHERE organization_id = $1`,
-      [organizationId]
-    )
-    const memberCount = parseInt(countRows[0]?.head_count || '1', 10)
+    const org = orgResult[0]
 
-    // Get subscription status
-    const { rows: subRows } = await db.query(
-      `SELECT status, plan, current_period_end, cancel_at_period_end
-       FROM stripe_subscriptions
-       WHERE organization_id = $1
-       ORDER BY current_period_end DESC
-       LIMIT 1`,
-      [organizationId]
-    )
-    const subscription = subRows[0] || null
-
-    // Determine plan values
-    const planValue = subscription?.plan ?? orgRow.plan ?? 'free'
-    const planStatusValue = subscription?.status ?? orgRow.plan_status ?? 'active'
+    // Add user as admin member
+    await sql`
+      INSERT INTO org_members (organization_id, user_id, role)
+      VALUES (${org.id}, ${userId}, 'admin')
+    `
 
     return c.json({
       success: true,
       organization: {
-        id: orgRow.id,
-        name: orgRow.name,
-        plan: planValue,
-        plan_status: planStatusValue,
-        member_count: memberCount,
-        created_at: orgRow.created_at,
-        subscription: subscription ? {
-          status: subscription.status,
-          current_period_end: subscription.current_period_end,
-          cancel_at_period_end: subscription.cancel_at_period_end
-        } : null
+        id: org.id,
+        name: org.name,
+        plan: 'free',
+        plan_status: 'active',
+        member_count: 1,
+        created_at: org.created_at
       },
-      role: orgRow.role
+      role: 'admin',
+      message: 'Organization created successfully'
     })
   } catch (err: any) {
-    console.error('GET /api/organizations/current error:', err)
-    return c.json({ error: err.message || 'Failed to fetch organization' }, 500)
+    console.error('POST /api/organizations error:', err)
+    return c.json({ error: err.message || 'Failed to create organization' }, 500)
   }
 })
 
-// Get organization by ID
-organizationsRoutes.get('/:id', async (c) => {
-  try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const orgId = c.req.param('id')
-    const db = getDb(c.env)
-
-    // Verify user has access to this organization
-    if (session.organizationId !== orgId) {
-      return c.json({ error: 'Access denied' }, 403)
-    }
-
-    const result = await db.query(
-      `SELECT id, name, created_at FROM organizations WHERE id = $1`,
-      [orgId]
-    )
-
-    if (!result.rows || result.rows.length === 0) {
-      return c.json({ error: 'Organization not found' }, 404)
-    }
-
-    return c.json({ 
-      success: true, 
-      organization: result.rows[0] 
-    })
-  } catch (err: any) {
-    console.error('GET /api/organizations/:id error:', err)
-    return c.json({ error: err.message || 'Failed to fetch organization' }, 500)
+organizationsRoutes.get('/current', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
   }
+
+  // Use neon client directly
+  const { neon } = await import('@neondatabase/serverless')
+  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+  const sql = neon(connectionString)
+
+  const result = await sql`
+    SELECT o.id, o.name, o.plan, om.role
+    FROM organizations o
+    JOIN org_members om ON om.organization_id = o.id
+    WHERE om.user_id = ${session.userId}
+    LIMIT 1
+  `
+
+  if (result.length === 0) {
+    return c.json({ error: 'Organization not found' }, 404)
+  }
+
+  const org = result[0]
+
+  return c.json({
+    success: true,
+    organization: {
+      id: org.id,
+      name: org.name,
+      plan: org.plan || 'free',
+      plan_status: 'active'
+    },
+    role: org.role || 'viewer'
+  })
 })

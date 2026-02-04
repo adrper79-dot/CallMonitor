@@ -16,6 +16,7 @@ const nextConfig = {
   
   // Fix workspace root detection
   outputFileTracingRoot: __dirname,
+
   
   images: {
     unoptimized: true,
@@ -42,18 +43,8 @@ const nextConfig = {
   // Remove X-Powered-By header
   poweredByHeader: false,
   
-  // Webpack config for Cloudflare compatibility
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = config.externals || []
-      config.externals.push({
-        'pg-native': 'commonjs pg-native',
-        bufferutil: 'bufferutil',
-        'utf-8-validate': 'utf-8-validate',
-      })
-    }
-    return config
-  },
+  // Webpack config commented for Turbopack/static export
+  // webpack: (config, { isServer }) => { ... },
 }
 
 module.exports = nextConfig

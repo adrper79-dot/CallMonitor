@@ -7,6 +7,10 @@ import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
 import { AlertTriangle } from 'lucide-react'
+import { apiGet } from '@/lib/apiClient'
+
+// Workers API URL for auth endpoints
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -32,13 +36,13 @@ export default function VoiceOperationsPage() {
     if (status === 'authenticated' && session?.user) {
       // Fetch calls and organization data from API
       Promise.all([
-        fetch('/api/calls').then((res) => res.json()),
-        fetch('/api/organizations/current').then((res) => res.json()),
+        apiGet<{ calls?: Call[] }>('/api/calls'),
+        apiGet<{ organization?: { id: string; name: string } }>('/api/organizations/current'),
       ])
         .then(([callsData, orgData]) => {
-          setCalls((callsData as { calls?: Call[] }).calls || [])
-          setOrganizationId((orgData as { organization?: { id: string; name: string } }).organization?.id || null)
-          setOrganizationName((orgData as { organization?: { id: string; name: string } }).organization?.name || null)
+          setCalls(callsData.calls || [])
+          setOrganizationId(orgData.organization?.id || null)
+          setOrganizationName(orgData.organization?.name || null)
           setLoading(false)
         })
         .catch((err) => {

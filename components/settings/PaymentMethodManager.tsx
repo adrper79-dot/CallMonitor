@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Loader2, CreditCard, Plus, Trash2, CheckCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 interface PaymentMethod {
   id: string
@@ -75,24 +76,16 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       setLoading(true)
       setError(null)
 
-      const res = await fetch(`/api/billing/payment-methods?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          // No payment methods found
-          setPaymentMethods([])
-          return
-        }
-        throw new Error('Failed to fetch payment methods')
-      }
-
-      const data = await res.json()
+      const data = await apiGet<{ paymentMethods: PaymentMethod[] }>(`/api/billing/payment-methods?orgId=${organizationId}`)
       setPaymentMethods(data.paymentMethods || [])
-    } catch (err) {
+    } catch (err: any) {
+      if (err.status === 404) {
+        // No payment methods found
+        setPaymentMethods([])
+        return
+      }
       logger.error('Error fetching payment methods', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to load payment methods')
+      setError(err.message || 'Failed to load payment methods')
     } finally {
       setLoading(false)
     }
@@ -106,20 +99,11 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       setError(null)
 
       // Redirect to Stripe portal to add payment method
-      const res = await fetch('/api/billing/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId }),
-        credentials: 'include'
-      })
-
-      if (!res.ok) throw new Error('Failed to access billing portal')
-
-      const { url } = await res.json()
+      const { url } = await apiPost<{ url: string }>('/api/billing/portal', { organizationId })
       window.location.href = url
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error accessing billing portal', err, { organizationId })
-      setError(err instanceof Error ? err.message : 'Failed to add payment method')
+      setError(err.message || 'Failed to add payment method')
     } finally {
       setAdding(false)
     }
@@ -132,19 +116,12 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       setRemoving(paymentMethodId)
       setError(null)
 
-      const res = await fetch(`/api/billing/payment-methods/${paymentMethodId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId }),
-        credentials: 'include'
-      })
-
-      if (!res.ok) throw new Error('Failed to remove payment method')
+      await apiDelete(`/api/billing/payment-methods/${paymentMethodId}?organizationId=${organizationId}`)
 
       await fetchPaymentMethods()
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error removing payment method', err, { organizationId, paymentMethodId })
-      setError(err instanceof Error ? err.message : 'Failed to remove payment method')
+      setError(err.message || 'Failed to remove payment method')
     } finally {
       setRemoving(null)
     }

@@ -18,6 +18,9 @@ import React, { useState, useEffect } from 'react'
 import { TimelineEvent, TimelineEventType, CallTimeline as CallTimelineType } from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
+import { apiGet } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface CallTimelineProps {
   callId: string
@@ -61,15 +64,7 @@ export default function CallTimeline({ callId, organizationId }: CallTimelinePro
       setError(null)
       
       try {
-        const res = await fetch(`/api/calls/${callId}/timeline`, {
-          credentials: 'include'
-        })
-        
-        if (!res.ok) {
-          throw new Error('Failed to load timeline')
-        }
-        
-        const data = await res.json()
+        const data = await apiGet(`/api/calls/${callId}/timeline`)
         setTimeline(data.timeline)
       } catch (err: any) {
         setError(err.message || 'Failed to load timeline')

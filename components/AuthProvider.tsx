@@ -62,9 +62,12 @@ export async function signIn(
 ) {
   if (provider === 'credentials') {
     try {
-      // First, get CSRF token
+      // First, get CSRF token (no auth needed for this endpoint)
+      // Request CSRF token. include credentials so browser will accept
+      // Set-Cookie from the workers API when present (SameSite=None).
       const csrfRes = await fetch(`${API_BASE}/api/auth/csrf`, {
-        credentials: 'include'
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       })
       
       if (!csrfRes.ok) {
@@ -73,7 +76,9 @@ export async function signIn(
       
       const csrfData = await csrfRes.json()
       
-      // Now make the credentials callback request with CSRF token
+      // Now make the credentials callback request with CSRF token (no auth needed - this IS the login)
+      // Use credentials: 'include' so cookies set by the API will be stored
+      // in the browser (the API sets SameSite=None; Secure; HttpOnly cookies).
       const res = await fetch(`${API_BASE}/api/auth/callback/credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,20 +117,22 @@ export async function signIn(
 
 // Wrapper for signOut
 export async function signOut(options?: { callbackUrl?: string }) {
-  // Clear local token
-  clearToken()
-  
   try {
-    // Also call signout endpoint to clear server session
+    // Call signout endpoint with Bearer token
     const token = getStoredToken()
     await fetch(`${API_BASE}/api/auth/signout`, {
       method: 'POST',
-      credentials: 'include',
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
     })
   } catch {
     // Ignore errors
   }
+  
+  // Clear local token after signout attempt
+  clearToken()
   
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('auth-change'))
@@ -150,9 +157,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       }
       
       const res = await fetch(`${API_BASE}/api/auth/session`, {
-        credentials: 'include',
         headers: { 
-          'Accept': 'application/json',
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       })

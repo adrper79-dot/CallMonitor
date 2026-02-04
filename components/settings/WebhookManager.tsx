@@ -43,6 +43,7 @@ import {
 import { Webhook, Plus, Trash2, TestTube2, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/apiClient'
 
 interface WebhookSubscription {
   id: string
@@ -87,13 +88,8 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
   const fetchWebhooks = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/webhooks?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setWebhooks(data.webhooks || [])
-      }
+      const data = await apiGet<{ webhooks: WebhookSubscription[] }>(`/api/webhooks?orgId=${organizationId}`)
+      setWebhooks(data.webhooks || [])
     } catch (error) {
       logger.error('Failed to fetch webhooks', error, { organizationId })
     } finally {
@@ -105,18 +101,11 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
     if (!formData.url || formData.eventTypes.length === 0) return
 
     try {
-      const res = await fetch('/api/webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          organizationId,
-          url: formData.url,
-          eventTypes: formData.eventTypes,
-        }),
-        credentials: 'include'
+      await apiPost('/api/webhooks', {
+        organizationId,
+        url: formData.url,
+        eventTypes: formData.eventTypes,
       })
-
-      if (!res.ok) throw new Error('Failed to create webhook')
 
       setFormData({ url: '', eventTypes: [] })
       setOpen(false)
@@ -128,16 +117,8 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
 
   const handleToggle = async (webhookId: string, isActive: boolean) => {
     try {
-      const res = await fetch(`/api/webhooks/${webhookId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive }),
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await fetchWebhooks()
-      }
+      await apiPatch(`/api/webhooks/${webhookId}`, { isActive })
+      await fetchWebhooks()
     } catch (error) {
       logger.error('Failed to toggle webhook', error, { webhookId, isActive })
     }
@@ -147,14 +128,8 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
     if (!confirm('Are you sure you want to delete this webhook?')) return
 
     try {
-      const res = await fetch(`/api/webhooks/${webhookId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await fetchWebhooks()
-      }
+      await apiDelete(`/api/webhooks/${webhookId}`)
+      await fetchWebhooks()
     } catch (error) {
       logger.error('Failed to delete webhook', error, { webhookId })
     }
@@ -163,16 +138,8 @@ export function WebhookManager({ organizationId }: WebhookManagerProps) {
   const handleTest = async (webhookId: string) => {
     try {
       setTesting(webhookId)
-      const res = await fetch(`/api/webhooks/${webhookId}/test`, {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        alert('Test webhook sent successfully! Check your endpoint logs.')
-      } else {
-        alert('Failed to send test webhook. Please check the URL.')
-      }
+      await apiPost(`/api/webhooks/${webhookId}/test`, {})
+      alert('Test webhook sent successfully! Check your endpoint logs.')
     } catch (error) {
       logger.error('Failed to test webhook', error, { webhookId })
       alert('Failed to send test webhook.')

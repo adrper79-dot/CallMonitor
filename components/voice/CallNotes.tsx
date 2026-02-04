@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 interface CallNotesProps {
   callId: string
@@ -64,14 +65,8 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       
       setLoading(true)
       try {
-        const res = await fetch(`/api/calls/${callId}/notes`, {
-          credentials: 'include'
-        })
-        
-        if (res.ok) {
-          const data = await res.json()
-          setNotes(data.notes || [])
-        }
+        const data = await apiGet(`/api/calls/${callId}/notes`)
+        setNotes(data.notes || [])
       } catch (err) {
         logger.error('CallNotes: failed to fetch notes', err, {
           callId,
@@ -105,22 +100,10 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
     
     setSaving(true)
     try {
-      const res = await fetch(`/api/calls/${callId}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          tags: selectedTags,
-          note: noteText || null
-        })
+      const data = await apiPost(`/api/calls/${callId}/notes`, {
+        tags: selectedTags,
+        note: noteText || null
       })
-      
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error?.message || 'Failed to add note')
-      }
-      
-      const data = await res.json()
       setNotes(prev => [data.note, ...prev])
       
       // Reset form

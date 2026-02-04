@@ -6,6 +6,7 @@ import { AuthorityBadge } from '@/components/ui/AuthorityBadge'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { apiGet } from '@/lib/apiClient'
 
 interface CallWithArtifacts {
   id: string
@@ -87,17 +88,7 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         setLoading(true)
         setError(null)
         
-        const res = await fetch(
-          `/api/calls/${callId}?include=recordings,transcripts,ai_runs,manifests`,
-          { credentials: 'include' }
-        )
-        
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          throw new Error(data.error?.message || 'Failed to load call')
-        }
-        
-        const data = await res.json()
+        const data = await apiGet(`/api/calls/${callId}?include=recordings,transcripts,ai_runs,manifests`)
         setCall(data.call)
       } catch (err: any) {
         setError(err.message || 'Failed to load call details')
@@ -116,7 +107,11 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
     setExporting(true)
     
     try {
-      const res = await fetch(`/api/calls/${callId}/export?format=zip`, {
+      // Note: Need raw fetch for blob download
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      const token = localStorage.getItem('wb-session-token')
+      const res = await fetch(`${API_BASE}/api/calls/${callId}/export?format=zip`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         credentials: 'include'
       })
       

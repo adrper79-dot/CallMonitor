@@ -4,6 +4,9 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
 
+// Workers API URL
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 /**
  * Forgot Password Page
  * 
@@ -22,9 +25,10 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email }),
       })
 

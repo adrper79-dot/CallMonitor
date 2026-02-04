@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import type { SurveyQuestionConfig } from '@/types/tier1-features'
+import { apiGet, apiPut } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 export interface VoiceConfig {
   // Database column names (what comes from API)
@@ -83,13 +86,7 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
       try {
         setLoading(true)
         setError(null)
-        const res = await fetch(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`, {
-          credentials: 'include'
-        })
-        if (!res.ok) {
-          throw new Error('Failed to fetch voice config')
-        }
-        const data = await res.json()
+        const data = await apiGet(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
         setConfig(data.config || {})
       } catch (err: any) {
         setError(err?.message || 'Failed to load config')
@@ -146,22 +143,10 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
       // Map frontend field names to database column names
       const mappedUpdates = mapFieldsToDb(persistentUpdates)
       
-      const res = await fetch('/api/voice/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          orgId: organizationId,
-          modulations: mappedUpdates,
-        }),
+      const data = await apiPut('/api/voice/config', {
+        orgId: organizationId,
+        modulations: mappedUpdates,
       })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Failed to update config' }))
-        throw new Error(errorData.error?.message || errorData.error || 'Failed to update config')
-      }
-
-      const data = await res.json()
       // Preserve transient fields when updating from server response
       const newConfig = { 
         ...(data.config || {}), 
@@ -211,13 +196,7 @@ export function useVoiceConfig(organizationId?: string | null) {
       try {
         setLoading(true)
         setError(null)
-        const res = await fetch(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`, {
-          credentials: 'include'
-        })
-        if (!res.ok) {
-          throw new Error('Failed to fetch voice config')
-        }
-        const data = await res.json()
+        const data = await apiGet(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
         setConfig(data.config || {})
       } catch (err: any) {
         setError(err?.message || 'Failed to load config')
@@ -267,22 +246,10 @@ export function useVoiceConfig(organizationId?: string | null) {
     
     const mappedUpdates = mapFieldsToDb(persistentUpdates)
     
-    const res = await fetch('/api/voice/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        orgId: organizationId,
-        modulations: mappedUpdates,
-      }),
+    const data = await apiPut('/api/voice/config', {
+      orgId: organizationId,
+      modulations: mappedUpdates,
     })
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ error: 'Failed to update config' }))
-      throw new Error(errorData.error?.message || errorData.error || 'Failed to update config')
-    }
-
-    const data = await res.json()
     const newConfig = { 
       ...(data.config || {}), 
       quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,

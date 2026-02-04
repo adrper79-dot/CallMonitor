@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiGet } from '@/lib/apiClient'
 
 export type CallStatus = 'queued' | 'initiating' | 'ringing' | 'in-progress' | 'completed' | 'failed' | 'busy' | 'no-answer' | 'canceled' | null
 
@@ -32,11 +33,8 @@ export function useActiveCall(callId: string | null): UseActiveCallResult {
         let mounted = true
         const poll = async () => {
             try {
-                const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`, {
-                    credentials: 'include'
-                })
-                if (res.ok && mounted) {
-                    const data = await res.json()
+                const data = await apiGet(`/api/calls/${encodeURIComponent(callId)}`)
+                if (mounted) {
                     const serverStatus = data.call?.status
                     if (serverStatus && serverStatus !== status) {
                         setStatus(serverStatus)

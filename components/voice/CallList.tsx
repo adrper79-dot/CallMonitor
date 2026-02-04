@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { useRealtime, usePolling } from '@/hooks/useRealtime'
+import { apiGet } from '@/lib/apiClient'
 
 export interface CallListProps {
   calls: Call[]
@@ -44,12 +45,8 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
     async () => {
       if (!organizationId) return []
       try {
-        const res = await fetch(`/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`, { credentials: 'include' })
-        if (res.ok) {
-          const data = await res.json()
-          return data.calls || []
-        }
-        return []
+        const data = await apiGet(`/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`)
+        return data.calls || []
       } catch {
         return []
       }

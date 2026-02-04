@@ -6,6 +6,7 @@ import { WebhookForm } from './WebhookForm'
 import { WebhookDeliveryLog } from './WebhookDeliveryLog'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/apiClient'
 
 interface WebhookListProps {
   organizationId: string
@@ -38,15 +39,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
       setLoading(true)
       setError(null)
 
-      const res = await fetch('/api/webhooks/subscriptions', {
-        credentials: 'include'
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to load webhooks')
-      }
-
-      const data = await res.json()
+      const data = await apiGet<{ subscriptions: WebhookSubscription[] }>('/api/webhooks/subscriptions')
       setWebhooks(data.subscriptions || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load webhooks')
@@ -59,17 +52,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
     if (!canEdit) return
 
     try {
-      const res = await fetch(`/api/webhooks/subscriptions/${webhook.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ active: !webhook.active })
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to update webhook')
-      }
-
+      await apiPatch(`/api/webhooks/subscriptions/${webhook.id}`, { active: !webhook.active })
       await loadWebhooks()
     } catch (err: any) {
       alert(err.message || 'Failed to update webhook')
@@ -84,16 +67,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
 
     try {
       setDeletingId(id)
-
-      const res = await fetch(`/api/webhooks/subscriptions/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to delete webhook')
-      }
-
+      await apiDelete(`/api/webhooks/subscriptions/${id}`)
       await loadWebhooks()
     } catch (err: any) {
       alert(err.message || 'Failed to delete webhook')
@@ -107,17 +81,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
 
     try {
       setTestingId(webhook.id)
-
-      const res = await fetch(`/api/webhooks/subscriptions/${webhook.id}/test`, {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to send test webhook')
-      }
-
-      const data = await res.json()
+      const data = await apiPost<{ delivery: { id: string } }>(`/api/webhooks/subscriptions/${webhook.id}/test`, {})
       alert(`Test webhook sent! Check your endpoint for delivery.\n\nDelivery ID: ${data.delivery.id}`)
     } catch (err: any) {
       alert(err.message || 'Failed to send test webhook')

@@ -1,57 +1,59 @@
 /**
- * Users Routes
+ * User Routes - User-specific endpoints
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
-import { getDb } from '../lib/db'
-import { requireRole } from '../lib/auth'
-import { v4 as uuidv4 } from 'uuid'
+import { requireAuth } from '../lib/auth'
 
-export const usersRoutes = new Hono<{ Bindings: Env }>()
+export const userRoutes = new Hono<{ Bindings: Env }>()
 
-// GET /api/users/[userId]/organization
-usersRoutes.get('/:userId/organization', async (c) => {
+// Get user's organization info
+userRoutes.get('/:id/organization', async (c) => {
   try {
-    const session = await requireRole(c, 'viewer')
-    const userId = c.req.param('userId')
-
-    if (!session || session.userId !== userId) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    const session = await requireAuth(c)
+    if (!session) {
+      return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const db = getDb(c.env)
+    const userId = c.req.param('id')
 
-    let organizationId: string | null = null
-
-    const memRes = await db.query('SELECT organization_id FROM org_members WHERE user_id = $1 LIMIT 1', [userId])
-    const membership = memRes.rows?.[0]
-    if (membership?.organization_id) {
-      organizationId = membership.organization_id
-    } else {
-      const userRes = await db.query('SELECT organization_id FROM users WHERE id = $1 LIMIT 1', [userId])
-      const user = userRes.rows?.[0]
-      if (user?.organization_id) {
-        organizationId = user.organization_id
-        try {
-          await db.query('INSERT INTO org_members (id, organization_id, user_id, role, created_at) VALUES ($1,$2,$3,$4,$5)', [
-            uuidv4(), user.organization_id, userId, 'member', new Date().toISOString()
-          ])
-        } catch (e: any) {
-          if (!String(e?.message || '').includes('duplicate')) {
-            console.error('Failed to create org_members record', e)
-          }
-        }
-      }
+    // Users can only access their own organization info
+    if (session.userId !== userId) {
+      return c.json({ error: 'Forbidden' }, 403)
     }
 
-    if (!organizationId) {
-      return c.json({ success: false, error: 'Organization not found' }, 404)
+    // Use neon client directly
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sql = neon(connectionString)
+
+    const result = await sql`
+      SELECT o.id, o.name, o.plan, om.role
+      FROM organizations o
+      JOIN org_members om ON om.organization_id = o.id
+      WHERE om.user_id = ${userId}
+      LIMIT 1
+    `
+
+    if (result.length === 0) {
+      return c.json({ error: 'Organization not found' }, 404)
     }
 
-    return c.json({ success: true, organization_id: organizationId })
+    const org = result[0]
+
+    return c.json({
+      success: true,
+      organization: {
+        id: org.id,
+        name: org.name,
+        plan: org.plan || 'free',
+        plan_status: 'active'
+      },
+      role: org.role || 'viewer'
+    })
   } catch (err: any) {
-    console.error('GET /api/users/[userId]/organization error:', err)
-    return c.json({ success: false, error: 'Internal server error' }, 500)
+    console.error('GET /api/users/:id/organization error:', err)
+    return c.json({ error: 'Failed to get organization info' }, 500)
   }
 })

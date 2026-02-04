@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { WebhookStatusBadge } from './WebhookStatusBadge'
+import { apiGet } from '@/lib/apiClient'
 
 interface Delivery {
   id: string
@@ -55,15 +56,9 @@ export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookD
         params.append('status', statusFilter)
       }
 
-      const res = await fetch(`/api/webhooks/subscriptions/${webhookId}/deliveries?${params}`, {
-        credentials: 'include'
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to load delivery logs')
-      }
-
-      const data = await res.json()
+      const data = await apiGet<{ deliveries: Delivery[]; pagination?: { total: number } }>(
+        `/api/webhooks/subscriptions/${webhookId}/deliveries?${params}`
+      )
       setDeliveries(data.deliveries || [])
       setTotal(data.pagination?.total || 0)
     } catch (err: any) {

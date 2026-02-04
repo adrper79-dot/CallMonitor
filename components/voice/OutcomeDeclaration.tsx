@@ -16,6 +16,9 @@ import {
   CONFIDENCE_LEVEL_CONFIG,
   getOutcomeStatusConfig,
 } from '@/lib/outcome/outcomeTypes'
+import { apiPost, apiPut } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 // ============================================================================
 // TYPES
@@ -108,21 +111,11 @@ export function OutcomeDeclaration({
     setAiSummaryWarning(false)
 
     try {
-      const response = await fetch(`/api/calls/${callId}/summary`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          use_call_transcript: true,
-          include_structured_extraction: true,
-        }),
+      const data = await apiPost(`/api/calls/${callId}/summary`, {
+        use_call_transcript: true,
+        include_structured_extraction: true,
       })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error?.message || 'Failed to generate summary')
-      }
-
-      const data = await response.json()
+      
       const summary = data.data
 
       // Set the AI-generated summary
@@ -175,28 +168,21 @@ export function OutcomeDeclaration({
       const finalSummarySource: SummarySource = 
         summarySource === 'ai_generated' ? 'ai_confirmed' : summarySource
 
-      const response = await fetch(`/api/calls/${callId}/outcome`, {
-        method: existingOutcome ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outcome_status: outcomeStatus,
-          confidence_level: confidenceLevel,
-          agreed_items: agreedItems,
-          declined_items: declinedItems,
-          ambiguities,
-          follow_up_actions: followUpActions,
-          summary_text: summaryText,
-          summary_source: finalSummarySource,
-          readback_confirmed: readbackConfirmed,
-        }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error?.message || 'Failed to save outcome')
+      const payload = {
+        outcome_status: outcomeStatus,
+        confidence_level: confidenceLevel,
+        agreed_items: agreedItems,
+        declined_items: declinedItems,
+        ambiguities,
+        follow_up_actions: followUpActions,
+        summary_text: summaryText,
+        summary_source: finalSummarySource,
+        readback_confirmed: readbackConfirmed,
       }
 
-      const data = await response.json()
+      const data = existingOutcome 
+        ? await apiPut(`/api/calls/${callId}/outcome`, payload)
+        : await apiPost(`/api/calls/${callId}/outcome`, payload)
       
       if (onOutcomeSaved) {
         onOutcomeSaved(data.data.outcome)

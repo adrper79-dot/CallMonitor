@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { apiPost } from '@/lib/apiClient'
 
 type ScorecardTemplate = {
   id: string
@@ -68,20 +69,11 @@ export default function ScorecardTemplateLibrary({
     setCreating(template.id)
     setError(null)
     try {
-      const res = await fetch('/api/scorecards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: template.name,
-          description: template.description,
-          structure: { criteria: template.criteria },
-        })
+      await apiPost('/api/scorecards', {
+        name: template.name,
+        description: template.description,
+        structure: { criteria: template.criteria },
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error?.message || 'Failed to create scorecard')
-      }
     } catch (err: any) {
       setError(err?.message || 'Failed to create scorecard')
     } finally {

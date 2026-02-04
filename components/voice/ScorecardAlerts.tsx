@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
+import { apiGet } from '@/lib/apiClient'
 
 type AlertItem = {
   id: string
@@ -28,8 +29,7 @@ export default function ScorecardAlerts({ organizationId }: { organizationId: st
     setLoading(true)
     setError(null)
 
-    fetch('/api/scorecards/alerts', { credentials: 'include' })
-      .then((res) => res.json())
+    apiGet<{ success?: boolean; error?: string; alerts?: AlertItem[] }>('/api/scorecards/alerts')
       .then((data) => {
         if (!isActive) return
         if (data?.success === false) {

@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Phone, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/apiClient'
 
 interface CampaignProgressProps {
   campaignId: string
@@ -84,13 +85,8 @@ export function CampaignProgress({ campaignId, initialStats }: CampaignProgressP
 
   const fetchStats = async () => {
     try {
-      const res = await fetch(`/api/campaigns/${campaignId}/stats`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setStats(data.stats)
-      }
+      const data = await apiGet(`/api/campaigns/${campaignId}/stats`)
+      setStats(data.stats)
     } catch (error) {
       logger.error('Failed to fetch campaign stats', error, { campaignId })
     }

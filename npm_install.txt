@@ -1,0 +1,565 @@
+npm warn using --force Recommended protections disabled.
+npm warn deprecated next@15.5.7: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.acorn-vtFjsP7E',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.acorn-vtFjsP7E'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.acorn-vtFjsP7E'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.autoprefixer-AymqbYPa',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.autoprefixer-AymqbYPa'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.autoprefixer-AymqbYPa'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.baseline-browser-mapping-hgqEXs3s',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.baseline-browser-mapping-hgqEXs3s'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.baseline-browser-mapping-hgqEXs3s'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.browserslist-Q7UVnUXv',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.browserslist-Q7UVnUXv'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.browserslist-Q7UVnUXv'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.bcrypt-mB6h2Oeg',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.bcrypt-mB6h2Oeg'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.bcrypt-mB6h2Oeg'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.esbuild-jAvbdziv',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.esbuild-jAvbdziv'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.esbuild-jAvbdziv'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.eslint-SNo7Bcp9',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.eslint-SNo7Bcp9'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.eslint-SNo7Bcp9'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.eslint-config-prettier-t81m9xBv',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.eslint-config-prettier-t81m9xBv'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.eslint-config-prettier-t81m9xBv'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\eslint-plugin-import\\node_modules\\.bin\\.json5-cu0QFzSo',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\eslint-plugin-import\node_modules\.bin\.json5-cu0QFzSo'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\eslint-plugin-import\\node_modules\\.bin\\.json5-cu0QFzSo'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\eslint-plugin-react\\node_modules\\.bin\\.resolve-WH1UaGHW',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\eslint-plugin-react\node_modules\.bin\.resolve-WH1UaGHW'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\eslint-plugin-react\\node_modules\\.bin\\.resolve-WH1UaGHW'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.fxparser-qZBCClJ1',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.fxparser-qZBCClJ1'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.fxparser-qZBCClJ1'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.glob-lwA3RF2z',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.glob-lwA3RF2z'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.glob-lwA3RF2z'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.he-85Hs0BUJ',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.he-85Hs0BUJ'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.he-85Hs0BUJ'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\is-bun-module\\node_modules\\.bin\\.semver-F2RZlRpb',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\is-bun-module\node_modules\.bin\.semver-F2RZlRpb'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\is-bun-module\\node_modules\\.bin\\.semver-F2RZlRpb'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.jiti-uwxe6yzN',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.jiti-uwxe6yzN'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.jiti-uwxe6yzN'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.js-yaml-Ck5nAz5C',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.js-yaml-Ck5nAz5C'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.js-yaml-Ck5nAz5C'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.jsesc-Xxx7hqbw',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.jsesc-Xxx7hqbw'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.jsesc-Xxx7hqbw'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.json5-KdVduMiS',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.json5-KdVduMiS'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.json5-KdVduMiS'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.loose-envify-oyUtTDGO',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.loose-envify-oyUtTDGO'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.loose-envify-oyUtTDGO'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\make-dir\\node_modules\\.bin\\.semver-86bxOkYO',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\make-dir\node_modules\.bin\.semver-86bxOkYO'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\make-dir\\node_modules\\.bin\\.semver-86bxOkYO'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.miniflare-InoT6CDV',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.miniflare-InoT6CDV'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.miniflare-InoT6CDV'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.napi-postinstall-VUzIlTpd',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.napi-postinstall-VUzIlTpd'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.napi-postinstall-VUzIlTpd'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.openai-OGzl34xL',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.openai-OGzl34xL'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.openai-OGzl34xL'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.playwright-nZcHOH0O',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.playwright-nZcHOH0O'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.playwright-nZcHOH0O'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.playwright-core-v8yTbdGI',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.playwright-core-v8yTbdGI'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.playwright-core-v8yTbdGI'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.prettier-KZmp6BY8',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.prettier-KZmp6BY8'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.prettier-KZmp6BY8'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.resolve-1Sl7ODyR',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.resolve-1Sl7ODyR'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.resolve-1Sl7ODyR'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.rollup-77zYPy8s',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.rollup-77zYPy8s'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.rollup-77zYPy8s'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.semver-tb4fOx93',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.semver-tb4fOx93'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.semver-tb4fOx93'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\sharp\\node_modules\\.bin\\.semver-0x5qdiCG',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\sharp\node_modules\.bin\.semver-0x5qdiCG'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\sharp\\node_modules\\.bin\\.semver-0x5qdiCG'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\svix\\node_modules\\.bin\\.uuid-GM2VYseS',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\svix\node_modules\.bin\.uuid-GM2VYseS'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\svix\\node_modules\\.bin\\.uuid-GM2VYseS'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.terser-VUh0sXFE',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.terser-VUh0sXFE'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.terser-VUh0sXFE'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tlds-S5iaBz6a',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.tlds-S5iaBz6a'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tlds-S5iaBz6a'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-tRYBJaKq',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-node-tRYBJaKq'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-tRYBJaKq'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-cwd-93s2sSLK',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-node-cwd-93s2sSLK'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-cwd-93s2sSLK'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-esm-qCu6vfTX',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-node-esm-qCu6vfTX'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-esm-qCu6vfTX'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-script-DmHgNThe',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-node-script-DmHgNThe'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-script-DmHgNThe'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-transpile-only-w5zuM4Rn',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-node-transpile-only-w5zuM4Rn'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-node-transpile-only-w5zuM4Rn'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-script-pPOYnKML',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.ts-script-pPOYnKML'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.ts-script-pPOYnKML'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsx-p5B0qHV7',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.tsx-p5B0qHV7'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsx-p5B0qHV7'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsc-TsrhX5ay',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.tsc-TsrhX5ay'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsc-TsrhX5ay'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsserver-oXhkb0V3',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.tsserver-oXhkb0V3'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.tsserver-oXhkb0V3'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.update-browserslist-db-vleVX7YK',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.update-browserslist-db-vleVX7YK'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.update-browserslist-db-vleVX7YK'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.nanoid-thj4WlKN',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.nanoid-thj4WlKN'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.nanoid-thj4WlKN'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.uuid-ZKUfZL0t',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.uuid-ZKUfZL0t'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.uuid-ZKUfZL0t'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.vite-WKDQsG8g',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.vite-WKDQsG8g'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.vite-WKDQsG8g'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.webpack-CRcWdzTy',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.webpack-CRcWdzTy'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.webpack-CRcWdzTy'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.node-which-73AGPgpv',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.node-which-73AGPgpv'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.node-which-73AGPgpv'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.why-is-node-running-mjN0UWSC',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.why-is-node-running-mjN0UWSC'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.why-is-node-running-mjN0UWSC'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.workerd-EYYmfeTY',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.workerd-EYYmfeTY'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.workerd-EYYmfeTY'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.wrangler-8fk3X5wz',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.wrangler-8fk3X5wz'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.wrangler-8fk3X5wz'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.wrangler2-SxPH7BAh',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.wrangler2-SxPH7BAh'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.wrangler2-SxPH7BAh'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.parser-ErExN6a8',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.parser-ErExN6a8'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.parser-ErExN6a8'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.next-osfOnxUp',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.next-osfOnxUp'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.next-osfOnxUp'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.sentry-cli-6DdySeSF',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.sentry-cli-6DdySeSF'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.sentry-cli-6DdySeSF'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@sentry\\webpack-plugin\\node_modules\\.bin\\.uuid-sWo6oEqn',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\@sentry\webpack-plugin\node_modules\.bin\.uuid-sWo6oEqn'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@sentry\\webpack-plugin\\node_modules\\.bin\\.uuid-sWo6oEqn'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\js\\node_modules\\.bin\\.uuid-arB9k8Ky',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\@signalwire\js\node_modules\.bin\.uuid-arB9k8Ky'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\js\\node_modules\\.bin\\.uuid-arB9k8Ky'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\realtime-api\\node_modules\\.bin\\.uuid-CrpWHOtN',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\@signalwire\realtime-api\node_modules\.bin\.uuid-CrpWHOtN'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\realtime-api\\node_modules\\.bin\\.uuid-CrpWHOtN'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\webrtc\\node_modules\\.bin\\.uuid-nC1HsAc1',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\@signalwire\webrtc\node_modules\.bin\.uuid-nC1HsAc1'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@signalwire\\webrtc\\node_modules\\.bin\\.uuid-nC1HsAc1'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@typescript-eslint\\typescript-estree\\node_modules\\.bin\\.semver-tIIP79BW',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\@typescript-eslint\typescript-estree\node_modules\.bin\.semver-tIIP79BW'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\@typescript-eslint\\typescript-estree\\node_modules\\.bin\\.semver-tIIP79BW'
+npm warn cleanup     }
+npm warn cleanup   ],
+npm warn cleanup   [
+npm warn cleanup     'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.vitest-R4hNzWrH',
+npm warn cleanup     [Error: EACCES: permission denied, lstat 'C:\Users\Ultimate Warrior\My project\gemini-project\node_modules\.bin\.vitest-R4hNzWrH'] {
+npm warn cleanup       errno: -4092,
+npm warn cleanup       code: 'EACCES',
+npm warn cleanup       syscall: 'lstat',
+npm warn cleanup       path: 'C:\\Users\\Ultimate Warrior\\My project\\gemini-project\\node_modules\\.bin\\.vitest-R4hNzWrH'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+
+added 11 packages, removed 18 packages, changed 58 packages, and audited 992 packages in 4m
+
+208 packages are looking for funding
+  run `npm fund` for details
+
+1 high severity vulnerability
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.

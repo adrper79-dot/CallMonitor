@@ -2,10 +2,12 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Logo } from '@/components/Logo'
 import { BottomNav } from './BottomNav'
 import { ModeToggle } from '@/components/mode-toggle'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface NavItemProps {
   href: string
@@ -57,7 +59,32 @@ interface AppShellProps {
  */
 export function AppShell({ children, organizationName, userEmail }: AppShellProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const handleSignOut = async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('wb-session-token') : null
+      await fetch(`${API_BASE}/api/auth/signout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      })
+      
+      // Clear local token
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('wb-session-token')
+        localStorage.removeItem('wb-session-token-expires')
+      }
+      
+      router.push('/signin')
+    } catch (error) {
+      console.error('Sign out failed:', error)
+      router.push('/signin')
+    }
+  }
 
   const navItems = [
     {
@@ -168,15 +195,15 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
 
               <ModeToggle />
 
-              <Link
-                href="/api/auth/signout"
+              <button
+                onClick={handleSignOut}
                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
                 title="Sign out"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-              </Link>
+              </button>
             </div>
           </div>
         )}
@@ -227,12 +254,12 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
                     <p className="text-sm text-gray-600 truncate">{userEmail}</p>
                     <ModeToggle />
                   </div>
-                  <Link
-                    href="/api/auth/signout"
+                  <button
+                    onClick={handleSignOut}
                     className="text-sm text-gray-500 hover:text-gray-700"
                   >
                     Sign out
-                  </Link>
+                  </button>
                 </div>
               </div>
             )}

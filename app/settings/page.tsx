@@ -18,6 +18,7 @@ import { InvoiceHistory } from '@/components/settings/InvoiceHistory'
 import { PlanComparisonTable } from '@/components/settings/PlanComparisonTable'
 import { AIAgentConfig } from '@/components/settings/AIAgentConfig'
 import { WebhookList } from '@/components/settings/WebhookList'
+import { apiGet } from '@/lib/apiClient'
 import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Switch } from '@/components/ui/switch'
@@ -49,10 +50,9 @@ function SettingsPageContent() {
 
     async function fetchOrganization() {
       try {
-        const res = await fetch(`/api/users/${userId}/organization`, { credentials: 'include' })
-        if (!res.ok) throw new Error('Failed to fetch organization')
-
-        const data = await res.json()
+        const data = await apiGet<{ organization_id?: string; organization_name?: string }>(
+          `/api/users/${userId}/organization`
+        )
         if (data.organization_id) {
           setOrganizationId(data.organization_id)
           setOrganizationName(data.organization_name || null)

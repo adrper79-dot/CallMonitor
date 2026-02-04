@@ -10,6 +10,9 @@
  */
 
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 // ============================================================================
 // TYPES
@@ -205,16 +208,11 @@ export async function logComplianceViolation(
   context?: Record<string, any>
 ): Promise<void> {
   try {
-    await fetch('/api/compliance/violations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        call_id: callId,
-        restriction_code: restrictionCode,
-        violation_type: violationType,
-        context,
-      }),
+    await apiPost('/api/compliance/violations', {
+      call_id: callId,
+      restriction_code: restrictionCode,
+      violation_type: violationType,
+      context,
     })
   } catch (error) {
     // Silently fail - compliance logging should not block operations

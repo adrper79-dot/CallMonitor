@@ -53,6 +53,7 @@ import {
   Lock
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 interface SSOConfig {
   id: string
@@ -119,19 +120,11 @@ export default function SSOConfiguration({ organizationId, isOwner, planType }: 
     }
 
     try {
-      const res = await fetch(`/api/auth/sso?orgId=${organizationId}`, {
-        credentials: 'include'
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setConfigs(data.configs || [])
-      } else {
-        const data = await res.json()
-        setError(data.error || 'Failed to load SSO configurations')
-      }
-    } catch (err) {
+      const data = await apiGet<{ configs: SSOConfig[] }>(`/api/auth/sso?orgId=${organizationId}`)
+      setConfigs(data.configs || [])
+    } catch (err: any) {
       logger.error('Failed to fetch SSO configs', err, { organizationId })
-      setError('Failed to load SSO configurations')
+      setError(err.message || 'Failed to load SSO configurations')
     } finally {
       setLoading(false)
     }
@@ -170,24 +163,14 @@ export default function SSOConfiguration({ organizationId, isOwner, planType }: 
         config.oidc_issuer_url = formData.oidc_issuer_url
       }
 
-      const res = await fetch('/api/auth/sso', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ orgId: organizationId, config })
-      })
+      const res = await apiPost('/api/auth/sso', { orgId: organizationId, config })
 
-      if (res.ok) {
-        setShowAddDialog(false)
-        resetForm()
-        await fetchConfigs()
-      } else {
-        const data = await res.json()
-        setError(data.error || 'Failed to save SSO configuration')
-      }
-    } catch (err) {
+      setShowAddDialog(false)
+      resetForm()
+      await fetchConfigs()
+    } catch (err: any) {
       logger.error('Failed to save SSO config', err, { organizationId })
-      setError('Failed to save SSO configuration')
+      setError(err.message || 'Failed to save SSO configuration')
     } finally {
       setSaving(false)
     }
@@ -199,20 +182,11 @@ export default function SSOConfiguration({ organizationId, isOwner, planType }: 
     }
 
     try {
-      const res = await fetch(`/api/auth/sso?configId=${configId}&orgId=${organizationId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-
-      if (res.ok) {
-        await fetchConfigs()
-      } else {
-        const data = await res.json()
-        setError(data.error || 'Failed to delete SSO configuration')
-      }
-    } catch (err) {
+      await apiDelete(`/api/auth/sso?configId=${configId}&orgId=${organizationId}`)
+      await fetchConfigs()
+    } catch (err: any) {
       logger.error('Failed to delete SSO config', err, { configId })
-      setError('Failed to delete SSO configuration')
+      setError(err.message || 'Failed to delete SSO configuration')
     }
   }
 

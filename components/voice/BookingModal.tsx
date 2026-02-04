@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { apiPost } from '@/lib/apiClient'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -99,27 +100,20 @@ export function BookingModal({ isOpen, onClose, onSuccess, defaultPhone }: Booki
 
       const endDateTime = new Date(startDateTime.getTime() + duration * 60000)
 
-      const response = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: title || `Call with ${attendeeName || attendeePhone}`,
-          description,
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          duration_minutes: duration,
-          attendee_name: attendeeName,
-          attendee_email: attendeeEmail,
-          attendee_phone: attendeePhone,
-          from_number: fromNumber || undefined,
-          notes
-        })
+      const data = await apiPost('/api/bookings', {
+        title: title || `Call with ${attendeeName || attendeePhone}`,
+        description,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        duration_minutes: duration,
+        attendee_name: attendeeName,
+        attendee_email: attendeeEmail,
+        attendee_phone: attendeePhone,
+        from_number: fromNumber || undefined,
+        notes
       })
 
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error?.message || data.error || 'Failed to create booking')
       }
 

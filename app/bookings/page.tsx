@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button'
 import { BookingModal } from '@/components/voice/BookingModal'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { logger } from '@/lib/logger'
+import { apiPatch } from '@/lib/apiClient'
+
+// Workers API URL
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface Booking {
   id: string
@@ -37,8 +41,8 @@ export default function BookingsPage() {
     try {
       setLoading(true)
       const url = filter === 'all'
-        ? '/api/bookings?limit=50'
-        : `/api/bookings?limit=50&status=${filter}`
+        ? `${API_BASE}/api/bookings?limit=50`
+        : `${API_BASE}/api/bookings?limit=50&status=${filter}`
       const response = await fetch(url, { credentials: 'include' })
       const data = await response.json()
 
@@ -101,16 +105,8 @@ export default function BookingsPage() {
     if (!confirm('Are you sure you want to cancel this scheduled call?')) return
 
     try {
-      const response = await fetch(`/api/bookings/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'cancelled' })
-      })
-
-      if (response.ok) {
-        fetchBookings()
-      }
+      await apiPatch(`/api/bookings/${id}`, { status: 'cancelled' })
+      fetchBookings()
     } catch (err) {
       logger.error('Failed to cancel booking', err, { bookingId: id })
     }

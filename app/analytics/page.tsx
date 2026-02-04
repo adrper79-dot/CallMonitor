@@ -12,6 +12,7 @@ import { PerformanceMetrics } from '@/components/analytics/PerformanceMetrics'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { SurveyAnalyticsWidget } from '@/components/dashboard/SurveyAnalyticsWidget'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/apiClient'
 
 /**
  * Analytics Page - Professional Design System v3.0
@@ -103,9 +104,7 @@ export default function AnalyticsPage() {
     async function fetchOrg() {
       try {
         // Get organization
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-        const response = await fetch(`${API_BASE}/api/organizations/current`, { credentials: 'include' })
-        const data = await response.json()
+        const data = await apiGet<{ organization?: { id: string } }>('/api/organizations/current')
         
         if (!data.organization?.id) {
           setError('No organization found')
@@ -132,11 +131,13 @@ export default function AnalyticsPage() {
       setLoading(true)
       setError(null)
       
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      
       try {
         const [callsRes, sentimentRes, perfRes] = await Promise.all([
-          fetch(`/api/analytics/calls?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
-          fetch(`/api/analytics/sentiment-trends?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
-          fetch(`/api/analytics/performance`, { credentials: 'include' })
+          fetch(`${API_BASE}/api/analytics/calls?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
+          fetch(`${API_BASE}/api/analytics/sentiment-trends?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
+          fetch(`${API_BASE}/api/analytics/performance`, { credentials: 'include' })
         ])
 
         const [callsData, sentimentData, perfData] = await Promise.all([

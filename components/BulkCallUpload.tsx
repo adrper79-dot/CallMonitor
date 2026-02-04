@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react'
 import { Button } from './ui/button'
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/apiClient'
 
 interface BulkUploadResult {
   phone_number: string
@@ -34,7 +35,13 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
 
   const handleDownloadTemplate = async () => {
     try {
-      const response = await fetch('/api/voice/bulk-upload', { credentials: 'include' })
+      // Note: Blob downloads need raw fetch with Bearer token
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      const token = localStorage.getItem('wb-session-token')
+      const response = await fetch(`${API_BASE}/api/voice/bulk-upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        credentials: 'include'
+      })
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -69,12 +76,16 @@ export default function BulkCallUpload({ organizationId }: BulkUploadProps) {
     setSummary(null)
 
     try {
+      // Note: FormData uploads need raw fetch with Bearer token
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      const token = localStorage.getItem('wb-session-token')
       const formData = new FormData()
       formData.append('file', file)
       formData.append('organization_id', organizationId)
 
-      const response = await fetch('/api/voice/bulk-upload', {
+      const response = await fetch(`${API_BASE}/api/voice/bulk-upload`, {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         credentials: 'include',
         body: formData
       })

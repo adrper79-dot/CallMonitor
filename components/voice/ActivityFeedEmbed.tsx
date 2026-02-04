@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRealtime, usePolling } from '@/hooks/useRealtime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { apiGet } from '@/lib/apiClient'
 
 export interface ActivityEvent {
   id: string
@@ -43,14 +44,10 @@ export default function ActivityFeedEmbed({
     async () => {
       if (!organizationId) return []
       try {
-        const res = await fetch(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`, { credentials: 'include' })
-        if (res.status === 401) return []
-        if (res.ok) {
-          const data = await res.json()
-          return data.events || []
-        }
-        return []
-      } catch {
+        const data = await apiGet(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`)
+        return data.events || []
+      } catch (error: any) {
+        if (error.status === 401) return []
         return []
       }
     },

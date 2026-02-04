@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmationPrompts } from './ConfirmationPrompts'
 import { logger } from '@/lib/logger'
+import { apiPost } from '@/lib/apiClient'
 import type { ConfirmationType, ConfirmerRole } from '@/lib/confirmation/promptDefinitions'
 
 interface ActiveCallPanelProps {
@@ -87,22 +88,14 @@ export function ActiveCallPanel({
     if (!organizationId) return
 
     try {
-      const response = await fetch(`/api/calls/${callId}/confirmations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirmation_type: confirmation.confirmationType,
-          prompt_text: confirmation.templateId, // Template reference
-          confirmer_role: confirmation.confirmerRole,
-          recording_timestamp_seconds: confirmation.recordingTimestamp,
-          verification_method: 'verbal',
-          notes: confirmation.notes,
-        }),
+      await apiPost(`/api/calls/${callId}/confirmations`, {
+        confirmation_type: confirmation.confirmationType,
+        prompt_text: confirmation.templateId, // Template reference
+        confirmer_role: confirmation.confirmerRole,
+        recording_timestamp_seconds: confirmation.recordingTimestamp,
+        verification_method: 'verbal',
+        notes: confirmation.notes,
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to save confirmation')
-      }
     } catch (error) {
       logger.error('Failed to save confirmation', error as Error, { callId, organizationId })
       throw error

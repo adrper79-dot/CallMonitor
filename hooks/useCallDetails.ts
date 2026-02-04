@@ -1,6 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { apiGet } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 export interface CallDetails {
   call: {
@@ -49,32 +52,31 @@ export function useCallDetails(callId: string | null) {
         setError(null)
       }
 
-      // Fetch call details - credentials: include ensures cookies are sent
-      const res = await fetch(`/api/calls/${encodeURIComponent(callId)}`, { credentials: 'include' })
-      if (!res.ok) {
+      // Fetch call details with Bearer token authentication
+      try {
+        const data = await apiGet(`/api/calls/${encodeURIComponent(callId)}`)
+        if (mountedRef.current) setDetails(data)
+        return data
+      } catch (primaryError) {
         // Fallback to existing endpoint if new one doesn't exist
-        const fallbackRes = await fetch(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`, { credentials: 'include' })
-        if (!fallbackRes.ok) {
+        try {
+          const fallbackData = await apiGet(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`)
+          const newDetails = {
+            call: fallbackData.call || null,
+            recording: fallbackData.recording || null,
+            transcript: fallbackData.recording?.transcript_json || null,
+            translation: null,
+            manifest: fallbackData.evidence_manifest || null,
+            score: null,
+            survey: null,
+            transcriptionStatus: null,
+          }
+          if (mountedRef.current) setDetails(newDetails)
+          return newDetails
+        } catch (fallbackError) {
           throw new Error('Failed to fetch call details')
         }
-        const fallbackData = await fallbackRes.json()
-        const newDetails = {
-          call: fallbackData.call || null,
-          recording: fallbackData.recording || null,
-          transcript: fallbackData.recording?.transcript_json || null,
-          translation: null,
-          manifest: fallbackData.evidence_manifest || null,
-          score: null,
-          survey: null,
-          transcriptionStatus: null,
-        }
-        if (mountedRef.current) setDetails(newDetails)
-        return newDetails
       }
-
-      const data = await res.json()
-      if (mountedRef.current) setDetails(data)
-      return data
     } catch (err: any) {
       if (mountedRef.current) {
         setError(err?.message || 'Failed to load call details')

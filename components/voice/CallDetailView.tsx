@@ -12,6 +12,7 @@ import ArtifactViewer from './ArtifactViewer'
 import CallAnalytics from './CallAnalytics'
 import { OutcomeDeclaration } from './OutcomeDeclaration'
 import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
+import { apiGet } from '@/lib/apiClient'
 
 export interface CallDetailViewProps {
   callId: string | null
@@ -39,16 +40,10 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
 
     setOutcomeLoading(true)
     try {
-      const res = await fetch(`/api/calls/${callId}/outcome`, {
-        method: 'GET',
-        credentials: 'include',
-      })
+      const data = await apiGet(`/api/calls/${callId}/outcome`)
 
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success && data.data.outcome) {
-          setCallOutcome(data.data.outcome)
-        }
+      if (data.success && data.data?.outcome) {
+        setCallOutcome(data.data.outcome)
       }
     } catch (err) {
       // Silently fail - outcome may not exist yet
@@ -81,8 +76,12 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
 
     try {
       setExporting(true)
-      const res = await fetch(`/api/calls/${callId}/export`, {
+      // Note: apiGet returns JSON by default, need raw fetch for blob
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+      const token = localStorage.getItem('wb-session-token')
+      const res = await fetch(`${API_BASE}/api/calls/${callId}/export`, {
         method: 'GET',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         credentials: 'include',
       })
 

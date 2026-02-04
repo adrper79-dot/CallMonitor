@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPost, apiPut } from '@/lib/api-client'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface CallerIdNumber {
   id: string
@@ -44,8 +47,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
   const fetchNumbers = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/caller-id/verify', { credentials: 'include' })
-      const data = await res.json()
+      const data = await apiGet('/api/caller-id/verify')
       
       if (data.success) {
         setNumbers(data.numbers || [])
@@ -74,17 +76,10 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       setVerifying(true)
       setError(null)
       
-      const res = await fetch('/api/caller-id/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          phone_number: newNumber,
-          display_name: displayName || undefined
-        })
+      const data = await apiPost('/api/caller-id/verify', {
+        phone_number: newNumber,
+        display_name: displayName || undefined
       })
-      
-      const data = await res.json()
       
       if (data.success) {
         setVerificationStep('calling')
@@ -111,17 +106,10 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       setVerifying(true)
       setError(null)
       
-      const res = await fetch('/api/caller-id/verify', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          phone_number: newNumber,
-          code: verificationCode
-        })
+      const data = await apiPut('/api/caller-id/verify', {
+        phone_number: newNumber,
+        code: verificationCode
       })
-      
-      const data = await res.json()
       
       if (data.success && data.verified) {
         setShowAddForm(false)
@@ -143,22 +131,15 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
 
   const setAsDefault = async (numberId: string, phoneNumber: string) => {
     try {
-      const res = await fetch('/api/voice/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          orgId: organizationId,
-          modulations: {
-            caller_id_mask: phoneNumber,
-            caller_id_verified: true
-          }
-        })
+      await apiPut('/api/voice/config', {
+        orgId: organizationId,
+        modulations: {
+          caller_id_mask: phoneNumber,
+          caller_id_verified: true
+        }
       })
       
-      if (res.ok) {
-        fetchNumbers()
-      }
+      fetchNumbers()
     } catch (err) {
       logger.error('CallerIdManager: failed to set default mask', err, {
         organizationId,

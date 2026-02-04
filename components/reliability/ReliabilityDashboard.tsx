@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
+import { apiGet, apiPut } from '@/lib/apiClient'
 
 interface WebhookFailure {
   id: string
@@ -55,15 +56,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`/api/reliability/webhooks?status=${filter}`, {
-          credentials: 'include',
-        })
-        
-        if (!res.ok) {
-          throw new Error('Failed to fetch reliability data')
-        }
-        
-        const data = await res.json()
+        const data = await apiGet(`/api/reliability/webhooks?status=${filter}`)
         setFailures(data.failures || [])
         setMetrics(data.metrics || null)
       } catch (err) {
@@ -90,22 +83,11 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
     setError(null)
     
     try {
-      const res = await fetch('/api/reliability/webhooks', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          failure_id: failureId,
-          action,
-          resolution_notes: action === 'discard' ? 'Manually discarded by admin' : undefined,
-        }),
+      const data = await apiPut('/api/reliability/webhooks', {
+        failure_id: failureId,
+        action,
+        resolution_notes: action === 'discard' ? 'Manually discarded by admin' : undefined,
       })
-      
-      if (!res.ok) {
-        throw new Error('Failed to process action')
-      }
-      
-      const data = await res.json()
       
       // Update local state
       setFailures(prev => prev.map(f => 
