@@ -36,6 +36,11 @@ import { aiConfigRoutes } from './routes/ai-config'
 import { teamRoutes } from './routes/team'
 import { usageRoutes } from './routes/usage'
 import { shopperRoutes } from './routes/shopper'
+import { testRoutes } from './routes/test'
+import {
+  buildErrorContext, logError, formatErrorResponse, isAppError,
+  generateCorrelationId,
+} from './lib/errors'
 
 // Types for Cloudflare bindings
 export interface Env {
@@ -127,6 +132,14 @@ app.route('/api/teams', teamsRoutes)
 app.route('/api/bond-ai', bondAiRoutes)
 app.route('/api/usage', usageRoutes)
 app.route('/api/shopper', shopperRoutes)
+app.route('/api/test', testRoutes)
+
+// Request timing middleware — attaches start time for error diagnostics
+app.use('*', async (c, next) => {
+  c.set('requestStart' as any, Date.now())
+  c.set('correlationId' as any, generateCorrelationId())
+  await next()
+})
 
 // Root endpoint
 app.get('/', (c) => {
@@ -147,20 +160,24 @@ app.notFound((c) => {
   }, 404)
 })
 
-// Error handler
+// Structured Error Handler — best-practice diagnostics with differential data
 app.onError((err, c) => {
-  console.error('API Error:', {
-    error: err.message,
-    stack: err.stack,
-    path: c.req.path,
-    method: c.req.method,
-  })
-  
-  return c.json({
-    error: 'Internal Server Error',
-    message: err.message,
-    path: c.req.path,
-  }, 500)
+  const requestStart = (c as any).get?.('requestStart') || Date.now()
+  const correlationId = (c as any).get?.('correlationId') || generateCorrelationId()
+
+  // Build full diagnostic context
+  const errorCtx = buildErrorContext(c as any, err, requestStart)
+  errorCtx.correlation_id = correlationId
+
+  // Structured log for Workers logs / wrangler tail / log aggregation
+  logError(errorCtx)
+
+  // Determine HTTP status
+  const status = isAppError(err) ? (err as any).status : 500
+
+  // Format client response (sanitized — no stack traces in production)
+  const { body } = formatErrorResponse(errorCtx, status)
+  return c.json(body, status)
 })
 
 // Export for Cloudflare Workers
