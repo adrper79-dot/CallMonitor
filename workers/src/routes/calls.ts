@@ -20,6 +20,21 @@ callsRoutes.get('/', async (c) => {
     }
 
     const { organization_id, user_id } = session
+    
+    // Handle case where user has no organization
+    if (!organization_id) {
+      console.log('[Calls] User has no organization:', user_id)
+      return c.json({
+        success: true,
+        calls: [],
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          totalPages: 0,
+        },
+      })
+    }
 
     // Parse query params
     const url = new URL(c.req.url)
