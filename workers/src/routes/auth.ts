@@ -41,7 +41,7 @@ authRoutes.get('/session', async (c) => {
       expires: session.expires,
     })
   } catch (err: any) {
-    console.error('GET /api/auth/session error:', err)
+    console.error('Session verification error')
     return c.json({ user: null, expires: null })
   }
 })
@@ -86,7 +86,7 @@ authRoutes.post('/validate-key', async (c) => {
       permissions: keyRecord.permissions,
     })
   } catch (err: any) {
-    console.error('POST /api/auth/validate-key error:', err)
+    console.error('API key validation error')
     return c.json({ valid: false, error: 'Validation failed' }, 500)
   }
 })
@@ -115,129 +115,63 @@ authRoutes.post('/signup', async (c) => {
       return c.json({ error: 'Email and password required' }, 400)
     }
 
-    const db = getDb(c.env)
-
-    // Check if user exists - temporarily use direct neon client
     const { neon } = await import('@neondatabase/serverless')
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    console.log('[Signup] Using connection string type:', c.env.NEON_PG_CONN ? 'NEON_PG_CONN' : 'HYPERDRIVE')
     const sqlClient = neon(connectionString)
-
-    console.log('[Signup] About to query for existing user:', email.toLowerCase())
 
     const existing = await sqlClient`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
 
-    console.log('[Signup] Query result:', {
-      type: typeof existing,
-      length: existing?.length,
-      data: existing
-    })
-
-    console.log('[Signup] Checking for existing user:', {
-      email: email.toLowerCase(),
-      existingRows: existing?.length || 0,
-      existingData: existing?.[0] || null
-    })
-
     if (existing && existing.length > 0) {
-      console.log('[Signup] User already exists, returning 409')
       return c.json({ error: 'User already exists' }, 409)
     }
 
     // Hash password
     const passwordHash = await hashPassword(password)
 
-    // Create user (INSERT without RETURNING, then SELECT)
+    // Create user
     try {
       await sqlClient`INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
          VALUES (gen_random_uuid(), ${email.toLowerCase()}, ${name || email.split('@')[0]}, ${passwordHash}, NOW(), NOW())`
-      console.log('[Signup] INSERT successful')
     } catch (insertError: any) {
-      console.error('[Signup] INSERT failed:', insertError)
-      return c.json({ error: 'Signup failed', details: 'User creation failed: ' + insertError.message }, 500)
+      return c.json({ error: 'Signup failed' }, 500)
     }
 
     // Get the created user
     let userResult;
     try {
       userResult = await sqlClient`SELECT id, email, name FROM users WHERE email = ${email.toLowerCase()}`
-      console.log('[Signup] SELECT successful')
     } catch (selectError: any) {
-      console.error('[Signup] SELECT failed:', selectError)
-      return c.json({ error: 'Signup failed', details: 'User lookup failed: ' + selectError.message }, 500)
+      return c.json({ error: 'Signup failed' }, 500)
     }
 
-    console.log('[Signup] User creation result:', {
-      type: typeof userResult,
-      isArray: Array.isArray(userResult),
-      length: userResult?.length,
-      data: userResult,
-      firstItem: userResult?.[0],
-      firstItemType: typeof userResult?.[0]
-    })
-
     if (!userResult) {
-      console.error('[Signup] User creation failed - no result returned')
-      return c.json({ error: 'Signup failed', details: 'User creation failed' }, 500)
+      return c.json({ error: 'Signup failed' }, 500)
     }
 
     // Handle both array and single object returns
     const user = Array.isArray(userResult) ? userResult[0] : userResult
 
-    console.log('[Signup] Extracted user:', user)
-
     if (!user || !user.id) {
-      console.error('[Signup] User creation failed - invalid result:', user)
-      return c.json({ 
-        error: 'Signup failed', 
-        details: 'Invalid user data',
-        debug: {
-          userResultType: typeof userResult,
-          userResultIsArray: Array.isArray(userResult),
-          userResultLength: userResult?.length,
-          userResultData: userResult,
-          extractedUser: user
-        }
-      }, 500)
+      return c.json({ error: 'Signup failed' }, 500)
     }
 
     // Create organization if name provided
     if (organizationName) {
       try {
-        console.log('[Signup] Creating organization:', organizationName)
-        
-        // Use sqlClient directly instead of db.query for consistency
         const orgInsertResult = await sqlClient`
           INSERT INTO organizations (id, name, created_by, created_at)
           VALUES (gen_random_uuid(), ${organizationName}, ${user.id}, NOW())
           RETURNING id`
         
         const orgId = orgInsertResult[0]?.id
-        console.log('[Signup] Organization created with ID:', orgId)
 
         if (orgId) {
-          // Add user as org member
-          // Note: org_members.user_id is UUID type, user.id is TEXT - need to cast
           await sqlClient`
             INSERT INTO org_members (id, user_id, organization_id, role, created_at)
             VALUES (gen_random_uuid(), ${user.id}::uuid, ${orgId}, 'admin', NOW())`
-          console.log('[Signup] User added to organization as admin')
         }
       } catch (orgErr: any) {
-        console.error('[Signup] Failed to create organization:', orgErr)
-        // Don't fail signup if org creation fails, just log it
-      }
-    }
-
-    // Create AuthJS user record (insert if not exists)
-    try {
-      await sqlClient`
-        INSERT INTO "authjs"."users" (id, email, name, "emailVerified")
-        VALUES (${user.id}, ${email.toLowerCase()}, ${name || email.split('@')[0]}, NULL)`
-    } catch (authErr: any) {
-      // Ignore duplicate key errors - user may already exist in authjs
-      if (!authErr.message?.includes('duplicate') && !authErr.message?.includes('unique')) {
-        throw authErr
+        // Don't fail signup if org creation fails
       }
     }
 
@@ -246,17 +180,20 @@ authRoutes.post('/signup', async (c) => {
       user: { id: user.id, email: user.email, name: user.name }
     })
   } catch (err: any) {
-    console.error('POST /api/auth/signup error:', err)
-    return c.json({ error: 'Signup failed', details: err.message }, 500)
+    console.error('Signup error')
+    return c.json({ error: 'Signup failed' }, 500)
   }
 })
 
 // CSRF token endpoint (required by NextAuth client)
 authRoutes.get('/csrf', async (c) => {
-  // Generate a CSRF token
+  // Generate a CSRF token and store in KV for server-side validation
   const csrf_token = crypto.randomUUID()
   
-  // Set cookie
+  // Store token in KV with 10-minute TTL — will be validated on login
+  await c.env.KV.put(`csrf:${csrf_token}`, '1', { expirationTtl: 600 })
+  
+  // Set cookie for same-origin requests
   c.header('Set-Cookie', `csrf-token=${csrf_token}; Path=/; SameSite=None; Secure; HttpOnly`)
   
   return c.json({ csrf_token })
@@ -295,18 +232,22 @@ authRoutes.post('/callback/credentials', async (c) => {
     // Use email if username not provided
     const loginIdentifier = username || email
 
-    console.log('[Auth] Login attempt:', { identifier: loginIdentifier, hasPassword: !!password, has_csrf_token: !!csrfTokenValue })
-
     if (!loginIdentifier || !password) {
-      console.log('[Auth] Missing credentials')
       return c.json({ error: 'Credentials required' }, 401)
     }
 
-    // Validate CSRF token (CORS protects against CSRF since only allowed origins can fetch the token)
+    // Validate CSRF token — must match a token we issued (stored in KV)
     if (!csrfTokenValue) {
-      console.log('[Auth] CSRF token missing')
       return c.json({ error: 'CSRF token required' }, 401)
     }
+
+    const storedCsrf = await c.env.KV.get(`csrf:${csrfTokenValue}`)
+    if (!storedCsrf) {
+      return c.json({ error: 'Invalid or expired CSRF token' }, 403)
+    }
+
+    // Delete CSRF token after use (one-time use)
+    await c.env.KV.delete(`csrf:${csrfTokenValue}`)
 
     // Find user by email - temporarily use direct neon client
     const { neon } = await import('@neondatabase/serverless')
@@ -315,26 +256,16 @@ authRoutes.post('/callback/credentials', async (c) => {
 
     const userResult = await sqlClient`SELECT id, email, name, password_hash FROM users WHERE email = ${loginIdentifier.toLowerCase()}`
 
-    console.log('[Auth] User lookup result:', {
-      type: typeof userResult,
-      length: userResult?.length,
-      data: userResult?.[0] ? { ...userResult[0], password_hash: '[HIDDEN]' } : null
-    })
-
     if (!userResult || userResult.length === 0) {
-      console.log('[Auth] User not found:', username)
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
     const user = userResult[0]
-    console.log('[Auth] User found:', { id: user.id, email: user.email, hasPasswordHash: !!user.password_hash })
 
     // Verify password
     const validPassword = await verifyPassword(password, user.password_hash)
-    console.log('[Auth] Password validation:', { valid: validPassword })
     
     if (!validPassword) {
-      console.log('[Auth] Invalid password for user:', username)
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
@@ -353,28 +284,13 @@ authRoutes.post('/callback/credentials', async (c) => {
     const sessionToken = crypto.randomUUID()
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
-    console.log('[Auth] About to create session', {
-      sessionId,
-      sessionToken: sessionToken.slice(0, 8) + '...',
-      userId: user.id,
-      expires: expires.toISOString()
-    })
     try {
       // sessions table has UUID columns for id and user_id (per actual schema check)
-      // Cast to uuid for proper insertion
       await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
         VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
         ON CONFLICT (session_token) DO NOTHING`
-      console.log('[Auth] Session created successfully')
     } catch (sessionError: any) {
-      console.error('[Auth] Session creation failed:', {
-        error: sessionError?.message || String(sessionError),
-        code: sessionError?.code,
-        detail: sessionError?.detail,
-        constraint: sessionError?.constraint,
-        stack: sessionError?.stack?.slice(0, 500)
-      })
-      return c.json({ error: 'Session creation failed', details: sessionError?.message }, 500)
+      return c.json({ error: 'Session creation failed' }, 500)
     }
 
     // For cross-origin requests, we return the token in the response
@@ -397,20 +313,14 @@ authRoutes.post('/callback/credentials', async (c) => {
       }
     })
   } catch (err: any) {
-    console.error('POST /api/auth/callback/credentials error:', err)
-    return c.json({ error: 'Authentication failed', details: err.message }, 500)
+    console.error('Authentication error')
+    return c.json({ error: 'Authentication failed' }, 500)
   }
 })
 
 // Log endpoint for client errors
 authRoutes.post('/_log', async (c) => {
   // Silently accept logs (don't expose to client)
-  try {
-    const body = await c.req.json()
-    console.log('Auth client log:', JSON.stringify(body).slice(0, 200))
-  } catch {
-    // Ignore parse errors
-  }
   return c.json({ received: true })
 })
 
@@ -433,7 +343,7 @@ authRoutes.post('/signout', async (c) => {
     
     return c.json({ success: true })
   } catch (err: any) {
-    console.error('POST /api/auth/signout error:', err)
+    console.error('Signout error')
     // Still return success - client should clear local state regardless
     return c.json({ success: true })
   }
@@ -462,12 +372,10 @@ authRoutes.post('/forgot-password', async (c) => {
     }
 
     // TODO: Implement actual password reset email sending
-    // For now, just return success message
-    console.log(`[Forgot Password] Reset requested for: ${email}`)
     
     return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
   } catch (err: any) {
-    console.error('POST /api/auth/forgot-password error:', err)
+    console.error('Forgot password error')
     return c.json({ error: 'Failed to process request' }, 500)
   }
 })

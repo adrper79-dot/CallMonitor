@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import DashboardHome from '@/components/dashboard/DashboardHome'
 import { AppShell } from '@/components/layout/AppShell'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
+import { BondAIAlertsPanel } from '@/components/bond-ai'
 import { logger } from '@/lib/logger'
 import { apiGet } from '@/lib/apiClient'
 
@@ -78,6 +79,11 @@ export default function DashboardPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <DashboardHome organizationId={organizationId} />
+
+        {/* Bond AI Alerts */}
+        <div className="mt-8">
+          <BondAIAlertsPanel compact />
+        </div>
       </div>
     </AppShell>
   )

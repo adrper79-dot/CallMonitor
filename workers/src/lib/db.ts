@@ -41,7 +41,6 @@ export function getDb(env: Env): DbClient {
         const result = await pool.query(sqlString, params)
         return { rows: result.rows || [] }
       } catch (error) {
-        console.error('[DB] Query error:', error)
         throw error
       }
     }

@@ -13,6 +13,7 @@ import CallAnalytics from './CallAnalytics'
 import { OutcomeDeclaration } from './OutcomeDeclaration'
 import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
 import { apiGet } from '@/lib/apiClient'
+import { BondAICopilot } from '@/components/bond-ai'
 
 export interface CallDetailViewProps {
   callId: string | null
@@ -347,6 +348,11 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
           <CallAnalytics transcriptJson={transcript} />
         </section>
       )}
+
+      {/* Bond AI Call Co-Pilot */}
+      <section aria-label="AI Co-Pilot">
+        <BondAICopilot callId={call.id} />
+      </section>
 
       {/* Modulations Used (Read-only Metadata) */}
       {organizationId && (

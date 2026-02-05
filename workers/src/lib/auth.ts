@@ -48,7 +48,6 @@ export async function verifySession(
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
     
     if (!connectionString) {
-      console.error('[Auth] No database connection string available')
       return null
     }
     
@@ -75,14 +74,10 @@ export async function verifySession(
     `
 
     if (!result || result.length === 0) {
-      console.log('[Auth] Session not found or expired for token:', token.substring(0, 8) + '...')
       return null
     }
 
     const row = result[0]
-    
-    // Log successful auth for debugging
-    console.log('[Auth] Session verified for user:', row.email, 'org:', row.organization_id)
 
     return {
       user_id: row.user_id,
@@ -93,7 +88,6 @@ export async function verifySession(
       expires: row.expires instanceof Date ? row.expires.toISOString() : String(row.expires),
     }
   } catch (error: any) {
-    console.error('[Auth] Session verification error:', error?.message || error)
     // Don't throw - just return null so routes can return 401
     return null
   }

@@ -16,8 +16,6 @@ export async function handleScheduled(
 ): Promise<void> {
   const cron = event.cron
 
-  console.log(`Scheduled job triggered: ${cron} at ${new Date(event.scheduledTime).toISOString()}`)
-
   try {
     switch (cron) {
       case '*/5 * * * *':
@@ -29,11 +27,9 @@ export async function handleScheduled(
       case '0 0 * * *':
         await aggregateUsage(env)
         break
-      default:
-        console.log(`Unknown cron pattern: ${cron}`)
     }
   } catch (error) {
-    console.error(`Scheduled job failed: ${cron}`, error)
+    console.error('Scheduled job failed')
     // Don't throw - let the job complete so it can retry next interval
   }
 }
@@ -43,8 +39,6 @@ export async function handleScheduled(
  * Runs every 5 minutes
  */
 async function retryFailedTranscriptions(env: Env): Promise<void> {
-  console.log('Running: retryFailedTranscriptions')
-  
   const db = getDb(env)
   
   // Find calls with failed transcriptions that haven't exceeded retry limit
@@ -61,21 +55,15 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
   for (const call of result.rows) {
     try {
       // TODO: Trigger AssemblyAI transcription
-      // await triggerTranscription(call.recording_url)
-      
       await db.query(`
         UPDATE calls 
         SET transcript_status = 'pending', transcript_retries = transcript_retries + 1
         WHERE id = $1
       `, [call.id])
-      
-      console.log(`Retrying transcription for call ${call.id}`)
     } catch (error) {
-      console.error(`Failed to retry transcription for call ${call.id}:`, error)
+      // Skip failed individual retries
     }
   }
-  
-  console.log(`Processed ${result.rows.length} failed transcriptions`)
 }
 
 /**
@@ -83,27 +71,13 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
  * Runs hourly
  */
 async function cleanupExpiredSessions(env: Env): Promise<void> {
-  console.log('Running: cleanupExpiredSessions')
-  
   const db = getDb(env)
   
-  // Delete expired sessions from NextAuth tables
-  const result = await db.query(`
-    DELETE FROM "authjs"."sessions"
-    WHERE expires < NOW()
-    RETURNING id
-  `)
-  
-  console.log(`Cleaned up ${result.rows.length} expired sessions`)
-  
-  // Also cleanup expired verification tokens
+  // Delete expired sessions from public.sessions
   await db.query(`
-    DELETE FROM "authjs"."verification_tokens"
+    DELETE FROM public.sessions
     WHERE expires < NOW()
   `)
-  
-  // Cleanup old KV entries (if storing session data there)
-  // Note: KV doesn't have a native expire scan, so we track manually if needed
 }
 
 /**
@@ -111,8 +85,6 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
  * Runs daily at midnight
  */
 async function aggregateUsage(env: Env): Promise<void> {
-  console.log('Running: aggregateUsage')
-  
   const db = getDb(env)
   
   // Calculate usage for the previous day
@@ -121,7 +93,7 @@ async function aggregateUsage(env: Env): Promise<void> {
   const dateStr = yesterday.toISOString().split('T')[0]
   
   // Aggregate call statistics per organization
-  const result = await db.query(`
+  await db.query(`
     INSERT INTO usage_stats (organization_id, date, total_calls, total_duration_seconds, total_recordings)
     SELECT 
       organization_id,
@@ -139,6 +111,4 @@ async function aggregateUsage(env: Env): Promise<void> {
       updated_at = NOW()
     RETURNING organization_id
   `, [dateStr])
-  
-  console.log(`Aggregated usage for ${result.rows.length} organizations on ${dateStr}`)
 }

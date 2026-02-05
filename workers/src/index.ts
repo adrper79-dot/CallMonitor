@@ -7,7 +7,6 @@
 
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 
 // Route modules
@@ -23,8 +22,10 @@ import { auditRoutes } from './routes/audit'
 import { webrtcRoutes } from './routes/webrtc'
 import { handleScheduled } from './scheduled'
 import { scorecardsRoutes } from './routes/scorecards'
-import { rbacRoutes } from './routes/rbac'
+import { rbacRoutes } from './routes/rbac-v2'
 import { analyticsRoutes } from './routes/analytics'
+import { bondAiRoutes } from './routes/bond-ai'
+import { teamsRoutes } from './routes/teams'
 import { campaignsRoutes } from './routes/campaigns'
 import { voiceRoutes } from './routes/voice'
 import { callCapabilitiesRoutes } from './routes/call-capabilities'
@@ -62,6 +63,8 @@ export interface Env {
   TELNYX_NUMBER: string
   ASSEMBLYAI_API_KEY: string
   ELEVENLABS_API_KEY: string
+  STRIPE_WEBHOOK_SECRET: string
+  TELNYX_WEBHOOK_SECRET: string
   NEXT_PUBLIC_APP_URL?: string
 }
 
@@ -69,7 +72,7 @@ export interface Env {
 const app = new Hono<{ Bindings: Env }>()
 
 // Global middleware
-app.use('*', logger())
+// Note: Hono logger() removed — it logged all requests to console including auth headers
 app.use('*', secureHeaders())
 app.use('*', cors({
   origin: (origin, c) => {
@@ -120,6 +123,8 @@ app.route('/api/surveys', surveysRoutes)
 app.route('/api/caller-id', callerIdRoutes)
 app.route('/api/ai-config', aiConfigRoutes)
 app.route('/api/team', teamRoutes)
+app.route('/api/teams', teamsRoutes)
+app.route('/api/bond-ai', bondAiRoutes)
 app.route('/api/usage', usageRoutes)
 app.route('/api/shopper', shopperRoutes)
 

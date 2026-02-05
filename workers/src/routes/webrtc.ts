@@ -186,6 +186,7 @@ webrtcRoutes.get('/token', async (c) => {
       token: jwtToken,
       username: credData.data.sip_username,
       credential_id: credentialId,
+      caller_id: c.env.TELNYX_NUMBER || '', // Include the caller ID for outbound calls
       expires: credData.data.expires_at,
       rtcConfig: {
         iceServers: [

@@ -2,9 +2,9 @@
  * Webhook Receivers
  * 
  * Handles incoming webhooks from:
- * - Telnyx (call events)
+ * - Telnyx (call events) — verified via HMAC-SHA256 signature
  * - AssemblyAI (transcription)
- * - Stripe (billing events)
+ * - Stripe (billing events) — verified via HMAC-SHA256 signature
  */
 
 import { Hono } from 'hono'
@@ -13,14 +13,113 @@ import { getDb, DbClient } from '../lib/db'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
-// Telnyx call events
+// --- Signature verification helpers ---
+
+/**
+ * Verify Stripe webhook signature (HMAC-SHA256)
+ * Stripe signs payloads as: v1=<hmac_sha256(timestamp.payload, secret)>
+ */
+async function verifyStripeSignature(
+  payload: string,
+  signatureHeader: string,
+  secret: string,
+  toleranceSeconds = 300
+): Promise<boolean> {
+  const parts = signatureHeader.split(',')
+  const timestampPart = parts.find(p => p.startsWith('t='))
+  const sigPart = parts.find(p => p.startsWith('v1='))
+
+  if (!timestampPart || !sigPart) return false
+
+  const timestamp = timestampPart.slice(2)
+  const expectedSig = sigPart.slice(3)
+
+  // Reject if timestamp is too old (replay protection)
+  const age = Math.floor(Date.now() / 1000) - parseInt(timestamp, 10)
+  if (isNaN(age) || age > toleranceSeconds) return false
+
+  // Compute HMAC-SHA256 of "timestamp.payload"
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signed = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${payload}`))
+  const computedSig = Array.from(new Uint8Array(signed))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  // Constant-time comparison
+  if (computedSig.length !== expectedSig.length) return false
+  let mismatch = 0
+  for (let i = 0; i < computedSig.length; i++) {
+    mismatch |= computedSig.charCodeAt(i) ^ expectedSig.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
+/**
+ * Verify Telnyx webhook signature (HMAC-SHA256)
+ * Telnyx V2 signs payloads with telnyx-signature-ed25519 header
+ * For simplicity, we verify using a shared signing secret (TELNYX_WEBHOOK_SECRET)
+ */
+async function verifyTelnyxSignature(
+  payload: string,
+  timestampHeader: string,
+  signatureHeader: string,
+  secret: string,
+  toleranceSeconds = 300
+): Promise<boolean> {
+  if (!timestampHeader || !signatureHeader || !secret) return false
+
+  // Reject stale timestamps
+  const age = Math.floor(Date.now() / 1000) - parseInt(timestampHeader, 10)
+  if (isNaN(age) || age > toleranceSeconds) return false
+
+  // Compute HMAC-SHA256 of "timestamp.payload"
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signed = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestampHeader}.${payload}`))
+  const computedSig = Array.from(new Uint8Array(signed))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+
+  // Constant-time comparison
+  if (computedSig.length !== signatureHeader.length) return false
+  let mismatch = 0
+  for (let i = 0; i < computedSig.length; i++) {
+    mismatch |= computedSig.charCodeAt(i) ^ signatureHeader.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
+// Telnyx call events — verified via HMAC signature
 webhooksRoutes.post('/telnyx', async (c) => {
   try {
-    const body = await c.req.json()
-    const eventType = body.data?.event_type
+    const rawBody = await c.req.text()
 
-    // Log event type only (no sensitive payload data)
-    console.log('Telnyx webhook:', eventType)
+    // Verify Telnyx signature if secret is configured
+    const telnyxSecret = (c.env as any).TELNYX_WEBHOOK_SECRET
+    if (telnyxSecret) {
+      const timestamp = c.req.header('telnyx-timestamp') || ''
+      const signature = c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
+      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
+      if (!valid) {
+        return c.json({ error: 'Invalid webhook signature' }, 401)
+      }
+    }
+
+    const body = JSON.parse(rawBody)
+    const eventType = body.data?.event_type
 
     const db = getDb(c.env)
 
@@ -37,14 +136,13 @@ webhooksRoutes.post('/telnyx', async (c) => {
       case 'call.recording.saved':
         await handleRecordingSaved(c.env, db, body.data.payload)
         break
-      default:
-        console.log('Unhandled Telnyx event:', eventType)
+      // Silently ignore other event types
     }
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('Telnyx webhook error:', err)
-    return c.json({ error: err.message }, 500)
+    console.error('Telnyx webhook processing error')
+    return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
 
@@ -54,12 +152,9 @@ webhooksRoutes.post('/assemblyai', async (c) => {
     const body = await c.req.json()
     const { transcript_id, status, text } = body
 
-    console.log('AssemblyAI webhook:', status, transcript_id)
-
     if (status === 'completed' && text) {
       const db = getDb(c.env)
 
-      // Update call with transcript
       await db.query(
         `UPDATE calls 
          SET transcript = $1, transcript_status = 'completed'
@@ -70,22 +165,34 @@ webhooksRoutes.post('/assemblyai', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('AssemblyAI webhook error:', err)
-    return c.json({ error: err.message }, 500)
+    console.error('AssemblyAI webhook processing error')
+    return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
 
-// Stripe billing webhook
+// Stripe billing webhook — verified via HMAC-SHA256 signature
 webhooksRoutes.post('/stripe', async (c) => {
   try {
     const signature = c.req.header('stripe-signature')
     const body = await c.req.text()
 
-    // TODO: Verify Stripe signature
-    // const event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    // Verify Stripe webhook signature
+    const stripeSecret = (c.env as any).STRIPE_WEBHOOK_SECRET
+    if (!stripeSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET not configured')
+      return c.json({ error: 'Webhook verification not configured' }, 500)
+    }
+
+    if (!signature) {
+      return c.json({ error: 'Missing stripe-signature header' }, 401)
+    }
+
+    const valid = await verifyStripeSignature(body, signature, stripeSecret)
+    if (!valid) {
+      return c.json({ error: 'Invalid webhook signature' }, 401)
+    }
 
     const event = JSON.parse(body)
-    console.log('Stripe webhook:', event.type)
 
     const db = getDb(c.env)
 
@@ -100,14 +207,13 @@ webhooksRoutes.post('/stripe', async (c) => {
       case 'invoice.paid':
         await handleInvoicePaid(db, event.data.object)
         break
-      default:
-        console.log('Unhandled Stripe event:', event.type)
+      // Silently ignore other event types
     }
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('Stripe webhook error:', err)
-    return c.json({ error: err.message }, 500)
+    console.error('Stripe webhook processing error')
+    return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
 

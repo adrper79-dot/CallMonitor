@@ -128,7 +128,7 @@ voiceRoutes.put('/config', async (c) => {
       await sql`
         CREATE TABLE voice_configs (
           id SERIAL PRIMARY KEY,
-          organization_id UUID NOT NULL,
+          organization_id UUID NOT NULL UNIQUE,
           record BOOLEAN DEFAULT false,
           transcribe BOOLEAN DEFAULT false,
           translate BOOLEAN DEFAULT false,
@@ -210,6 +210,145 @@ voiceRoutes.put('/config', async (c) => {
   } catch (err: any) {
     console.error('PUT /api/voice/config error:', err)
     return c.json({ error: 'Failed to update voice config' }, 500)
+  }
+})
+
+// Place a voice call via Telnyx Call Control API
+voiceRoutes.post('/call', async (c) => {
+  try {
+    const session = await requireAuth(c)
+    if (!session) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+
+    const body = await c.req.json()
+    const { to_number, from_number, organization_id, target_id, campaign_id, modulations, flow_type } = body
+
+    if (organization_id !== session.organization_id) {
+      return c.json({ error: 'Invalid organization' }, 400)
+    }
+
+    // Resolve the target number
+    let destinationNumber = to_number
+    if (!destinationNumber && target_id) {
+      const { neon } = await import('@neondatabase/serverless')
+      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+      const sql = neon(connectionString)
+      const targets = await sql`SELECT phone_number FROM voice_targets WHERE id = ${target_id} AND organization_id = ${session.organization_id}`
+      if (targets.length === 0) {
+        return c.json({ error: 'Target not found' }, 404)
+      }
+      destinationNumber = targets[0].phone_number
+    }
+
+    if (!destinationNumber) {
+      return c.json({ error: 'No destination number specified' }, 400)
+    }
+
+    // Validate E.164 format
+    if (!/^\+[1-9]\d{1,14}$/.test(destinationNumber)) {
+      return c.json({ error: 'Invalid phone number format (must be E.164)' }, 400)
+    }
+
+    const callerNumber = c.env.TELNYX_NUMBER
+    if (!callerNumber) {
+      return c.json({ error: 'Telnyx caller number not configured' }, 500)
+    }
+
+    if (!c.env.TELNYX_API_KEY) {
+      return c.json({ error: 'Telnyx API key not configured' }, 500)
+    }
+
+    // Use Telnyx Call Control API to create the call
+    console.log(`[Voice] Creating call: ${callerNumber} -> ${destinationNumber}, flow: ${flow_type || 'direct'}`)
+
+    const callPayload: Record<string, any> = {
+      connection_id: c.env.TELNYX_CONNECTION_ID,
+      to: destinationNumber,
+      from: callerNumber,
+      answering_machine_detection: 'detect',
+    }
+
+    // If bridge call, the from_number is the agent's phone that gets called first
+    if (flow_type === 'bridge' && from_number) {
+      // For bridge calls: call the agent first, then bridge to the target
+      callPayload.to = from_number // Call the agent's phone first
+      callPayload.custom_headers = [
+        { name: 'X-Bridge-To', value: destinationNumber },
+        { name: 'X-Flow-Type', value: 'bridge' },
+      ]
+    }
+
+    // Add webhook URL for call status updates
+    const webhookUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordisbond-api.adrper79.workers.dev'
+    callPayload.webhook_url = `${webhookUrl}/api/webhooks/telnyx`
+    callPayload.webhook_url_method = 'POST'
+
+    const callResponse = await fetch('https://api.telnyx.com/v2/calls', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(callPayload),
+    })
+
+    if (!callResponse.ok) {
+      const errorText = await callResponse.text()
+      console.error('[Voice] Telnyx call creation failed:', callResponse.status, errorText)
+      let errorMessage = 'Failed to create call'
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.errors?.[0]?.detail || errorJson.message || errorText
+      } catch {
+        errorMessage = errorText
+      }
+      return c.json({ error: errorMessage }, 500)
+    }
+
+    const callData = await callResponse.json() as any
+    const telnyxCallId = callData.data?.call_control_id || callData.data?.id
+
+    // Insert call record into database
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sql = neon(connectionString)
+
+    // Check if calls table exists, create basic record
+    const callRecord = await sql`
+      INSERT INTO calls (
+        organization_id, 
+        created_by, 
+        status, 
+        call_sid,
+        started_at,
+        created_at
+      ) VALUES (
+        ${session.organization_id},
+        ${session.user_id},
+        'initiating',
+        ${telnyxCallId},
+        NOW(),
+        NOW()
+      )
+      RETURNING id
+    `
+
+    const callId = callRecord[0]?.id
+
+    console.log(`[Voice] Call created: ${callId} (telnyx: ${telnyxCallId})`)
+
+    return c.json({
+      success: true,
+      call_id: callId,
+      telnyx_call_id: telnyxCallId,
+      to: destinationNumber,
+      from: callerNumber,
+      flow_type: flow_type || 'direct',
+    })
+  } catch (err: any) {
+    console.error('POST /api/voice/call error:', err)
+    return c.json({ error: err.message || 'Failed to place call' }, 500)
   }
 })
 

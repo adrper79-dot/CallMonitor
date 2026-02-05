@@ -77,25 +77,34 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const [isMuted, setIsMuted] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [quality, setQuality] = useState<CallQuality | null>(null)
+  const [callerId, setCallerId] = useState<string | null>(null)
 
   // Telnyx WebRTC refs
   const telnyxClientRef = useRef<any>(null)
+  const currentCallRef = useRef<any>(null)  // Store active call object for mute/hangup
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Create audio element on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const audio = document.createElement('audio')
+      // Check if audio element already exists
+      let audio = document.getElementById('remote-audio') as HTMLAudioElement
+      if (!audio) {
+        audio = document.createElement('audio')
+        audio.id = 'remote-audio'
+        document.body.appendChild(audio)
+      }
+      // Configure for reliable playback
       audio.autoplay = true
-      audio.id = 'remote-audio'
-      document.body.appendChild(audio)
+      audio.muted = false  // Explicitly unmuted
+      audio.volume = 1.0   // Full volume
+      audio.playsInline = true
       remoteAudioRef.current = audio
+      console.log('[Telnyx] Audio element created/configured:', audio.id)
     }
     return () => {
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.remove()
-      }
+      // Don't remove on cleanup - might cause issues with React strict mode
     }
   }, [])
 
@@ -126,6 +135,26 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
     }
   }, [])
 
+  // Enumerate audio devices on mount and log them
+  useEffect(() => {
+    async function listAudioDevices() {
+      try {
+        // Need to request permission first to get device labels
+        await navigator.mediaDevices.getUserMedia({ audio: true })
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const audioInputs = devices.filter(d => d.kind === 'audioinput')
+        console.log('[Telnyx] === AVAILABLE AUDIO INPUT DEVICES ===')
+        audioInputs.forEach((device, i) => {
+          console.log(`[Telnyx] Device ${i}: "${device.label}" (${device.deviceId.substring(0, 8)}...)`)
+        })
+        console.log('[Telnyx] Default device will be the first one unless specified')
+      } catch (e) {
+        console.error('[Telnyx] Error enumerating devices:', e)
+      }
+    }
+    listAudioDevices()
+  }, [])
+
   /**
    * Connect to Telnyx WebRTC
    */
@@ -153,6 +182,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         token: string
         username: string
         credential_id?: string
+        caller_id?: string
         expires: string
         error?: string
         hint?: string
@@ -172,6 +202,12 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       }
 
       console.log('[Telnyx] Credential obtained:', tokenRes.credential_id)
+      console.log('[Telnyx] Caller ID:', tokenRes.caller_id)
+      
+      // Store caller ID for outbound calls
+      if (tokenRes.caller_id) {
+        setCallerId(tokenRes.caller_id)
+      }
 
       console.log('[Telnyx] Got credentials, initializing client...')
       setStatus('connecting')
@@ -180,10 +216,13 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const { TelnyxRTC } = await import('@telnyx/webrtc')
 
       // 3. Create Telnyx WebRTC client
+      // When using login_token (JWT), do NOT pass login/password - the JWT contains all credentials
+      console.log('[Telnyx] Creating client with token:', tokenRes.token.substring(0, 50) + '...')
+      console.log('[Telnyx] Token length:', tokenRes.token.length, 'chars')
+      
       const client = new TelnyxRTC({
         login_token: tokenRes.token,
-        login: tokenRes.username,
-        iceServers: tokenRes.rtcConfig.iceServers,
+        // Do NOT include login/password when using JWT token
         ringtoneFile: null, // Disable default ringtone
         ringbackFile: null, // Disable default ringback
       })
@@ -191,11 +230,247 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       telnyxClientRef.current = client
       setSessionId(tokenRes.username)
 
-      // 4. Setup event handlers
-      client.on('ready', () => {
-        console.log('[Telnyx] Client ready')
+      // 4. Setup event handlers - try ALL possible event formats for debugging
+      // Telnyx SDK uses both 'event' and 'telnyx.event' formats
+      const socketEvents = ['socket.open', 'telnyx.socket.open', 'socketOpen']
+      socketEvents.forEach(evt => {
+        client.on(evt, () => console.log(`[Telnyx] Event: ${evt}`))
+      })
+      
+      client.on('socket.close', (data: any) => {
+        console.log('[Telnyx] WebSocket closed:', data)
+      })
+      
+      client.on('socket.error', (error: any) => {
+        console.error('[Telnyx] WebSocket error:', error)
+      })
+      
+      client.on('socket.message', (message: any) => {
+        console.log('[Telnyx] WebSocket message:', message?.method || message)
+      })
+      
+      // Try both event name formats
+      client.on('telnyx.ready', () => {
+        console.log('[Telnyx] telnyx.ready event')
         setStatus('registered')
       })
+      
+      client.on('ready', () => {
+        console.log('[Telnyx] ready event')
+        setStatus('registered')
+      })
+      
+      // Notification events - handle call updates through notifications
+      client.on('telnyx.notification', (notification: any) => {
+        console.log('[Telnyx] Notification:', notification?.type, notification)
+        
+        // Handle callUpdate notifications
+        if (notification?.type === 'callUpdate' && notification?.call) {
+          const call = notification.call
+          const state = call.state
+          console.log('[Telnyx] Call state from notification:', state, 'direction:', call.direction)
+          
+          switch (state) {
+            case 'new':
+            case 'trying':
+            case 'requesting':
+              setCallState('dialing')
+              currentCallRef.current = call  // Store call reference
+              // Debug local audio
+              debugLocalAudio(call)
+              break
+            case 'ringing':
+            case 'early':
+              setCallState('ringing')
+              // Try to get early media (ringback tone)
+              attachRemoteAudio(call)
+              break
+            case 'active':
+            case 'answering':
+              setCallState('active')
+              setStatus('on_call')
+              setCurrentCall({
+                id: call.id || String(Date.now()),
+                phone_number: call.options?.destinationNumber || call.options?.remoteCallerNumber || 'Unknown',
+                started_at: new Date(),
+                duration: 0
+              })
+              // Attach the remote audio stream when call becomes active
+              attachRemoteAudio(call)
+              // Ensure microphone is unmuted
+              ensureLocalAudioEnabled(call)
+              break
+            case 'hangup':
+            case 'destroy':
+            case 'purge':
+              setCallState('idle')
+              setCurrentCall(null)
+              setStatus('registered')
+              currentCallRef.current = null  // Clear call reference
+              // Stop audio
+              if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = null
+              }
+              break
+          }
+        }
+      })
+      
+      // Helper function to attach remote audio from call object
+      function attachRemoteAudio(call: any) {
+        try {
+          // Try multiple ways to get the remote stream
+          let remoteStream = call.remoteStream || call.peer?.remoteStream || call._remoteStream
+          
+          // Also try getting from RTCPeerConnection directly
+          if (!remoteStream && call.peer?.pc) {
+            const pc = call.peer.pc as RTCPeerConnection
+            const receivers = pc.getReceivers()
+            console.log('[Telnyx] PC receivers:', receivers.length)
+            
+            const audioReceiver = receivers.find((r: RTCRtpReceiver) => r.track?.kind === 'audio')
+            if (audioReceiver?.track) {
+              remoteStream = new MediaStream([audioReceiver.track])
+              console.log('[Telnyx] Created stream from receiver track')
+            }
+          }
+          
+          console.log('[Telnyx] Attempting to attach remote audio, stream:', remoteStream)
+          
+          if (remoteStream) {
+            // Log stream details
+            const audioTracks = remoteStream.getAudioTracks()
+            console.log('[Telnyx] Audio tracks in stream:', audioTracks.length)
+            audioTracks.forEach((track: MediaStreamTrack, i: number) => {
+              console.log(`[Telnyx] Track ${i}: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`)
+              // Ensure track is enabled
+              track.enabled = true
+            })
+            
+            if (remoteAudioRef.current) {
+              console.log('[Telnyx] Attaching remote stream to audio element')
+              const audioEl = remoteAudioRef.current
+              
+              // Reset and configure
+              audioEl.srcObject = remoteStream
+              audioEl.muted = false
+              audioEl.volume = 1.0
+              
+              // Try to play
+              const playPromise = audioEl.play()
+              if (playPromise) {
+                playPromise.then(() => {
+                  console.log('[Telnyx] Audio playback started successfully')
+                  console.log('[Telnyx] Audio element state: paused=', audioEl.paused, 'volume=', audioEl.volume, 'muted=', audioEl.muted)
+                }).catch((e: Error) => {
+                  console.error('[Telnyx] Audio play error:', e.name, e.message)
+                  // Try playing on user gesture
+                  const resumeAudio = () => {
+                    audioEl.play().catch(console.error)
+                    document.removeEventListener('click', resumeAudio)
+                  }
+                  document.addEventListener('click', resumeAudio, { once: true })
+                  console.log('[Telnyx] Added click listener to resume audio')
+                })
+              }
+            }
+          } else {
+            console.log('[Telnyx] No remote stream available yet')
+          }
+        } catch (e) {
+          console.error('[Telnyx] Error attaching remote audio:', e)
+        }
+      }
+      
+      // Debug local audio (microphone) stream
+      function debugLocalAudio(call: any) {
+        try {
+          console.log('[Telnyx] === LOCAL AUDIO DEBUG ===')
+          
+          // Check call object for local stream
+          const localStream = call.localStream || call.peer?.localStream || call._localStream
+          console.log('[Telnyx] Local stream from call:', localStream)
+          
+          if (localStream) {
+            const audioTracks = localStream.getAudioTracks()
+            console.log('[Telnyx] Local audio tracks:', audioTracks.length)
+            audioTracks.forEach((track: MediaStreamTrack, i: number) => {
+              console.log(`[Telnyx] Local track ${i}: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}, label=${track.label}`)
+            })
+          }
+          
+          // Check peer connection senders
+          if (call.peer?.pc) {
+            const pc = call.peer.pc as RTCPeerConnection
+            const senders = pc.getSenders()
+            console.log('[Telnyx] PC Senders:', senders.length)
+            senders.forEach((sender: RTCRtpSender, i: number) => {
+              if (sender.track) {
+                console.log(`[Telnyx] Sender ${i}: kind=${sender.track.kind}, enabled=${sender.track.enabled}, muted=${sender.track.muted}, readyState=${sender.track.readyState}`)
+              } else {
+                console.log(`[Telnyx] Sender ${i}: no track`)
+              }
+            })
+          }
+          
+          // Check if call has mute state
+          console.log('[Telnyx] Call mute state:', {
+            audioMuted: call.audioMuted,
+            localAudioMuted: call.localAudioMuted,
+            isMuted: call.isMuted,
+          })
+        } catch (e) {
+          console.error('[Telnyx] Error debugging local audio:', e)
+        }
+      }
+      
+      // Ensure local audio is enabled and unmuted
+      function ensureLocalAudioEnabled(call: any) {
+        try {
+          console.log('[Telnyx] === ENSURING LOCAL AUDIO ENABLED ===')
+          
+          // Try to unmute the call if it has mute methods
+          if (call.unmuteAudio && typeof call.unmuteAudio === 'function') {
+            console.log('[Telnyx] Calling call.unmuteAudio()')
+            call.unmuteAudio()
+          }
+          if (call.unmute && typeof call.unmute === 'function') {
+            console.log('[Telnyx] Calling call.unmute()')
+            call.unmute()
+          }
+          
+          // Directly enable local audio tracks
+          const localStream = call.localStream || call.peer?.localStream || call._localStream
+          if (localStream) {
+            const audioTracks = localStream.getAudioTracks()
+            audioTracks.forEach((track: MediaStreamTrack, i: number) => {
+              if (!track.enabled) {
+                console.log(`[Telnyx] Enabling local track ${i}`)
+                track.enabled = true
+              }
+            })
+          }
+          
+          // Also check peer connection senders
+          if (call.peer?.pc) {
+            const pc = call.peer.pc as RTCPeerConnection
+            const senders = pc.getSenders()
+            senders.forEach((sender: RTCRtpSender, i: number) => {
+              if (sender.track && sender.track.kind === 'audio') {
+                if (!sender.track.enabled) {
+                  console.log(`[Telnyx] Enabling sender track ${i}`)
+                  sender.track.enabled = true
+                }
+              }
+            })
+          }
+          
+          // Debug after enabling
+          debugLocalAudio(call)
+        } catch (e) {
+          console.error('[Telnyx] Error ensuring local audio:', e)
+        }
+      }
 
       client.on('error', (error: any) => {
         console.error('[Telnyx] Client error:', error)
@@ -260,23 +535,28 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       })
 
       client.on('callUpdate', (call: any) => {
-        console.log('[Telnyx] Call update:', call.state)
+        console.log('[Telnyx] Call update:', call.state, call)
 
         switch (call.state) {
+          case 'new':
+          case 'trying':
+            setCallState('dialing')
+            break
           case 'ringing':
+          case 'early':
             setCallState('ringing')
             break
           case 'active':
+          case 'answering':
             setCallState('active')
             setStatus('on_call')
-            if (!currentCall) {
-              setCurrentCall({
-                id: call.id,
-                phone_number: call.options?.remoteCallerNumber || 'Unknown',
-                started_at: new Date(),
-                duration: 0
-              })
-            }
+            // Set current call info
+            setCurrentCall({
+              id: call.id || String(Date.now()),
+              phone_number: call.options?.destinationNumber || call.options?.remoteCallerNumber || 'Unknown',
+              started_at: new Date(),
+              duration: 0
+            })
             break
           case 'hangup':
           case 'destroy':
@@ -287,17 +567,49 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         }
       })
 
+      // Media event handler - try multiple event names
       client.on('media', (media: any) => {
-        console.log('[Telnyx] Media received')
-        if (media.stream && remoteAudioRef.current) {
+        console.log('[Telnyx] Media event received:', media)
+        if (media?.stream && remoteAudioRef.current) {
+          console.log('[Telnyx] Attaching media stream from event')
           remoteAudioRef.current.srcObject = media.stream
-          remoteAudioRef.current.play().catch(e => console.error('[Telnyx] Audio play error', e))
+          remoteAudioRef.current.play().catch((e: Error) => console.error('[Telnyx] Audio play error', e))
+        }
+      })
+      
+      client.on('telnyx.media', (media: any) => {
+        console.log('[Telnyx] telnyx.media event received:', media)
+        if (media?.stream && remoteAudioRef.current) {
+          console.log('[Telnyx] Attaching telnyx.media stream')
+          remoteAudioRef.current.srcObject = media.stream
+          remoteAudioRef.current.play().catch((e: Error) => console.error('[Telnyx] Audio play error', e))
         }
       })
 
-      // 5. Connect
-      await client.connect()
-      console.log('[Telnyx] Connection initiated')
+      // Track events - some SDKs use track instead of media
+      client.on('track', (track: any) => {
+        console.log('[Telnyx] Track event received:', track)
+      })
+
+      // 5. Connect - wrap in try/catch for better error handling
+      console.log('[Telnyx] About to call client.connect()...')
+      try {
+        const connectResult = await client.connect()
+        console.log('[Telnyx] connect() returned:', connectResult)
+      } catch (connectErr: any) {
+        console.error('[Telnyx] connect() threw:', connectErr)
+        throw connectErr
+      }
+      console.log('[Telnyx] Connection initiated, waiting for ready event...')
+      
+      // Log client state after connect
+      console.log('[Telnyx] Client state after connect:', {
+        connected: client.connected,
+        // @ts-ignore - accessing internal state for debugging
+        state: client._state,
+        // @ts-ignore
+        socket: client._socket ? 'exists' : 'null',
+      })
 
     } catch (err: any) {
       console.error('[Telnyx] Connect Error', err)
@@ -327,7 +639,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   }, [])
 
   /**
-   * Make outbound call via Telnyx Call Control API
+   * Make outbound call via TelnyxRTC client (WebRTC → PSTN)
    */
   const makeCall = useCallback(async (phoneNumber: string) => {
     if (status !== 'registered' || !telnyxClientRef.current) {
@@ -339,57 +651,94 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       setCallState('dialing')
       setError(null)
 
-      console.log('[Telnyx] Initiating call to:', phoneNumber)
-
-      // Use server-side dial via Call Control API
-      const dialRes = await apiPost<{
-        success: boolean
-        call_id: string
-        call_sid: string
-        status: string
-      }>('/api/webrtc/dial', { phone_number: phoneNumber })
-
-      if (!dialRes.success) {
-        throw new Error('Failed to initiate call')
+      console.log('[Telnyx] Initiating WebRTC call to:', phoneNumber, 'from:', callerId)
+      
+      // Find a real microphone (not virtual devices like Steam Streaming Microphone)
+      let audioConstraint: boolean | MediaTrackConstraints = true
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const audioInputs = devices.filter(d => d.kind === 'audioinput')
+        console.log('[Telnyx] Available audio devices for call:', audioInputs.map(d => d.label))
+        
+        // Try to find a real microphone - exclude virtual devices
+        const virtualKeywords = ['steam', 'virtual', 'vb-audio', 'voicemeeter', 'cable']
+        const realMic = audioInputs.find(d => {
+          const label = d.label.toLowerCase()
+          return !virtualKeywords.some(kw => label.includes(kw))
+        })
+        
+        if (realMic && realMic.deviceId) {
+          console.log('[Telnyx] Using real microphone:', realMic.label)
+          audioConstraint = {
+            deviceId: { exact: realMic.deviceId },
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        } else {
+          console.log('[Telnyx] No non-virtual mic found, using default with constraints')
+          // Use audio constraints without specific device
+          audioConstraint = {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        }
+      } catch (e) {
+        console.log('[Telnyx] Could not enumerate devices, using default audio')
       }
 
-      console.log('[Telnyx] Server dial initiated:', dialRes.call_sid)
-
-      // Update state
-      setCurrentCall({
-        id: dialRes.call_id,
-        phone_number: phoneNumber,
-        started_at: new Date(),
-        duration: 0
+      // Use TelnyxRTC client directly to make the call
+      // This creates a WebRTC call that bridges to PSTN via Telnyx
+      const call = telnyxClientRef.current.newCall({
+        destinationNumber: phoneNumber,
+        callerNumber: callerId || '', // Use the caller ID from server
+        callerName: 'VoxSouth', // Display name
+        audio: audioConstraint,
+        video: false,
       })
 
-      // The call will be answered via WebRTC when the PSTN connection is established
-      // The client will receive callUpdate events
+      console.log('[Telnyx] WebRTC call created:', call?.id || 'no id')
+
+      // The call events will be handled by our callUpdate listener
+      // No need to track here - the SDK manages the call lifecycle
 
     } catch (err: any) {
       console.error('[Telnyx] Call error', err)
       setError(err.message || 'Call failed')
       setCallState('idle')
     }
-  }, [status])
+  }, [status, callerId])
 
   /**
    * Hang up current call
    */
   const hangUp = useCallback(async () => {
-    if (!telnyxClientRef.current) return
+    if (!currentCallRef.current) {
+      console.log('[Telnyx] No active call to hang up')
+      return
+    }
 
     try {
       setCallState('ending')
 
-      // Hang up via Telnyx client
-      await telnyxClientRef.current.hangup()
+      // Hang up via call object (not client)
+      const call = currentCallRef.current
+      if (call.hangup) {
+        call.hangup()
+      } else if (call.disconnect) {
+        call.disconnect()
+      } else {
+        console.error('[Telnyx] Call object has no hangup method:', Object.keys(call))
+      }
 
+      currentCallRef.current = null
       setCallState('idle')
       setCurrentCall(null)
       setStatus('registered')
     } catch (err) {
       console.error('[Telnyx] Hangup error', err)
+      currentCallRef.current = null
       setCallState('idle')
       setCurrentCall(null)
     }
@@ -399,8 +748,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
    * Mute microphone
    */
   const mute = useCallback(() => {
-    if (telnyxClientRef.current) {
-      telnyxClientRef.current.muteAudio()
+    const call = currentCallRef.current
+    if (call) {
+      if (call.muteAudio) {
+        call.muteAudio()
+      } else if (call.mute) {
+        call.mute()
+      } else {
+        console.error('[Telnyx] Call has no mute method:', Object.keys(call))
+      }
       setIsMuted(true)
     }
   }, [])
@@ -409,8 +765,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
    * Unmute microphone
    */
   const unmute = useCallback(() => {
-    if (telnyxClientRef.current) {
-      telnyxClientRef.current.unmuteAudio()
+    const call = currentCallRef.current
+    if (call) {
+      if (call.unmuteAudio) {
+        call.unmuteAudio()
+      } else if (call.unmute) {
+        call.unmute()
+      } else {
+        console.error('[Telnyx] Call has no unmute method:', Object.keys(call))
+      }
       setIsMuted(false)
     }
   }, [])
