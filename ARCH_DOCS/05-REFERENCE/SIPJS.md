@@ -56,7 +56,7 @@ onInvite: (invitation) => {
 ### Dial Out
 ```ts
 const makeCall = async (phoneNumber: string) => {
-  await apiPost('/api/webrtc/dial', { phoneNumber, sessionId })
+  await apiPost('/api/webrtc/dial', { phone_number: phoneNumber, sessionId })
   // Wait for inbound INVITE
 }
 ```

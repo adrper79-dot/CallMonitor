@@ -3,7 +3,6 @@
 import React, { useEffect, useCallback } from 'react'
 import { useWebRTCContext } from '@/hooks/WebRTCProvider'
 import { useTargetNumber } from '@/hooks/TargetNumberProvider'
-import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
@@ -17,11 +16,10 @@ export interface WebRTCCallControlsProps {
  * WebRTCCallControls - Professional Design System v3.0
  * 
  * Browser-based calling controls using WebRTC.
- * Per ARCH_DOCS: SignalWire-first execution via browser SDK.
+ * Per ARCH_DOCS: Telnyx WebRTC execution via browser SDK.
  */
 export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallControlsProps) {
   const webrtc = useWebRTCContext()
-  const { config } = useVoiceConfig(organizationId)
   const { toast } = useToast()
   const { targetNumber, isValid: hasValidNumber } = useTargetNumber() // Read from shared context
 
@@ -57,10 +55,6 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
       })
     }
   }, [error, toast])
-
-  const hasDialTarget = config?.quick_dial_number || config?.target_id
-  const dialTargetDisplay = config?.quick_dial_number ||
-    (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
 
   const handleConnect = useCallback(async () => {
     try {
@@ -119,7 +113,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
         variant: 'destructive',
       })
     }
-  }, [hasValidNumber, targetNumber, config, makeCall, currentCall, onCallPlaced, toast])
+  }, [hasValidNumber, targetNumber, makeCall, currentCall, onCallPlaced, toast])
 
   const handleHangUp = useCallback(async () => {
     try {
@@ -185,7 +179,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
           </div>
           <h3 className="text-sm font-medium text-gray-900 mb-1">Connecting...</h3>
           <p className="text-xs text-gray-500">
-            Requesting microphone access and connecting to SignalWire
+            Requesting microphone access and connecting to Telnyx
           </p>
         </div>
       </section>
@@ -210,12 +204,12 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
           </button>
         </div>
 
-        {/* Target Display */}
-        {hasDialTarget && callState === 'idle' && (
-          <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
+        {/* Target number display - only show if we have a valid target */}
+        {hasValidNumber && callState === 'idle' && (
+          <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
             <div className="text-sm text-gray-700">
-              <span className="font-medium">Calling:</span>{' '}
-              <span className="font-mono">{dialTargetDisplay}</span>
+              <span className="font-medium">Ready to call:</span>{' '}
+              <span className="font-mono">{targetNumber}</span>
             </div>
           </div>
         )}

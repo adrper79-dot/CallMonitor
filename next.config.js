@@ -11,8 +11,8 @@
  */
 
 const nextConfig = {
-  // Only use static export for production builds
-  ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
+  // Use standalone output for Cloudflare deployment, static export for local
+  ...(process.env.CLOUDFLARE_ENV ? { output: 'standalone' } : process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
   
   // Fix workspace root detection
   outputFileTracingRoot: __dirname,

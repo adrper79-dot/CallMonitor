@@ -28,6 +28,13 @@ import { analyticsRoutes } from './routes/analytics'
 import { campaignsRoutes } from './routes/campaigns'
 import { voiceRoutes } from './routes/voice'
 import { callCapabilitiesRoutes } from './routes/call-capabilities'
+import { billingRoutes } from './routes/billing'
+import { surveysRoutes } from './routes/surveys'
+import { callerIdRoutes } from './routes/caller-id'
+import { aiConfigRoutes } from './routes/ai-config'
+import { teamRoutes } from './routes/team'
+import { usageRoutes } from './routes/usage'
+import { shopperRoutes } from './routes/shopper'
 
 // Types for Cloudflare bindings
 export interface Env {
@@ -108,6 +115,13 @@ app.route('/api/analytics', analyticsRoutes)
 app.route('/api/campaigns', campaignsRoutes)
 app.route('/api/voice', voiceRoutes)
 app.route('/api/call-capabilities', callCapabilitiesRoutes)
+app.route('/api/billing', billingRoutes)
+app.route('/api/surveys', surveysRoutes)
+app.route('/api/caller-id', callerIdRoutes)
+app.route('/api/ai-config', aiConfigRoutes)
+app.route('/api/team', teamRoutes)
+app.route('/api/usage', usageRoutes)
+app.route('/api/shopper', shopperRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

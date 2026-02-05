@@ -9,7 +9,7 @@
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
-import { getDb } from '../lib/db'
+import { getDb, DbClient } from '../lib/db'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
@@ -113,7 +113,7 @@ webhooksRoutes.post('/stripe', async (c) => {
 
 // --- Telnyx Handlers ---
 
-async function handleCallInitiated(db: any, payload: any) {
+async function handleCallInitiated(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, from, to } = payload
   
   await db.query(
@@ -124,7 +124,7 @@ async function handleCallInitiated(db: any, payload: any) {
   )
 }
 
-async function handleCallAnswered(db: any, payload: any) {
+async function handleCallAnswered(db: DbClient, payload: any) {
   const { call_control_id, call_session_id } = payload
   
   await db.query(
@@ -135,7 +135,7 @@ async function handleCallAnswered(db: any, payload: any) {
   )
 }
 
-async function handleCallHangup(db: any, payload: any) {
+async function handleCallHangup(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, hangup_cause } = payload
   
   await db.query(
@@ -146,7 +146,7 @@ async function handleCallHangup(db: any, payload: any) {
   )
 }
 
-async function handleRecordingSaved(env: Env, db: any, payload: any) {
+async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
   const { call_session_id, recording_urls } = payload
   
   // Download recording and store in R2
@@ -170,7 +170,7 @@ async function handleRecordingSaved(env: Env, db: any, payload: any) {
 
 // --- Stripe Handlers ---
 
-async function handleSubscriptionUpdate(db: any, subscription: any) {
+async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
   await db.query(
     `UPDATE organizations 
      SET subscription_status = $2, subscription_id = $3, plan_id = $4
@@ -179,7 +179,7 @@ async function handleSubscriptionUpdate(db: any, subscription: any) {
   )
 }
 
-async function handleSubscriptionCanceled(db: any, subscription: any) {
+async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
   await db.query(
     `UPDATE organizations 
      SET subscription_status = 'canceled'
@@ -188,7 +188,7 @@ async function handleSubscriptionCanceled(db: any, subscription: any) {
   )
 }
 
-async function handleInvoicePaid(db: any, invoice: any) {
+async function handleInvoicePaid(db: DbClient, invoice: any) {
   await db.query(
     `INSERT INTO billing_events (organization_id, event_type, amount, invoice_id, created_at)
      SELECT id, 'invoice_paid', $2, $3, NOW()

@@ -86,7 +86,7 @@ export async function signIn(
         body: JSON.stringify({
           username: options?.username,
           password: options?.password,
-          csrfToken: csrfData.csrfToken
+          csrf_token: csrfData.csrf_token
         })
       })
       
@@ -96,9 +96,9 @@ export async function signIn(
         return { error: data.error || 'Authentication failed', ok: false }
       }
       
-      // Store session token from response
-      if (data.sessionToken) {
-        storeToken(data.sessionToken, data.expires)
+      // Store session token from response (API returns snake_case)
+      if (data.session_token) {
+        storeToken(data.session_token, data.expires)
       }
       
       // Trigger session refresh

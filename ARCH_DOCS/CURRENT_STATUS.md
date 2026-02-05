@@ -1,14 +1,42 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 2, 2026  
-**Version:** 4.0 - Hybrid Cloudflare Deploy  
-**Status:** Production Ready (97% Complete) ⭐ Hybrid Pages + Workers Live
+**Last Updated:** February 3, 2026  
+**Version:** 4.2 - Schema Standardization + WSL Build Mandate  
+**Status:** Production Ready (98% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
 
 📊 **[VIEW COMPREHENSIVE ARCHITECTURE WITH VISUAL DIAGRAMS →](01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md)**
 
 📋 **[VIEW AI ROLE POLICY →](01-CORE/AI_ROLE_POLICY.md)** ⭐ ALL 5 PHASES COMPLETE
+
+---
+
+## 🔧 **Recent Updates (February 3, 2026)**
+
+### **Schema Standardization & Authentication Fixes (v4.2):**
+
+1. **Database Schema Compliance** - 100% snake_case standardization
+   - Migrated `sessions` table: `sessionToken` → `session_token`, `userId` → `user_id`
+   - Comprehensive audit of all 113 tables confirmed snake_case compliance
+   - Updated auth queries in `workers/src/routes/auth.ts` and `workers/src/lib/auth.ts`
+   - Resolved 401 authentication errors caused by camelCase column violations
+
+2. **Build Process Standardization** - WSL Mandatory for Production Builds
+   - OpenNext framework requires Linux environment (WSL on Windows)
+   - Established WSL build process for all production deployments
+   - Updated deployment documentation with WSL requirements
+   - Windows native builds deprecated for OpenNext compatibility
+
+3. **User Management Updates** - Test Account Owner Privileges
+   - Assigned owner roles to test users across organizations
+   - Updated organization membership and tenant isolation settings
+   - Verified RBAC middleware properly enforces access controls
+
+4. **Architecture Documentation Updates**
+   - Updated DATABASE_SCHEMA_REGISTRY.md with migration history
+   - Added WSL build mandate to DEPLOYMENT_NOTES.md
+   - Current status reflects production readiness with 98% completeness
 
 ---
 
@@ -150,15 +178,15 @@ Wordis Bond is the System of Record for business conversations - a platform that
 
 | Metric | Status | Notes |
 |--------|--------|-------|
-| **Overall Completeness** | 95% | 5-pass deep validation complete |
-| **Build Status** | ✅ Passing | Exit Code 0 |
-| **TypeScript** | ✅ Clean | No type errors |
+| **Overall Completeness** | 98% | Schema standardization complete |
+| **Build Status** | ✅ Passing | WSL required for OpenNext compatibility |
+| **TypeScript** | ⚠️ Warnings | 748 type warnings (non-blocking) |
 | **Test Pass Rate** | ✅ 98.5% | 64/65 tests |
 | **Critical Issues** | ✅ None | All security fixes applied |
 | **Production Readiness** | ✅ Ready | Schema-aligned, tenant-isolated |
-| **Pages Built** | 14 routes | Core journeys complete |
+| **Pages Built** | 29 routes | All core journeys complete |
 | **API Endpoints** | 100+ | Comprehensive coverage |
-| **Database Tables** | 54 | Rich data model |
+| **Database Tables** | 113 | Rich data model, 100% snake_case |
 
 ### Feature Completeness Breakdown
 

@@ -5,6 +5,10 @@ compatibility_date = "2026-02-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+[env.dev]
+name = "wordisbond-api-dev"
+main = "src/index.ts"
+
 # Account settings (optional - wrangler auto-detects)
 # account_id = ""
 
@@ -12,10 +16,15 @@ workers_dev = true
 NODE_ENV = "production"
 CORS_ORIGIN = "https://voxsouth.online"
 
-# Hyperdrive for Neon Postgres
+# Local development database connection (fallback to Hyperdrive in production)
+# Set via: wrangler secret put DATABASE_URL --config workers/wrangler.toml
+# For local dev: wrangler secret put DATABASE_URL "postgresql://user:pass@localhost:5432/wordisbond_dev"
+
+# Hyperdrive for Neon Postgres (production only)
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "3948fde8207649108d77e82020091b56"
+localConnectionString = "postgresql://neondb_owner:npg_HKXlEiWM9BF2@ep-mute-recipe-ahsibut8-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # KV for sessions/cache
 [[kv_namespaces]]
@@ -42,6 +51,8 @@ crons = [
 # - RESEND_API_KEY
 # - STRIPE_SECRET_KEY
 # - TELNYX_API_KEY
+# - TELNYX_CONNECTION_ID
+# - TELNYX_NUMBER
 # - ASSEMBLYAI_API_KEY
 # - ELEVENLABS_API_KEY
 

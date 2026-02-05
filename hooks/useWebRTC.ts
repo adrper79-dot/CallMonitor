@@ -132,6 +132,15 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
   const connect = useCallback(async () => {
     if (status === 'registered' || status === 'connecting') return
 
+    await performConnect()
+  }, [status])
+
+  /**
+   * Internal connection logic
+   */
+  const performConnect = useCallback(async () => {
+    if (status === 'registered' || status === 'connecting') return
+
     try {
       setStatus('initializing')
       setError(null)
@@ -143,15 +152,26 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         success: boolean
         token: string
         username: string
+        credential_id?: string
         expires: string
+        error?: string
+        hint?: string
         rtcConfig: {
           iceServers: any[]
         }
       }>('/api/webrtc/token')
 
-      if (!tokenRes.success || !tokenRes.token) {
-        throw new Error('Failed to get WebRTC token')
+      if (!tokenRes.success) {
+        const errorMsg = tokenRes.error || 'Failed to get WebRTC token'
+        console.error('[Telnyx] Token error:', errorMsg, tokenRes.hint)
+        throw new Error(tokenRes.hint ? `${errorMsg} - ${tokenRes.hint}` : errorMsg)
       }
+
+      if (!tokenRes.token) {
+        throw new Error('No token in response')
+      }
+
+      console.log('[Telnyx] Credential obtained:', tokenRes.credential_id)
 
       console.log('[Telnyx] Got credentials, initializing client...')
       setStatus('connecting')
@@ -181,6 +201,62 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
         console.error('[Telnyx] Client error:', error)
         setError(error.message || 'WebRTC error')
         setStatus('error')
+      })
+
+      // Handle token refresh requests from Telnyx SDK
+      client.on('login', async () => {
+        console.log('[Telnyx] Login event - refreshing token')
+        try {
+          // Fetch new token
+          const tokenRes = await apiGet<{
+            success: boolean
+            token: string
+            username: string
+            expires: string
+            rtcConfig: {
+              iceServers: any[]
+            }
+          }>('/api/webrtc/token')
+
+          if (tokenRes.success && tokenRes.token) {
+            // Disconnect current client
+            await client.disconnect()
+            
+            // Update client properties
+            client.login_token = tokenRes.token
+            client.login = tokenRes.username
+            client.iceServers = tokenRes.rtcConfig.iceServers
+            
+            // Reconnect with new token
+            await client.connect()
+            console.log('[Telnyx] Reconnected with refreshed token')
+          } else {
+            throw new Error('Failed to refresh token')
+          }
+        } catch (err) {
+          console.error('[Telnyx] Token refresh failed:', err)
+          setError('Token refresh failed')
+          setStatus('error')
+        }
+      })
+
+      // Also listen for auth failures
+      client.on('authFailed', async () => {
+        console.log('[Telnyx] Auth failed - attempting full reconnect')
+        try {
+          // Disconnect completely
+          await client.disconnect()
+          setStatus('disconnected')
+          
+          // Wait a moment
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Reconnect with fresh credentials
+          await performConnect()
+        } catch (err) {
+          console.error('[Telnyx] Reconnect failed:', err)
+          setStatus('error')
+        }
       })
 
       client.on('callUpdate', (call: any) => {
@@ -268,20 +344,20 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       // Use server-side dial via Call Control API
       const dialRes = await apiPost<{
         success: boolean
-        callId: string
-        callSid: string
+        call_id: string
+        call_sid: string
         status: string
-      }>('/api/webrtc/dial', { phoneNumber })
+      }>('/api/webrtc/dial', { phone_number: phoneNumber })
 
       if (!dialRes.success) {
         throw new Error('Failed to initiate call')
       }
 
-      console.log('[Telnyx] Server dial initiated:', dialRes.callSid)
+      console.log('[Telnyx] Server dial initiated:', dialRes.call_sid)
 
       // Update state
       setCurrentCall({
-        id: dialRes.callId,
+        id: dialRes.call_id,
         phone_number: phoneNumber,
         started_at: new Date(),
         duration: 0

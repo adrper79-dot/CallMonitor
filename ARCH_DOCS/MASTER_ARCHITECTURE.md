@@ -47,37 +47,54 @@ This aligns with modern edge-first patterns and provides:
 
 ## Component Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     CLIENT BROWSER                               │
-│  Next.js Static Pages (React) + Client-Side Routing             │
-│  Authentication: Custom AuthProvider + useSession()             │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │ HTTPS
-                      │
-┌─────────────────────▼───────────────────────────────────────────┐
-│              CLOUDFLARE PAGES (CDN)                              │
-│  • Static HTML/CSS/JS from out/ directory                       │
-│  • No server-side rendering                                     │
-│  • Global edge caching                                          │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-                      │ API Calls (/api/*)
-                      │
-┌─────────────────────▼───────────────────────────────────────────┐
-│           CLOUDFLARE WORKERS (Edge APIs)                         │
-│  • Hono framework (Express-like)                                │
-│  • Custom authentication with CSRF protection                   │
-│  • Session-based auth with database persistence                 │
-│  • Routes: /api/auth, /api/calls, /api/organizations, etc.      │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┬─────────────┬──────────────┐
-        │             │             │             │              │
-┌───────▼─────┐ ┌────▼────┐  ┌─────▼─────┐ ┌────▼─────┐  ┌─────▼─────┐
-│   NEON PG   │ │   KV    │  │    R2     │ │  Telnyx  │  │  Stripe   │
-│ (Hyperdrive)│ │   N/A   │  │Recordings │ │   Voice  │  │  Billing  │
-└─────────────┘ └─────────┘  └───────────┘ └──────────┘  └───────────┘
+```mermaid
+flowchart TB
+    subgraph "Client Browser"
+        Browser[Browser Client<br/>Next.js Static Pages + React<br/>Custom AuthProvider + useSession()]
+    end
+
+    subgraph "Cloudflare Edge Network"
+        Pages[Cloudflare Pages<br/>Static HTML/CSS/JS<br/>Global CDN Caching<br/>No SSR]
+
+        Workers[Cloudflare Workers<br/>Hono Framework<br/>Custom Auth + CSRF<br/>Session-based Auth<br/>API Routes: /auth, /calls, /orgs]
+    end
+
+    subgraph "Data & Services"
+        Neon[Neon Postgres<br/>Hyperdrive Pooling<br/>RLS Security<br/>113 Tables]
+
+        R2[Cloudflare R2<br/>Object Storage<br/>Audio Recordings<br/>Evidence Bundles]
+
+        Telnyx[Telnyx<br/>Voice/SMS Telephony<br/>Branded DIDs<br/>Media Streams]
+
+        Stripe[Stripe<br/>Billing & Subscriptions<br/>Usage Tracking]
+
+        AssemblyAI[AssemblyAI<br/>Transcription<br/>Real-time + Batch]
+
+        ElevenLabs[ElevenLabs<br/>Text-to-Speech<br/>Voice Cloning]
+
+        OpenAI[OpenAI<br/>LLM Reasoning<br/>Translation Support]
+    end
+
+    Browser -->|HTTPS| Pages
+    Browser -->|API Calls /api/*| Workers
+    Workers -->|Database Queries| Neon
+    Workers -->|Media Storage| R2
+    Workers -->|Voice Calls| Telnyx
+    Workers -->|Billing| Stripe
+    Workers -->|Transcription| AssemblyAI
+    Workers -->|TTS/Audio| ElevenLabs
+    Workers -->|Translation| OpenAI
+
+    style Browser fill:#e1f5fe
+    style Pages fill:#f3e5f5
+    style Workers fill:#e8f5e8
+    style Neon fill:#fff3e0
+    style R2 fill:#fce4ec
+    style Telnyx fill:#f1f8e9
+    style Stripe fill:#e0f2f1
+    style AssemblyAI fill:#ede7f6
+    style ElevenLabs fill:#fff8e1
+    style OpenAI fill:#fce4ec
 ```
 
 ---

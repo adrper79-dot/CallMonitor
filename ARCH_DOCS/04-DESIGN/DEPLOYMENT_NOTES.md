@@ -1,7 +1,7 @@
 # Word Is Bond - Deployment Notes
 
-**Last Updated:** January 13, 2026  
-**Version:** 1.1.0  
+**Last Updated:** February 3, 2026  
+**Version:** 1.2.0 - WSL Build Mandate  
 **Status:** Production Ready
 
 ---
@@ -78,6 +78,26 @@ GOOGLE_CLIENT_SECRET=xxx
 ---
 
 ## 📦 **Build Requirements**
+
+### **Critical: WSL Environment Required for Production Builds**
+
+**OpenNext Framework Compatibility:**
+- OpenNext deployment framework requires Linux environment
+- Windows native builds are incompatible and will fail
+- **Mandatory:** Use WSL (Windows Subsystem for Linux) for all production builds
+- Alternative: Use Linux VM or dedicated build server
+
+**Build Command (WSL):**
+```bash
+# In WSL terminal
+npm run build
+npx open-next build
+```
+
+**Verification:**
+- Build must complete without OpenNext-related errors
+- Windows native builds will show compatibility failures
+- All deployment artifacts must be generated successfully
 
 ### **Critical: All API Routes Must Be Dynamic**
 

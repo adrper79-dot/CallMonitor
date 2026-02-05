@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
 import { logger } from '@/lib/logger'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 interface VoiceTarget {
   id: string
@@ -49,16 +49,9 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
     try {
       setLoading(true)
       setError(null)
-      const res = await fetch(`${API_BASE}/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
-        credentials: 'include'
-      })
-      const data = await res.json()
+      const data = await apiGet(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`)
       
-      if (data.success) {
-        setTargets(data.targets || [])
-      } else {
-        setError(data.error?.message || data.error || 'Failed to load targets')
-      }
+      setTargets(data.targets || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load targets')
     } finally {
@@ -84,33 +77,23 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
       setSaving(true)
       setError(null)
       
-      const res = await fetch(`${API_BASE}/api/voice/targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: organizationId,
-          phone_number: newNumber,
-          name: newName || undefined,
-          description: newDescription || undefined
-        })
+      const data = await apiPost('/api/voice/targets', {
+        organization_id: organizationId,
+        phone_number: newNumber,
+        name: newName || undefined,
+        description: newDescription || undefined
       })
       
-      const data = await res.json()
+      setShowAddForm(false)
+      setNewNumber('')
+      setNewName('')
+      setNewDescription('')
+      fetchTargets()
       
-      if (data.success) {
-        setShowAddForm(false)
-        setNewNumber('')
-        setNewName('')
-        setNewDescription('')
-        fetchTargets()
-        
-        // Auto-select the new target if it's the first one
-        if (targets.length === 0 && data.target?.id) {
-          handleSelectTarget(data.target.id)
-        }
-      } else {
-        setError(data.error?.message || data.error || 'Failed to add target')
+      // Auto-select the new target if it's the first one
+      if (targets.length === 0 && data.target?.id) {
+        await updateConfig({ target_id: data.target.id })
+        onTargetSelect?.(data.target.id)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to add target')

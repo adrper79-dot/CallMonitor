@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from '@/components/AuthProvider'
 import { Logo } from '@/components/Logo'
 import { 
@@ -15,6 +15,14 @@ import {
 // API base URL for Workers API
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
+interface InviteData {
+  email: string
+  role: string
+  organization_id: string
+  organization_name: string
+  expires_at: string
+}
+
 /**
  * SIGN UP PAGE
  * 
@@ -26,18 +34,47 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrp
  */
 export default function SignUpPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [organizationName, setOrganizationName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleAvailable, setGoogleAvailable] = useState(false)
+  
+  // Invite handling
+  const inviteToken = searchParams.get('invite')
+  const [inviteData, setInviteData] = useState<InviteData | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(!!inviteToken)
 
   // Form validation state
   const emailValid = email.length === 0 || isValidEmail(email)
   const passwordStrength = getPasswordStrength(password)
-  const canSubmit = isValidEmail(email) && passwordStrength.score >= 2
+  // Require org name only if not joining via invite
+  const canSubmit = isValidEmail(email) && passwordStrength.score >= 2 && 
+    (inviteData || organizationName.trim().length > 0)
+
+  // Validate invite token if present
+  useEffect(() => {
+    if (inviteToken) {
+      setInviteLoading(true)
+      fetch(`${API_BASE}/api/team/invites/validate/${inviteToken}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.valid && data.invite) {
+            setInviteData(data.invite)
+            setEmail(data.invite.email)
+          } else {
+            setError(data.error || 'Invalid or expired invite link')
+          }
+        })
+        .catch(() => setError('Failed to validate invite'))
+        .finally(() => setInviteLoading(false))
+    }
+  }, [inviteToken])
 
   // Check available auth providers
   useEffect(() => {
@@ -47,12 +84,12 @@ export default function SignUpPage() {
       .catch(() => setGoogleAvailable(false))
   }, [])
 
-  // Redirect if already signed in
+  // Redirect if already signed in (but not if accepting invite)
   useEffect(() => {
-    if (session) {
+    if (session && !inviteToken) {
       router.push('/dashboard')
     }
-  }, [session, router])
+  }, [session, router, inviteToken])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -67,14 +104,32 @@ export default function SignUpPage() {
       return
     }
     
+    // If not joining via invite, require organization name
+    if (!inviteData && !organizationName.trim()) {
+      setError('Please enter an organization name')
+      return
+    }
+    
     setError(null)
     setLoading(true)
 
     try {
+      // Step 1: Create account
+      const signupPayload: Record<string, string> = { 
+        email, 
+        password,
+        name: name || email.split('@')[0],
+      }
+      
+      // Only include organizationName if not joining via invite
+      if (!inviteData && organizationName.trim()) {
+        signupPayload.organizationName = organizationName.trim()
+      }
+      
       const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(signupPayload),
         credentials: 'include'
       })
 
@@ -86,7 +141,7 @@ export default function SignUpPage() {
         return
       }
 
-      // Auto-sign in after successful signup
+      // Step 2: Auto-sign in after successful signup
       const signInRes = await signIn('credentials', {
         username: email,
         password,
@@ -97,8 +152,30 @@ export default function SignUpPage() {
         // Account created but sign-in failed - redirect to signin with message
         console.error('Auto sign-in failed:', signInRes.error)
         router.push('/signin?message=account-created')
-      } else if (signInRes?.ok) {
-        // Successfully signed in - redirect to dashboard
+        return
+      }
+      
+      // Step 3: If we have an invite token, accept the invite
+      if (inviteToken && signInRes?.ok) {
+        try {
+          const acceptRes = await fetch(`${API_BASE}/api/team/invites/accept/${inviteToken}`, {
+            method: 'POST',
+            credentials: 'include',
+          })
+          const acceptData = await acceptRes.json()
+          
+          if (acceptRes.ok && acceptData.success) {
+            console.log(`Joined organization: ${acceptData.organization_name}`)
+          } else {
+            console.warn('Failed to accept invite:', acceptData.error)
+          }
+        } catch (acceptErr) {
+          console.error('Error accepting invite:', acceptErr)
+        }
+      }
+      
+      // Step 4: Redirect to dashboard
+      if (signInRes?.ok) {
         router.push('/dashboard')
       } else {
         // Fallback - redirect to signin
@@ -113,13 +190,15 @@ export default function SignUpPage() {
 
   async function handleGoogleSignUp() {
     setLoading(true)
-    await signIn('google', { callbackUrl: '/dashboard' })
+    await signIn('google', { callbackUrl: inviteToken ? `/signup?invite=${inviteToken}` : '/dashboard' })
   }
 
-  if (status === 'loading') {
+  if (status === 'loading' || inviteLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-pulse text-gray-400">Loading...</div>
+        <div className="animate-pulse text-gray-400">
+          {inviteLoading ? 'Validating invite...' : 'Loading...'}
+        </div>
       </div>
     )
   }
@@ -148,12 +227,30 @@ export default function SignUpPage() {
           {/* Heading */}
           <div className="text-center mb-8">
             <h1 className="text-2xl font-semibold text-gray-900 mb-2">
-              Create your account
+              {inviteData ? `Join ${inviteData.organization_name}` : 'Create your account'}
             </h1>
             <p className="text-gray-600">
-              Start capturing business conversations with evidence-grade integrity.
+              {inviteData 
+                ? `You've been invited to join as ${inviteData.role}`
+                : 'Start capturing business conversations with evidence-grade integrity.'
+              }
             </p>
           </div>
+          
+          {/* Invite Info Banner */}
+          {inviteData && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-800">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">Organization Invite</span>
+              </div>
+              <p className="mt-1 text-sm text-blue-700">
+                Create your account to join <strong>{inviteData.organization_name}</strong>
+              </p>
+            </div>
+          )}
 
           {/* Google Sign Up */}
           {googleAvailable && (
@@ -187,6 +284,20 @@ export default function SignUpPage() {
           {/* Sign Up Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                Your Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Smith"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            
+            <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email <span className="text-red-500">*</span>
               </label>
@@ -196,7 +307,11 @@ export default function SignUpPage() {
                 onChange={setEmail}
                 placeholder="you@company.com"
                 required
+                disabled={!!inviteData}
               />
+              {inviteData && (
+                <p className="mt-1 text-xs text-gray-500">Email is locked to the invite</p>
+              )}
             </div>
 
             <div>
@@ -213,6 +328,27 @@ export default function SignUpPage() {
                 showRequirements
               />
             </div>
+            
+            {/* Organization Name - only show if not joining via invite */}
+            {!inviteData && (
+              <div>
+                <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Organization Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="organizationName"
+                  type="text"
+                  value={organizationName}
+                  onChange={(e) => setOrganizationName(e.target.value)}
+                  placeholder="Your Company Inc."
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  This will be your team's workspace name
+                </p>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
@@ -235,7 +371,12 @@ export default function SignUpPage() {
                 disabled:opacity-50 disabled:cursor-not-allowed
               `}
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading 
+                ? 'Creating account...' 
+                : inviteData 
+                  ? `Join ${inviteData.organization_name}`
+                  : 'Create Account'
+              }
             </button>
           </form>
 

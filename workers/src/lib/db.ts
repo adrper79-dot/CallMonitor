@@ -1,6 +1,6 @@
 /**
  * Database Client for Cloudflare Workers
- * Uses Hyperdrive for connection pooling to Neon Postgres
+ * Uses @neondatabase/serverless for edge-compatible Postgres
  */
 
 import { neon } from '@neondatabase/serverless'
@@ -11,44 +11,34 @@ export interface DbClient {
 }
 
 /**
- * Get database client using Neon SDK (single client approach)
+ * Get database client using Neon serverless
+ * Creates a new connection per request (edge-compatible)
  */
 export function getDb(env: Env): DbClient {
   let connectionString: string
 
-  if (env.NEON_PG_CONN) {
-    connectionString = env.NEON_PG_CONN
-  } else if (env.HYPERDRIVE) {
+  if (env.HYPERDRIVE) {
     connectionString = env.HYPERDRIVE.connectionString
+  } else if (env.NEON_PG_CONN) {
+    connectionString = env.NEON_PG_CONN
   } else {
-    throw new Error('No database connection available (NEON_PG_CONN or HYPERDRIVE required)')
+    throw new Error('No database connection available (HYPERDRIVE or NEON_PG_CONN required)')
   }
 
-  const sql = neon(connectionString)
+  // Use Neon's serverless SQL function with fullResults for edge-compatible queries
+  const sql = neon(connectionString, { fullResults: true })
 
   return {
     query: async (sqlString: string, params: any[] = []): Promise<{ rows: any[] }> => {
       try {
-        // Use Neon SDK with proper parameterized queries
-        let query = sqlString
-        if (params && params.length > 0) {
-          // Escape and sanitize parameters to prevent SQL injection
-          params.forEach((param, index) => {
-            const escapedValue = param === null ? 'NULL' : 
-              typeof param === 'number' ? String(param) :
-              typeof param === 'boolean' ? (param ? 'TRUE' : 'FALSE') :
-              `'${String(param).replace(/'/g, "''")}'`
-            query = query.replace(new RegExp(`\\$${index + 1}`, 'g'), escapedValue)
-          })
-        }
-        const result = await sql.unsafe(query)
-        return { rows: Array.isArray(result) ? result : [] }
+        // Use sql.call syntax for parameterized queries
+        const result = await sql(sqlString, params)
+        return { rows: result.rows as any[] }
       } catch (error: any) {
         console.error('Database query error:', {
           message: error.message,
           sql: sqlString.slice(0, 100),
           params: params?.slice(0, 3),
-          connectionHint: connectionString ? 'using ' + (connectionString.includes('neon.tech') ? 'NEON' : 'HYPERDRIVE') : 'no connection'
         })
         throw new Error(`Database query failed: ${error.message}`)
       }
@@ -57,23 +47,15 @@ export function getDb(env: Env): DbClient {
 }
 
 /**
- * Transaction helper
+ * Transaction helper - for edge, we just run queries sequentially
+ * True transaction support requires WebSocket connection which isn't always available
  */
 export async function withTransaction<T>(
   env: Env,
   callback: (client: DbClient) => Promise<T>
 ): Promise<T> {
+  // For edge workers, we just use the regular db client
+  // True transactions would require websocket connection
   const db = getDb(env)
-
-  // Start transaction
-  await db.query('BEGIN')
-
-  try {
-    const result = await callback(db)
-    await db.query('COMMIT')
-    return result
-  } catch (error) {
-    await db.query('ROLLBACK')
-    throw error
-  }
+  return callback(db)
 }

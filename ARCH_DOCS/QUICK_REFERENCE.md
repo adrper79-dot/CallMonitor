@@ -30,6 +30,22 @@
 4. Fill CSV with phone numbers
 5. Upload & click "Start Bulk Calls"
 
+```mermaid
+flowchart TD
+    A[User visits /] --> B[Enter phone number<br/>+E.164 format]
+    B --> C[Click Start Call]
+    C --> D[UI calls /api/calls/start]
+    D --> E[Workers API validates auth]
+    E --> F[Workers calls Telnyx API]
+    F --> G[Telnyx initiates call]
+    G --> H[Call connects to recipient]
+    H --> I[Audio streams to AssemblyAI<br/>for transcription]
+    I --> J[Real-time transcription<br/>displayed in UI]
+    J --> K[Call completes]
+    K --> L[Recording saved to R2]
+    L --> M[Full transcript stored<br/>in database]
+```
+
 ---
 
 ## 🌐 **Live Translation Setup**
@@ -46,6 +62,19 @@
 3. Select From language (e.g., English)
 4. Select To language (e.g., Spanish)
 5. Done!
+
+```mermaid
+flowchart TD
+    A[User enables Live Translation<br/>in /settings] --> B[UI calls /api/settings/update]
+    B --> C[Workers validates Business/Enterprise plan]
+    C --> D[Workers checks feature flag<br/>TRANSLATION_LIVE_ASSIST_PREVIEW]
+    D --> E[Settings saved to database]
+    E --> F[During call: Audio streams<br/>to AssemblyAI + OpenAI]
+    F --> G[Real-time translation generated]
+    G --> H[Translated text sent to ElevenLabs]
+    H --> I[AI voice synthesis in target language]
+    I --> J[Synthesized audio injected<br/>into live call stream]
+```
 
 ---
 

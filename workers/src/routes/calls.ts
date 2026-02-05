@@ -113,20 +113,21 @@ callsRoutes.post('/start', async (c) => {
     }
 
     const body = await c.req.json()
-    const { phoneNumber, callerId, systemId } = body
+    const { phone_number, caller_id, system_id } = body
 
-    if (!phoneNumber) {
+    if (!phone_number) {
       return c.json({ error: 'Phone number is required' }, 400)
     }
 
     const db = getDb(c.env)
 
-    // Create call record
+    // Create call record - matching actual schema columns
+    // Schema has: id, organization_id, system_id, status, started_at, created_by, call_sid, caller_id_used
     const result = await db.query(
-      `INSERT INTO calls (organization_id, system_id, status, created_by, phone_number, caller_id)
-       VALUES ($1, $2, 'pending', $3, $4, $5)
+      `INSERT INTO calls (organization_id, system_id, status, started_at, created_by, caller_id_used)
+       VALUES ($1, $2, 'pending', NOW(), $3, $4)
        RETURNING *`,
-      [session.organization_id, systemId, session.user_id, phoneNumber, callerId]
+      [session.organization_id, system_id, session.user_id, caller_id || phone_number]
     )
 
     const call = result.rows[0]
@@ -268,17 +269,17 @@ callsRoutes.get('/:id/outcome', async (c) => {
     return c.json({
       success: true,
       data: {
-        callId,
+        call_id: callId,
         outcome: outcome || null,
         history,
-        hasOutcome: !!outcome,
+        has_outcome: !!outcome,
       },
     })
   } catch (error: any) {
     if (error.code === '42P01') { // table undefined
       return c.json({
         success: true,
-        data: { callId: c.req.param('id'), outcome: null, history: [], hasOutcome: false, message: 'Feature not configured' }
+        data: { call_id: c.req.param('id'), outcome: null, history: [], has_outcome: false, message: 'Feature not configured' }
       })
     }
     console.error('Outcome GET error', error)

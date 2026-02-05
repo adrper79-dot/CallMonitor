@@ -118,6 +118,7 @@ export interface EmailInputProps {
   required?: boolean
   autoComplete?: string
   showValidation?: boolean
+  disabled?: boolean
 }
 
 export function EmailInput({
@@ -128,6 +129,7 @@ export function EmailInput({
   required = true,
   autoComplete = 'email',
   showValidation = true,
+  disabled = false,
 }: EmailInputProps) {
   const isValid = value.length === 0 || isValidEmail(value)
   const hasValue = value.length > 0
@@ -142,9 +144,11 @@ export function EmailInput({
         placeholder={placeholder}
         required={required}
         autoComplete={autoComplete}
+        disabled={disabled}
         className={`
           w-full px-4 py-3 border rounded-lg outline-none transition-all
-          ${hasValue && showValidation
+          ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}
+          ${hasValue && showValidation && !disabled
             ? isValid 
               ? 'border-green-400 focus:ring-2 focus:ring-green-300' 
               : 'border-red-400 focus:ring-2 focus:ring-red-300'
@@ -152,7 +156,7 @@ export function EmailInput({
           }
         `}
       />
-      {hasValue && showValidation && !isValid && (
+      {hasValue && showValidation && !isValid && !disabled && (
         <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
           <span>⚠</span> Please enter a valid email address
         </p>

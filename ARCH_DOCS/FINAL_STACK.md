@@ -34,9 +34,44 @@ This document is the canonical, consolidated architecture for the product (final
 - Cloudflare (Pages + Workers + WAF): $0–$50/mo
 
 ## High-Level Flows
-- Outbound call: UI → Worker (select caller ID) → Telnyx (call + media fork) → Worker → AssemblyAI (realtime) → optional translation → ElevenLabs TTS → Worker injects audio → Telnyx
-- Inbound call: Telnyx webhook → Worker creates call record → streams audio to AssemblyAI → stores partials → on end: store recording to R2, transcript + metadata in Neon
-- Compliance: recordings stored in R2 with versioning/object lock; audit trail in Neon; legal hold flags preserved. **All media/PHI encrypted (TLS 1.3 transit); audit log on access/end; legal hold → R2 object lock.**
+
+### Outbound Call Flow
+```mermaid
+flowchart LR
+    UI[Next.js UI<br/>Select Caller ID] --> Workers1[Cloudflare Workers<br/>/api/calls/start]
+    Workers1 --> Telnyx1[Telnyx API<br/>Initiate Call + Media Fork]
+    Telnyx1 --> Workers2[Workers<br/>Receive Media Stream]
+    Workers2 --> AssemblyAI[AssemblyAI<br/>Real-time Transcription]
+    AssemblyAI --> Translation{Translation<br/>Enabled?}
+    Translation -->|Yes| OpenAI[OpenAI/DeepL<br/>Translate Text]
+    OpenAI --> ElevenLabs[ElevenLabs<br/>Text-to-Speech]
+    ElevenLabs --> Workers3[Workers<br/>Inject Audio]
+    Workers3 --> Telnyx2[Telnyx<br/>Stream to Recipient]
+    Translation -->|No| Workers3
+```
+
+### Inbound Call Flow
+```mermaid
+flowchart LR
+    TelnyxWH[Telnyx Webhook<br/>Call Started] --> Workers1[Workers<br/>Create Call Record]
+    Workers1 --> AssemblyAI[AssemblyAI<br/>Stream Audio<br/>Real-time Transcription]
+    AssemblyAI --> Workers2[Workers<br/>Store Partial Transcripts]
+    Workers2 --> CallEnd{Call Ends}
+    CallEnd --> R2[R2 Storage<br/>Save Recording<br/>Versioning + Object Lock]
+    CallEnd --> Neon[Neon DB<br/>Store Full Transcript<br/>+ Metadata + Audit Trail]
+```
+
+### Compliance & Security Flow
+```mermaid
+flowchart TD
+    Recording[Call Recording<br/>Captured] --> Encrypt[TLS 1.3<br/>Transit Encryption]
+    Encrypt --> R2[R2 Storage<br/>Versioning + Object Lock<br/>Legal Hold Support]
+    R2 --> Access[Access Request] --> Audit[Audit Log<br/>Access Recorded]
+    Audit --> PHI{PHI Data?}
+    PHI -->|Yes| BAA[BAA Compliance<br/>Vendor Agreements]
+    PHI -->|No| Standard[Standard Access]
+    Access --> RLS[Neon RLS<br/>Organization Isolation]
+```
 
 ## Responsibilities by Layer
 - Pages/Frontend: UI, client fetch to `/api/*`, static assets

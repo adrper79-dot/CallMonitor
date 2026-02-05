@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import type { Call } from '@/app/voice/page'
 import { VoiceConfigProvider } from '@/hooks/useVoiceConfig'
 import { WebRTCProvider, useWebRTCContext } from '@/hooks/WebRTCProvider'
-import { TargetNumberProvider } from '@/hooks/TargetNumberProvider'
+import { TargetNumberProvider, useTargetNumber } from '@/hooks/TargetNumberProvider'
 import { SignalWireProvider } from '@/contexts/SignalWireContext'
 import VoiceHeader from './VoiceHeader'
 import CallList from './CallList'
@@ -51,6 +51,26 @@ function CallingModeSelectorWithWebRTC({
       disabled={disabled}
     />
   )
+}
+
+// Helper component that syncs onboarding completion to TargetNumberProvider
+function OnboardingSync() {
+  const { setTargetNumber } = useTargetNumber()
+  
+  useEffect(() => {
+    function handleOnboardingComplete(e: CustomEvent<{ targetNumber?: string }>) {
+      if (e.detail?.targetNumber) {
+        setTargetNumber(e.detail.targetNumber)
+      }
+    }
+    
+    window.addEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
+    return () => {
+      window.removeEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
+    }
+  }, [setTargetNumber])
+  
+  return null // This is a sync-only component, no UI
 }
 
 /**
@@ -182,6 +202,8 @@ export default function VoiceOperationsClient({
       <SignalWireProvider>
         <WebRTCProvider organizationId={organizationId}>
           <TargetNumberProvider>
+            {/* Sync onboarding completion to TargetNumberProvider */}
+            <OnboardingSync />
             <div className="flex flex-col h-screen bg-gray-50">
               {/* Header */}
               <VoiceHeader organizationId={organizationId} organizationName={organizationName} />

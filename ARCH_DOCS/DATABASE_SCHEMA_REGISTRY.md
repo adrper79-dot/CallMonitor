@@ -142,41 +142,112 @@ Organization membership and roles.
 
 ## Table Relationships Diagram
 
-```
-┌─────────────┐
-│   users     │ ───┐
-│  (id: TEXT) │    │
-└──────┬──────┘    │
-       │           │
-       │ 1:N       │ 1:N
-       ▼           │
-┌─────────────┐    │     ┌─────────────────┐
-│  accounts   │    │     │  organizations  │
-│ (user_id)   │    │     │   (id: UUID)    │
-└─────────────┘    │     └────────┬────────┘
-                   │              │
-       ┌───────────┴──────┐      │ 1:N
-       │                  │      │
-       ▼                  ▼      ▼
-┌─────────────┐    ┌─────────────────┐
-│  sessions   │    │   org_members   │
-│ (user_id)   │    │ (organization_id│
-│ ✅ snake_case│    │  user_id)       │
-└─────────────┘    └─────────────────┘
-                          │
-                          │ 1:N
-                          ▼
-              ┌─────────────────────┐
-              │       calls         │
-              │ (organization_id)   │
-              └──────────┬──────────┘
-                         │
-           ┌─────────────┼─────────────┐
-           │             │             │
-           ▼             ▼             ▼
-    ┌───────────┐ ┌───────────┐ ┌───────────┐
-    │recordings │ │ surveys   │ │ai_summaries│
-    └───────────┘ └───────────┘ └───────────┘
+```mermaid
+erDiagram
+    users ||--o{ accounts : "1:N"
+    users ||--o{ sessions : "1:N"
+    users ||--o{ org_members : "1:N"
+    users ||--o{ organizations : "1:N (created_by)"
+
+    organizations ||--o{ org_members : "1:N"
+    organizations ||--o{ calls : "1:N"
+    organizations ||--o{ recordings : "1:N"
+    organizations ||--o{ surveys : "1:N"
+    organizations ||--o{ ai_summaries : "1:N"
+
+    org_members ||--o{ calls : "1:N (via organization)"
+
+    calls ||--o{ recordings : "1:N"
+    calls ||--o{ surveys : "1:N"
+    calls ||--o{ ai_summaries : "1:N"
+
+    users {
+        TEXT id PK
+        TEXT name
+        TEXT email UK
+        TEXT password_hash
+        UUID organization_id FK
+        TEXT role
+        BOOLEAN is_admin
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    organizations {
+        UUID id PK
+        TEXT name
+        TEXT plan
+        TEXT stripe_customer_id
+        TEXT created_by FK
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    org_members {
+        UUID id PK
+        UUID organization_id FK
+        TEXT user_id FK
+        TEXT role
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    sessions {
+        UUID id PK
+        VARCHAR session_token UK
+        UUID user_id FK
+        TIMESTAMPTZ expires
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    accounts {
+        TEXT id PK
+        TEXT user_id FK
+        TEXT provider
+        TEXT provider_account_id UK
+        TEXT access_token
+        TEXT refresh_token
+        INTEGER expires_at
+        TEXT token_type
+    }
+
+    calls {
+        UUID id PK
+        UUID organization_id FK
+        TEXT system_id
+        TEXT call_sid
+        TEXT status
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    recordings {
+        UUID id PK
+        UUID call_id FK
+        UUID organization_id FK
+        TEXT recording_url
+        TEXT duration
+        TIMESTAMPTZ created_at
+    }
+
+    surveys {
+        UUID id PK
+        UUID call_id FK
+        UUID organization_id FK
+        JSONB responses
+        TEXT status
+        TIMESTAMPTZ created_at
+    }
+
+    ai_summaries {
+        UUID id PK
+        UUID call_id FK
+        UUID organization_id FK
+        TEXT summary_text
+        JSONB metadata
+        TIMESTAMPTZ created_at
+    }
 ```
 
 ---

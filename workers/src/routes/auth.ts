@@ -203,30 +203,36 @@ authRoutes.post('/signup', async (c) => {
 
     // Create organization if name provided
     if (organizationName) {
-      const orgResult = await db.query(
-        `INSERT INTO organizations (id, name, owner_id, created_at, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())
-         RETURNING id`,
-        [organizationName, user.id]
-      )
+      try {
+        console.log('[Signup] Creating organization:', organizationName)
+        
+        // Use sqlClient directly instead of db.query for consistency
+        const orgInsertResult = await sqlClient`
+          INSERT INTO organizations (id, name, created_by, created_at)
+          VALUES (gen_random_uuid(), ${organizationName}, ${user.id}, NOW())
+          RETURNING id`
+        
+        const orgId = orgInsertResult[0]?.id
+        console.log('[Signup] Organization created with ID:', orgId)
 
-      const orgId = orgResult.rows[0].id
-
-      // Add user as org member
-      await db.query(
-        `INSERT INTO org_members (id, user_id, organization_id, role, created_at)
-         VALUES (gen_random_uuid(), $1, $2, 'admin', NOW())`,
-        [user.id, orgId]
-      )
+        if (orgId) {
+          // Add user as org member
+          await sqlClient`
+            INSERT INTO org_members (id, user_id, organization_id, role, created_at)
+            VALUES (gen_random_uuid(), ${user.id}, ${orgId}, 'admin', NOW())`
+          console.log('[Signup] User added to organization as admin')
+        }
+      } catch (orgErr: any) {
+        console.error('[Signup] Failed to create organization:', orgErr)
+        // Don't fail signup if org creation fails, just log it
+      }
     }
 
     // Create AuthJS user record (insert if not exists)
     try {
-      await db.query(
-        `INSERT INTO "authjs"."users" (id, email, name, "emailVerified")
-         VALUES ($1, $2, $3, NULL)`,
-        [user.id, email.toLowerCase(), name || email.split('@')[0]]
-      )
+      await sqlClient`
+        INSERT INTO "authjs"."users" (id, email, name, "emailVerified")
+        VALUES (${user.id}, ${email.toLowerCase()}, ${name || email.split('@')[0]}, NULL)`
     } catch (authErr: any) {
       // Ignore duplicate key errors - user may already exist in authjs
       if (!authErr.message?.includes('duplicate') && !authErr.message?.includes('unique')) {
@@ -247,12 +253,12 @@ authRoutes.post('/signup', async (c) => {
 // CSRF token endpoint (required by NextAuth client)
 authRoutes.get('/csrf', async (c) => {
   // Generate a CSRF token
-  const csrfToken = crypto.randomUUID()
+  const csrf_token = crypto.randomUUID()
   
   // Set cookie
-  c.header('Set-Cookie', `csrf-token=${csrfToken}; Path=/; SameSite=None; Secure; HttpOnly`)
+  c.header('Set-Cookie', `csrf-token=${csrf_token}; Path=/; SameSite=None; Secure; HttpOnly`)
   
-  return c.json({ csrfToken })
+  return c.json({ csrf_token })
 })
 
 // Auth providers endpoint (NextAuth format)
@@ -273,17 +279,22 @@ authRoutes.get('/providers', async (c) => {
 authRoutes.post('/callback/credentials', async (c) => {
   try {
     const body = await c.req.json()
-    const { username, email, password, csrfToken } = body as {
+    // Accept both snake_case and camelCase for backwards compatibility
+    const { username, email, password, csrf_token, csrfToken } = body as {
       username?: string
       email?: string
       password?: string
-      csrfToken?: string
+      csrf_token?: string
+      csrfToken?: string // Legacy support
     }
 
+    // Use snake_case version if available, otherwise fall back to camelCase
+    const csrfTokenValue = csrf_token || csrfToken
+    
     // Use email if username not provided
     const loginIdentifier = username || email
 
-    console.log('[Auth] Login attempt:', { identifier: loginIdentifier, hasPassword: !!password, hasCsrfToken: !!csrfToken })
+    console.log('[Auth] Login attempt:', { identifier: loginIdentifier, hasPassword: !!password, has_csrf_token: !!csrfTokenValue })
 
     if (!loginIdentifier || !password) {
       console.log('[Auth] Missing credentials')
@@ -291,7 +302,7 @@ authRoutes.post('/callback/credentials', async (c) => {
     }
 
     // Validate CSRF token (CORS protects against CSRF since only allowed origins can fetch the token)
-    if (!csrfToken) {
+    if (!csrfTokenValue) {
       console.log('[Auth] CSRF token missing')
       return c.json({ error: 'CSRF token required' }, 401)
     }
@@ -372,7 +383,7 @@ authRoutes.post('/callback/credentials', async (c) => {
       url: '/dashboard',
       ok: true,
       status: 200,
-      sessionToken,
+      session_token: sessionToken,
       expires: expires.toISOString(),
       user: {
         id: user.id,
