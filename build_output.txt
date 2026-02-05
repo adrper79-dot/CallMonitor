@@ -1,8 +1,0 @@
-   ▲ Next.js 15.5.11
-   - Environments: .env.local
-
-   Creating an optimized production build ...
- ⚠ Mismatching @next/swc version, detected: 15.5.7 while Next.js is on 15.5.11. Please ensure these match
- ⚠ Found lockfile missing swc dependencies, patching...
- ⨯ Failed to patch lockfile, please try uninstalling and reinstalling next in this workspace
-[TypeError: Cannot read properties of undefined (reading 'os')]
