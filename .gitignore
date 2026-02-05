@@ -42,6 +42,7 @@ image (1).jpg
 
 # Scripts with secrets
 scripts/set_cloudflare_secrets.ps1
+test-telnyx.mjs
 
 # Legacy (migrated to Cloudflare)
 vercel.json
