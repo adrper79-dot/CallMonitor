@@ -217,9 +217,10 @@ authRoutes.post('/signup', async (c) => {
 
         if (orgId) {
           // Add user as org member
+          // Note: org_members.user_id is UUID type, user.id is TEXT - need to cast
           await sqlClient`
             INSERT INTO org_members (id, user_id, organization_id, role, created_at)
-            VALUES (gen_random_uuid(), ${user.id}, ${orgId}, 'admin', NOW())`
+            VALUES (gen_random_uuid(), ${user.id}::uuid, ${orgId}, 'admin', NOW())`
           console.log('[Signup] User added to organization as admin')
         }
       } catch (orgErr: any) {
@@ -338,10 +339,11 @@ authRoutes.post('/callback/credentials', async (c) => {
     }
 
     // Get user's organization
+    // Note: org_members.user_id is UUID, users.id is TEXT - need to cast
     const orgResult = await sqlClient`SELECT om.organization_id, om.role, o.name as org_name
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id = ${user.id}
+       WHERE om.user_id::text = ${user.id}
        LIMIT 1`
 
     const org = orgResult?.[0]
@@ -358,9 +360,10 @@ authRoutes.post('/callback/credentials', async (c) => {
       expires: expires.toISOString()
     })
     try {
-      // Use snake_case column names per ARCH_DOCS/MASTER_ARCHITECTURE.md standard
+      // sessions table has TEXT columns for id and user_id (not UUID)
+      // per neon_public_schema.sql - do NOT cast to uuid
       await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
-        VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
+        VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})
         ON CONFLICT (session_token) DO NOTHING`
       console.log('[Auth] Session created successfully')
     } catch (sessionError: any) {
