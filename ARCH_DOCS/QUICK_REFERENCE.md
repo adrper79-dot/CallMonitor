@@ -1,6 +1,6 @@
 # Quick Reference - Word Is Bond
 
-**Version:** 1.4.0 | **Date:** January 19, 2026 | **Status:** ✅ Production Ready (5-Pass Validated)
+**Version:** 1.5.0 | **Date:** February 5, 2026 | **Status:** ✅ Production Ready (Bond AI + Team Management)
 
 ---
 
@@ -10,6 +10,7 @@
 |------|-----|---------|
 | Home | `/` | Quick call form + bulk upload |
 | Voice Operations | `/voice` | Call management |
+| Teams | `/teams` | Team/department management ⭐ NEW |
 | Settings | `/settings` | Voice config + toggles |
 | Tests | `/test` | System health dashboard |
 | Admin Auth | `/admin/auth` | Admin authentication |
@@ -78,7 +79,78 @@ flowchart TD
 
 ---
 
-## 🧪 **Run Tests**
+## � **Bond AI Assistant (3-Tier System)** ⭐ **NEW**
+
+### **Tier 1: Chat Widget**
+- **Access:** Floating chat button (bottom-right) on all authenticated pages
+- **Features:** Conversation history, context-aware responses
+- **Data Sources:** Organization stats, KPI data, test results, call context
+
+### **Tier 2: Proactive Alerts**
+- **Access:** Dashboard alerts panel
+- **Features:** Configurable rules (KPI breach, compliance, volume spike)
+- **Management:** Severity filtering, bulk acknowledge, real-time feed
+
+### **Tier 3: Call Co-Pilot**
+- **Access:** Integrated into call detail view during/after calls
+- **Features:** Real-time guidance, quick actions (compliance check, objection tips, script check, closing guidance)
+
+```mermaid
+flowchart TD
+    A[User clicks Bond AI chat button] --> B[Widget opens with conversation history]
+    B --> C[User asks question or selects quick action]
+    C --> D[AI fetches context: org stats, KPIs, recent calls]
+    D --> E[OpenAI GPT-4o-mini generates response]
+    E --> F[Response displayed with latency indicator]
+    F --> G[Conversation saved to bond_ai_conversations table]
+```
+
+### **API Endpoints:**
+- `POST /api/bond-ai/chat` - Send message, get AI response
+- `GET /api/bond-ai/conversations` - Get conversation history
+- `GET /api/bond-ai/alerts` - Get active alerts
+- `POST /api/bond-ai/copilot` - Get call-specific guidance
+
+---
+
+## 👥 **Team Management** ⭐ **NEW**
+
+### **Access:** `/teams` page
+
+### **Features:**
+1. **Create Teams** - Add departments/squads/regions with managers
+2. **Manage Members** - Add/remove team members with role assignment
+3. **Multi-Org Switching** - Switch between organizations (if member of multiple)
+4. **Role Management** - Assign viewer/agent/manager/compliance/admin/owner roles
+
+### **RBAC v2 Permissions:**
+- **Viewer:** Read-only access to calls and reports
+- **Agent:** Can make/receive calls, view own data
+- **Manager:** Manage team, view all data, create reports
+- **Compliance:** Audit access, scorecards, compliance reports
+- **Admin:** Full admin except org deletion/transfer
+- **Owner:** Full control including org management
+
+```mermaid
+flowchart TD
+    A[Go to /teams] --> B[Create team with name, type, manager]
+    B --> C[Add members from org user list]
+    C --> D[Assign team roles: lead/member/observer]
+    D --> E[Members get appropriate permissions]
+    E --> F[Team appears in sidebar navigation]
+```
+
+### **API Endpoints:**
+- `GET /api/teams` - List user's teams
+- `POST /api/teams` - Create new team
+- `GET /api/teams/:id/members` - Get team members
+- `POST /api/teams/:id/members` - Add member to team
+- `GET /api/teams/my-orgs` - List user's organizations
+- `POST /api/teams/switch-org` - Switch active organization
+
+---
+
+## �🧪 **Run Tests**
 
 ### **Via UI:**
 1. Go to `/test`

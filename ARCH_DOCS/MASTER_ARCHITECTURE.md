@@ -1,7 +1,7 @@
 # Master Architecture Reference
 
-**Status**: Production Gospel | Updated: Feb 2, 2026
-**Version**: 3.0 - Clean Custom Auth Architecture
+**Status**: Production Gospel | Updated: Feb 3, 2026
+**Version**: 4.0 - Bond AI + Team Management + PBKDF2 Security
 
 ---
 
@@ -56,7 +56,7 @@ flowchart TB
     subgraph "Cloudflare Edge Network"
         Pages[Cloudflare Pages<br/>Static HTML/CSS/JS<br/>Global CDN Caching<br/>No SSR]
 
-        Workers[Cloudflare Workers<br/>Hono Framework<br/>Custom Auth + CSRF<br/>Session-based Auth<br/>API Routes: /auth, /calls, /orgs]
+        Workers[Cloudflare Workers<br/>Hono Framework<br/>Custom Auth + CSRF<br/>Session-based Auth<br/>API Routes: /auth, /calls, /orgs, /teams, /bond-ai]
     end
 
     subgraph "Data & Services"
@@ -72,7 +72,7 @@ flowchart TB
 
         ElevenLabs[ElevenLabs<br/>Text-to-Speech<br/>Voice Cloning]
 
-        OpenAI[OpenAI<br/>LLM Reasoning<br/>Translation Support]
+        OpenAI[OpenAI<br/>LLM Reasoning<br/>Bond AI Chat/Copilot<br/>Translation Support]
     end
 
     Browser -->|HTTPS| Pages
@@ -102,14 +102,14 @@ flowchart TB
 ## Technology Stack
 
 ### Frontend (Pages)
-- **Next.js 15.5.2**: Static export mode (`output: 'export'`)
+- **Next.js 15.5.7**: Static export mode (`output: 'export'`)
 - **React 19**: Client-side rendering only
 - **Custom AuthProvider**: Client-side session management (`useSession()`)
 - **Tailwind CSS**: Styling
 - **TypeScript**: Type safety
 
 ### Backend (Workers)
-- **Hono 4.6+**: Web framework (Express-like)
+- **Hono 4.7.4**: Web framework (Express-like)
 - **Node.js Compatibility**: `nodejs_compat` flag
 - **Zod 3.22+**: API validation
 - **TypeScript**: Type safety
@@ -277,6 +277,78 @@ Implemented with database persistence:
 - **Expiration**: Configurable (default 7 days)
 - **Refresh**: Automatic with sliding window
 
+### Password Security
+
+**PBKDF2-SHA256 Implementation**:
+- **Algorithm**: PBKDF2 with SHA-256
+- **Iterations**: 120,000 (NIST recommended minimum)
+- **Salt**: 32-byte cryptographically secure random
+- **Key Length**: 256 bits (32 bytes)
+- **Backward Compatibility**: Transparent migration from legacy SHA-256 hashes
+
+**Implementation**:
+```typescript
+// workers/src/routes/auth.ts
+const hashPassword = async (password: string): Promise<string> => {
+  const salt = crypto.getRandomValues(new Uint8Array(32))
+  const key = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+    await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']),
+    256
+  )
+  return `pbkdf2:${btoa(String.fromCharCode(...salt))}:${btoa(String.fromCharCode(...new Uint8Array(key)))}`
+}
+```
+
+---
+
+## Bond AI Architecture
+
+### 3-Tier AI Assistant System
+
+**Tier 1 - Chat Widget**:
+- **Purpose**: Conversational AI assistant with access to testing data
+- **Features**: Context-aware responses, conversation history, suggested questions
+- **Data Access**: Organization stats, recent alerts, KPI summaries, test results
+- **UI**: Floating chat widget in AppShell
+
+**Tier 2 - Proactive Alerts**:
+- **Purpose**: AI-driven alert system for operational insights
+- **Features**: Auto-generated alerts, severity classification, bulk actions
+- **Data Sources**: Call metrics, performance KPIs, anomaly detection
+- **UI**: Dashboard alerts panel with real-time updates
+
+**Tier 3 - Call Co-Pilot**:
+- **Purpose**: Real-time AI assistance during voice calls
+- **Features**: Context-aware suggestions, quick actions, custom questions
+- **Data Access**: Live call context, historical patterns, compliance rules
+- **UI**: Integrated into CallDetailView
+
+### AI Data Flow
+
+```
+1. User interacts with Bond AI (chat/alerts/copilot)
+2. Workers route calls Bond AI lib with user/org context
+3. Bond AI fetches relevant data (stats, alerts, call context, test results)
+4. OpenAI API processes context + user query
+5. Response formatted and returned to UI
+6. UI updates with AI insights/suggestions
+```
+
+### Team Management Architecture
+
+**Multi-Organization Support**:
+- **Org Switching**: Users can belong to multiple organizations
+- **Role-Based Access**: viewer → agent → manager/compliance → admin → owner
+- **Team Structure**: Departments with hierarchical team management
+- **RBAC v2**: Database-backed permissions with 58 granular permissions
+
+**Database Schema**:
+- `teams`: Team definitions with department grouping
+- `team_members`: User-team associations with roles
+- `rbac_permissions`: Granular permission definitions
+- `user_organization_roles`: Multi-org role assignments
+
 ---
 
 ## Deployment Strategy
@@ -284,7 +356,7 @@ Implemented with database persistence:
 ### Current Deployments
 
 **Pages (UI)**:
-- URL: https://827487ca.wordisbond.pages.dev
+- URL: https://wordisbond.pages.dev
 - Build: `npm run build` → `out/` directory
 - Deploy: `wrangler pages deploy out --project-name=wordisbond`
 
@@ -322,6 +394,10 @@ curl https://wordisbond-api.adrper79.workers.dev/health
 - Workers API scaffolding (calls, organizations, auth, webhooks)
 - Cloudflare deployment pipeline
 - Security headers configuration
+- **Bond AI 3-tier system** (chat widget, proactive alerts, call co-pilot)
+- **Team Management** (multi-org support, RBAC v2, team/department structure)
+- **PBKDF2 password security upgrade** (backward-compatible migration)
+- Database schema migrations (7 new tables + 58 permissions)
 
 ### 🔄 In Progress
 
