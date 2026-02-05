@@ -231,6 +231,12 @@ npm run build
 - Check webhook settings in Telnyx Portal
 - Verify Number is assigned to Connection
 
+### **One-way audio in WebRTC calls:**
+- **Cause:** Browser selected virtual microphone (Steam, VB-Audio, etc.)
+- **Check:** Console should show `[Telnyx] Using real microphone: [device name]`
+- **Fix:** Ensure device enumeration filters out virtual devices
+- **Test:** Go to `/voice-operations` → Connect → Make call → Check console logs
+
 ### **Telnyx webhook 401 errors:**
 - Verify Public Key signature validation
 - Ensure `TELNYX_PUBLIC_KEY` is correct

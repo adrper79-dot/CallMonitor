@@ -1,14 +1,38 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 3, 2026  
-**Version:** 4.2 - Schema Standardization + WSL Build Mandate  
-**Status:** Production Ready (98% Complete) ⭐ Hybrid Pages + Workers Live
+**Last Updated:** February 5, 2026  
+**Version:** 4.3 - WebRTC Audio Fix + Documentation Standards  
+**Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
 
 📊 **[VIEW COMPREHENSIVE ARCHITECTURE WITH VISUAL DIAGRAMS →](01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md)**
 
 📋 **[VIEW AI ROLE POLICY →](01-CORE/AI_ROLE_POLICY.md)** ⭐ ALL 5 PHASES COMPLETE
+
+---
+
+## 🔧 **Recent Updates (February 5, 2026)**
+
+### **WebRTC Two-Way Audio Fix (v4.3):** ✅ **PRODUCTION WORKING**
+
+1. **Microphone Device Selection** - Fixed one-way audio issue
+   - **Root Cause:** Browser defaulted to "Steam Streaming Microphone" (virtual device)
+   - **Solution:** Implemented device enumeration with virtual device filtering
+   - **Implementation:** Added `navigator.mediaDevices.enumerateDevices()` on mount
+   - **Filtering:** Excludes 'steam', 'virtual', 'vb-audio', 'voicemeeter', 'cable' devices
+   - **Result:** Calls now have full two-way audio (headset ↔ phone)
+
+2. **TelnyxRTC Documentation Standard** - Created comprehensive WebRTC documentation
+   - New **[TELNYX_WEBRTC_STANDARD.md](02-FEATURES/TELNYX_WEBRTC_STANDARD.md)** - Critical requirements
+   - Added to critical standards in main README
+   - Updated troubleshooting in QUICK_REFERENCE.md
+   - Updated CURRENT_STATUS.md with WebRTC calling feature
+
+3. **Architecture Documentation Standards** - Enhanced critical standards tracking
+   - Added WebRTC standard to critical requirements (violations cause audio failures)
+   - Updated navigation index with new critical standard
+   - Enhanced troubleshooting guides with device selection debugging
 
 ---
 
@@ -63,7 +87,8 @@ Wordis Bond is the System of Record for business conversations - a platform that
 
 ### **✅ Core Features (Production)**
 1. **Call Management** - Initiate, track, and manage voice calls
-2. **Recording** - Auto-record with SignalWire
+2. **WebRTC Calling** - Browser-based PSTN calling via TelnyxRTC SDK
+3. **Recording** - Auto-record with SignalWire
 3. **Transcription** - Post-call via AssemblyAI
 4. **Translation** - Post-call via AssemblyAI + OpenAI
 5. **TTS Audio** - ElevenLabs audio generation for translations

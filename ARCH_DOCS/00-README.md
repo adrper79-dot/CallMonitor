@@ -12,6 +12,7 @@
 ## 🚨 **CRITICAL STANDARDS (Read First)**
 
 - **[DATABASE_CONNECTION_STANDARD.md](DATABASE_CONNECTION_STANDARD.md)** 🔴 **CRITICAL** — Neon vs Hyperdrive connection rules (8+ hours lost to violations)
+- **[02-FEATURES/TELNYX_WEBRTC_STANDARD.md](02-FEATURES/TELNYX_WEBRTC_STANDARD.md)** 🔴 **CRITICAL** — WebRTC audio device selection (virtual mic filtering required for two-way audio)
 
 ---
 
