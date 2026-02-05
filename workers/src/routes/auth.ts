@@ -262,11 +262,21 @@ authRoutes.post('/callback/credentials', async (c) => {
 
     const user = userResult[0]
 
-    // Verify password
-    const validPassword = await verifyPassword(password, user.password_hash)
+    // Verify password (supports legacy SHA-256 + new PBKDF2 formats)
+    const { valid: validPassword, needsRehash } = await verifyPassword(password, user.password_hash)
     
     if (!validPassword) {
       return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    // Transparently upgrade legacy SHA-256 hash to PBKDF2 on successful login
+    if (needsRehash) {
+      try {
+        const upgradedHash = await hashPassword(password)
+        await sqlClient`UPDATE users SET password_hash = ${upgradedHash}, updated_at = NOW() WHERE id = ${user.id}`
+      } catch (_rehashErr) {
+        // Non-fatal — login still succeeds, hash will be upgraded next time
+      }
     }
 
     // Get user's organization
@@ -380,30 +390,94 @@ authRoutes.post('/forgot-password', async (c) => {
   }
 })
 
-// Helper to verify password
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  if (!hash || !hash.includes(':')) return false
-  
-  const [saltHex, storedHash] = hash.split(':')
-  const encoder = new TextEncoder()
-  const data = encoder.encode(saltHex + password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const computedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  
-  return computedHash === storedHash
+// ─── Password Hashing (PBKDF2-SHA256, 120k iterations) ───────────────────────
+// PBKDF2 via Web Crypto API — NIST SP 800-132 recommended for password hashing.
+// Unlike raw SHA-256, PBKDF2 applies key stretching (120,000 rounds) making
+// brute-force attacks ~120,000x slower per guess.
+
+const PBKDF2_ITERATIONS = 120_000
+const PBKDF2_HASH = 'SHA-256'
+const SALT_BYTES = 32
+const KEY_BYTES = 32
+
+function hexEncode(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Helper to hash password
+function hexDecode(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16)
+  }
+  return bytes
+}
+
+/**
+ * Hash a password using PBKDF2 with a random salt.
+ * Output format: "pbkdf2:120000:saltHex:derivedKeyHex"
+ */
 async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES))
+  const saltBuffer = salt.buffer as ArrayBuffer
   const encoder = new TextEncoder()
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('')
-  
-  const data = encoder.encode(saltHex + password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  
-  return `${saltHex}:${hash}`
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+  )
+
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: saltBuffer, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    KEY_BYTES * 8
+  )
+
+  return `pbkdf2:${PBKDF2_ITERATIONS}:${hexEncode(saltBuffer)}:${hexEncode(derived)}`
+}
+
+/**
+ * Verify a password against a stored hash.
+ * Supports both new PBKDF2 format and legacy SHA-256 format for migration.
+ * Returns { valid, needsRehash } so callers can upgrade hashes transparently.
+ */
+async function verifyPassword(password: string, storedHash: string): Promise<{ valid: boolean; needsRehash: boolean }> {
+  if (!storedHash) return { valid: false, needsRehash: false }
+
+  // New PBKDF2 format: "pbkdf2:iterations:saltHex:hashHex"
+  if (storedHash.startsWith('pbkdf2:')) {
+    const parts = storedHash.split(':')
+    if (parts.length !== 4) return { valid: false, needsRehash: false }
+
+    const iterations = parseInt(parts[1], 10)
+    const salt = hexDecode(parts[2])
+    const saltBuffer = salt.buffer as ArrayBuffer
+    const expectedHash = parts[3]
+    const encoder = new TextEncoder()
+
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+    )
+
+    const derived = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: saltBuffer, iterations, hash: PBKDF2_HASH },
+      keyMaterial,
+      KEY_BYTES * 8
+    )
+
+    const valid = hexEncode(derived) === expectedHash
+    // Rehash if iteration count has been bumped since this hash was created
+    return { valid, needsRehash: valid && iterations < PBKDF2_ITERATIONS }
+  }
+
+  // Legacy SHA-256 format: "saltHex:hashHex" — verify then flag for rehash
+  if (storedHash.includes(':')) {
+    const [saltHex, expectedHash] = storedHash.split(':')
+    const encoder = new TextEncoder()
+    const data = encoder.encode(saltHex + password)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const computedHash = hexEncode(hashBuffer)
+    const valid = computedHash === expectedHash
+    return { valid, needsRehash: valid } // Always rehash legacy hashes
+  }
+
+  return { valid: false, needsRehash: false }
 }
