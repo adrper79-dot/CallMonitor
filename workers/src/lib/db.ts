@@ -19,14 +19,16 @@ export interface DbClient {
  * 
  * Note: Per Neon docs for Cloudflare Workers, Pool must be created
  * and closed within the same request handler.
+ * Note: Prefer NEON_PG_CONN direct connection over HYPERDRIVE for compatibility.
  */
 export function getDb(env: Env): DbClient {
   let connectionString: string
 
-  if (env.HYPERDRIVE) {
-    connectionString = env.HYPERDRIVE.connectionString
-  } else if (env.NEON_PG_CONN) {
+  // Prefer direct connection string for consistency
+  if (env.NEON_PG_CONN) {
     connectionString = env.NEON_PG_CONN
+  } else if (env.HYPERDRIVE) {
+    connectionString = env.HYPERDRIVE.connectionString
   } else {
     throw new Error('No database connection string found in environment')
   }

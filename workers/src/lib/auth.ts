@@ -44,8 +44,8 @@ export async function verifySession(
     // Use neon client for consistency
     const { neon } = await import('@neondatabase/serverless')
     
-    // Prefer HYPERDRIVE for connection pooling, fallback to direct connection
-    const connectionString = c.env.HYPERDRIVE?.connectionString || c.env.NEON_PG_CONN
+    // Prefer direct connection string for consistency with other endpoints
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
     
     if (!connectionString) {
       console.error('[Auth] No database connection string available')
@@ -56,8 +56,8 @@ export async function verifySession(
 
     // Query sessions with user and org membership info
     // Note: Using LEFT JOIN on org_members so users without org membership still work
-    // Note: sessions.user_id may be stored as UUID even though column is TEXT - cast to text
-    // Note: org_members.user_id is UUID, users.id is TEXT - need to cast for comparison
+    // Note: sessions.user_id is UUID, users.id is TEXT - cast s.user_id::text for comparison
+    // Note: org_members.user_id is UUID, users.id is TEXT - cast om.user_id::text for comparison
     const result = await sql`
       SELECT 
         s.session_token, 

@@ -360,10 +360,10 @@ authRoutes.post('/callback/credentials', async (c) => {
       expires: expires.toISOString()
     })
     try {
-      // sessions table has TEXT columns for id and user_id (not UUID)
-      // per neon_public_schema.sql - do NOT cast to uuid
+      // sessions table has UUID columns for id and user_id (per actual schema check)
+      // Cast to uuid for proper insertion
       await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
-        VALUES (${sessionId}, ${sessionToken}, ${user.id}, ${expires.toISOString()})
+        VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
         ON CONFLICT (session_token) DO NOTHING`
       console.log('[Auth] Session created successfully')
     } catch (sessionError: any) {

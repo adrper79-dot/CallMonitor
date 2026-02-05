@@ -1,11 +1,17 @@
  tir# Wordis Bond Architecture Documentation
 
-**Last Updated:** February 2, 2026  
+**Last Updated:** February 5, 2026  
 **Version:** 2.0 - Hybrid Deployment  
 **Status:** ✅ Production Deployed (Static UI + Workers API)
 
 > **"The System of Record for Business Conversations"**  
 > *Company: Latimer + Woods Tech LLC*
+
+---
+
+## 🚨 **CRITICAL STANDARDS (Read First)**
+
+- **[DATABASE_CONNECTION_STANDARD.md](DATABASE_CONNECTION_STANDARD.md)** 🔴 **CRITICAL** — Neon vs Hyperdrive connection rules (8+ hours lost to violations)
 
 ---
 
