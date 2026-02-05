@@ -11,23 +11,12 @@ if (typeof WebSocket === 'undefined') {
 }
 
 const getConnectionString = () => {
-  // Check for Cloudflare Hyperdrive binding first
-  try {
-    // In OpenNext v3, bindings are available through multiple paths
-    const hyperdrive = (globalThis as any).HYPERDRIVE ||
-                      (globalThis as any).env?.HYPERDRIVE ||
-                      (globalThis as any).__env__?.HYPERDRIVE ||
-                      (globalThis as any).CF_BINDINGS?.HYPERDRIVE
-    
-    if (hyperdrive?.connectionString) {
-      console.log('Using Hyperdrive connection')
-      return hyperdrive.connectionString
-    }
-  } catch (e) {
-    console.warn('Hyperdrive binding not accessible:', e)
-  }
+  // CRITICAL: @neondatabase/serverless uses WebSocket connections
+  // Hyperdrive uses TCP/PostgreSQL wire protocol - INCOMPATIBLE
+  // Always prefer NEON_PG_CONN (direct WebSocket endpoint)
+  // See: ARCH_DOCS/DATABASE_CONNECTION_STANDARD.md
 
-  // Check for Worker secrets (available in Cloudflare Workers runtime)
+  // Check for Worker secrets first (available in Cloudflare Workers runtime)
   try {
     const env = (globalThis as any).env || 
                (globalThis as any).__env__ ||
@@ -47,6 +36,22 @@ const getConnectionString = () => {
   if (fallback) {
     console.log('Using process.env for database connection')
     return fallback
+  }
+
+  // Hyperdrive fallback - ONLY if nothing else available
+  // WARNING: This will fail with @neondatabase/serverless (WebSocket vs TCP incompatibility)
+  try {
+    const hyperdrive = (globalThis as any).HYPERDRIVE ||
+                      (globalThis as any).env?.HYPERDRIVE ||
+                      (globalThis as any).__env__?.HYPERDRIVE ||
+                      (globalThis as any).CF_BINDINGS?.HYPERDRIVE
+    
+    if (hyperdrive?.connectionString) {
+      console.warn('WARNING: Using Hyperdrive - may fail with @neondatabase/serverless WebSocket driver')
+      return hyperdrive.connectionString
+    }
+  } catch (e) {
+    console.warn('Hyperdrive binding not accessible:', e)
   }
 
   console.error('No database connection configured in any location')
