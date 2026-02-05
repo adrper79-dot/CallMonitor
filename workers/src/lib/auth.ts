@@ -56,6 +56,7 @@ export async function verifySession(
 
     // Query sessions with user and org membership info
     // Note: Using LEFT JOIN on org_members so users without org membership still work
+    // Note: sessions.user_id may be stored as UUID even though column is TEXT - cast to text
     // Note: org_members.user_id is UUID, users.id is TEXT - need to cast for comparison
     const result = await sql`
       SELECT 
@@ -67,7 +68,7 @@ export async function verifySession(
         om.organization_id, 
         om.role
       FROM public.sessions s
-      JOIN public.users u ON u.id = s.user_id
+      JOIN public.users u ON u.id = s.user_id::text
       LEFT JOIN org_members om ON om.user_id::text = u.id
       WHERE s.session_token = ${token} AND s.expires > NOW()
       LIMIT 1
