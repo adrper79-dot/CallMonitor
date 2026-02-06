@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from '@/components/AuthProvider'
 import { Logo } from '@/components/Logo'
 import { EmailInput, PasswordInput, isValidEmail } from '@/components/ui/form-validation'
-import { apiGetNoAuth } from '@/lib/api-client'
+import { apiGetNoAuth } from '@/lib/apiClient'
 
 /**
  * SIGN IN PAGE

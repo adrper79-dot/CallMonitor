@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
-import { apiPostNoAuth } from '@/lib/api-client'
+import { apiPostNoAuth } from '@/lib/apiClient'
 
 /**
  * Reset Password Page

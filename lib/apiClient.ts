@@ -219,6 +219,102 @@ export async function apiFetch(
 export { resolveApiUrl, API_BASE }
 
 /**
+ * Raw fetch with auth — returns the Response object directly with error checking.
+ * Use for blob downloads, streaming, or non-JSON responses.
+ */
+export async function apiFetchRaw(
+  url: string,
+  options: ApiClientOptions = {}
+): Promise<Response> {
+  const headers: HeadersInit = {
+    ...getAuthHeaders(),
+    ...options.headers,
+  }
+
+  const res = await fetch(resolveApiUrl(url), {
+    ...options,
+    credentials: 'include',
+    headers,
+  })
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new ApiError(res.status, errBody.error || `HTTP ${res.status}`)
+  }
+
+  return res
+}
+
+/**
+ * POST FormData with auth — browser sets Content-Type with boundary automatically.
+ * Use for file uploads (do NOT set Content-Type manually).
+ */
+export async function apiPostFormData<T = any>(
+  url: string,
+  formData: FormData
+): Promise<T> {
+  const headers: Record<string, string> = {}
+  const token = getStoredToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const res = await fetch(resolveApiUrl(url), {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+/**
+ * Unauthenticated POST — for pre-auth flows (forgot-password, reset-password, CSRF).
+ * No Bearer token is attached.
+ */
+export async function apiPostNoAuth<T = any>(
+  url: string,
+  body?: any
+): Promise<T> {
+  const res = await fetch(resolveApiUrl(url), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+/**
+ * Unauthenticated GET — for pre-auth flows (health checks, CSRF).
+ * No Bearer token is attached.
+ */
+export async function apiGetNoAuth<T = any>(
+  url: string
+): Promise<T> {
+  const res = await fetch(resolveApiUrl(url), {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+/**
  * Custom API error class
  */
 export class ApiError extends Error {

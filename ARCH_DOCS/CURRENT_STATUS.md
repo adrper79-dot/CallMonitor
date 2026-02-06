@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 6, 2026  
-**Version:** 4.5 - Security Hardening Sprint  
+**Version:** 4.6 - API Client Consolidation & Dead Code Removal  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,35 @@
 ---
 
 ## 🔧 **Recent Updates (February 6, 2026)**
+
+### **API Client Consolidation & Dead Code Removal (v4.6):** ✅ **PRODUCTION DEPLOYED**
+
+1. **P2-1: Duplicate API Client Consolidated** ⭐ **ARCHITECTURE FIX**
+   - **Before:** Two API clients — `lib/apiClient.ts` (57 importers) and `lib/api-client.ts` (22 importers)
+   - **After:** Single canonical `lib/apiClient.ts` with full helper suite
+   - **Ported 4 unique functions:** `apiFetchRaw`, `apiPostFormData`, `apiPostNoAuth`, `apiGetNoAuth`
+   - **Migrated 21 imports** from `@/lib/api-client` → `@/lib/apiClient`
+   - **Merged 3 dual-import files** (CallDetailView, BulkCallUpload, ExportButton)
+   - **Deleted `lib/api-client.ts`** — zero remaining consumers
+
+2. **D2: Raw fetch() Migration Complete** ✅ **ALL DONE**
+   - **Phase 1:** 14 raw fetch calls migrated across 9 files (voice, analytics, compliance)
+   - **Phase 2:** 8 files, 17 additional fetch calls migrated
+   - **Exception:** `campaignExecutor.ts` kept raw fetch — server-to-server call with service API key (by design)
+
+3. **D1: Dead Code Cleanup** ✅ **COMPLETE**
+   - **Deleted `lib/monitoring.ts`** — imported `@sentry/nextjs`, zero consumers
+   - **Deleted `lib/sentry-edge.ts`** — 129 lines, zero consumers
+   - **Uninstalled `@sentry/nextjs`** from package.json
+   - **Removed straggler `API_BASE`** from `complianceUtils.ts`
+   - **14 dead `API_BASE` declarations** removed across codebase (prior session)
+
+4. **Security Items Verified** ✅
+   - **C5 Telnyx webhook:** Fail-closed signature verification pattern
+   - **H3 DB Pool:** Singleton pattern in `pgClient.ts` (no connection leaks)
+   - **H6 Console.log PII:** Audited — no PII found in production console.logs
+
+5. **Build & Deploy** ✅ **30/30 pages, 0 errors, deployed to Cloudflare Pages**
 
 ### **Sprint 4: Security Hardening & Build Enforcement (v4.5):** ✅ **PRODUCTION DEPLOYED**
 

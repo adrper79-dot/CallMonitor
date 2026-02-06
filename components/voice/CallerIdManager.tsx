@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
-import { apiGet, apiPost, apiPut } from '@/lib/api-client'
+import { apiGet, apiPost, apiPut } from '@/lib/apiClient'
 
 interface CallerIdNumber {
   id: string

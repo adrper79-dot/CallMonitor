@@ -12,8 +12,7 @@ import ArtifactViewer from './ArtifactViewer'
 import CallAnalytics from './CallAnalytics'
 import { OutcomeDeclaration } from './OutcomeDeclaration'
 import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
-import { apiGet } from '@/lib/apiClient'
-import { apiFetchRaw } from '@/lib/api-client'
+import { apiGet, apiFetchRaw } from '@/lib/apiClient'
 import { BondAICopilot } from '@/components/bond-ai'
 
 export interface CallDetailViewProps {

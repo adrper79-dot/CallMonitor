@@ -16,7 +16,7 @@ import {
   CONFIDENCE_LEVEL_CONFIG,
   getOutcomeStatusConfig,
 } from '@/lib/outcome/outcomeTypes'
-import { apiPost, apiPut } from '@/lib/api-client'
+import { apiPost, apiPut } from '@/lib/apiClient'
 
 // ============================================================================
 // TYPES

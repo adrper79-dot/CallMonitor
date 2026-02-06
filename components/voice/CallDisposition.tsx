@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { apiPut } from '@/lib/api-client'
+import { apiPut } from '@/lib/apiClient'
 
 interface CallDispositionProps {
   callId: string

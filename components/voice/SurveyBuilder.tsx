@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useRBAC } from '@/hooks/useRBAC'
 import { logger } from '@/lib/logger'
-import { apiGet, apiPost, apiDelete } from '@/lib/api-client'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 interface SurveyQuestion {
   id: string

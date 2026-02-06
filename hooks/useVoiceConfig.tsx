@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import type { SurveyQuestionConfig } from '@/types/tier1-features'
-import { apiGet, apiPut } from '@/lib/api-client'
+import { apiGet, apiPut } from '@/lib/apiClient'
 
 export interface VoiceConfig {
   // Database column names (what comes from API)

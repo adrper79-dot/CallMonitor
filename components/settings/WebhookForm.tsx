@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { WEBHOOK_EVENT_TYPES, WebhookSubscription, CreateWebhookRequest } from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
-import { apiPost, apiPut } from '@/lib/api-client'
+import { apiPost, apiPut } from '@/lib/apiClient'
 
 interface WebhookFormProps {
   organizationId: string

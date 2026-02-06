@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
-import { apiPostNoAuth } from '@/lib/api-client'
+import { apiPostNoAuth } from '@/lib/apiClient'
 
 /**
  * Forgot Password Page

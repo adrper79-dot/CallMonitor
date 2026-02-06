@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { logger } from '@/lib/logger'
-import { apiGet } from '@/lib/api-client'
+import { apiGet } from '@/lib/apiClient'
 
 interface RecentTarget {
   number: string

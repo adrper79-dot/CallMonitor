@@ -3,8 +3,7 @@
 import React, { useState, useRef } from 'react'
 import { Button } from './ui/button'
 import { logger } from '@/lib/logger'
-import { apiPost } from '@/lib/apiClient'
-import { apiFetchRaw, apiPostFormData } from '@/lib/api-client'
+import { apiPost, apiFetchRaw, apiPostFormData } from '@/lib/apiClient'
 
 interface BulkUploadResult {
   phone_number: string

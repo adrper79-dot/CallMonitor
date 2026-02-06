@@ -7,7 +7,7 @@ import { useRealtime } from '@/hooks/useRealtime'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { apiPost } from '@/lib/api-client'
+import { apiPost } from '@/lib/apiClient'
 
 export interface ExecutionControlsProps {
   organizationId: string | null

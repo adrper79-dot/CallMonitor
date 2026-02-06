@@ -10,9 +10,7 @@
  */
 
 import { logger } from '@/lib/logger'
-import { apiPost } from '@/lib/api-client'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiPost } from '@/lib/apiClient'
 
 // ============================================================================
 // TYPES

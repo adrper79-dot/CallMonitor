@@ -107,7 +107,7 @@ PASS 200 analytics/calls          PASS 200 analytics/sentiment
 PASS 200 analytics/performance    PASS 200 analytics/surveys
 PASS 200 analytics/export         PASS 200 surveys
 ```
-| Tier 6: Security/hardening | LOW | CSP headers, rate limiting, Sentry integration |
+| Tier 6: Security/hardening | LOW | CSP headers, rate limiting. Sentry removed. D1/D2 ✅ COMPLETE |
 
 ---
 
@@ -426,15 +426,15 @@ PASS 200 analytics/export         PASS 200 surveys
 | C1 | DB credentials in wrangler.toml (committed to git) | ⬜ TODO | 30min |
 | C3 | CSRF validation never compares tokens properly | ✅ FIXED (prior session) | — |
 | C4 | Stripe webhook signature not verified | ⬜ TODO | 1h |
-| C5 | Telnyx webhook has no signature verification | ⬜ TODO | 1h |
+| C5 | Telnyx webhook has no signature verification | ✅ FIXED (Feb 6 — fail-closed pattern) | — |
 
 ### S2: High Security
 | ID | Issue | Status | Effort |
 |----|-------|--------|--------|
 | H1 | Zero Zod input validation on 23 route files | ⬜ TODO | 8h |
 | H2 | Session token returned in JSON body (XSS vector) | ⬜ TODO | 4h |
-| H3 | DB Pool connection leak (no finally close) | ⬜ TODO | 2h |
-| H6 | 57 console.log statements in Workers (PII leak) | ⬜ TODO | 3h |
+| H3 | DB Pool connection leak (no finally close) | ✅ FIXED (Feb 6 — pool singleton in pgClient.ts) | — |
+| H6 | 57 console.log statements in Workers (PII leak) | ✅ AUDITED (Feb 6 — no PII found in console.logs) | — |
 | H7 | 4 zombie auth schemas in DB | ⬜ TODO | 4h |
 
 ### S3: Medium Security
@@ -447,28 +447,33 @@ PASS 200 analytics/export         PASS 200 surveys
 
 ## TIER 6 — CLEANUP & TECHNICAL DEBT
 
-### D1: Dead Code Removal
-- `workers/src/routes/rbac.ts` — imported but NOT mounted (superseded by rbac-v2.ts)
-- `__mocks__/pg.ts` — mock module no longer needed
-- `tests/setup.ts` — 249 lines of mocks (deprecated)
-- `tests/tier1-core.test.ts` — self-referencing mock tests
-- `tests/tier1-features.test.ts` — 654 lines of mock tests
-- `app/_api_to_migrate/` directory still exists
-- `sentry.client.config.ts` / `sentry.server.config.ts` — reference Vercel, no DSN
-- SignalWire remnants in code
+### D1: Dead Code Removal ✅ COMPLETE (Feb 6)
+- ✅ Deleted `sentry.client.config.ts` — referenced Vercel, no DSN
+- ✅ Deleted `lib/monitoring.ts` — imported Sentry, zero consumers
+- ✅ Deleted `lib/sentry-edge.ts` — zero consumers
+- ✅ Deleted `lib/api-client.ts` — duplicate API client, all 22 imports migrated
+- ✅ Uninstalled `@sentry/nextjs` from package.json
+- ✅ Removed 14 dead `API_BASE` declarations across codebase
+- ✅ Fixed vitest.config.ts reference to deleted setup.ts
+- Remaining (low priority):
+  - `workers/src/routes/rbac.ts` — imported but NOT mounted (superseded by rbac-v2.ts)
+  - `__mocks__/pg.ts` — mock module no longer needed
+  - `app/_api_to_migrate/` directory still exists
+  - `sentry.server.config.ts` — references Vercel, no DSN
+  - SignalWire remnants in code (still active for campaigns/recordings)
 
-### D2: Frontend Components Using Raw fetch() (P0-2)
-22 files still using raw `fetch()` without proper Bearer token:
-- CallDetailView, CallList, CallModulations, CallNotes, ReviewMode
-- SurveyAnalyticsWidget, CampaignProgress, ReliabilityDashboard
-- TTSGenerator, AdminAuthDiagnostics, BulkCallUpload
-- AuthProvider, AudioUpload, AppShell
-- useVoiceConfig, useCallDetails, useRealtime
-- campaignExecutor.ts, complianceUtils.ts
+### D2: Frontend Raw fetch() Migration ✅ COMPLETE (Feb 6)
+- ✅ ALL 22 files migrated to `apiClient.ts` helpers
+- ✅ `lib/api-client.ts` consolidated and deleted (P2-1)
+- ✅ 4 unique functions ported to canonical `apiClient.ts`
+- ✅ 21 imports rewritten from `@/lib/api-client` → `@/lib/apiClient`
+- ⚠️ `campaignExecutor.ts` kept raw fetch — server-to-server call with service API key (by design)
 
-### D3: Build Configuration
-- `ignoreBuildErrors: true` and `ignoreDuringBuilds: true` in next.config.js
-- 748 TypeScript warnings
+### D3: Build Configuration ✅ PARTIALLY FIXED (Feb 6)
+- ✅ `ignoreBuildErrors: false` — enforced (build breaks on TS errors)
+- ✅ `ignoreDuringBuilds: false` — enforced (ESLint runs on build)
+- ✅ Build: 30/30 pages, 0 errors
+- Remaining: TypeScript warnings (non-blocking)
 
 ---
 
@@ -501,20 +506,22 @@ PASS 200 analytics/export         PASS 200 surveys
 ### Sprint 3 (Week 3) — Security hardening
 | Task | Effort | Impact |
 |------|--------|--------|
-| S1: Stripe/Telnyx webhook verification | 2h | Security |
-| S2: Zod validation on all routes | 8h | Input security |
-| S2: Remove console.logs with PII | 3h | Compliance |
-| S2: Session token in cookie only | 4h | XSS prevention |
-| D2: Fix raw fetch() in 22 components | 4h | Auth consistency |
-| **Sprint 3 Total** | **~21h** | **Security score 3/10 → 7/10** |
+| S1: Stripe webhook verification (C4) | 1h | Security |
+| S1: Telnyx webhook verification (C5) | ✅ DONE (fail-closed) | Security |
+| S2: Zod validation on all routes (H1) | 8h | Input security |
+| S2: Remove console.logs with PII (H6) | ✅ AUDITED (no PII found) | Compliance |
+| S2: Session token in cookie only (H2) | 4h | XSS prevention |
+| S2: DB Pool connection leak (H3) | ✅ DONE (pool singleton) | Reliability |
+| D2: Fix raw fetch() in 22 components | ✅ DONE (all migrated) | Auth consistency |
+| **Sprint 3 Remaining** | **~13h** | **Security score 3/10 → 7/10** |
 
 ### Sprint 4 (Week 4) — Stubs → Real + Missing modules
 | Task | Effort | Impact |
 |------|--------|--------|
 | T4-*: Connect 8 stubbed routes to DB | 20h | Real data everywhere |
 | T3-1: Reports module | 8h | New feature |
-| D1: Dead code cleanup | 4h | Codebase hygiene |
-| **Sprint 4 Total** | **~32h** | **Feature completeness** |
+| D1: Dead code cleanup | ✅ DONE (Sentry, api-client, monitoring deleted) | Codebase hygiene |
+| **Sprint 4 Remaining** | **~28h** | **Feature completeness** |
 
 ### Backlog (After Sprint 4)
 - T3-2: Retention/Compliance module (8h)

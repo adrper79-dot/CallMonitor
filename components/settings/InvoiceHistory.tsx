@@ -37,7 +37,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, Download, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import { logger } from '@/lib/logger'
-import { apiGet } from '@/lib/api-client'
+import { apiGet } from '@/lib/apiClient'
 
 interface Invoice {
   id: string

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { logger } from '@/lib/logger'
-import { apiFetchRaw } from '@/lib/api-client'
+import { apiFetchRaw } from '@/lib/apiClient'
 
 /**
  * ExportButton - Professional Design System v3.0

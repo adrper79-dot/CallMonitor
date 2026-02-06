@@ -6,7 +6,7 @@ import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
 import { logger } from '@/lib/logger'
 import { apiGet, apiPost } from '@/lib/apiClient'
-import { apiPostFormData } from '@/lib/api-client'
+import { apiPostFormData } from '@/lib/apiClient'
 
 export interface AudioUploadProps {
   organizationId: string

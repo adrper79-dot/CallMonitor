@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 const SESSION_KEY = 'wb-session-token'
 
-import { apiGetNoAuth, apiPostNoAuth, apiPost, apiGet } from '@/lib/api-client'
+import { apiGetNoAuth, apiPostNoAuth, apiPost, apiGet } from '@/lib/apiClient'
 
 interface User {
   id: string

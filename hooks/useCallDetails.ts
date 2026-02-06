@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { apiGet } from '@/lib/api-client'
+import { apiGet } from '@/lib/apiClient'
 
 export interface CallDetails {
   call: {

@@ -18,7 +18,7 @@ import React, { useState, useEffect } from 'react'
 import { TimelineEvent, TimelineEventType, CallTimeline as CallTimelineType } from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
-import { apiGet } from '@/lib/api-client'
+import { apiGet } from '@/lib/apiClient'
 
 interface CallTimelineProps {
   callId: string
