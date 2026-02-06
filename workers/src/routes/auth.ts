@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { getDb } from '../lib/db'
-import { parseSessionToken, verifySession } from '../lib/auth'
+import { parseSessionToken, verifySession, computeFingerprint } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { ValidateKeySchema, SignupSchema, LoginSchema, ForgotPasswordSchema } from '../lib/schemas'
 import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
@@ -289,7 +289,11 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     // Create session
     const sessionId = crypto.randomUUID()
     const sessionToken = crypto.randomUUID()
-    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days (H2 hardening: reduced from 30)
+
+    // H2 hardening: bind session to device fingerprint (User-Agent + origin)
+    // If token is stolen, it won't work from a different device/browser
+    const fingerprint = await computeFingerprint(c)
 
     try {
       // sessions table has UUID columns for id and user_id (per actual schema check)
@@ -299,6 +303,12 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
          ON CONFLICT (session_token) DO NOTHING`,
         [sessionId, sessionToken, user.id, expires.toISOString()]
       )
+
+      // H2 hardening: store fingerprint in KV bound to session token
+      // TTL matches session expiry (7 days = 604800 seconds)
+      await c.env.KV.put(`fp:${sessionToken}`, fingerprint, {
+        expirationTtl: 7 * 24 * 60 * 60,
+      })
     } catch (sessionError: any) {
       return c.json({ error: 'Session creation failed' }, 500)
     }
@@ -346,6 +356,13 @@ authRoutes.post('/signout', async (c) => {
       // Delete session from database
       const db = getDb(c.env)
       await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
+
+      // H2 hardening: clean up fingerprint from KV
+      try {
+        await c.env.KV.delete(`fp:${token}`)
+      } catch {
+        // Non-fatal — KV cleanup best-effort
+      }
     }
 
     // Clear session cookie

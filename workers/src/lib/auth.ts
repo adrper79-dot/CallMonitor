@@ -1,6 +1,6 @@
 /**
  * Auth utilities for Cloudflare Workers
- * Session validation and token parsing
+ * Session validation, token parsing, and fingerprint binding (H2 hardening)
  */
 
 import type { Context } from 'hono'
@@ -14,6 +14,20 @@ export interface Session {
   organization_id: string
   role: string
   expires: string
+}
+
+/**
+ * Compute device fingerprint from request headers.
+ * Used to bind sessions to the device that created them (H2 hardening).
+ */
+export async function computeFingerprint(c: Context<{ Bindings: Env }>): Promise<string> {
+  const userAgent = c.req.header('User-Agent') || 'unknown'
+  const origin = c.req.header('Origin') || c.req.header('Referer') || 'unknown'
+  const raw = `${userAgent}|${origin}`
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 /**
@@ -43,14 +57,14 @@ export async function verifySession(
   try {
     // Use neon client for consistency
     const { neon } = await import('@neondatabase/serverless')
-    
+
     // Prefer direct connection string for consistency with other endpoints
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    
+
     if (!connectionString) {
       return null
     }
-    
+
     const sql = neon(connectionString)
 
     // Query sessions with user and org membership info
@@ -77,6 +91,21 @@ export async function verifySession(
       return null
     }
 
+    // H2 hardening: validate device fingerprint if one was stored at login
+    // Graceful — if no fingerprint in KV (legacy sessions), skip validation
+    try {
+      const storedFp = await c.env.KV.get(`fp:${token}`)
+      if (storedFp) {
+        const currentFp = await computeFingerprint(c)
+        if (storedFp !== currentFp) {
+          // Fingerprint mismatch — possible token theft
+          return null
+        }
+      }
+    } catch {
+      // KV failure is non-fatal — allow the request through
+    }
+
     const row = result[0]
 
     return {
@@ -96,11 +125,9 @@ export async function verifySession(
 /**
  * Middleware helper: require authenticated session
  */
-export async function requireAuth(
-  c: Context<{ Bindings: Env }>
-): Promise<Session | null> {
+export async function requireAuth(c: Context<{ Bindings: Env }>): Promise<Session | null> {
   const token = parseSessionToken(c)
-  
+
   if (!token) {
     return null
   }
@@ -116,7 +143,7 @@ export async function requireRole(
   requiredRole: string
 ): Promise<Session | null> {
   const session = await requireAuth(c)
-  
+
   if (!session) {
     return null
   }
@@ -144,8 +171,8 @@ export async function requireRole(
  */
 function parseCookies(cookieHeader: string): Record<string, string> {
   const cookies: Record<string, string> = {}
-  
-  cookieHeader.split(';').forEach(cookie => {
+
+  cookieHeader.split(';').forEach((cookie) => {
     const [name, ...valueParts] = cookie.trim().split('=')
     if (name) {
       cookies[name] = valueParts.join('=')

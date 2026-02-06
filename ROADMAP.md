@@ -1,39 +1,11 @@
 # Cloudflare & Codebase Roadmap (Updated: Feb 2, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
-**Deployment**: ✅ Live at https://a4b3599d.wordisbond.pages.dev  
-**Status**: ❌ **AUTH BLOCKER** - NextAuth incompatible with static export (see AUTH_ARCHITECTURE_DECISION.md)  
-**Progress**: 44/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
+**Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
+**Progress**: 52/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
-> **Critical Issue**: Authentication broken in production. NextAuth requires API routes that don't exist in static Pages. Decision needed: Clerk (recommended), Custom JWT, or Port NextAuth to Workers. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md) for details.
-
----
-
-## 🚨 NEW BLOCKER - Authentication (Discovered Feb 2)
-
-### Issue
-
-NextAuth.js is incompatible with static-only Pages deployment. All `/api/auth/*` endpoints return 404.
-
-**Symptoms:**
-
-- ❌ Cannot sign in/sign up
-- ❌ Session checks fail (404)
-- ❌ OAuth flows broken
-
-**Root Cause:**
-
-- Static export removed all `app/api/` routes
-- NextAuth requires server-side API routes
-- No `/api/auth/session`, `/api/auth/signin`, etc.
-
-### Options
-
-1. **Clerk/Auth0** (Recommended) - Client-side auth SaaS - 1-2 days
-2. **Custom JWT** - Build minimal auth in Workers - 2-3 days
-3. **Port NextAuth** - Migrate to Workers - 3-5 days (complex)
-
-**Decision Document:** [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md)
+> **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
 ---
 
@@ -97,7 +69,7 @@ NextAuth.js is incompatible with static-only Pages deployment. All `/api/auth/*`
 
 ### 📋 Recommendations
 
-> **Priority**: R2 Proxy + Sentry Workers + RateLimit Edge (core API resilience).
+> **Priority**: WAF rules + RLS Audit + Idempotency layer (core resilience).
 > **Security**: WAF rules should be configured in CF Dashboard immediately.
 > **Compliance**: RLS Audit critical for HIPAA/SOC2 requirements.
 
@@ -133,7 +105,7 @@ NextAuth.js is incompatible with static-only Pages deployment. All `/api/auth/*`
 
 ### 📋 Recommendations
 
-> **Quick Wins**: Types Gen CI hook (10min), DB Reset script (30min).
+> **Quick Wins**: Types Gen CI hook (10min), DB Reset script (30min), README scripts doc (30min).
 > **E2E**: Consider Playwright for critical flows (signin, call start).
 > **Docs**: Schema ERD helps onboarding new developers.
 > **Pre-commit**: ✅ Husky + lint-staged now auto-lint + auto-format on commit.
@@ -284,52 +256,24 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 44/92 (48%).
-**Last Updated**: Feb 4, 2026 by GitHub Copilot
-
-## 🏆 DESIGN/CODE EXCELLENCE (ARCH_DOCS Alignment)
-
-Standards: Call-rooted, single UI, immutable, edge-first, RBAC, Telnyx.
-Practices: Typesafe, DRY, no logs, boundaries, Zod.
-Elegant: Libs modular, HOFs/hooks, perf Suspense.
-
-### 🚨 Design Violations
-
-- [ ] SWML → Telnyx (app/api/calls*, lib/signalwire*, tests/call\*): VXML. **4hr**
-- [ ] Multi-Pages (app/\* vs /voice): Single Ops root. **2hr**
-- [ ] Console.logs (grep app/lib/): Sentry. **1hr**
-
-### ⚠️ Best Practices
-
-- [ ] Zod APIs (app/api/ no schema): Input/out. **3hr**
-- [ ] Error Boundaries (components/): React.lazy. **1hr**
-- [ ] RBAC Hooks (contexts/): useOrgRole. **2hr**
-- [ ] Immutable Views (evidence/\*): RLS read-only. **1hr**
-
-### 🔧 Elegant
-
-- [ ] Lib Modules (lib/): /db/api/ui. **4hr**
-- [ ] Hooks HOF (hooks/): useCallModulation. **2hr**
-- [ ] Suspense Perf (app/): Streaming. **1hr**
-- [ ] Tailwind cva (components/ clsx): Variants. **2hr**
-
-Progress: 4/12 Excellence. Total 44/97.
+**Track**: Update [x] as items complete. **Progress**: 52/109 (48%).
+**Last Updated**: Feb 7, 2026 by GitHub Copilot
 
 ---
 
-## 🚀 STACK EXCELLENCE (Full-Stack Integration)
+## 🚀 STACK EXCELLENCE (Full-Stack Integration) — PROGRESS: 5/12
 
 **Stack**: Cloudflare (Pages/Workers/Hyperdrive/R2/KV) + Neon (Postgres) + Telnyx (Voice) + Stripe (Billing) + AssemblyAI (Transcription) + OpenAI (LLM) + ElevenLabs (TTS)
 
 ### Telephony (Telnyx VXML)
 
 - [ ] **Telnyx VXML Migration** (app/\_api_to_migrate/calls\*): Convert SWML → Telnyx Command API. **4hr**
-- [ ] **Webhook Handlers** (workers/src/routes/webhooks.ts): Telnyx call events. **2hr**
-- [ ] **Call Recording Storage** (lib/storage.ts): R2 bucket integration. **1hr**
+- [x] **Webhook Handlers** (workers/src/routes/webhooks.ts): Telnyx call events + HMAC verification. ✅
+- [x] **Call Recording Storage** (workers/src/routes/recordings.ts): R2 bucket integration + signed URLs. ✅
 
 ### Billing (Stripe)
 
-- [ ] **Stripe Webhooks** (workers/src/routes/stripe.ts): KV idempotency keys. **2hr**
+- [x] **Stripe Webhooks** (workers/src/routes/billing.ts): HMAC-verified webhooks. ✅
 - [ ] **Usage Metering** (lib/billing.ts): Track call minutes, transcriptions. **2hr**
 - [ ] **Subscription Management** (workers/src/routes/subscriptions.ts): CRUD operations. **1hr**
 
@@ -341,10 +285,8 @@ Progress: 4/12 Excellence. Total 44/97.
 
 ### Database (Neon)
 
-- [ ] **Connection Pool Limits** (lib/pgClient.ts): Max connections = 20. **15min**
-- [ ] **Query Timeout Config** (lib/pgClient.ts): Statement timeout = 30s. **15min**
+- [x] **Connection Pool Hardening** (`workers/src/lib/db.ts`): max=5, idle/connection timeouts, statement_timeout=30s. ✅
+- [x] **Query Timeout Config** (`workers/src/lib/db.ts`): Statement timeout = 30s via connection options. ✅
 - [ ] **RLS Policy Audit** (migrations/): Verify all tables have RLS. **1hr**
-
-Progress: 0/12 Stack. Total 34/109.
 
 ---

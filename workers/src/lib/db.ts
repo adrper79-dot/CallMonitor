@@ -60,12 +60,14 @@ export function getDb(env: Env): DbClient {
     max: POOL_MAX,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
-    // Set statement timeout at connection level via options string
-    options: `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+    // Note: statement_timeout set per-query, not as startup param
+    // (Neon pooled connections reject startup parameters)
   })
 
   return {
     query: async (sqlString: string, params?: any[]) => {
+      // Set statement_timeout per-session before executing the actual query
+      await pool.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
       const result = await pool.query(sqlString, params)
       return { rows: result.rows || [] }
     },

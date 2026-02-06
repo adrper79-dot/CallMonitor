@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 6, 2026  
-**Version:** 4.6 - API Client Consolidation & Dead Code Removal  
+**Last Updated:** February 7, 2026  
+**Version:** 4.7 - Security Hardening Sprint (H2/H7) & Dead Code Final Cleanup  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,36 +12,35 @@
 
 ---
 
-## 🔧 **Recent Updates (February 6, 2026)**
+## 🔧 **Recent Updates (February 7, 2026)**
 
-### **API Client Consolidation & Dead Code Removal (v4.6):** ✅ **PRODUCTION DEPLOYED**
+### **Security Hardening Sprint & Dead Code Final Cleanup (v4.7):** ✅ **DEPLOYED**
 
-1. **P2-1: Duplicate API Client Consolidated** ⭐ **ARCHITECTURE FIX**
-   - **Before:** Two API clients — `lib/apiClient.ts` (57 importers) and `lib/api-client.ts` (22 importers)
-   - **After:** Single canonical `lib/apiClient.ts` with full helper suite
-   - **Ported 4 unique functions:** `apiFetchRaw`, `apiPostFormData`, `apiPostNoAuth`, `apiGetNoAuth`
-   - **Migrated 21 imports** from `@/lib/api-client` → `@/lib/apiClient`
-   - **Merged 3 dual-import files** (CallDetailView, BulkCallUpload, ExportButton)
-   - **Deleted `lib/api-client.ts`** — zero remaining consumers
+1. **H2: Session Token XSS Hardening** ⭐ **SECURITY FIX**
+   - **Session TTL reduced:** 30 days → 7 days (reduced window of attack)
+   - **Token fingerprinting:** Sessions bound to device via SHA-256 hash of User-Agent + Origin
+   - **Fingerprint validation:** Every authenticated request validates device fingerprint from KV
+   - **Graceful degradation:** Legacy sessions (no fingerprint) continue to work
+   - **Signout cleanup:** Fingerprint removed from KV on explicit signout
+   - **Cross-origin note:** Token in JSON body remains necessary for cross-origin arch (Pages ↔ Workers); fingerprint binding mitigates stolen token risk
 
-2. **D2: Raw fetch() Migration Complete** ✅ **ALL DONE**
-   - **Phase 1:** 14 raw fetch calls migrated across 9 files (voice, analytics, compliance)
-   - **Phase 2:** 8 files, 17 additional fetch calls migrated
-   - **Exception:** `campaignExecutor.ts` kept raw fetch — server-to-server call with service API key (by design)
+2. **H7: Zombie Auth Schemas Migration** ✅ **MIGRATION CREATED**
+   - **Created `migrations/005_drop_zombie_auth_schemas.sql`** — drops `next_auth`, `authjs`, `neon_auth`, `realtime`, `graphql`, `graphql_public` schemas
+   - **Idempotent:** All statements use `IF EXISTS CASCADE`
+   - **Supabase `auth.*` preserved** — 20 tables, requires DBA review before deletion
+   - **Verification query included** for post-migration validation
 
-3. **D1: Dead Code Cleanup** ✅ **COMPLETE**
-   - **Deleted `lib/monitoring.ts`** — imported `@sentry/nextjs`, zero consumers
-   - **Deleted `lib/sentry-edge.ts`** — 129 lines, zero consumers
-   - **Uninstalled `@sentry/nextjs`** from package.json
-   - **Removed straggler `API_BASE`** from `complianceUtils.ts`
-   - **14 dead `API_BASE` declarations** removed across codebase (prior session)
+3. **Dead Code: `lib/api-client.ts` Finally Deleted** ✅ **COMPLETE**
+   - **Root cause:** 1 missed import in `CallModulations.tsx` prevented prior deletion
+   - **Fixed:** Import rewritten from `@/lib/api-client` → `@/lib/apiClient`
+   - **Deleted:** `lib/api-client.ts` (257 lines) — NOW truly zero consumers
+   - **Canonical client:** `lib/apiClient.ts` is the sole API client (329 lines)
 
-4. **Security Items Verified** ✅
-   - **C5 Telnyx webhook:** Fail-closed signature verification pattern
-   - **H3 DB Pool:** Singleton pattern in `pgClient.ts` (no connection leaks)
-   - **H6 Console.log PII:** Audited — no PII found in production console.logs
-
-5. **Build & Deploy** ✅ **30/30 pages, 0 errors, deployed to Cloudflare Pages**
+4. **ROADMAP Cleanup** ✅ **COMPLETE**
+   - **Removed:** AUTH BLOCKER banner + 20-line stale authentication section
+   - **Removed:** Duplicate DESIGN/CODE EXCELLENCE section (lines 295-330)
+   - **Updated:** STACK EXCELLENCE section — marked completed items (pool hardening, webhooks, recordings)
+   - **Updated:** Progress counter 44/109 → 52/109, deployment URLs, last-updated date
 
 ### **Sprint 4: Security Hardening & Build Enforcement (v4.5):** ✅ **PRODUCTION DEPLOYED**
 
@@ -153,6 +152,7 @@ Wordis Bond is the System of Record for business conversations - a platform that
 **Core Principle:** "People speak the commitments. The system ensures those commitments are captured correctly."
 
 **Core Technology Stack:**
+
 - **Frontend:** Next.js 14 App Router static export on Cloudflare Pages
 - **Backend:** Hono API on Cloudflare Workers
 - **Database:** Neon Postgres (Hyperdrive pooling) - 61+ tables
@@ -168,20 +168,22 @@ Wordis Bond is the System of Record for business conversations - a platform that
 ## 🚀 **Deployed Features**
 
 ### **✅ Core Features (Production)**
+
 1. **Call Management** - Initiate, track, and manage voice calls
 2. **WebRTC Calling** - Browser-based PSTN calling via TelnyxRTC SDK
 3. **Recording** - Auto-record with SignalWire
-3. **Transcription** - Post-call via AssemblyAI
-4. **Translation** - Post-call via AssemblyAI + OpenAI
-5. **TTS Audio** - ElevenLabs audio generation for translations
-6. **Voice Cloning** - Clone caller's voice for translated audio (ElevenLabs)
-7. **After-call Surveys** - IVR surveys post-call (with procedural disclaimer)
-8. **Secret Shopper** - AI-powered call scoring (with QA disclosure)
-9. **Evidence Manifests** - Structured call evidence
-10. **Evidence Bundles** - Custody-grade bundle hash + TSA-ready fields
-11. **Email Artifacts** - Send recordings/transcripts/translations via email
+4. **Transcription** - Post-call via AssemblyAI
+5. **Translation** - Post-call via AssemblyAI + OpenAI
+6. **TTS Audio** - ElevenLabs audio generation for translations
+7. **Voice Cloning** - Clone caller's voice for translated audio (ElevenLabs)
+8. **After-call Surveys** - IVR surveys post-call (with procedural disclaimer)
+9. **Secret Shopper** - AI-powered call scoring (with QA disclosure)
+10. **Evidence Manifests** - Structured call evidence
+11. **Evidence Bundles** - Custody-grade bundle hash + TSA-ready fields
+12. **Email Artifacts** - Send recordings/transcripts/translations via email
 
 ### **✅ AI Role Compliance (ALL 5 PHASES COMPLETE)** ⭐ COMPLETE
+
 12. **Recording Disclosure** - Automatic disclosure before recording begins (Phase 1)
 13. **Survey Disclaimer** - Procedural disclaimer for automated surveys (Phase 1)
 14. **Translation Disclosure** - AI-assisted translation notice (Phase 1)
@@ -200,6 +202,7 @@ Wordis Bond is the System of Record for business conversations - a platform that
 27. **Compliance Audit** - Full audit checklist validation ⭐ NEW (Phase 5)
 
 ### **✅ Bond AI Assistant (3-Tier System)** ⭐ **NEW (February 5, 2026)**
+
 28. **Chat Widget** - Floating AI assistant on all authenticated pages with conversation history
 29. **Context-Aware Responses** - AI responses using org stats, KPI data, test results, call context
 30. **Proactive Alerts** - Configurable alert rules (KPI breach, compliance, volume spike)
@@ -208,6 +211,7 @@ Wordis Bond is the System of Record for business conversations - a platform that
 33. **AI Integration** - OpenAI GPT-4o-mini with system prompts and data fetchers
 
 ### **✅ Team Management System** ⭐ **NEW (February 5, 2026)**
+
 34. **Teams & Departments** - CRUD operations for teams with manager assignment
 35. **Member Management** - Add/remove team members with org membership validation
 36. **Multi-Org Switching** - Users in multiple organizations can switch contexts
@@ -215,17 +219,20 @@ Wordis Bond is the System of Record for business conversations - a platform that
 38. **RBAC v2** - Database-backed permissions with role inheritance (58 seeded permissions)
 
 ### **✅ Live Translation (Preview - Business+ Plan)**
+
 39. **Real-time Translation** - SignalWire AI Agents for live bi-directional translation
 40. **Language Detection** - Auto-detect language switches
 41. **Graceful Fallback** - Continue call without translation on failure
 
 ### **✅ AI Survey Bot (Business+ Plan)**
+
 42. **Dynamic Survey Prompts** - Configurable questions per organization
 43. **Inbound Call Handling** - SignalWire AI Agents for survey conversations
 44. **Email Results** - Automated survey result delivery
 45. **Conversation Capture** - Full transcript stored in ai_runs
 
 ### **✅ UI Features**
+
 46. **Navigation Bar** - Global nav (Home, Voice, Teams, Settings, Tests)
 47. **Voice Operations Page** - Call list, execution controls, detail view
 48. **Teams Page** - Team/department management with member assignment ⭐ NEW
@@ -238,18 +245,21 @@ Wordis Bond is the System of Record for business conversations - a platform that
 55. **Org Switcher** - Sidebar dropdown for multi-org users ⭐ NEW
 
 ### **✅ Cal.com-Style Booking (Business+ Plan)**
+
 56. **Scheduled Calls** - Book calls for future automatic execution
 57. **Booking Management** - Create, update, cancel bookings
 58. **Cron Auto-Originate** - Vercel Cron triggers calls at scheduled time
 59. **Attendee Tracking** - Name, email, phone per booking
 
 ### **✅ Chrome Extension**
+
 58. **Quick Call** - Make calls from browser popup
 59. **Click-to-Call** - Auto-detect phone numbers on any webpage
 60. **Context Menu** - Right-click to call/schedule
 61. **Notifications** - Real-time call status updates
 
 ### **✅ Infrastructure**
+
 62. **RBAC System v2** - Database-backed role-based access control with inheritance ⭐ UPGRADED
 63. **Plan-based Capabilities** - Feature gating by organization plan
 64. **Error Tracking** - Comprehensive error handling with audit logs
@@ -260,16 +270,18 @@ Wordis Bond is the System of Record for business conversations - a platform that
 69. **PBKDF2 Password Hashing** - NIST-compliant password security (120k iterations) ⭐ SECURITY UPGRADE
 
 ### **✅ Billing & Revenue** ⭐ **January 16, 2026**
+
 70. **Usage Metering** - Track calls, minutes, transcriptions, translations
 71. **Usage Limits** - Enforce plan-based limits (soft limits with warnings)
 72. **Stripe Integration** - Full subscription management backend
-42. **Webhook Handler** - Process Stripe events with idempotency
-43. **Usage Display UI** - Real-time usage meters in Settings
-44. **Subscription Sync** - Automatic plan updates from Stripe
-45. **Payment Tracking** - Invoice and payment method storage
-46. **Audit Logging** - Full audit trail for billing events
+73. **Webhook Handler** - Process Stripe events with idempotency
+74. **Usage Display UI** - Real-time usage meters in Settings
+75. **Subscription Sync** - Automatic plan updates from Stripe
+76. **Payment Tracking** - Invoice and payment method storage
+77. **Audit Logging** - Full audit trail for billing events
 
 ### **✅ AI Agent Configuration** ⭐ **NEW (January 16, 2026)**
+
 47. **AI Model Selection** - Choose GPT-4o-mini, GPT-4o, or GPT-4-turbo
 48. **Temperature Control** - Adjust AI creativity (0-2 scale)
 49. **Custom Agent ID** - Use custom SignalWire agents (Business+)
@@ -279,6 +291,7 @@ Wordis Bond is the System of Record for business conversations - a platform that
 53. **Audit Trail** - AI config changes logged in ai_agent_audit_log
 
 ### **✅ Campaign Manager** ⭐ **NEW (January 17, 2026)**
+
 54. **Bulk Campaigns** - Create campaigns for bulk outbound calling
 55. **Target List Management** - Upload target lists with metadata
 56. **Campaign Scheduling** - Immediate, scheduled, or recurring campaigns
@@ -289,6 +302,7 @@ Wordis Bond is the System of Record for business conversations - a platform that
 61. **Campaign Stats API** - Real-time campaign performance metrics
 
 ### **✅ Report Builder** ⭐ **NEW (January 17, 2026)**
+
 62. **Report Templates** - Create reusable report configurations
 63. **Multiple Data Sources** - Calls, campaigns, scorecards, surveys
 64. **Custom Filters** - Date range, status, user, tag filtering
@@ -302,129 +316,135 @@ Wordis Bond is the System of Record for business conversations - a platform that
 
 ## 📊 **System Health & Completeness**
 
-| Metric | Status | Notes |
-|--------|--------|-------|
-| **Overall Completeness** | 100% | Bond AI + Team Management complete |
-| **Build Status** | ✅ Passing | WSL required for OpenNext compatibility |
-| **TypeScript** | ⚠️ Warnings | 748 type warnings (non-blocking) |
-| **Test Pass Rate** | ✅ 98.5% | 64/65 tests |
-| **Critical Issues** | ✅ None | All security fixes applied |
-| **Production Readiness** | ✅ Ready | Schema-aligned, tenant-isolated |
-| **Pages Built** | 30 routes | All core journeys complete |
-| **API Endpoints** | 120+ | Comprehensive coverage |
-| **Database Tables** | 120 | Rich data model, 100% snake_case |
+| Metric                   | Status      | Notes                                   |
+| ------------------------ | ----------- | --------------------------------------- |
+| **Overall Completeness** | 100%        | Bond AI + Team Management complete      |
+| **Build Status**         | ✅ Passing  | WSL required for OpenNext compatibility |
+| **TypeScript**           | ⚠️ Warnings | 748 type warnings (non-blocking)        |
+| **Test Pass Rate**       | ✅ 98.5%    | 64/65 tests                             |
+| **Critical Issues**      | ✅ None     | All security fixes applied              |
+| **Production Readiness** | ✅ Ready    | Schema-aligned, tenant-isolated         |
+| **Pages Built**          | 30 routes   | All core journeys complete              |
+| **API Endpoints**        | 120+        | Comprehensive coverage                  |
+| **Database Tables**      | 120         | Rich data model, 100% snake_case        |
 
 ### Feature Completeness Breakdown
 
-| Area | Completeness |
-|------|--------------|
-| Voice Operations | 100% |
-| Recording & Transcription | 100% |
-| Post-Call Translation | 100% |
-| Live Translation | 80% (config UI at 92%) |
-| Surveys | 100% |
-| Secret Shopper | 100% |
-| Evidence Bundles | 100% |
-| Bookings | 100% |
-| Team Management | 100% |
-| **Bond AI Assistant** ⭐ | **100%** ✅ (3-tier system) |
-| **Usage Metering** ⭐ | **100%** |
-| **Stripe Backend** ⭐ | **100%** |
-| **AI Agent Config** ⭐ | **100%** ✅ |
-| **Campaign Manager** ⭐ | **100%** ✅ |
-| **Report Builder** ⭐ | **100%** ✅ |
-| **Analytics Dashboard** ⭐ | **100%** ✅ |
-| **Security/Tenant Isolation** ⭐ | **100%** ✅ (v3.3) |
-| **Schema Alignment** ⭐ | **100%** ✅ (v3.3) |
-| **Password Security** ⭐ | **100%** ✅ (PBKDF2 upgrade) |
-| **Billing UI** | **30%** (backend 100%, frontend partial) |
-| **Webhooks Config UI** | **50%** (API exists, no UI) |
+| Area                             | Completeness                             |
+| -------------------------------- | ---------------------------------------- |
+| Voice Operations                 | 100%                                     |
+| Recording & Transcription        | 100%                                     |
+| Post-Call Translation            | 100%                                     |
+| Live Translation                 | 80% (config UI at 92%)                   |
+| Surveys                          | 100%                                     |
+| Secret Shopper                   | 100%                                     |
+| Evidence Bundles                 | 100%                                     |
+| Bookings                         | 100%                                     |
+| Team Management                  | 100%                                     |
+| **Bond AI Assistant** ⭐         | **100%** ✅ (3-tier system)              |
+| **Usage Metering** ⭐            | **100%**                                 |
+| **Stripe Backend** ⭐            | **100%**                                 |
+| **AI Agent Config** ⭐           | **100%** ✅                              |
+| **Campaign Manager** ⭐          | **100%** ✅                              |
+| **Report Builder** ⭐            | **100%** ✅                              |
+| **Analytics Dashboard** ⭐       | **100%** ✅                              |
+| **Security/Tenant Isolation** ⭐ | **100%** ✅ (v3.3)                       |
+| **Schema Alignment** ⭐          | **100%** ✅ (v3.3)                       |
+| **Password Security** ⭐         | **100%** ✅ (PBKDF2 upgrade)             |
+| **Billing UI**                   | **30%** (backend 100%, frontend partial) |
+| **Webhooks Config UI**           | **50%** (API exists, no UI)              |
 
 ---
-Revenue Infrastructure Implementation (v1.6.0):** ⭐
+
+Revenue Infrastructure Implementation (v1.6.0):\*\* ⭐
 
 **1. Usage Metering System (100% Complete)**
-   - New `usage_records` table - tracks calls, minutes, transcriptions, translations
-   - New `usage_limits` table - defines plan-based limits
-   - Usage tracking service integrated into call flow
-   - Real-time usage API endpoint (`/api/usage`)
-   - `UsageDisplay` component with progress bars and warnings
-   - Automatic limit enforcement with graceful error messages
-   - File: `/supabase/migrations/20260116_usage_metering.sql` (182 lines)
-   - File: `/lib/services/usageTracker.ts` (215 lines)
-   - File: `/components/settings/UsageDisplay.tsx` (195 lines)
+
+- New `usage_records` table - tracks calls, minutes, transcriptions, translations
+- New `usage_limits` table - defines plan-based limits
+- Usage tracking service integrated into call flow
+- Real-time usage API endpoint (`/api/usage`)
+- `UsageDisplay` component with progress bars and warnings
+- Automatic limit enforcement with graceful error messages
+- File: `/supabase/migrations/20260116_usage_metering.sql` (182 lines)
+- File: `/lib/services/usageTracker.ts` (215 lines)
+- File: `/components/settings/UsageDisplay.tsx` (195 lines)
 
 **2. Stripe Billing Integration (Backend 100%, Frontend 30%)**
-   - New `stripe_subscriptions` table - subscription state sync
-   - New `stripe_payment_methods` table - payment method storage
-   - New `stripe_invoices` table - invoice history
-   - New `stripe_events` table - webhook idempotency
-   - Complete Stripe service layer with all operations
-   - Webhook handler for subscription lifecycle events
-   - Automatic plan updates in `organizations` table
-   - Audit logging for all billing operations
-   - File: `/supabase/migrations/20260116_stripe_billing.sql` (273 lines)
-   - File: `/lib/services/stripeService.ts` (381 lines)
-   - File: `/app/api/webhooks/stripe/route.ts` (401 lines)
-   - File: `/app/api/billing/checkout/route.ts` (83 lines)
-   - File: `/app/api/billing/portal/route.ts` (64 lines)
-   - File: `/app/api/billing/subscription/route.ts` (134 lines)
-   - File: `/app/api/billing/cancel/route.ts` (95 lines)
-   - File: `/app/api/billing/invoices/route.ts` ⭐ NEW (100 lines)
-   - File: `/app/api/billing/payment-methods/route.ts` ⭐ NEW (115 lines)
-   - File: `/app/api/organizations/current/route.ts` ⭐ NEW (100 lines)
-   - **Gap:** Frontend self-service UI incomplete (checkout, payment methods, invoices)
+
+- New `stripe_subscriptions` table - subscription state sync
+- New `stripe_payment_methods` table - payment method storage
+- New `stripe_invoices` table - invoice history
+- New `stripe_events` table - webhook idempotency
+- Complete Stripe service layer with all operations
+- Webhook handler for subscription lifecycle events
+- Automatic plan updates in `organizations` table
+- Audit logging for all billing operations
+- File: `/supabase/migrations/20260116_stripe_billing.sql` (273 lines)
+- File: `/lib/services/stripeService.ts` (381 lines)
+- File: `/app/api/webhooks/stripe/route.ts` (401 lines)
+- File: `/app/api/billing/checkout/route.ts` (83 lines)
+- File: `/app/api/billing/portal/route.ts` (64 lines)
+- File: `/app/api/billing/subscription/route.ts` (134 lines)
+- File: `/app/api/billing/cancel/route.ts` (95 lines)
+- File: `/app/api/billing/invoices/route.ts` ⭐ NEW (100 lines)
+- File: `/app/api/billing/payment-methods/route.ts` ⭐ NEW (115 lines)
+- File: `/app/api/organizations/current/route.ts` ⭐ NEW (100 lines)
+- **Gap:** Frontend self-service UI incomplete (checkout, payment methods, invoices)
 
 **3. AI Agent Configuration (92% Complete)**
-   - Extended `voice_configs` table with 6 AI fields:
-     * ai_agent_id (custom SignalWire agent)
-     * ai_agent_prompt (custom system prompt)
-     * ai_agent_temperature (0-2 scale)
-     * ai_agent_model (gpt-4o-mini/gpt-4o/gpt-4-turbo)
-     * ai_post_prompt_url (webhook callback)
-     * ai_features_enabled (master toggle)
-   - New `ai_agent_audit_log` table for change tracking
-   - AI configuration API with plan-based validation
-   - React component with full configuration UI
-   - Plan-based feature locking (Business+, Enterprise)
-   - File: `/supabase/migrations/20260116_ai_agent_config.sql` (245 lines)
-   - File: `/app/api/ai-config/route.ts` (212 lines)
-   - File: `/components/settings/AIAgentConfig.tsx` (396 lines)
-   - **Gap:** Needs live testing with SignalWire AI agents
+
+- Extended `voice_configs` table with 6 AI fields:
+  - ai_agent_id (custom SignalWire agent)
+  - ai_agent_prompt (custom system prompt)
+  - ai_agent_temperature (0-2 scale)
+  - ai_agent_model (gpt-4o-mini/gpt-4o/gpt-4-turbo)
+  - ai_post_prompt_url (webhook callback)
+  - ai_features_enabled (master toggle)
+- New `ai_agent_audit_log` table for change tracking
+- AI configuration API with plan-based validation
+- React component with full configuration UI
+- Plan-based feature locking (Business+, Enterprise)
+- File: `/supabase/migrations/20260116_ai_agent_config.sql` (245 lines)
+- File: `/app/api/ai-config/route.ts` (212 lines)
+- File: `/components/settings/AIAgentConfig.tsx` (396 lines)
+- **Gap:** Needs live testing with SignalWire AI agents
 
 **4. Campaign Manager (100% Complete)** ⭐ **NEW (January 17, 2026)**
-   - New `campaigns` table - campaign configuration and progress tracking
-   - New `campaign_calls` table - individual call records within campaigns
-   - New `campaign_audit_log` table - full audit trail
-   - Bulk outbound calling with target list management
-   - Campaign scheduling (immediate, scheduled, recurring)
-   - Call flow selection (secret shopper, survey, outbound, test)
-   - Retry logic with configurable attempts per target
-   - Real-time progress tracking (completed, successful, failed counts)
-   - Campaign stats API for performance metrics
-   - File: `/supabase/migrations/20260117000000_campaigns.sql` (185 lines)
-   - File: `/app/api/campaigns/route.ts`
-   - File: `/app/api/campaigns/[id]/route.ts` (CRUD operations)
-   - File: `/app/api/campaigns/[id]/execute/route.ts` (campaign execution)
-   - File: `/app/api/campaigns/[id]/stats/route.ts` (performance metrics)
+
+- New `campaigns` table - campaign configuration and progress tracking
+- New `campaign_calls` table - individual call records within campaigns
+- New `campaign_audit_log` table - full audit trail
+- Bulk outbound calling with target list management
+- Campaign scheduling (immediate, scheduled, recurring)
+- Call flow selection (secret shopper, survey, outbound, test)
+- Retry logic with configurable attempts per target
+- Real-time progress tracking (completed, successful, failed counts)
+- Campaign stats API for performance metrics
+- File: `/supabase/migrations/20260117000000_campaigns.sql` (185 lines)
+- File: `/app/api/campaigns/route.ts`
+- File: `/app/api/campaigns/[id]/route.ts` (CRUD operations)
+- File: `/app/api/campaigns/[id]/execute/route.ts` (campaign execution)
+- File: `/app/api/campaigns/[id]/stats/route.ts` (performance metrics)
 
 **5. Report Builder (100% Complete)** ⭐ **NEW (January 17, 2026)**
-   - New `report_templates` table - reusable report configurations
-   - New `generated_reports` table - report execution instances
-   - New `scheduled_reports` table - automated report scheduling
-   - New `report_access_log` table - audit trail for compliance
-   - Multiple data sources (calls, campaigns, scorecards, surveys)
-   - Custom filters (date range, status, user, tags)
-   - Flexible metrics and dimension selection
-   - Multi-format export (PDF, CSV, XLSX, JSON)
-   - Scheduled report generation (daily, weekly, monthly)
-   - Email and webhook delivery options
-   - Cron-based automated report generation
-   - File: `/supabase/migrations/20260117000001_reports.sql` (169 lines)
-   - File: `/app/api/reports/route.ts` (template and report CRUD)
-   - File: `/app/api/reports/[id]/export/route.ts` (export to file)
-   - File: `/app/api/reports/schedules/[id]/route.ts` (schedule management)
-   - File: `/app/api/cron/scheduled-reports/route.ts` (automated execution)
+
+- New `report_templates` table - reusable report configurations
+- New `generated_reports` table - report execution instances
+- New `scheduled_reports` table - automated report scheduling
+- New `report_access_log` table - audit trail for compliance
+- Multiple data sources (calls, campaigns, scorecards, surveys)
+- Custom filters (date range, status, user, tags)
+- Flexible metrics and dimension selection
+- Multi-format export (PDF, CSV, XLSX, JSON)
+- Scheduled report generation (daily, weekly, monthly)
+- Email and webhook delivery options
+- Cron-based automated report generation
+- File: `/supabase/migrations/20260117000001_reports.sql` (169 lines)
+- File: `/app/api/reports/route.ts` (template and report CRUD)
+- File: `/app/api/reports/[id]/export/route.ts` (export to file)
+- File: `/app/api/reports/schedules/[id]/route.ts` (schedule management)
+- File: `/app/api/cron/scheduled-reports/route.ts` (automated execution)
 
 ---
 
@@ -434,21 +454,23 @@ Revenue Infrastructure Implementation (v1.6.0):** ⭐
 
 Complete 5-pass validation ensuring production readiness, security compliance, schema alignment, and UX best practices.
 
-| Pass | Focus Area | Issues Found | Status |
-|------|------------|--------------|--------|
-| **1** | Client Components | 8 emoji violations | ✅ FIXED |
-| **2** | Data Flow Integrity | Race conditions noted | ✅ VALIDATED |
-| **3** | Security Layer | 2 CRITICAL, 2 HIGH | ✅ FIXED |
-| **4** | Schema Alignment | 4 violations | ✅ FIXED |
-| **5** | Edge Cases & Error Paths | 14 issues identified | ✅ FIXED |
+| Pass  | Focus Area               | Issues Found          | Status       |
+| ----- | ------------------------ | --------------------- | ------------ |
+| **1** | Client Components        | 8 emoji violations    | ✅ FIXED     |
+| **2** | Data Flow Integrity      | Race conditions noted | ✅ VALIDATED |
+| **3** | Security Layer           | 2 CRITICAL, 2 HIGH    | ✅ FIXED     |
+| **4** | Schema Alignment         | 4 violations          | ✅ FIXED     |
+| **5** | Edge Cases & Error Paths | 14 issues identified  | ✅ FIXED     |
 
 **1. CRITICAL Security Fixes (Pass 3):**
+
 - ✅ `/api/calls/[id]` - Added org membership verification + org_id filter (tenant isolation)
 - ✅ `/api/calls` - Added org membership check before returning data
 - ✅ `translation.ts` - Fixed `is_authoritative: false` for LLM outputs (was incorrectly `true`)
 - ✅ Added RBAC role check to transcription server action
 
 **2. Schema Alignment Fixes (Pass 4):**
+
 - ✅ `/api/voice/swml/shopper/route.ts` - Removed non-existent `metadata` column from calls INSERT
 - ✅ `/api/calls/[id]/timeline/route.ts` - Removed reference to `consent_verified_by` (not in prod schema)
 - ✅ `types/tier1-features.ts` - Removed `callback_scheduled` from CallDisposition (not in DB constraint)
@@ -456,6 +478,7 @@ Complete 5-pass validation ensuring production readiness, security compliance, s
 - ✅ Removed `consent_verified_by` and `consent_verified_at` from CallConsent interface
 
 **3. UX Compliance Fixes (Pass 1):**
+
 - ✅ `CallTimeline.tsx` - Replaced emojis with Unicode symbols (●, ✓, ★, etc.)
 - ✅ `BookingsList.tsx` - Replaced emojis with Unicode symbols
 - ✅ `OnboardingWizard.tsx` - Removed all emojis from professional UI
@@ -464,16 +487,19 @@ Complete 5-pass validation ensuring production readiness, security compliance, s
 - ✅ `CallDisposition.tsx` - Replaced all emoji icons with Unicode symbols
 
 **4. Error Handling Improvements (Pass 5):**
+
 - ✅ Created `lib/utils/validation.ts` - UUID, email, phone validation utilities
 - ✅ `/api/calls/[id]/route.ts` - Added UUID format validation (early fail)
 - ✅ `/api/recordings/[id]/route.ts` - Added UUID format validation
 - ✅ `translation.ts` - Added 30-second timeout on OpenAI API calls
 
 **5. Rate Limiting Added:**
+
 - ✅ `/api/webhooks/stripe/route.ts` - Added rate limiting wrapper
 - ✅ `/api/webhooks/survey/route.ts` - Added rate limiting wrapper
 
 **Files Modified (17 files):**
+
 ```
 app/api/calls/[id]/route.ts           - Tenant isolation + UUID validation
 app/api/calls/[id]/disposition/route.ts - Removed callback_scheduled
@@ -498,10 +524,11 @@ lib/utils/validation.ts               - NEW: Validation utilities
 ---
 
 ### **Feb 2 Updates:**
+
 - ✅ Hybrid Deployment: Cloudflare Pages (static UI) + Workers (API routes via Hono)
   - Pages: https://827487ca.wordisbond.pages.dev
   - Workers API: https://wordisbond-api.adrper79.workers.dev
-  - API Migration: Ongoing (~20/100+ routes to workers/src/routes/*.ts)
+  - API Migration: Ongoing (~20/100+ routes to workers/src/routes/\*.ts)
 - ✅ Schema Drift Fixes (migrations/2026-02-02-schema-drift-fixes.sql)
   - New: call_outcomes, call_outcome_history, ai_summaries tables
   - Columns: campaigns/orgs/users etc. aligned
@@ -510,20 +537,24 @@ lib/utils/validation.ts               - NEW: Validation utilities
 ### **Previous Deep Validation (v3.2):**
 
 **1. Call Placement Flow Fixes:**
+
 - ✅ Added `actor_type` and `actor_label` to 6 audit_log inserts in `startCallHandler.ts`
 - ✅ Consistent actor tracking: `'human'` for user-initiated, `'system'` for automated
 
 **2. Transcription Flow UX Improvements:**
+
 - ✅ Added `transcriptionStatus` prop chain: API → `useCallDetails` hook → `CallDetailView` → `ArtifactViewer`
 - ✅ New "Transcribing audio..." spinner when status is `queued` or `processing`
 - ✅ New "Transcription failed" warning when status is `failed`
 - ✅ Users now see real-time feedback instead of empty artifact panel
 
 **3. Survey Flow Audit Compliance:**
+
 - ✅ Added audit logging when survey completes (2 locations in `webhooks/survey/route.ts`)
 - ✅ `actor_type: 'vendor'`, `actor_label: 'signalwire-survey-ai'`
 
 **4. Secret Shopper Schema Alignment:**
+
 - ✅ Fixed schema mismatch in `/api/shopper/results/route.ts`
 - ✅ Changed `score` → `overall_score` (matches Schema.txt)
 - ✅ Changed `score_breakdown` → `outcome_results` (matches Schema.txt)
@@ -707,12 +738,14 @@ gemini-project/
 ## 🔐 **RBAC & Permissions**
 
 ### **User Roles:**
+
 - **Owner** - Full access
 - **Admin** - Manage organization and calls
 - **Operator** - Execute calls, view data
 - **Viewer** - Read-only access
 
 ### **Plans & Capabilities:**
+
 - **Base/Free** - Basic calling
 - **Pro/Standard** - + Recording, Transcription
 - **Global** - + Translation (post-call)
@@ -720,6 +753,7 @@ gemini-project/
 - **Enterprise** - + All features
 
 ### **Feature Flags:**
+
 - `TRANSLATION_LIVE_ASSIST_PREVIEW` - Enable live translation for Business+ plans
 
 ---
@@ -727,6 +761,7 @@ gemini-project/
 ## 🌐 **API Endpoints (42 Total)**
 
 ### **Voice Operations (10 routes):**
+
 - `POST /api/voice/call` - Initiate call
 - `POST /api/voice/bulk-upload` - Bulk call upload
 - `GET /api/voice/config` - Get voice config
@@ -739,11 +774,13 @@ gemini-project/
 - `DELETE /api/voice/targets` - Delete voice target
 
 ### **Webhooks (3 routes):**
+
 - `POST /api/webhooks/signalwire` - SignalWire status updates
 - `POST /api/webhooks/assemblyai` - AssemblyAI transcripts
 - `POST /api/webhooks/survey` - Survey responses
 
 ### **Call Management (5 routes):**
+
 - `GET /api/calls` - List calls
 - `GET /api/calls/[id]` - Get call details
 - `POST /api/calls/start` - Start call
@@ -751,6 +788,7 @@ gemini-project/
 - `GET /api/call-capabilities` - Get org capabilities
 
 ### **Health & Admin (10 routes):**
+
 - `GET /api/health` - System health check
 - `GET /api/health/env` - Environment check
 - `GET /api/health/user` - User lookup
@@ -762,11 +800,13 @@ gemini-project/
 - `GET /api/_admin/auth-providers` - Admin auth providers
 
 ### **Surveys (3 routes):**
+
 - `GET /api/surveys` - List surveys
 - `POST /api/surveys` - Create/update survey
 - `DELETE /api/surveys` - Delete survey
 
 ### **Other (11 routes):**
+
 - `GET /api/audit-logs` - Audit log access
 - `GET /api/shopper/scripts` - Shopper scripts
 - `GET /api/recordings/[id]` - Recording access
@@ -779,6 +819,7 @@ gemini-project/
 - `GET /api/errors/metrics` - Error metrics
 
 ### **Campaign Management (5 routes):** ⭐ **NEW**
+
 - `GET /api/campaigns` - List campaigns
 - `POST /api/campaigns` - Create campaign
 - `GET /api/campaigns/[id]` - Get campaign details
@@ -788,6 +829,7 @@ gemini-project/
 - `GET /api/campaigns/[id]/stats` - Get campaign stats
 
 ### **Report Builder (6 routes):** ⭐ **NEW**
+
 - `GET /api/reports` - List report templates
 - `POST /api/reports` - Create report template
 - `GET /api/reports/[id]/export` - Export generated report
@@ -796,6 +838,7 @@ gemini-project/
 - `DELETE /api/reports/schedules/[id]` - Delete schedule
 
 ### **Billing & Usage (8 routes):** ⭐
+
 - `GET /api/usage` - Get organization usage metrics
 - `POST /api/billing/checkout` - Create Stripe checkout session
 - `POST /api/billing/portal` - Create Stripe portal session
@@ -806,6 +849,7 @@ gemini-project/
 - `POST /api/webhooks/stripe` - Stripe webhook handler
 
 ### **Organizations (1 route):** ⭐ NEW
+
 - `GET /api/organizations/current` - Get current user's organization
 
 ---
@@ -813,12 +857,14 @@ gemini-project/
 ## 🧪 **Testing**
 
 ### **Test Suites:**
+
 - **Unit Tests:** 50+ tests (Vitest)
 - **Integration Tests:** 14+ tests
 - **Test Files:** 14 files
 - **Pass Rate:** 98.5% (64/65)
 
 ### **Test Results Summary:**
+
 ```
 ✅ tests/unit/ErrorBoundary.test.tsx (6 tests)
 ✅ tests/integration/webhookFlow.test.ts (2 tests)
@@ -837,6 +883,7 @@ gemini-project/
 ```
 
 ### **Test Dashboard:**
+
 - Location: `/test`
 - Visual KPIs: 🔴🟡🟢
 - Real-time execution
@@ -847,6 +894,7 @@ gemini-project/
 ## 🚀 **Deployment**
 
 ### **Environment Variables Required:**
+
 ```bash
 # Supabase (Required)
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
@@ -882,6 +930,7 @@ GOOGLE_CLIENT_SECRET=xxx
 ```
 
 ### **Deployment Checklist:**
+
 1. ✅ All environment variables configured in Vercel
 2. ✅ Database migrations applied
 3. ✅ SignalWire webhooks configured
@@ -894,31 +943,34 @@ GOOGLE_CLIENT_SECRET=xxx
 
 ## 📝 **Service Integrations**
 
-| Service | Purpose | Status | Notes |
-|---------|---------|--------|-------|
-| **Supabase** | Database + Storage | ✅ Configured | PostgreSQL + File storage |
-| **SignalWire** | Voice calls | ✅ Configured | LaML + SWML support |
-| **AssemblyAI** | Transcription | ✅ Configured | Authoritative transcripts |
-| **ElevenLabs** | TTS | ✅ Configured | Translation audio |
-| **Resend** | Email | ✅ Configured | Transactional emails |
-| **Custom Auth** | Authentication | ✅ Configured | Session-based with CSRF |
+| Service         | Purpose            | Status        | Notes                     |
+| --------------- | ------------------ | ------------- | ------------------------- |
+| **Supabase**    | Database + Storage | ✅ Configured | PostgreSQL + File storage |
+| **SignalWire**  | Voice calls        | ✅ Configured | LaML + SWML support       |
+| **AssemblyAI**  | Transcription      | ✅ Configured | Authoritative transcripts |
+| **ElevenLabs**  | TTS                | ✅ Configured | Translation audio         |
+| **Resend**      | Email              | ✅ Configured | Transactional emails      |
+| **Custom Auth** | Authentication     | ✅ Configured | Session-based with CSRF   |
 
 ---
 
 ## 🎯 **Quick Links**
 
 ### **For Developers:**
+
 - **Architecture:** `01-CORE/MASTER_ARCHITECTURE.txt`
 - **Database:** `01-CORE/Schema.txt`
 - **Live Translation:** `02-FEATURES/Translation_Agent`
 
 ### **For Users:**
+
 - **Main Page:** `/` - Single or bulk call initiation
 - **Voice Operations:** `/voice` - Call management
 - **Settings:** `/settings` - Voice configuration
 - **Tests:** `/test` - System health dashboard
 
 ### **For DevOps:**
+
 - **Deployment:** `04-DESIGN/DEPLOYMENT_NOTES.md`
 - **Infrastructure:** `03-INFRASTRUCTURE/MEDIA_PLANE_ARCHITECTURE.txt`
 - **V4 Issues:** `/V4_Issues.txt` - Current fix status
@@ -927,15 +979,15 @@ GOOGLE_CLIENT_SECRET=xxx
 
 ## 📈 **Metrics**
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| **Total Features** | 26 | 🟢 |
-| **API Endpoints** | 42 | 🟢 |
-| **Test Pass Rate** | 98.5% | 🟢 |
-| **Build Status** | Clean | 🟢 |
-| **Documentation Pages** | 45+ | 🟢 |
-| **Supported Plans** | 6 | 🟢 |
-| **Supported Languages** | 100+ | 🟢 |
+| Metric                  | Value | Status |
+| ----------------------- | ----- | ------ |
+| **Total Features**      | 26    | 🟢     |
+| **API Endpoints**       | 42    | 🟢     |
+| **Test Pass Rate**      | 98.5% | 🟢     |
+| **Build Status**        | Clean | 🟢     |
+| **Documentation Pages** | 45+   | 🟢     |
+| **Supported Plans**     | 6     | 🟢     |
+| **Supported Languages** | 100+  | 🟢     |
 
 ---
 
@@ -955,6 +1007,7 @@ GOOGLE_CLIENT_SECRET=xxx
 ## 📞 **Support & Documentation**
 
 **Quick Help:**
+
 - New developer? → Read `00-README.md` then `01-CORE/MASTER_ARCHITECTURE.txt`
 - Feature question? → Check `02-FEATURES/`
 - Deployment issue? → See `04-DESIGN/DEPLOYMENT_NOTES.md`
@@ -968,11 +1021,13 @@ GOOGLE_CLIENT_SECRET=xxx
 ## 🔄 **Maintenance**
 
 **Keep Current:**
+
 - Core architecture docs (01-CORE)
 - Feature docs (02-FEATURES)
 - Infrastructure docs (03-INFRASTRUCTURE)
 
 **Archive When:**
+
 - Code reviews are addressed → `archive/reviews/`
 - Issues are fixed → `archive/fixes/`
 - Implementations are deployed → `archive/implementations/`
@@ -984,36 +1039,41 @@ GOOGLE_CLIENT_SECRET=xxx
 ## 🔴 **Known Gaps (Action Required)**
 
 ### High Priority
-| Gap | Description | Location |
-|-----|-------------|----------|
-| Billing UI | Stripe connected but frontend incomplete | Settings > Billing |
-| Live Translation Config UI | No UI to configure SignalWire AI Agent ID | Settings > AI tab |
+
+| Gap                        | Description                               | Location           |
+| -------------------------- | ----------------------------------------- | ------------------ |
+| Billing UI                 | Stripe connected but frontend incomplete  | Settings > Billing |
+| Live Translation Config UI | No UI to configure SignalWire AI Agent ID | Settings > AI tab  |
 
 ### Medium Priority
-| Gap | Description | Location |
-|-----|-------------|----------|
+
+| Gap               | Description                   | Location                |
+| ----------------- | ----------------------------- | ----------------------- |
 | Webhook Config UI | API exists but no settings UI | Settings > Integrations |
-| API Documentation | No OpenAPI/Swagger spec | Documentation |
+| API Documentation | No OpenAPI/Swagger spec       | Documentation           |
 
 ### Low Priority
-| Gap | Description | Location |
-|-----|-------------|----------|
-| Integration Hub | No Slack/CRM connectors | Future feature |
-| Admin Panel | Limited admin capabilities | Future feature |
+
+| Gap             | Description                | Location       |
+| --------------- | -------------------------- | -------------- |
+| Integration Hub | No Slack/CRM connectors    | Future feature |
+| Admin Panel     | Limited admin capabilities | Future feature |
 
 ### ✅ **Gaps Resolved (January 19, 2026)**
-| Resolved | Description | Fix Applied |
-|----------|-------------|-------------|
-| ✅ Tenant Isolation | Cross-tenant data access possible | Added org membership checks to all data routes |
-| ✅ Schema Mismatches | Code referenced non-existent columns | Removed metadata, callback_scheduled, consent_verified_by |
-| ✅ LLM Authority | Translations marked as authoritative | Changed is_authoritative to false |
-| ✅ RBAC Gaps | Transcription action missing role check | Added Owner/Admin/Operator enforcement |
-| ✅ Rate Limiting | Webhooks missing rate limits | Added withRateLimit wrapper |
-| ✅ API Timeout | OpenAI calls could hang indefinitely | Added 30-second timeout |
-| ✅ Input Validation | UUID params not validated | Added isValidUUID checks |
-| ✅ UX Emojis | Professional UI contained emojis | Replaced with Unicode symbols |
+
+| Resolved             | Description                             | Fix Applied                                               |
+| -------------------- | --------------------------------------- | --------------------------------------------------------- |
+| ✅ Tenant Isolation  | Cross-tenant data access possible       | Added org membership checks to all data routes            |
+| ✅ Schema Mismatches | Code referenced non-existent columns    | Removed metadata, callback_scheduled, consent_verified_by |
+| ✅ LLM Authority     | Translations marked as authoritative    | Changed is_authoritative to false                         |
+| ✅ RBAC Gaps         | Transcription action missing role check | Added Owner/Admin/Operator enforcement                    |
+| ✅ Rate Limiting     | Webhooks missing rate limits            | Added withRateLimit wrapper                               |
+| ✅ API Timeout       | OpenAI calls could hang indefinitely    | Added 30-second timeout                                   |
+| ✅ Input Validation  | UUID params not validated               | Added isValidUUID checks                                  |
+| ✅ UX Emojis         | Professional UI contained emojis        | Replaced with Unicode symbols                             |
 
 ### Gap Resolution Roadmap
+
 ```
 Phase 1 (Sprint 1-2): 89% → 95%
 ├── Billing UI (frontend completion)
