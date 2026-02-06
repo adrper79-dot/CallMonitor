@@ -1,8 +1,6 @@
 "use client"
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
 
-// Workers API URL for auth endpoints
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 const SESSION_KEY = 'wb-session-token'
 
 import { apiGetNoAuth, apiPostNoAuth, apiPost, apiGet } from '@/lib/api-client'

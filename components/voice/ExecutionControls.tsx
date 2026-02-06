@@ -9,8 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { apiPost } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 export interface ExecutionControlsProps {
   organizationId: string | null
   onCallPlaced?: (callId: string) => void

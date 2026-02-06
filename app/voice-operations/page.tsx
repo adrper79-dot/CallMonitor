@@ -9,9 +9,6 @@ import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggl
 import { AlertTriangle } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
 
-// Workers API URL for auth endpoints
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
   id: string

@@ -8,8 +8,6 @@ import { useRBAC } from '@/hooks/useRBAC'
 import { logger } from '@/lib/logger'
 import { apiGet, apiPost, apiDelete } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 interface SurveyQuestion {
   id: string
   text: string

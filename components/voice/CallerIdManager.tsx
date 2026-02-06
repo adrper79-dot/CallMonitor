@@ -7,8 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { logger } from '@/lib/logger'
 import { apiGet, apiPost, apiPut } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 interface CallerIdNumber {
   id: string
   phone_number: string

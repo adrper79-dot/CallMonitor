@@ -5,8 +5,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { logger } from "@/lib/logger";
 import { apiGet, apiPost } from "@/lib/api-client";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 // Mock server hook - replace with real server action call
 function useCapabilities(callId: string) {
   const [loading, setLoading] = useState(true);

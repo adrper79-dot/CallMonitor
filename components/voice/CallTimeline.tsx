@@ -20,8 +20,6 @@ import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { apiGet } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 interface CallTimelineProps {
   callId: string
   organizationId: string

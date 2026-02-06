@@ -10,7 +10,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/setup.ts'],
     include: ['**/tests/**/*.test.ts'],
     exclude: ['node_modules', 'dist', '.next', 'out', 'workers', '**/archived/**', 'tests/production/**'],
     env: {

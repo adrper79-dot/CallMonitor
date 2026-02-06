@@ -11,16 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2 } from 'lucide-react'
 import { apiPost } from '@/lib/apiClient'
 
-// Workers API URL for auth endpoints
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-const SESSION_KEY = 'wb-session-token'
-
-// Helper to get stored session token
-function getStoredToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(SESSION_KEY)
-}
-
 export default function OrganizationCreatePage() {
   const { data: session, update } = useSession()
   const router = useRouter()

@@ -18,8 +18,6 @@ import {
 } from '@/lib/outcome/outcomeTypes'
 import { apiPost, apiPut } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 // ============================================================================
 // TYPES
 // ============================================================================

@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button'
 import { logger } from '@/lib/logger'
 import { apiGet } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 interface RecentTarget {
   number: string
   name?: string

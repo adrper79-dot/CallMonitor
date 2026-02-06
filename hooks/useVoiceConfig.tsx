@@ -4,8 +4,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import type { SurveyQuestionConfig } from '@/types/tier1-features'
 import { apiGet, apiPut } from '@/lib/api-client'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 export interface VoiceConfig {
   // Database column names (what comes from API)
   record?: boolean
