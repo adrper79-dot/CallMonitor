@@ -43,6 +43,7 @@ import { ttsRoutes } from './routes/tts'
 import { audioRoutes } from './routes/audio'
 import { reliabilityRoutes } from './routes/reliability'
 import { adminRoutes } from './routes/admin'
+import { complianceRoutes } from './routes/compliance'
 import {
   buildErrorContext, logError, formatErrorResponse, isAppError,
   generateCorrelationId,
@@ -146,6 +147,7 @@ app.route('/api/tts', ttsRoutes)
 app.route('/api/audio', audioRoutes)
 app.route('/api/reliability', reliabilityRoutes)
 app.route('/api/_admin', adminRoutes)
+app.route('/api/compliance', complianceRoutes)
 
 // Request timing middleware — attaches start time for error diagnostics
 app.use('*', async (c, next) => {

@@ -113,7 +113,7 @@ Many frontend components call API endpoints that don't exist in Workers yet.
 | `/api/campaigns/*` | `workers/src/routes/campaigns.ts` | ✅ DONE |
 | `/api/reports/*` | `workers/src/routes/reports.ts` | ✅ DONE |
 | `/api/caller-id/*` | `workers/src/routes/caller-id.ts` | ✅ DONE |
-| `/api/compliance/*` | `workers/src/routes/compliance.ts` | ⬜ TODO (only remaining) |
+| `/api/compliance/*` | `workers/src/routes/compliance.ts` | ✅ DONE |
 
 **Migration Pattern:**
 1. Copy logic from `app/api/[route]/route.ts` 
@@ -210,6 +210,7 @@ const res = await fetch('/api/endpoint', { credentials: 'include' })
 | 2026-02-06 | Agent | Sentry dead code removal | Deleted `monitoring.ts`, `sentry-edge.ts`, uninstalled `@sentry/nextjs` |
 | 2026-02-06 | Agent | Build + Deploy verified | 30/30 pages clean, deployed to Cloudflare Pages |
 | 2026-02-07 | Agent | P2-2 Batch 2: DB centralization (15 files) | auth, webhooks, voice, billing, shopper, caller-id, organizations, users, webrtc, audit, usage, campaigns, scorecards, reports, analytics — all migrated from inline neon to `getDb()` + parameterized queries |
+| 2026-02-07 | Agent | P1-1: Compliance route (last missing) | Created `workers/src/routes/compliance.ts` — POST/GET/PATCH violations with Zod validation, registered in index.ts |
 
 ---
 

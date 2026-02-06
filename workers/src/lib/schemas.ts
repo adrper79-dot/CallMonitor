@@ -455,3 +455,23 @@ export const TranscribeSchema = z.object({
   (d) => d.audio_file_id || d.file_key,
   { message: 'Either audio_file_id or file_key is required' }
 )
+
+// ─── Compliance Schemas ──────────────────────────────────────────────────────
+
+export const LogComplianceViolationSchema = z.object({
+  call_id: z.string().uuid().optional().nullable(),
+  restriction_code: z.enum([
+    'QA_NO_CONFIRMATIONS',
+    'QA_NO_OUTCOMES',
+    'QA_NO_AGREEMENTS',
+    'SURVEY_NO_AGREEMENTS',
+    'AI_NO_NEGOTIATION',
+  ]),
+  violation_type: z.enum(['blocked', 'warned', 'detected', 'prevented']),
+  context: z.record(z.unknown()).optional(),
+})
+
+export const ResolveComplianceViolationSchema = z.object({
+  resolution_status: z.enum(['open', 'reviewed', 'dismissed', 'confirmed']),
+  resolution_notes: z.string().max(5000).optional(),
+})
