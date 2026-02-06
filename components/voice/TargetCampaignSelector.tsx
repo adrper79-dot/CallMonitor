@@ -9,8 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 export interface Target {
   id: string
@@ -68,24 +67,13 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
       if (!organizationId) return
       try {
         setLoading(true)
-        const [targetsRes, campaignsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`, {
-            credentials: 'include'
-          }),
-          fetch(`${API_BASE}/api/campaigns?orgId=${encodeURIComponent(organizationId)}`, {
-            credentials: 'include'
-          }),
+        const [targetsData, campaignsData] = await Promise.all([
+          apiGet(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`),
+          apiGet(`/api/campaigns?orgId=${encodeURIComponent(organizationId)}`),
         ])
 
-        if (targetsRes.ok) {
-          const targetsData = await targetsRes.json()
-          setTargets(targetsData.targets || [])
-        }
-
-        if (campaignsRes.ok) {
-          const campaignsData = await campaignsRes.json()
-          setCampaigns(campaignsData.campaigns || [])
-        }
+        setTargets(targetsData.targets || [])
+        setCampaigns(campaignsData.campaigns || [])
       } catch (err) {
         setCampaigns([])
         setTargets([])
@@ -205,18 +193,11 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
 
     try {
       setSaving(true)
-      const res = await fetch(`${API_BASE}/api/voice/targets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: organizationId,
-          phone_number: newTarget.phone_number,
-          name: newTarget.name || undefined
-        })
+      const data = await apiPost('/api/voice/targets', {
+        organization_id: organizationId,
+        phone_number: newTarget.phone_number,
+        name: newTarget.name || undefined
       })
-
-      const data = await res.json()
 
       if (data.success && data.target) {
         setTargets([...targets, data.target])

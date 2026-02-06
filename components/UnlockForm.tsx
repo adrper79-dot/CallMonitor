@@ -1,8 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { signIn, useSession, signOut } from "@/components/AuthProvider"
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiPost } from '@/lib/apiClient'
 
 export default function UnlockForm() {
   const { data: session } = useSession()
@@ -35,19 +34,11 @@ export default function UnlockForm() {
       }
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name: name || undefined }),
-          credentials: 'include'
+        const data = await apiPost('/api/auth/signup', { 
+          email, 
+          password, 
+          name: name || undefined 
         })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          setStatus(data?.error?.message || 'Signup failed')
-          return
-        }
 
         setStatus('Account created! Signing in...')
         // Auto-sign in after successful signup

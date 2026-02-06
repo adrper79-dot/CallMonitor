@@ -127,19 +127,11 @@ export default function AnalyticsPage() {
       setLoading(true)
       setError(null)
       
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-      
       try {
-        const [callsRes, sentimentRes, perfRes] = await Promise.all([
-          fetch(`${API_BASE}/api/analytics/calls?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
-          fetch(`${API_BASE}/api/analytics/sentiment-trends?startDate=${startDate}&endDate=${endDate}`, { credentials: 'include' }),
-          fetch(`${API_BASE}/api/analytics/performance`, { credentials: 'include' })
-        ])
-
         const [callsData, sentimentData, perfData] = await Promise.all([
-          callsRes.json(),
-          sentimentRes.json(),
-          perfRes.json()
+          apiGet(`/api/analytics/calls?startDate=${startDate}&endDate=${endDate}`),
+          apiGet(`/api/analytics/sentiment-trends?startDate=${startDate}&endDate=${endDate}`),
+          apiGet('/api/analytics/performance')
         ])
 
         if (callsData.success) {

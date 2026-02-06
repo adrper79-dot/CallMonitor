@@ -11,9 +11,7 @@ import {
   isValidEmail, 
   getPasswordStrength 
 } from '@/components/ui/form-validation'
-
-// API base URL for Workers API
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiGet, apiPost } from '@/lib/apiClient'
 
 interface InviteData {
   email: string
@@ -61,8 +59,7 @@ export default function SignUpPage() {
   useEffect(() => {
     if (inviteToken) {
       setInviteLoading(true)
-      fetch(`${API_BASE}/api/team/invites/validate/${inviteToken}`, { credentials: 'include' })
-        .then(r => r.json())
+      apiGet(`/api/team/invites/validate/${inviteToken}`)
         .then(data => {
           if (data.valid && data.invite) {
             setInviteData(data.invite)
@@ -78,8 +75,7 @@ export default function SignUpPage() {
 
   // Check available auth providers
   useEffect(() => {
-    fetch(`${API_BASE}/api/health/auth-providers`, { credentials: 'include' })
-      .then(r => r.json())
+    apiGet('/api/health/auth-providers')
       .then(j => setGoogleAvailable(Boolean(j?.googleEnv)))
       .catch(() => setGoogleAvailable(false))
   }, [])
@@ -126,20 +122,7 @@ export default function SignUpPage() {
         signupPayload.organizationName = organizationName.trim()
       }
       
-      const res = await fetch(`${API_BASE}/api/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupPayload),
-        credentials: 'include'
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data?.error?.message || data?.error || 'Failed to create account')
-        setLoading(false)
-        return
-      }
+      const data = await apiPost('/api/auth/signup', signupPayload)
 
       // Step 2: Auto-sign in after successful signup
       const signInRes = await signIn('credentials', {
@@ -158,13 +141,9 @@ export default function SignUpPage() {
       // Step 3: If we have an invite token, accept the invite
       if (inviteToken && signInRes?.ok) {
         try {
-          const acceptRes = await fetch(`${API_BASE}/api/team/invites/accept/${inviteToken}`, {
-            method: 'POST',
-            credentials: 'include',
-          })
-          const acceptData = await acceptRes.json()
+          const acceptData = await apiPost(`/api/team/invites/accept/${inviteToken}`, undefined)
           
-          if (acceptRes.ok && acceptData.success) {
+          if (acceptData.success) {
             console.log(`Joined organization: ${acceptData.organization_name}`)
           } else {
             console.warn('Failed to accept invite:', acceptData.error)

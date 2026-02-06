@@ -9,8 +9,6 @@ import { logger } from '@/lib/logger'
 
 import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-
 interface VoiceTarget {
   id: string
   phone_number: string
@@ -120,19 +118,14 @@ export default function VoiceTargetManager({ organizationId, onTargetSelect }: V
     if (!confirm('Delete this target number?')) return
     
     try {
-      const res = await fetch(`${API_BASE}/api/voice/targets?id=${targetId}&orgId=${organizationId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
+      await apiDelete(`/api/voice/targets?id=${targetId}&orgId=${organizationId}`)
       
-      if (res.ok) {
-        // Clear selection if deleting selected target
-        if (selectedTargetId === targetId) {
-          await updateConfig({ target_id: null })
-          onTargetSelect?.(null)
-        }
-        fetchTargets()
+      // Clear selection if deleting selected target
+      if (selectedTargetId === targetId) {
+        await updateConfig({ target_id: null })
+        onTargetSelect?.(null)
       }
+      fetchTargets()
     } catch (err) {
       logger.error('VoiceTargetManager: failed to delete target', err, {
         organizationId,

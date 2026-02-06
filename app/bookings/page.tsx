@@ -5,10 +5,9 @@ import { Button } from '@/components/ui/button'
 import { BookingModal } from '@/components/voice/BookingModal'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { logger } from '@/lib/logger'
-import { apiPatch } from '@/lib/apiClient'
+import { apiPatch, apiGet } from '@/lib/apiClient'
 
 // Workers API URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface Booking {
   id: string
@@ -41,10 +40,9 @@ export default function BookingsPage() {
     try {
       setLoading(true)
       const url = filter === 'all'
-        ? `${API_BASE}/api/bookings?limit=50`
-        : `${API_BASE}/api/bookings?limit=50&status=${filter}`
-      const response = await fetch(url, { credentials: 'include' })
-      const data = await response.json()
+        ? '/api/bookings?limit=50'
+        : `/api/bookings?limit=50&status=${filter}`
+      const data = await apiGet(url)
 
       if (data.success) {
         setBookings(data.bookings || [])

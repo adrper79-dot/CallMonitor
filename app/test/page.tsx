@@ -2,8 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiPost, apiGet, apiFetch, API_BASE } from '@/lib/apiClient'
 
 type TestStatus = 'idle' | 'running' | 'passed' | 'failed' | 'warning' | 'service_down'
 
@@ -179,13 +178,7 @@ export default function TestPage() {
 
     try {
       const startTime = Date.now()
-      const response = await fetch(`${API_BASE}/api/test/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryId, testId })
-      })
-
-      const result = await response.json()
+      const result = await apiPost('/api/test/run', { categoryId, testId })
       const duration = Date.now() - startTime
 
       let status: TestStatus = 'failed'
@@ -218,7 +211,7 @@ export default function TestPage() {
 
     // First check API health
     try {
-      const healthRes = await fetch(`${API_BASE}/api/test/health`)
+      const healthRes = await apiFetch('/api/test/health')
       if (healthRes.ok) {
         setApiStatus('up')
       } else {
@@ -232,8 +225,7 @@ export default function TestPage() {
 
     // Run all via the bulk endpoint
     try {
-      const res = await fetch(`${API_BASE}/api/test/run-all`, { method: 'POST' })
-      const data = await res.json()
+      const data = await apiPost('/api/test/run-all', undefined)
       setSuiteResult(data.summary)
 
       // Map results back to categories
