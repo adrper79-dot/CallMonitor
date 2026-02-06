@@ -9,6 +9,7 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { InviteMemberSchema, AddMemberSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const teamRoutes = new Hono<{ Bindings: Env }>()
 
@@ -143,6 +144,16 @@ teamRoutes.post('/invites', async (c) => {
     // Construct invite URL
     const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
     const inviteUrl = `${appUrl}/signup?invite=${token}`
+
+    // Audit log: invite created
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'team_invites',
+      resourceId: token,
+      action: AuditAction.MEMBER_INVITED,
+      after: { email: email.toLowerCase(), role, expires_at: expiresAt.toISOString() },
+    })
 
     // TODO: Send email with Resend (for now, return the link)
     logger.info('Invite created successfully')
@@ -300,6 +311,15 @@ teamRoutes.delete('/invites/:id', async (c) => {
       [inviteId, session.organization_id]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'team_invites',
+      resourceId: inviteId,
+      action: AuditAction.MEMBER_REMOVED,
+      after: { status: 'cancelled' },
+    })
+
     return c.json({ success: true })
   } catch (err: any) {
     logger.error('DELETE /api/team/invites/:id error', { error: err?.message })
@@ -357,6 +377,14 @@ teamRoutes.delete('/members/:id', async (c) => {
       memberId,
       session.organization_id,
     ])
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'org_members',
+      resourceId: memberId,
+      action: AuditAction.MEMBER_REMOVED,
+    })
 
     return c.json({ success: true })
   } catch (err: any) {

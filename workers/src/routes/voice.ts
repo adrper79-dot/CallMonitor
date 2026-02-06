@@ -9,6 +9,7 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const voiceRoutes = new Hono<{ Bindings: Env }>()
 
@@ -168,6 +169,15 @@ voiceRoutes.put('/config', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'voice_configs',
+      resourceId: session.organization_id,
+      action: AuditAction.VOICE_CONFIG_UPDATED,
+      after: { record: modulations.record, transcribe: modulations.transcribe, translate: modulations.translate },
+    })
+
     return c.json({
       success: true,
       config: result.rows[0],
@@ -306,6 +316,15 @@ voiceRoutes.post('/call', async (c) => {
     const callId = callRecord.rows[0]?.id
 
     logger.info('Call created', { callId, telnyxCallId })
+
+    writeAuditLog(dbForInsert, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: callId,
+      action: AuditAction.CALL_STARTED,
+      after: { to: destinationNumber, telnyx_call_id: telnyxCallId, flow_type: flow_type || 'direct' },
+    })
 
     return c.json({
       success: true,

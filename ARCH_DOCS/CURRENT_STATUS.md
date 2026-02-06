@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 8, 2026  
-**Version:** 4.9 - Audit & DX Sprint (Centralized Audit Logging, CORS Fix, DX)  
+**Last Updated:** February 6, 2026  
+**Version:** 4.10 - Full Audit Coverage & Operational Tooling Sprint  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,42 @@
 
 ---
 
-## 🔧 **Recent Updates (February 8, 2026)**
+## 🔧 **Recent Updates (February 6, 2026)**
+
+### **Full Audit Coverage & Operational Tooling Sprint (v4.10):** ✅ **DEPLOYED**
+
+1. **Full Audit Log Coverage** ⭐ **COMPLIANCE**
+   - Wired `writeAuditLog()` to **bookings** (created/updated/deleted), **team** (invite created/cancelled, member removed), **voice** (config updated, call placed)
+   - Combined with v4.9: now **16 mutation handlers across 6 route files** have centralized audit logging
+   - All mutations traceable in `audit_logs` table with org isolation
+
+2. **Types Gen Pre-commit Hook** ✅ **DX**
+   - `.husky/pre-commit` now conditionally runs `wrangler types` when `wrangler.toml` or `wrangler.jsonc` changes
+   - Auto-stages regenerated `cloudflare-env.d.ts` — types always in sync with bindings
+
+3. **RLS Policy Audit Script** ⭐ **SECURITY**
+   - Created `scripts/rls-audit.sql` — 4-section diagnostic: table RLS status, active policies, org-scoped tables missing RLS, reference tables
+   - Outputs fix SQL for gaps: `ALTER TABLE public.<table> ENABLE ROW LEVEL SECURITY;`
+   - New npm script: `db:rls-audit`
+
+4. **Schema Drift CI Check** ✅ **RELIABILITY**
+   - Created `scripts/schema-drift-check.sh` — compares live Neon schema vs local snapshot
+   - Two modes: `db:schema-check` (compare) and `db:schema-snapshot` (update baseline)
+   - CI-ready: exits non-zero on drift with unified diff output
+
+5. **Suspense Loading Boundaries** ✅ **PERFORMANCE**
+   - Added `loading.tsx` for bookings, campaigns, reports, settings, analytics routes
+   - Next.js automatically wraps in `<Suspense>` — instant perceived load for heavy pages
+
+6. **ROADMAP Progress** ✅ **TRACKING**
+   - RISK/SCALE: 16/25 → 18/25 (RLS Audit script + Schema Drift)
+   - DX/CI: 15/20 → 16/20 (Types Gen hook)
+   - DESIGN/CODE EXCELLENCE: 4/12 → 5/12 (Suspense boundaries)
+   - Overall: 58/109 → **62/109 (57%)**
+
+---
+
+## 🔧 **Previous Updates (February 8, 2026)**
 
 ### **Audit & DX Sprint (v4.9):** ✅ **DEPLOYED**
 

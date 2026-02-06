@@ -1,1 +1,6 @@
+# Re-generate Cloudflare env types if wrangler config changed
+if git diff --cached --name-only | grep -qE 'wrangler\.(toml|jsonc)'; then
+  npx wrangler types 2>/dev/null && git add cloudflare-env.d.ts || true
+fi
+
 npx lint-staged

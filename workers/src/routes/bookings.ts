@@ -16,6 +16,7 @@ import { validateBody } from '../lib/validate'
 import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -88,7 +89,18 @@ bookingsRoutes.post('/', idempotent(), async (c) => {
       ]
     )
 
-    return c.json({ success: true, booking: result.rows[0] }, 201)
+    const booking = result.rows[0]
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bookings',
+      resourceId: booking.id,
+      action: AuditAction.BOOKING_CREATED,
+      after: { title, status: status || 'pending', scheduled_at },
+    })
+
+    return c.json({ success: true, booking }, 201)
   } catch (err: any) {
     logger.error('POST /api/bookings error', { error: err?.message })
     return c.json({ error: 'Failed to create booking' }, 500)
@@ -125,6 +137,15 @@ bookingsRoutes.patch('/:id', async (c) => {
       return c.json({ error: 'Booking not found' }, 404)
     }
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bookings',
+      resourceId: bookingId,
+      action: AuditAction.BOOKING_UPDATED,
+      after: { status, title, description, scheduled_at },
+    })
+
     return c.json({ success: true, booking: result.rows[0] })
   } catch (err: any) {
     logger.error('PATCH /api/bookings/:id error', { error: err?.message })
@@ -151,6 +172,14 @@ bookingsRoutes.delete('/:id', async (c) => {
     if (!result.rows || result.rows.length === 0) {
       return c.json({ error: 'Booking not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bookings',
+      resourceId: bookingId,
+      action: AuditAction.BOOKING_DELETED,
+    })
 
     return c.json({ success: true, message: 'Booking deleted' })
   } catch (err: any) {

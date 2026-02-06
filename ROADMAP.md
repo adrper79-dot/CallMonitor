@@ -36,7 +36,7 @@
 
 ---
 
-## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 16/25
+## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 18/25
 
 ### ✅ Completed
 
@@ -56,6 +56,8 @@
 - [x] **Billing 500 Fix** (`workers/src/routes/billing.ts`): Column fallback for missing `plan` column. ✅
 - [x] **Audit Logs** (`workers/src/lib/audit.ts`): Centralized writeAuditLog utility + wired to calls, billing, recordings. ✅
 - [x] **CORS Idempotency Fix** (`workers/src/index.ts`): Added `Idempotency-Key` to allowHeaders + `Idempotent-Replayed` to exposeHeaders. ✅
+- [x] **RLS Audit** (`scripts/rls-audit.sql`): Diagnostic script — table RLS status, active policies, org-scoped gaps, fix SQL. ✅
+- [x] **Schema Drift** (`scripts/schema-drift-check.sh`): CI-ready diff check — live vs snapshot, `db:schema-check` / `db:schema-snapshot` scripts. ✅
 
 ### 🔄 Remaining
 
@@ -63,9 +65,7 @@
 - [ ] **WAF Rules** (CF Dashboard): Rate limit /api. **10min**
 - [ ] **Origin CA** (secrets): Custom TLS cert. **20min**
 - [ ] **Image CDN** (`next.config.js`): CF Image Resizing. **15min**
-- [ ] **RLS Audit** (`migrations/`): Policy coverage check. **1hr**
 - [ ] **Backup Policy** (`scripts/`): Weekly Neon backup. **1hr**
-- [ ] **Schema Drift** (`current_schema.sql`): CI diff check. **1hr**
 - [ ] **Public Compress** (`public/branding/`): WebP conversion. **30min**
 - [ ] **OpenAPI Gen** (`public/openapi.yaml`): Zod-based. **1hr**
 
@@ -78,7 +78,7 @@
 
 ---
 
-## 🔧 DX/CI (Dev Flow) - PROGRESS: 15/20
+## 🔧 DX/CI (Dev Flow) - PROGRESS: 16/20
 
 ### ✅ Completed
 
@@ -97,10 +97,10 @@
 - [x] **Console Cleanup** (`workers/src/`): All console.log/warn/error → structured logger. ✅
 - [x] **DB Reset** (`migrations/reset_test.sql`): Idempotent truncate + deterministic test org/users/calls/audit seed. ✅
 - [x] **README Scripts** (`README.md`): Root README with architecture, all npm scripts, project structure, env vars, deploy guide. ✅
+- [x] **Types Gen** (`.husky/pre-commit`): Auto-runs `wrangler types` when wrangler config changes in pre-commit. ✅
 
 ### 🔄 Remaining
 
-- [ ] **Types Gen** (`cloudflare-env.d.ts`): CI hook. **10min**
 - [ ] **Test E2E** (`tests/e2e/`): Playwright setup. **2hr**
 - [ ] **Manual Tests** (`tests/manual/`): Automate. **1hr**
 - [ ] **Schema Doc** (`schema.sql`): Mermaid ERD. **1hr**
@@ -115,7 +115,7 @@
 
 ---
 
-## 🏆 DESIGN/CODE EXCELLENCE (ARCH_DOCS Alignment) - PROGRESS: 4/12
+## 🏆 DESIGN/CODE EXCELLENCE (ARCH_DOCS Alignment) - PROGRESS: 5/12
 
 **Standards**: Call-rooted architecture, single Voice Ops UI, immutable data (CAS), edge-first, strict RBAC, Telnyx integration.
 **Practices**: Typesafe (Zod validation), DRY principles, structured logging (no console.log), error boundaries, modular libs.
@@ -138,7 +138,7 @@
 
 - [ ] **Lib Modules** (`lib/`): Split into `/db`, `/api`, `/ui` modules. **4hr**
 - [ ] **Higher-Order Hooks** (`hooks/`): Create `useCallModulation` HOF. **2hr**
-- [ ] **Suspense/Streaming** (`app/`): Add React Suspense boundaries. **1hr**
+- [x] **Suspense/Streaming** (`app/`): Loading boundaries for bookings, campaigns, reports, settings, analytics. ✅
 - [ ] **Tailwind CVA** (`components/` with raw clsx): Migrate to class-variance-authority. **2hr**
 
 ### 📋 Recommendations
@@ -259,8 +259,8 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 58/109 (53%).
-**Last Updated**: Feb 8, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 62/109 (57%).
+**Last Updated**: Feb 6, 2026 by GitHub Copilot
 
 ---
 
