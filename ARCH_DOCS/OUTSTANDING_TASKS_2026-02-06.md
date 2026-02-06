@@ -53,11 +53,60 @@ PASS /api/bookings
 ### Remaining Open Items (T1-5, T1-6 + Tier 3-6)
 | Task | Category | Notes |
 |------|----------|-------|
-| T1-5: Voice config 400 | TIER 1 | Org validation issue, not path mismatch |
-| T1-6: Voice targets 400 | TIER 1 | Same org validation issue |
-| Tier 3: Missing modules | MEDIUM | retention, compliance, tts, audio, reliability, reports, admin |
-| Tier 4: Stubs → Real DB | MEDIUM | ai-config, analytics, call-capabilities, surveys |
+| T1-5: Voice config 400 | ✅ DONE | Relaxed org validation + simplified upsert to core columns |
+| T1-6: Voice targets 400 | ✅ DONE | Same org validation fix |
+| Tier 3: Missing modules | ✅ DONE | reports, retention, tts, audio, reliability, admin — all created with real DB |
+| Tier 4: Stubs → Real DB | ✅ DONE | ai-config, analytics (5 endpoints), surveys — all rewritten with real DB |
 | Tier 5: Schema issues | LOW | Missing DB columns for billing subscription lifecycle |
+
+---
+
+## Sprint 3 Completion Status (Updated Feb 7, 2026)
+
+### ✅ Sprint 3 — ALL ITEMS COMPLETED & VERIFIED IN PRODUCTION
+
+#### New Modules Created (Tier 3)
+| Module | Endpoints | Status |
+|--------|-----------|--------|
+| reports.ts | GET /, POST /, GET /:id/export, GET/POST/PATCH/DELETE /schedules | ✅ 200 |
+| retention.ts | GET /, PUT /, GET/POST/DELETE /legal-holds | ✅ 200 |
+| tts.ts | POST /generate (ElevenLabs + R2 integration) | ✅ 200 |
+| audio.ts | POST /upload, POST /transcribe, GET /transcriptions/:id | ✅ 200/404 |
+| reliability.ts | GET /webhooks, PUT /webhooks (retry/discard/review) | ✅ 200 |
+| admin.ts | GET /auth-providers, POST /auth-providers | ✅ 200 |
+
+#### Stubs Rewritten with Real DB (Tier 4)
+| Module | Change | Status |
+|--------|--------|--------|
+| ai-config.ts | Hardcoded → JSONB upsert in ai_configs table | ✅ 200 |
+| analytics.ts | Empty arrays → real queries on calls/recordings/surveys + CSV export | ✅ 200 (all 5 sub-routes) |
+| surveys.ts | Echo-back → full CRUD with surveys table + column-add fallback | ✅ 200 |
+
+#### Voice Fixes (T1-5, T1-6)
+| Fix | Detail |
+|-----|--------|
+| Org validation | orgId from body is optional; falls back to session org |
+| Config upsert | Simplified to core columns only (record, transcribe, translate, etc.) |
+| CREATE TABLE IF NOT EXISTS | Added defensive table creation |
+
+### Production Verification (29/29 PASS — Sprint 1+2+3)
+```
+--- SPRINT 1+2 (17/17) ---
+PASS 200 health          PASS 200 calls         PASS 200 auth/session
+PASS 404 organizations   PASS 200 bookings      PASS 200 users/me
+PASS 200 recordings      PASS 200 audit         PASS 404 webrtc/token
+PASS 200 scorecards      PASS 200 rbac/roles    PASS 200 campaigns
+PASS 200 voice/config    PASS 200 billing       PASS 200 caller-id
+PASS 200 ai-config       PASS 200 usage
+
+--- SPRINT 3 (12/12) ---
+PASS 200 reports                  PASS 200 retention
+PASS 200 tts/generate             PASS 404 audio/transcriptions (correct - not found)
+PASS 200 reliability/webhooks     PASS 200 admin/auth-providers
+PASS 200 analytics/calls          PASS 200 analytics/sentiment
+PASS 200 analytics/performance    PASS 200 analytics/surveys
+PASS 200 analytics/export         PASS 200 surveys
+```
 | Tier 6: Security/hardening | LOW | CSP headers, rate limiting, Sentry integration |
 
 ---

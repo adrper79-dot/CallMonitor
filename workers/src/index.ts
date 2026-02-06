@@ -37,6 +37,12 @@ import { teamRoutes } from './routes/team'
 import { usageRoutes } from './routes/usage'
 import { shopperRoutes } from './routes/shopper'
 import { testRoutes } from './routes/test'
+import { reportsRoutes } from './routes/reports'
+import { retentionRoutes } from './routes/retention'
+import { ttsRoutes } from './routes/tts'
+import { audioRoutes } from './routes/audio'
+import { reliabilityRoutes } from './routes/reliability'
+import { adminRoutes } from './routes/admin'
 import {
   buildErrorContext, logError, formatErrorResponse, isAppError,
   generateCorrelationId,
@@ -134,6 +140,12 @@ app.route('/api/bond-ai', bondAiRoutes)
 app.route('/api/usage', usageRoutes)
 app.route('/api/shopper', shopperRoutes)
 app.route('/api/test', testRoutes)
+app.route('/api/reports', reportsRoutes)
+app.route('/api/retention', retentionRoutes)
+app.route('/api/tts', ttsRoutes)
+app.route('/api/audio', audioRoutes)
+app.route('/api/reliability', reliabilityRoutes)
+app.route('/api/_admin', adminRoutes)
 
 // Request timing middleware — attaches start time for error diagnostics
 app.use('*', async (c, next) => {
