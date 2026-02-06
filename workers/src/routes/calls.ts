@@ -9,10 +9,16 @@ import { requireAuth, requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
 import { validateBody } from '../lib/validate'
 import {
-  StartCallSchema, CallOutcomeSchema, CallOutcomeUpdateSchema,
-  GenerateSummarySchema, CallNoteSchema, DispositionSchema,
-  ConfirmationSchema, EmailCallSchema,
+  StartCallSchema,
+  CallOutcomeSchema,
+  CallOutcomeUpdateSchema,
+  GenerateSummarySchema,
+  CallNoteSchema,
+  DispositionSchema,
+  ConfirmationSchema,
+  EmailCallSchema,
 } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -26,10 +32,10 @@ callsRoutes.get('/', async (c) => {
     }
 
     const { organization_id, user_id } = session
-    
+
     // Handle case where user has no organization
     if (!organization_id) {
-      console.log('[Calls] User has no organization')
+      logger.info('User has no organization')
       return c.json({
         success: true,
         calls: [],
@@ -93,7 +99,7 @@ callsRoutes.get('/', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/calls error:', err?.message)
+    logger.error('GET /api/calls error', { error: err?.message })
     return c.json({ error: 'Failed to fetch calls' }, 500)
   }
 })
@@ -109,10 +115,10 @@ callsRoutes.get('/:id', async (c) => {
     const callId = c.req.param('id')
     const db = getDb(c.env)
 
-    const result = await db.query(
-      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, session.organization_id]
-    )
+    const result = await db.query(`SELECT * FROM calls WHERE id = $1 AND organization_id = $2`, [
+      callId,
+      session.organization_id,
+    ])
 
     if (!result.rows || result.rows.length === 0) {
       return c.json({ error: 'Call not found' }, 404)
@@ -120,7 +126,7 @@ callsRoutes.get('/:id', async (c) => {
 
     return c.json({ success: true, call: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/calls/:id error:', err?.message)
+    logger.error('GET /api/calls/:id error', { error: err?.message })
     return c.json({ error: 'Failed to fetch call' }, 500)
   }
 })
@@ -155,7 +161,7 @@ callsRoutes.post('/start', async (c) => {
 
     return c.json({ success: true, call }, 201)
   } catch (err: any) {
-    console.error('POST /api/calls/start error:', err?.message)
+    logger.error('POST /api/calls/start error', { error: err?.message })
     return c.json({ error: 'Failed to start call' }, 500)
   }
 })
@@ -187,7 +193,7 @@ callsRoutes.post('/:id/end', async (c) => {
 
     return c.json({ success: true, call: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/calls/:id/end error:', err?.message)
+    logger.error('POST /api/calls/:id/end error', { error: err?.message })
     return c.json({ error: 'Failed to end call' }, 500)
   }
 })
@@ -202,18 +208,9 @@ const VALID_OUTCOME_STATUSES = [
   'cancelled',
 ] as const
 
-const VALID_CONFIDENCE_LEVELS = [
-  'high',
-  'medium',
-  'low',
-  'uncertain',
-] as const
+const VALID_CONFIDENCE_LEVELS = ['high', 'medium', 'low', 'uncertain'] as const
 
-const VALID_SUMMARY_SOURCES = [
-  'human',
-  'ai_generated',
-  'ai_confirmed',
-] as const
+const VALID_SUMMARY_SOURCES = ['human', 'ai_generated', 'ai_confirmed'] as const
 
 // GET /api/calls/[id]/outcome
 callsRoutes.get('/:id/outcome', async (c) => {
@@ -227,8 +224,14 @@ callsRoutes.get('/:id/outcome', async (c) => {
     const { organization_id } = session
 
     // Validate UUID format
-    if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
-      return c.json({ success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } }, 400)
+    if (
+      !callId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
+    ) {
+      return c.json(
+        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+        400
+      )
     }
 
     const db = getDb(c.env)
@@ -240,7 +243,10 @@ callsRoutes.get('/:id/outcome', async (c) => {
     )
 
     if (calls.length === 0) {
-      return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
+      return c.json(
+        { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
+        404
+      )
     }
 
     // Get outcome
@@ -294,14 +300,27 @@ callsRoutes.get('/:id/outcome', async (c) => {
       },
     })
   } catch (error: any) {
-    if (error.code === '42P01') { // table undefined
+    if (error.code === '42P01') {
+      // table undefined
       return c.json({
         success: true,
-        data: { call_id: c.req.param('id'), outcome: null, history: [], has_outcome: false, message: 'Feature not configured' }
+        data: {
+          call_id: c.req.param('id'),
+          outcome: null,
+          history: [],
+          has_outcome: false,
+          message: 'Feature not configured',
+        },
       })
     }
-    console.error('Outcome GET error:', error?.message)
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
+    logger.error('Outcome GET error', { error: error?.message })
+    return c.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+      },
+      500
+    )
   }
 })
 
@@ -317,8 +336,14 @@ callsRoutes.post('/:id/outcome', async (c) => {
     const { organization_id, user_id } = session
 
     // Validate UUID format
-    if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
-      return c.json({ success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } }, 400)
+    if (
+      !callId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
+    ) {
+      return c.json(
+        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+        400
+      )
     }
 
     const db = getDb(c.env)
@@ -344,7 +369,10 @@ callsRoutes.post('/:id/outcome', async (c) => {
       [callId, organization_id]
     )
     if (calls.length === 0) {
-      return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
+      return c.json(
+        { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
+        404
+      )
     }
 
     // Check if outcome already exists
@@ -354,7 +382,13 @@ callsRoutes.post('/:id/outcome', async (c) => {
     )
 
     if (existingOutcomes.length > 0) {
-      return c.json({ success: false, error: { code: 'OUTCOME_EXISTS', message: 'Outcome already exists. Use PUT to update.' } }, 409)
+      return c.json(
+        {
+          success: false,
+          error: { code: 'OUTCOME_EXISTS', message: 'Outcome already exists. Use PUT to update.' },
+        },
+        409
+      )
     }
 
     // Create outcome
@@ -366,32 +400,48 @@ callsRoutes.post('/:id/outcome', async (c) => {
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1)
        RETURNING *`,
       [
-        callId, organization_id, outcome_status, confidence_level,
-        JSON.stringify(agreed_items), JSON.stringify(declined_items),
-        JSON.stringify(ambiguities), JSON.stringify(follow_up_actions),
-        summary_text, summary_source, readback_confirmed,
+        callId,
+        organization_id,
+        outcome_status,
+        confidence_level,
+        JSON.stringify(agreed_items),
+        JSON.stringify(declined_items),
+        JSON.stringify(ambiguities),
+        JSON.stringify(follow_up_actions),
+        summary_text,
+        summary_source,
+        readback_confirmed,
         readback_confirmed ? new Date().toISOString() : null,
-        user_id
+        user_id,
       ]
     )
     const outcome = newOutcomes[0]
 
-    console.log('Outcome declared', {
+    logger.info('Outcome declared', {
       callId,
       outcomeId: outcome.id,
       status: outcome_status,
     })
 
-    return c.json({
-      success: true,
-      data: {
-        outcome,
-        message: 'Outcome declared successfully',
+    return c.json(
+      {
+        success: true,
+        data: {
+          outcome,
+          message: 'Outcome declared successfully',
+        },
       },
-    }, 201)
+      201
+    )
   } catch (error: any) {
-    console.error('Outcome POST error:', error?.message)
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
+    logger.error('Outcome POST error', { error: error?.message })
+    return c.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+      },
+      500
+    )
   }
 })
 
@@ -407,8 +457,14 @@ callsRoutes.put('/:id/outcome', async (c) => {
     const { organization_id, user_id } = session
 
     // Validate UUID format
-    if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
-      return c.json({ success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } }, 400)
+    if (
+      !callId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
+    ) {
+      return c.json(
+        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+        400
+      )
     }
 
     const db = getDb(c.env)
@@ -434,7 +490,10 @@ callsRoutes.put('/:id/outcome', async (c) => {
       [callId, organization_id]
     )
     if (calls.length === 0) {
-      return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
+      return c.json(
+        { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
+        404
+      )
     }
 
     // Get existing outcome
@@ -445,12 +504,22 @@ callsRoutes.put('/:id/outcome', async (c) => {
     const existingOutcome = existingOutcomes[0]
 
     if (!existingOutcome) {
-      return c.json({ success: false, error: { code: 'OUTCOME_NOT_FOUND', message: 'Outcome not found. Use POST to create.' } }, 404)
+      return c.json(
+        {
+          success: false,
+          error: { code: 'OUTCOME_NOT_FOUND', message: 'Outcome not found. Use POST to create.' },
+        },
+        404
+      )
     }
 
     // Prepare update
     let readbackTimestamp = existingOutcome.readback_timestamp
-    if (readback_confirmed !== undefined && readback_confirmed && !existingOutcome.readback_confirmed) {
+    if (
+      readback_confirmed !== undefined &&
+      readback_confirmed &&
+      !existingOutcome.readback_confirmed
+    ) {
       readbackTimestamp = new Date().toISOString()
     }
 
@@ -472,18 +541,23 @@ callsRoutes.put('/:id/outcome', async (c) => {
          WHERE id = $12
          RETURNING *`,
       [
-        outcome_status, confidence_level,
+        outcome_status,
+        confidence_level,
         agreed_items ? JSON.stringify(agreed_items) : null,
         declined_items ? JSON.stringify(declined_items) : null,
         ambiguities ? JSON.stringify(ambiguities) : null,
         follow_up_actions ? JSON.stringify(follow_up_actions) : null,
-        summary_text, summary_source, readback_confirmed,
-        readbackTimestamp, user_id, existingOutcome.id
+        summary_text,
+        summary_source,
+        readback_confirmed,
+        readbackTimestamp,
+        user_id,
+        existingOutcome.id,
       ]
     )
     const outcome = updatedOutcomes[0]
 
-    console.log('Outcome updated', {
+    logger.info('Outcome updated', {
       callId,
       outcomeId: outcome.id,
       revision: outcome.revision_number,
@@ -498,8 +572,14 @@ callsRoutes.put('/:id/outcome', async (c) => {
       },
     })
   } catch (error: any) {
-    console.error('Outcome PUT error:', error?.message)
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
+    logger.error('Outcome PUT error', { error: error?.message })
+    return c.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+      },
+      500
+    )
   }
 })
 
@@ -515,8 +595,14 @@ callsRoutes.post('/:id/summary', async (c) => {
     const { organization_id, user_id } = session
 
     // Validate UUID format
-    if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
-      return c.json({ success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } }, 400)
+    if (
+      !callId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
+    ) {
+      return c.json(
+        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+        400
+      )
     }
 
     const db = getDb(c.env)
@@ -524,11 +610,7 @@ callsRoutes.post('/:id/summary', async (c) => {
     // Parse + validate request body
     const parsed = await validateBody(c, GenerateSummarySchema)
     if (!parsed.success) return parsed.response
-    const {
-      use_call_transcript,
-      include_structured_extraction,
-      custom_transcript,
-    } = parsed.data
+    const { use_call_transcript, include_structured_extraction, custom_transcript } = parsed.data
 
     // Get call with transcript
     const { rows: calls } = await db.query(
@@ -542,7 +624,10 @@ callsRoutes.post('/:id/summary', async (c) => {
     const call = calls[0]
 
     if (!call) {
-      return c.json({ success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } }, 404)
+      return c.json(
+        { success: false, error: { code: 'CALL_NOT_FOUND', message: 'Call not found' } },
+        404
+      )
     }
 
     // Get transcript text
@@ -559,34 +644,40 @@ callsRoutes.post('/:id/summary', async (c) => {
           transcriptText = call.transcription.transcript
         } else if (Array.isArray(call.transcription)) {
           // Array of utterances
-          transcriptText = call.transcription.map((u: any) =>
-            `${u.speaker || 'Unknown'}: ${u.text || ''}`
-          ).join('\n')
+          transcriptText = call.transcription
+            .map((u: any) => `${u.speaker || 'Unknown'}: ${u.text || ''}`)
+            .join('\n')
         }
       }
     }
 
     if (!transcriptText || transcriptText.trim().length < 20) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'NO_TRANSCRIPT',
-          message: 'Insufficient transcript content. A minimum of 20 characters is required.'
-        }
-      }, 400)
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'NO_TRANSCRIPT',
+            message: 'Insufficient transcript content. A minimum of 20 characters is required.',
+          },
+        },
+        400
+      )
     }
 
     // Check for OpenAI API key
     const openaiKey = c.env.OPENAI_API_KEY
     if (!openaiKey) {
-      console.error('AI Summary failed: OPENAI_API_KEY not configured', { callId })
-      return c.json({
-        success: false,
-        error: {
-          code: 'CONFIG_ERROR',
-          message: 'AI summarization is not configured. Please contact your administrator.'
-        }
-      }, 503)
+      logger.error('AI Summary failed: OPENAI_API_KEY not configured', { callId })
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'CONFIG_ERROR',
+            message: 'AI summarization is not configured. Please contact your administrator.',
+          },
+        },
+        503
+      )
     }
 
     // Build the AI prompt
@@ -612,44 +703,52 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'gpt-4-turbo-preview',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Call Transcript:\n\n${transcriptText.slice(0, 12000)}` }
+          { role: 'user', content: `Call Transcript:\n\n${transcriptText.slice(0, 12000)}` },
         ],
         temperature: 0.3,
         max_tokens: 1500,
-        response_format: include_structured_extraction ? { type: 'json_object' } : undefined
-      })
+        response_format: include_structured_extraction ? { type: 'json_object' } : undefined,
+      }),
     })
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text()
-      console.error('OpenAI API error', { callId, status: openaiResponse.status })
-      return c.json({
-        success: false,
-        error: {
-          code: 'AI_ERROR',
-          message: 'Failed to generate AI summary. Please try again.'
-        }
-      }, 502)
+      logger.error('OpenAI API error', { callId, status: openaiResponse.status })
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'AI_ERROR',
+            message: 'Failed to generate AI summary. Please try again.',
+          },
+        },
+        502
+      )
     }
 
-    const openaiData = await openaiResponse.json() as { choices?: { message?: { content?: string } }[] }
+    const openaiData = (await openaiResponse.json()) as {
+      choices?: { message?: { content?: string } }[]
+    }
     const aiContent = openaiData.choices?.[0]?.message?.content?.trim()
 
     if (!aiContent) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'AI_EMPTY',
-          message: 'AI returned an empty response. Please try again.'
-        }
-      }, 502)
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'AI_EMPTY',
+            message: 'AI returned an empty response. Please try again.',
+          },
+        },
+        502
+      )
     }
 
     // Parse the AI response
@@ -666,7 +765,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
           potential_agreements: [],
           potential_concerns: [],
           recommended_followup: [],
-          sentiment: 'neutral'
+          sentiment: 'neutral',
         }
       }
     } else {
@@ -676,7 +775,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
         potential_agreements: [],
         potential_concerns: [],
         recommended_followup: [],
-        sentiment: 'neutral'
+        sentiment: 'neutral',
       }
     }
 
@@ -702,16 +801,16 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
           'gpt-4-turbo-preview',
           user_id,
           'pending',
-          transcriptText.length
+          transcriptText.length,
         ]
       )
       aiSummary = inserted[0]
     } catch (insertError) {
-      console.error('Failed to store AI summary', { callId, error: (insertError as any)?.message })
+      logger.error('Failed to store AI summary', { callId, error: (insertError as any)?.message })
       // Continue anyway
     }
 
-    console.log('AI summary generated', {
+    logger.info('AI summary generated', {
       callId,
       aiSummaryId: aiSummary?.id,
       summaryLength: summaryResult.summary_text?.length,
@@ -723,12 +822,16 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
         ...summaryResult,
         ai_summary_id: aiSummary?.id,
         review_status: 'pending',
-        _ai_role_notice: 'This summary was generated by AI and requires human review before confirmation.',
+        _ai_role_notice:
+          'This summary was generated by AI and requires human review before confirmation.',
       },
     })
   } catch (error: any) {
-    console.error('Summary POST error', error?.message || error)
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }, 500)
+    logger.error('Summary POST error', { error: error?.message || error })
+    return c.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      500
+    )
   }
 })
 
@@ -747,7 +850,8 @@ callsRoutes.get('/:id/timeline', async (c) => {
 
     // Verify call belongs to org
     const { rows: calls } = await db.query(
-      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
@@ -765,7 +869,7 @@ callsRoutes.get('/:id/timeline', async (c) => {
     if (error.code === '42P01') {
       return c.json({ success: true, events: [], message: 'Timeline not configured' })
     }
-    console.error('GET timeline error:', error?.message)
+    logger.error('GET timeline error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -784,7 +888,8 @@ callsRoutes.get('/:id/notes', async (c) => {
     const db = getDb(c.env)
 
     const { rows: calls } = await db.query(
-      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
@@ -803,7 +908,7 @@ callsRoutes.get('/:id/notes', async (c) => {
     if (error.code === '42P01') {
       return c.json({ success: true, notes: [], message: 'Notes not configured' })
     }
-    console.error('GET notes error:', error?.message)
+    logger.error('GET notes error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -827,7 +932,8 @@ callsRoutes.post('/:id/notes', async (c) => {
 
     // Verify call belongs to org
     const { rows: calls } = await db.query(
-      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
@@ -849,7 +955,7 @@ callsRoutes.post('/:id/notes', async (c) => {
 
     return c.json({ success: true, note: inserted[0] }, 201)
   } catch (error: any) {
-    console.error('POST notes error:', error?.message)
+    logger.error('POST notes error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -892,9 +998,11 @@ callsRoutes.put('/:id/disposition', async (c) => {
         await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition TEXT`)
         await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition_notes TEXT`)
         return c.json({ success: false, error: 'Schema updated. Please retry.' }, 503)
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
     }
-    console.error('PUT disposition error:', error?.message)
+    logger.error('PUT disposition error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -918,7 +1026,8 @@ callsRoutes.post('/:id/confirmations', async (c) => {
 
     // Verify call belongs to org
     const { rows: calls } = await db.query(
-      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
@@ -942,7 +1051,7 @@ callsRoutes.post('/:id/confirmations', async (c) => {
 
     return c.json({ success: true, confirmation: inserted[0] }, 201)
   } catch (error: any) {
-    console.error('POST confirmations error:', error?.message)
+    logger.error('POST confirmations error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -962,7 +1071,8 @@ callsRoutes.get('/:id/export', async (c) => {
 
     // Get call with all related data
     const { rows: calls } = await db.query(
-      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
@@ -972,24 +1082,34 @@ callsRoutes.get('/:id/export', async (c) => {
     let recordings: any[] = []
     try {
       const res = await db.query(
-        `SELECT id, recording_url, duration_seconds, status, created_at FROM recordings WHERE call_id = $1`, [callId]
+        `SELECT id, recording_url, duration_seconds, status, created_at FROM recordings WHERE call_id = $1`,
+        [callId]
       )
       recordings = res.rows || []
-    } catch { /* table might not exist */ }
+    } catch {
+      /* table might not exist */
+    }
 
     // Get outcome
     let outcome = null
     try {
       const res = await db.query(`SELECT * FROM call_outcomes WHERE call_id = $1`, [callId])
       outcome = res.rows?.[0] || null
-    } catch { /* table might not exist */ }
+    } catch {
+      /* table might not exist */
+    }
 
     // Get notes
     let notes: any[] = []
     try {
-      const res = await db.query(`SELECT * FROM call_notes WHERE call_id = $1 ORDER BY created_at`, [callId])
+      const res = await db.query(
+        `SELECT * FROM call_notes WHERE call_id = $1 ORDER BY created_at`,
+        [callId]
+      )
       notes = res.rows || []
-    } catch { /* table might not exist */ }
+    } catch {
+      /* table might not exist */
+    }
 
     const exportData = {
       exported_at: new Date().toISOString(),
@@ -1009,7 +1129,7 @@ callsRoutes.get('/:id/export', async (c) => {
 
     return c.json({ success: true, export: exportData })
   } catch (error: any) {
-    console.error('GET export error:', error?.message)
+    logger.error('GET export error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -1027,7 +1147,7 @@ callsRoutes.post('/:id/email', async (c) => {
 
     // TODO: Integrate with Resend API to actually send emails
     // For now, return success stub
-    console.log(`[Calls] Email requested for call ${callId} to ${recipients.length} recipient(s)`)
+    logger.info('Email requested', { callId, recipientCount: recipients.length })
 
     return c.json({
       success: true,
@@ -1035,7 +1155,7 @@ callsRoutes.post('/:id/email', async (c) => {
       recipients,
     })
   } catch (error: any) {
-    console.error('POST email error:', error?.message)
+    logger.error('POST email error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })

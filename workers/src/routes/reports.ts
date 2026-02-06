@@ -17,6 +17,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const reportsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -63,7 +64,7 @@ reportsRoutes.get('/', async (c) => {
 
     return c.json({ success: true, reports, pagination: { page, limit, total } })
   } catch (err: any) {
-    console.error('GET /api/reports error:', err?.message)
+    logger.error('GET /api/reports error', { error: err?.message })
     return c.json({ error: 'Failed to list reports' }, 500)
   }
 })
@@ -108,13 +109,13 @@ reportsRoutes.post('/', async (c) => {
         JSON.stringify(filters || {}),
         JSON.stringify(metrics || []),
         format || 'pdf',
-        session.user_id
+        session.user_id,
       ]
     )
 
     return c.json({ success: true, report: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/reports error:', err?.message)
+    logger.error('POST /api/reports error', { error: err?.message })
     return c.json({ error: 'Failed to generate report' }, 500)
   }
 })
@@ -156,7 +157,7 @@ reportsRoutes.get('/:id/export', async (c) => {
       exported_at: new Date().toISOString(),
     })
   } catch (err: any) {
-    console.error('GET /api/reports/:id/export error:', err?.message)
+    logger.error('GET /api/reports/:id/export error', { error: err?.message })
     return c.json({ error: 'Failed to export report' }, 500)
   }
 })
@@ -195,7 +196,7 @@ reportsRoutes.get('/schedules', async (c) => {
 
     return c.json({ success: true, schedules: rowsResult.rows })
   } catch (err: any) {
-    console.error('GET /api/reports/schedules error:', err?.message)
+    logger.error('GET /api/reports/schedules error', { error: err?.message })
     return c.json({ error: 'Failed to list schedules' }, 500)
   }
 })
@@ -241,13 +242,13 @@ reportsRoutes.post('/schedules', async (c) => {
         delivery_emails || [],
         JSON.stringify(filters || {}),
         format || 'pdf',
-        session.user_id
+        session.user_id,
       ]
     )
 
     return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/reports/schedules error:', err?.message)
+    logger.error('POST /api/reports/schedules error', { error: err?.message })
     return c.json({ error: 'Failed to create schedule' }, 500)
   }
 })
@@ -281,7 +282,7 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
 
     return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
-    console.error('PATCH /api/reports/schedules/:id error:', err?.message)
+    logger.error('PATCH /api/reports/schedules/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update schedule' }, 500)
   }
 })
@@ -306,7 +307,7 @@ reportsRoutes.delete('/schedules/:id', async (c) => {
 
     return c.json({ success: true, message: 'Schedule deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/reports/schedules/:id error:', err?.message)
+    logger.error('DELETE /api/reports/schedules/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete schedule' }, 500)
   }
 })

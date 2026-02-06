@@ -13,12 +13,14 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const analyticsRoutes = new Hono<{ Bindings: Env }>()
 
 function parseDateRange(c: any) {
   const now = new Date()
-  const start = c.req.query('start') || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const start =
+    c.req.query('start') || new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const end = c.req.query('end') || now.toISOString()
   return { start, end }
 }
@@ -69,9 +71,21 @@ analyticsRoutes.get('/calls', async (c) => {
       period: { start, end },
     })
   } catch (err: any) {
-    console.error('GET /api/analytics/calls error:', err?.message)
+    logger.error('GET /api/analytics/calls error', { error: err?.message })
     // If calls table doesn't exist, return empty
-    return c.json({ success: true, data: { total_calls: 0, completed: 0, missed: 0, failed: 0, avg_duration_seconds: 0, total_duration_seconds: 0 }, daily: [], period: parseDateRange(c) })
+    return c.json({
+      success: true,
+      data: {
+        total_calls: 0,
+        completed: 0,
+        missed: 0,
+        failed: 0,
+        avg_duration_seconds: 0,
+        total_duration_seconds: 0,
+      },
+      daily: [],
+      period: parseDateRange(c),
+    })
   }
 })
 
@@ -113,7 +127,7 @@ analyticsRoutes.get('/sentiment', async (c) => {
       period: { start, end },
     })
   } catch (err: any) {
-    console.error('GET /api/analytics/sentiment error:', err?.message)
+    logger.error('GET /api/analytics/sentiment error', { error: err?.message })
     return c.json({ success: true, data: [], total: 0, period: parseDateRange(c) })
   }
 })
@@ -158,7 +172,7 @@ analyticsRoutes.get('/performance', async (c) => {
       period: { start, end },
     })
   } catch (err: any) {
-    console.error('GET /api/analytics/performance error:', err?.message)
+    logger.error('GET /api/analytics/performance error', { error: err?.message })
     return c.json({ success: true, data: [], period: parseDateRange(c) })
   }
 })
@@ -195,8 +209,12 @@ analyticsRoutes.get('/surveys', async (c) => {
       period: { start, end },
     })
   } catch (err: any) {
-    console.error('GET /api/analytics/surveys error:', err?.message)
-    return c.json({ success: true, data: { total_responses: 0, avg_score: 0 }, period: parseDateRange(c) })
+    logger.error('GET /api/analytics/surveys error', { error: err?.message })
+    return c.json({
+      success: true,
+      data: { total_responses: 0, avg_score: 0 },
+      period: parseDateRange(c),
+    })
   }
 })
 
@@ -249,12 +267,12 @@ analyticsRoutes.get('/export', async (c) => {
     const headers = Object.keys(rows[0])
     const csv = [
       headers.join(','),
-      ...rows.map((r: any) => headers.map((h) => JSON.stringify(r[h] ?? '')).join(','))
+      ...rows.map((r: any) => headers.map((h) => JSON.stringify(r[h] ?? '')).join(',')),
     ].join('\n')
 
     return c.json({ success: true, csv, rows: rows.length })
   } catch (err: any) {
-    console.error('GET /api/analytics/export error:', err?.message)
+    logger.error('GET /api/analytics/export error', { error: err?.message })
     return c.json({ error: 'Export failed' }, 500)
   }
 })

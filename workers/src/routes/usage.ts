@@ -1,6 +1,6 @@
 /**
  * Usage Routes - Track API usage and metrics
- * 
+ *
  * Endpoints:
  *   GET /       - Usage overview
  *   GET /stats  - Alias for GET / (frontend compat)
@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const usageRoutes = new Hono<{ Bindings: Env }>()
 
@@ -66,10 +67,9 @@ async function getUsageData(c: any) {
   // Get plan limits from organization
   let planId = 'free'
   try {
-    const orgResult = await db.query(
-      'SELECT plan FROM organizations WHERE id = $1',
-      [session.organization_id]
-    )
+    const orgResult = await db.query('SELECT plan FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
     planId = orgResult.rows?.[0]?.plan || 'free'
   } catch {
     // plan column might not exist — default to free
@@ -83,10 +83,13 @@ async function getUsageData(c: any) {
     enterprise: { calls: 10000, minutes: 50000 },
   }
 
-  const plan = planId.includes('enterprise') ? 'enterprise'
-    : planId.includes('pro') ? 'pro'
-    : planId.includes('starter') ? 'starter'
-    : 'free'
+  const plan = planId.includes('enterprise')
+    ? 'enterprise'
+    : planId.includes('pro')
+      ? 'pro'
+      : planId.includes('starter')
+        ? 'starter'
+        : 'free'
 
   const limits = planLimits[plan] || planLimits.free
 
@@ -114,7 +117,7 @@ usageRoutes.get('/', async (c) => {
   try {
     return await getUsageData(c)
   } catch (err: any) {
-    console.error('GET /api/usage error:', err?.message)
+    logger.error('GET /api/usage error', { error: err?.message })
     return c.json({ error: 'Failed to get usage' }, 500)
   }
 })
@@ -124,7 +127,7 @@ usageRoutes.get('/stats', async (c) => {
   try {
     return await getUsageData(c)
   } catch (err: any) {
-    console.error('GET /api/usage/stats error:', err?.message)
+    logger.error('GET /api/usage/stats error', { error: err?.message })
     return c.json({ error: 'Failed to get usage stats' }, 500)
   }
 })

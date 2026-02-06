@@ -1,6 +1,6 @@
 /**
  * Shopper Routes - Mystery shopper script management
- * 
+ *
  * Endpoints:
  *   GET    /scripts        - List scripts for organization
  *   GET    /scripts/manage - Alias for GET /scripts (frontend compat)
@@ -17,6 +17,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const shopperRoutes = new Hono<{ Bindings: Env }>()
 
@@ -117,7 +118,7 @@ shopperRoutes.get('/scripts', async (c) => {
   try {
     return await listScripts(c)
   } catch (err: any) {
-    console.error('GET /api/shopper/scripts error:', err?.message)
+    logger.error('GET /api/shopper/scripts error', { error: err?.message })
     return c.json({ error: 'Failed to get scripts' }, 500)
   }
 })
@@ -127,7 +128,7 @@ shopperRoutes.get('/scripts/manage', async (c) => {
   try {
     return await listScripts(c)
   } catch (err: any) {
-    console.error('GET /api/shopper/scripts/manage error:', err?.message)
+    logger.error('GET /api/shopper/scripts/manage error', { error: err?.message })
     return c.json({ error: 'Failed to get scripts' }, 500)
   }
 })
@@ -137,7 +138,7 @@ shopperRoutes.post('/scripts', async (c) => {
   try {
     return await upsertScript(c)
   } catch (err: any) {
-    console.error('POST /api/shopper/scripts error:', err?.message)
+    logger.error('POST /api/shopper/scripts error', { error: err?.message })
     return c.json({ error: 'Failed to create script' }, 500)
   }
 })
@@ -147,7 +148,7 @@ shopperRoutes.post('/scripts/manage', async (c) => {
   try {
     return await upsertScript(c)
   } catch (err: any) {
-    console.error('POST /api/shopper/scripts/manage error:', err?.message)
+    logger.error('POST /api/shopper/scripts/manage error', { error: err?.message })
     return c.json({ error: 'Failed to create/update script' }, 500)
   }
 })
@@ -176,7 +177,14 @@ shopperRoutes.put('/scripts/:id', async (c) => {
            updated_at = NOW()
        WHERE id = $5 AND organization_id = $6
        RETURNING *`,
-      [name || null, content || null, scenario || null, is_active ?? null, scriptId, session.organization_id]
+      [
+        name || null,
+        content || null,
+        scenario || null,
+        is_active ?? null,
+        scriptId,
+        session.organization_id,
+      ]
     )
 
     if (result.rows.length === 0) {
@@ -185,7 +193,7 @@ shopperRoutes.put('/scripts/:id', async (c) => {
 
     return c.json({ success: true, script: result.rows[0] })
   } catch (err: any) {
-    console.error('PUT /api/shopper/scripts/:id error:', err?.message)
+    logger.error('PUT /api/shopper/scripts/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update script' }, 500)
   }
 })
@@ -215,7 +223,7 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
 
     return c.json({ success: true, message: 'Script deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/shopper/scripts/:id error:', err?.message)
+    logger.error('DELETE /api/shopper/scripts/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete script' }, 500)
   }
 })
@@ -234,7 +242,9 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
       try {
         const body = await c.req.json()
         scriptId = body.id
-      } catch { /* no body */ }
+      } catch {
+        /* no body */
+      }
     }
 
     if (!scriptId) {
@@ -256,7 +266,7 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
 
     return c.json({ success: true, message: 'Script deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/shopper/scripts/manage error:', err?.message)
+    logger.error('DELETE /api/shopper/scripts/manage error', { error: err?.message })
     return c.json({ error: 'Failed to delete script' }, 500)
   }
 })

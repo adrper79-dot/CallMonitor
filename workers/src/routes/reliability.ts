@@ -15,6 +15,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebhookActionSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const reliabilityRoutes = new Hono<{ Bindings: Env }>()
 
@@ -97,7 +98,7 @@ reliabilityRoutes.get('/webhooks', async (c) => {
       pagination: { limit, offset },
     })
   } catch (err: any) {
-    console.error('GET /api/reliability/webhooks error:', err?.message)
+    logger.error('GET /api/reliability/webhooks error', { error: err?.message })
     return c.json({ error: 'Failed to fetch webhook failures' }, 500)
   }
 })
@@ -151,7 +152,11 @@ reliabilityRoutes.put('/webhooks', async (c) => {
              WHERE id = $2`,
             ['Retry failed — HTTP ' + resp.status, failure_id]
           )
-          return c.json({ success: false, status: 'failed', message: 'Retry failed with HTTP ' + resp.status })
+          return c.json({
+            success: false,
+            status: 'failed',
+            message: 'Retry failed with HTTP ' + resp.status,
+          })
         }
       } catch (retryErr: any) {
         await db.query(
@@ -161,7 +166,11 @@ reliabilityRoutes.put('/webhooks', async (c) => {
            WHERE id = $2`,
           [retryErr?.message || 'Retry fetch error', failure_id]
         )
-        return c.json({ success: false, status: 'failed', message: 'Retry error: ' + retryErr?.message })
+        return c.json({
+          success: false,
+          status: 'failed',
+          message: 'Retry error: ' + retryErr?.message,
+        })
       }
     }
 
@@ -191,7 +200,7 @@ reliabilityRoutes.put('/webhooks', async (c) => {
 
     return c.json({ error: 'Unknown action' }, 400)
   } catch (err: any) {
-    console.error('PUT /api/reliability/webhooks error:', err?.message)
+    logger.error('PUT /api/reliability/webhooks error', { error: err?.message })
     return c.json({ error: 'Failed to process webhook action' }, 500)
   }
 })

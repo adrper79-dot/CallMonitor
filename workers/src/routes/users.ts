@@ -1,6 +1,6 @@
 /**
  * User Routes - User-specific endpoints
- * 
+ *
  * Endpoints:
  *   GET /me                - Get current user profile
  *   GET /:id/organization  - Get user's organization info
@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const userRoutes = new Hono<{ Bindings: Env }>()
 
@@ -55,7 +56,7 @@ userRoutes.get('/me', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/users/me error:', err?.message)
+    logger.error('GET /api/users/me error', { error: err?.message })
     return c.json({ error: 'Failed to get user profile' }, 500)
   }
 })
@@ -99,12 +100,12 @@ userRoutes.get('/:id/organization', async (c) => {
         id: org.id,
         name: org.name,
         plan: org.plan || 'free',
-        plan_status: 'active'
+        plan_status: 'active',
       },
-      role: org.role || 'viewer'
+      role: org.role || 'viewer',
     })
   } catch (err: any) {
-    console.error('GET /api/users/:id/organization error:', err)
+    logger.error('GET /api/users/:id/organization error', { error: err?.message })
     return c.json({ error: 'Failed to get organization info' }, 500)
   }
 })

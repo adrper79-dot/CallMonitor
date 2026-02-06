@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const auditRoutes = new Hono<{ Bindings: Env }>()
 
@@ -24,7 +25,7 @@ auditRoutes.get('/', async (c) => {
         logs: [],
         total: 0,
         limit: 12,
-        offset: 0
+        offset: 0,
       })
     }
 
@@ -51,10 +52,10 @@ auditRoutes.get('/', async (c) => {
       logs: result.rows || [],
       total: result.rows?.length || 0,
       limit,
-      offset
+      offset,
     })
   } catch (err: any) {
-    console.error('GET /api/audit-logs error:', err?.message || err)
+    logger.error('GET /api/audit-logs error', { error: err?.message || err })
     // Return empty logs on error rather than 500 - might just be empty table
     return c.json({
       success: true,
@@ -62,7 +63,7 @@ auditRoutes.get('/', async (c) => {
       total: 0,
       limit: parseInt(c.req.query('limit') || '12'),
       offset: parseInt(c.req.query('offset') || '0'),
-      error: 'Query failed'
+      error: 'Query failed',
     })
   }
 })

@@ -1,9 +1,9 @@
 /**
  * Billing Routes - Billing and subscription management
- * 
+ *
  * Queries real subscription data from organizations table
  * (populated by Stripe webhook handlers in webhooks.ts)
- * 
+ *
  * Endpoints:
  *   GET  /              - Billing overview (subscription data)
  *   GET  /subscription  - Alias for GET / (frontend compatibility)
@@ -21,6 +21,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CheckoutSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const billingRoutes = new Hono<{ Bindings: Env }>()
 
@@ -94,10 +95,13 @@ async function getBillingInfo(c: any) {
   }
 
   // Map plan_id to human-readable name
-  const planName = subscriptionData.plan_id?.includes('pro') ? 'pro'
-    : subscriptionData.plan_id?.includes('enterprise') ? 'enterprise'
-    : subscriptionData.plan_id?.includes('starter') ? 'starter'
-    : org.plan || 'free'
+  const planName = subscriptionData.plan_id?.includes('pro')
+    ? 'pro'
+    : subscriptionData.plan_id?.includes('enterprise')
+      ? 'enterprise'
+      : subscriptionData.plan_id?.includes('starter')
+        ? 'starter'
+        : org.plan || 'free'
 
   return c.json({
     success: true,
@@ -118,7 +122,7 @@ billingRoutes.get('/', async (c) => {
   try {
     return await getBillingInfo(c)
   } catch (err: any) {
-    console.error('GET /api/billing error:', err?.message)
+    logger.error('GET /api/billing error', { error: err?.message })
     return c.json({ error: 'Failed to get billing info' }, 500)
   }
 })
@@ -128,7 +132,7 @@ billingRoutes.get('/subscription', async (c) => {
   try {
     return await getBillingInfo(c)
   } catch (err: any) {
-    console.error('GET /api/billing/subscription error:', err?.message)
+    logger.error('GET /api/billing/subscription error', { error: err?.message })
     return c.json({ error: 'Failed to get billing info' }, 500)
   }
 })
@@ -148,10 +152,9 @@ billingRoutes.get('/payment-methods', async (c) => {
     // Look up stripe_customer_id for this org
     const db = getDb(c.env)
 
-    const result = await db.query(
-      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
-      [session.organization_id]
-    )
+    const result = await db.query('SELECT stripe_customer_id FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
     const customerId = result.rows?.[0]?.stripe_customer_id
 
     if (!customerId || !c.env.STRIPE_SECRET_KEY) {
@@ -166,16 +169,16 @@ billingRoutes.get('/payment-methods', async (c) => {
     const stripeRes = await fetch(
       `https://api.stripe.com/v1/payment_methods?customer=${customerId}&type=card&limit=10`,
       {
-        headers: { 'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+        headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
       }
     )
 
     if (!stripeRes.ok) {
-      console.error('Stripe payment methods fetch failed:', stripeRes.status)
+      logger.error('Stripe payment methods fetch failed', { status: stripeRes.status })
       return c.json({ success: true, methods: [] })
     }
 
-    const stripeData = await stripeRes.json() as any
+    const stripeData = (await stripeRes.json()) as any
 
     const methods = (stripeData.data || []).map((pm: any) => ({
       id: pm.id,
@@ -188,7 +191,7 @@ billingRoutes.get('/payment-methods', async (c) => {
 
     return c.json({ success: true, methods })
   } catch (err: any) {
-    console.error('GET /api/billing/payment-methods error:', err?.message)
+    logger.error('GET /api/billing/payment-methods error', { error: err?.message })
     return c.json({ error: 'Failed to get payment methods' }, 500)
   }
 })
@@ -208,23 +211,20 @@ billingRoutes.delete('/payment-methods/:id', async (c) => {
     }
 
     // Detach the payment method via Stripe API
-    const stripeRes = await fetch(
-      `https://api.stripe.com/v1/payment_methods/${pmId}/detach`,
-      {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}` },
-      }
-    )
+    const stripeRes = await fetch(`https://api.stripe.com/v1/payment_methods/${pmId}/detach`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+    })
 
     if (!stripeRes.ok) {
       const errorText = await stripeRes.text()
-      console.error('Stripe detach payment method failed:', stripeRes.status)
+      logger.error('Stripe detach payment method failed', { status: stripeRes.status })
       return c.json({ error: 'Failed to remove payment method' }, 500)
     }
 
     return c.json({ success: true, message: 'Payment method removed' })
   } catch (err: any) {
-    console.error('DELETE /api/billing/payment-methods error:', err?.message)
+    logger.error('DELETE /api/billing/payment-methods error', { error: err?.message })
     return c.json({ error: 'Failed to remove payment method' }, 500)
   }
 })
@@ -269,7 +269,7 @@ billingRoutes.get('/invoices', async (c) => {
       limit,
     })
   } catch (err: any) {
-    console.error('GET /api/billing/invoices error:', err?.message)
+    logger.error('GET /api/billing/invoices error', { error: err?.message })
     return c.json({ error: 'Failed to get invoices' }, 500)
   }
 })
@@ -293,10 +293,9 @@ billingRoutes.post('/checkout', async (c) => {
     // Look up or create Stripe customer
     const db = getDb(c.env)
 
-    const orgResult = await db.query(
-      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
-      [session.organization_id]
-    )
+    const orgResult = await db.query('SELECT stripe_customer_id FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
     let customerId = orgResult.rows?.[0]?.stripe_customer_id
 
     // If no Stripe customer yet, create one
@@ -307,7 +306,7 @@ billingRoutes.post('/checkout', async (c) => {
       const createRes = await fetch('https://api.stripe.com/v1/customers', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+          Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
@@ -320,14 +319,14 @@ billingRoutes.post('/checkout', async (c) => {
         return c.json({ error: 'Failed to create Stripe customer' }, 500)
       }
 
-      const customer = await createRes.json() as any
+      const customer = (await createRes.json()) as any
       customerId = customer.id
 
       // Save the stripe_customer_id
-      await db.query(
-        'UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2',
-        [customerId, session.organization_id]
-      )
+      await db.query('UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2', [
+        customerId,
+        session.organization_id,
+      ])
     }
 
     // Create Checkout Session
@@ -335,16 +334,16 @@ billingRoutes.post('/checkout', async (c) => {
     const checkoutRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+        Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        'customer': customerId,
-        'mode': 'subscription',
+        customer: customerId,
+        mode: 'subscription',
         'line_items[0][price]': priceId,
         'line_items[0][quantity]': '1',
-        'success_url': `${appUrl}/settings?billing=success`,
-        'cancel_url': `${appUrl}/settings?billing=cancelled`,
+        success_url: `${appUrl}/settings?billing=success`,
+        cancel_url: `${appUrl}/settings?billing=cancelled`,
         'metadata[organization_id]': session.organization_id,
         'metadata[plan_id]': planId || '',
       }),
@@ -352,11 +351,11 @@ billingRoutes.post('/checkout', async (c) => {
 
     if (!checkoutRes.ok) {
       const errorText = await checkoutRes.text()
-      console.error('Stripe checkout session creation failed:', checkoutRes.status)
+      logger.error('Stripe checkout session creation failed', { status: checkoutRes.status })
       return c.json({ error: 'Failed to create checkout session' }, 500)
     }
 
-    const checkoutData = await checkoutRes.json() as any
+    const checkoutData = (await checkoutRes.json()) as any
 
     return c.json({
       success: true,
@@ -364,7 +363,7 @@ billingRoutes.post('/checkout', async (c) => {
       sessionId: checkoutData.id,
     })
   } catch (err: any) {
-    console.error('POST /api/billing/checkout error:', err?.message)
+    logger.error('POST /api/billing/checkout error', { error: err?.message })
     return c.json({ error: 'Failed to create checkout session' }, 500)
   }
 })
@@ -384,10 +383,9 @@ billingRoutes.post('/portal', async (c) => {
     // Look up Stripe customer
     const db = getDb(c.env)
 
-    const orgResult = await db.query(
-      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
-      [session.organization_id]
-    )
+    const orgResult = await db.query('SELECT stripe_customer_id FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
     const customerId = orgResult.rows?.[0]?.stripe_customer_id
 
     if (!customerId) {
@@ -398,29 +396,29 @@ billingRoutes.post('/portal', async (c) => {
     const portalRes = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+        Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        'customer': customerId,
-        'return_url': `${appUrl}/settings`,
+        customer: customerId,
+        return_url: `${appUrl}/settings`,
       }),
     })
 
     if (!portalRes.ok) {
       const errorText = await portalRes.text()
-      console.error('Stripe portal session creation failed:', portalRes.status)
+      logger.error('Stripe portal session creation failed', { status: portalRes.status })
       return c.json({ error: 'Failed to create portal session' }, 500)
     }
 
-    const portalData = await portalRes.json() as any
+    const portalData = (await portalRes.json()) as any
 
     return c.json({
       success: true,
       url: portalData.url,
     })
   } catch (err: any) {
-    console.error('POST /api/billing/portal error:', err?.message)
+    logger.error('POST /api/billing/portal error', { error: err?.message })
     return c.json({ error: 'Failed to create portal session' }, 500)
   }
 })
@@ -440,10 +438,9 @@ billingRoutes.post('/cancel', async (c) => {
     // Look up subscription ID
     const db = getDb(c.env)
 
-    const orgResult = await db.query(
-      'SELECT subscription_id FROM organizations WHERE id = $1',
-      [session.organization_id]
-    )
+    const orgResult = await db.query('SELECT subscription_id FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
     const subscriptionId = orgResult.rows?.[0]?.subscription_id
 
     if (!subscriptionId) {
@@ -451,38 +448,34 @@ billingRoutes.post('/cancel', async (c) => {
     }
 
     // Cancel at period end (graceful cancellation)
-    const cancelRes = await fetch(
-      `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          'cancel_at_period_end': 'true',
-        }),
-      }
-    )
+    const cancelRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        cancel_at_period_end: 'true',
+      }),
+    })
 
     if (!cancelRes.ok) {
       const errorText = await cancelRes.text()
-      console.error('Stripe subscription cancel failed:', cancelRes.status)
+      logger.error('Stripe subscription cancel failed', { status: cancelRes.status })
       return c.json({ error: 'Failed to cancel subscription' }, 500)
     }
 
     // Update local status
-    await db.query(
-      `UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`,
-      [session.organization_id]
-    )
+    await db.query(`UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`, [
+      session.organization_id,
+    ])
 
     return c.json({
       success: true,
       message: 'Subscription will be cancelled at end of billing period',
     })
   } catch (err: any) {
-    console.error('POST /api/billing/cancel error:', err?.message)
+    logger.error('POST /api/billing/cancel error', { error: err?.message })
     return c.json({ error: 'Failed to cancel subscription' }, 500)
   }
 })

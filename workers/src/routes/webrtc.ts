@@ -10,6 +10,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebRTCDialSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const webrtcRoutes = new Hono<{ Bindings: Env }>()
 
@@ -19,33 +20,37 @@ webrtcRoutes.get('/debug', async (c) => {
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  
+
   const connectionId = c.env.TELNYX_CONNECTION_ID
   const hasApiKey = !!c.env.TELNYX_API_KEY
   const hasNumber = !!c.env.TELNYX_NUMBER
-  
+
   // Test if connection ID is valid by fetching connection details
   let connectionStatus = 'unknown'
   let connectionDetails = null
-  
+
   if (hasApiKey && connectionId) {
     try {
       // Try to list connections to see what we have
       const resp = await fetch('https://api.telnyx.com/v2/credential_connections', {
         headers: {
-          'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
           'Content-Type': 'application/json',
         },
       })
-      
+
       if (resp.ok) {
-        const data = await resp.json() as { data: Array<{ id: string; active: boolean; connection_name: string }> }
-        connectionDetails = data.data?.map((conn: { id: string; active: boolean; connection_name: string }) => ({
-          id: conn.id,
-          active: conn.active,
-          name: conn.connection_name
-        }))
-        
+        const data = (await resp.json()) as {
+          data: Array<{ id: string; active: boolean; connection_name: string }>
+        }
+        connectionDetails = data.data?.map(
+          (conn: { id: string; active: boolean; connection_name: string }) => ({
+            id: conn.id,
+            active: conn.active,
+            name: conn.connection_name,
+          })
+        )
+
         const match = data.data?.find((conn: { id: string }) => conn.id === connectionId)
         connectionStatus = match ? (match.active ? 'active' : 'inactive') : 'not_found'
       } else {
@@ -55,7 +60,7 @@ webrtcRoutes.get('/debug', async (c) => {
       connectionStatus = `fetch_error: ${e.message}`
     }
   }
-  
+
   return c.json({
     config: {
       has_api_key: hasApiKey,
@@ -65,12 +70,14 @@ webrtcRoutes.get('/debug', async (c) => {
     },
     connection_status: connectionStatus,
     available_connections: connectionDetails,
-    instructions: !connectionId ? [
-      '1. Go to Telnyx Portal > Voice > Credentials',
-      '2. Create a credential connection or use existing',
-      '3. Copy the Connection ID (starts with a UUID)',
-      '4. Run: wrangler secret put TELNYX_CONNECTION_ID --name wordisbond-api',
-    ] : null
+    instructions: !connectionId
+      ? [
+          '1. Go to Telnyx Portal > Voice > Credentials',
+          '2. Create a credential connection or use existing',
+          '3. Copy the Connection ID (starts with a UUID)',
+          '4. Run: wrangler secret put TELNYX_CONNECTION_ID --name wordisbond-api',
+        ]
+      : null,
   })
 })
 
@@ -90,28 +97,32 @@ webrtcRoutes.get('/token', async (c) => {
 
     // TELNYX_CONNECTION_ID should be the Credential Connection ID (starts with "conn_" or is a UUID)
     const credentialConnectionId = c.env.TELNYX_CONNECTION_ID
-    
+
     if (!credentialConnectionId) {
-      console.log('TELNYX_CONNECTION_ID not configured')
-      return c.json({
-        success: false,
-        error: 'Telnyx WebRTC not configured',
-        message: 'TELNYX_CONNECTION_ID must be set to your Credential Connection ID from Telnyx Portal',
-        setup_instructions: [
-          '1. Go to Telnyx Portal > Voice > Credentials',
-          '2. Create a new credential or use existing',
-          '3. Copy the Credential Connection ID',
-          '4. Run: wrangler secret put TELNYX_CONNECTION_ID'
-        ]
-      }, 500)
+      logger.info('TELNYX_CONNECTION_ID not configured')
+      return c.json(
+        {
+          success: false,
+          error: 'Telnyx WebRTC not configured',
+          message:
+            'TELNYX_CONNECTION_ID must be set to your Credential Connection ID from Telnyx Portal',
+          setup_instructions: [
+            '1. Go to Telnyx Portal > Voice > Credentials',
+            '2. Create a new credential or use existing',
+            '3. Copy the Credential Connection ID',
+            '4. Run: wrangler secret put TELNYX_CONNECTION_ID',
+          ],
+        },
+        500
+      )
     }
 
     // Step 1: Create a telephony credential for this user session
-    console.log('[WebRTC] Creating telephony credential')
+    logger.info('Creating telephony credential')
     const createCredResponse = await fetch('https://api.telnyx.com/v2/telephony_credentials', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+        Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -123,8 +134,8 @@ webrtcRoutes.get('/token', async (c) => {
 
     if (!createCredResponse.ok) {
       const errorText = await createCredResponse.text()
-      console.error('[WebRTC] Failed to create credential:', createCredResponse.status)
-      
+      logger.error('Failed to create credential', { status: createCredResponse.status })
+
       // Parse error for better feedback
       let errorMessage = 'Failed to create WebRTC credential'
       try {
@@ -133,45 +144,55 @@ webrtcRoutes.get('/token', async (c) => {
       } catch (e) {
         errorMessage = errorText
       }
-      
-      return c.json({
-        success: false,
-        error: errorMessage,
-        status: createCredResponse.status,
-        hint: createCredResponse.status === 404 
-          ? 'Invalid TELNYX_CONNECTION_ID - check your Credential Connection ID in Telnyx Portal'
-          : createCredResponse.status === 401 
-          ? 'Invalid TELNYX_API_KEY - check your API key has telephony permissions'
-          : 'Check Telnyx dashboard for credential connection configuration'
-      }, 500)
+
+      return c.json(
+        {
+          success: false,
+          error: errorMessage,
+          status: createCredResponse.status,
+          hint:
+            createCredResponse.status === 404
+              ? 'Invalid TELNYX_CONNECTION_ID - check your Credential Connection ID in Telnyx Portal'
+              : createCredResponse.status === 401
+                ? 'Invalid TELNYX_API_KEY - check your API key has telephony permissions'
+                : 'Check Telnyx dashboard for credential connection configuration',
+        },
+        500
+      )
     }
 
     const credData = await createCredResponse.json()
     const credentialId = credData.data.id
 
     // Step 2: Get JWT token for the created credential
-    console.log('[WebRTC] Getting token for credential')
-    const tokenResponse = await fetch(`https://api.telnyx.com/v2/telephony_credentials/${credentialId}/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    logger.info('Getting token for credential')
+    const tokenResponse = await fetch(
+      `https://api.telnyx.com/v2/telephony_credentials/${credentialId}/token`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('[WebRTC] Failed to get token:', tokenResponse.status)
-      return c.json({
-        success: false,
-        error: 'Failed to get WebRTC token',
-        details: errorText
-      }, 500)
+      logger.error('Failed to get token', { status: tokenResponse.status })
+      return c.json(
+        {
+          success: false,
+          error: 'Failed to get WebRTC token',
+          details: errorText,
+        },
+        500
+      )
     }
 
     // Telnyx returns the JWT token as plain text, not JSON
     const tokenText = await tokenResponse.text()
-    
+
     // Try to parse as JSON first (API may return { data: "token" } format)
     let jwtToken: string
     try {
@@ -182,8 +203,8 @@ webrtcRoutes.get('/token', async (c) => {
       jwtToken = tokenText.trim()
     }
 
-    console.log('[WebRTC] Successfully obtained token')
-    
+    logger.info('Successfully obtained token')
+
     return c.json({
       success: true,
       token: jwtToken,
@@ -199,12 +220,15 @@ webrtcRoutes.get('/token', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/webrtc/token error:', err?.message)
-    return c.json({ 
-      error: 'Failed to get WebRTC token',
-      details: err?.message || String(err),
-      stack: err?.stack?.substring(0, 500)
-    }, 500)
+    logger.error('GET /api/webrtc/token error', { error: err?.message })
+    return c.json(
+      {
+        error: 'Failed to get WebRTC token',
+        details: err?.message || String(err),
+        stack: err?.stack?.substring(0, 500),
+      },
+      500
+    )
   }
 })
 
@@ -241,7 +265,7 @@ webrtcRoutes.post('/dial', async (c) => {
     const telnyxResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+        Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -256,32 +280,30 @@ webrtcRoutes.post('/dial', async (c) => {
 
     if (!telnyxResponse.ok) {
       const error = await telnyxResponse.text()
-      console.error('Telnyx call initiation error:', (error as any)?.message)
+      logger.error('Telnyx call initiation error', { error: (error as any)?.message })
 
       // For testing: simulate successful call when connection is invalid
       if (error.includes('invalid connection') || error.includes('connection')) {
-        console.log('Using mock call initiation for testing')
+        logger.info('Using mock call initiation for testing')
 
         // Update call record with mock call SID
-        await db.query(
-          'UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3',
-          ['mock-call-' + callId, 'ringing', callId]
-        )
+        await db.query('UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3', [
+          'mock-call-' + callId,
+          'ringing',
+          callId,
+        ])
 
         return c.json({
           success: true,
           call_id: callId,
           call_sid: 'mock-call-' + callId,
           status: 'ringing',
-          note: 'Mock call initiated for testing - Telnyx connection not configured'
+          note: 'Mock call initiated for testing - Telnyx connection not configured',
         })
       }
 
       // Update call status to failed
-      await db.query(
-        'UPDATE calls SET status = $1 WHERE id = $2',
-        ['failed', callId]
-      )
+      await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
 
       return c.json({ error: 'Failed to initiate call' }, 500)
     }
@@ -290,10 +312,11 @@ webrtcRoutes.post('/dial', async (c) => {
     const callSid = telnyxData.data.call_control_id
 
     // Update call record with Telnyx call SID (column is call_sid, not external_id)
-    await db.query(
-      'UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3',
-      [callSid, 'ringing', callId]
-    )
+    await db.query('UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3', [
+      callSid,
+      'ringing',
+      callId,
+    ])
 
     return c.json({
       success: true,
@@ -302,7 +325,7 @@ webrtcRoutes.post('/dial', async (c) => {
       status: 'ringing',
     })
   } catch (err: any) {
-    console.error('POST /api/webrtc/dial error:', err?.message)
+    logger.error('POST /api/webrtc/dial error', { error: err?.message })
     return c.json({ error: 'Failed to initiate call' }, 500)
   }
 })

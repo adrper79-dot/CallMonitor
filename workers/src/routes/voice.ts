@@ -8,6 +8,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const voiceRoutes = new Hono<{ Bindings: Env }>()
 
@@ -32,10 +33,10 @@ voiceRoutes.get('/targets', async (c) => {
     `)
 
     if (!tableCheck.rows[0].exists) {
-      console.warn('Voice targets table does not exist')
+      logger.warn('Voice targets table does not exist')
       return c.json({
         success: true,
-        targets: []
+        targets: [],
       })
     }
 
@@ -49,10 +50,10 @@ voiceRoutes.get('/targets', async (c) => {
 
     return c.json({
       success: true,
-      targets: result.rows
+      targets: result.rows,
     })
   } catch (err: any) {
-    console.error('GET /api/voice/targets error:', err?.message)
+    logger.error('GET /api/voice/targets error', { error: err?.message })
     return c.json({ error: 'Failed to get voice targets' }, 500)
   }
 })
@@ -82,15 +83,15 @@ voiceRoutes.get('/config', async (c) => {
       transcribe: false,
       translate: false,
       survey: false,
-      synthetic_caller: false
+      synthetic_caller: false,
     }
 
     return c.json({
       success: true,
-      config
+      config,
     })
   } catch (err: any) {
-    console.error('GET /api/voice/config error:', err?.message)
+    logger.error('GET /api/voice/config error', { error: err?.message })
     return c.json({ error: 'Failed to get voice config' }, 500)
   }
 })
@@ -169,10 +170,10 @@ voiceRoutes.put('/config', async (c) => {
 
     return c.json({
       success: true,
-      config: result.rows[0]
+      config: result.rows[0],
     })
   } catch (err: any) {
-    console.error('PUT /api/voice/config error:', err?.message)
+    logger.error('PUT /api/voice/config error', { error: err?.message })
     return c.json({ error: 'Failed to update voice config' }, 500)
   }
 })
@@ -187,7 +188,15 @@ voiceRoutes.post('/call', async (c) => {
 
     const parsed = await validateBody(c, CreateCallSchema)
     if (!parsed.success) return parsed.response
-    const { to_number, from_number, organization_id, target_id, campaign_id, modulations, flow_type } = parsed.data
+    const {
+      to_number,
+      from_number,
+      organization_id,
+      target_id,
+      campaign_id,
+      modulations,
+      flow_type,
+    } = parsed.data
 
     if (organization_id && organization_id !== session.organization_id) {
       return c.json({ error: 'Invalid organization' }, 400)
@@ -226,7 +235,7 @@ voiceRoutes.post('/call', async (c) => {
     }
 
     // Use Telnyx Call Control API to create the call
-    console.log(`[Voice] Creating call, flow: ${flow_type || 'direct'}`)
+    logger.info('Creating call', { flow_type: flow_type || 'direct' })
 
     const callPayload: Record<string, any> = {
       connection_id: c.env.TELNYX_CONNECTION_ID,
@@ -253,7 +262,7 @@ voiceRoutes.post('/call', async (c) => {
     const callResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+        Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(callPayload),
@@ -261,7 +270,7 @@ voiceRoutes.post('/call', async (c) => {
 
     if (!callResponse.ok) {
       const errorText = await callResponse.text()
-      console.error('[Voice] Telnyx call creation failed:', callResponse.status)
+      logger.error('Telnyx call creation failed', { status: callResponse.status })
       let errorMessage = 'Failed to create call'
       try {
         const errorJson = JSON.parse(errorText)
@@ -272,7 +281,7 @@ voiceRoutes.post('/call', async (c) => {
       return c.json({ error: errorMessage }, 500)
     }
 
-    const callData = await callResponse.json() as any
+    const callData = (await callResponse.json()) as any
     const telnyxCallId = callData.data?.call_control_id || callData.data?.id
 
     // Insert call record into database
@@ -296,7 +305,7 @@ voiceRoutes.post('/call', async (c) => {
 
     const callId = callRecord.rows[0]?.id
 
-    console.log(`[Voice] Call created: ${callId} (telnyx: ${telnyxCallId})`)
+    logger.info('Call created', { callId, telnyxCallId })
 
     return c.json({
       success: true,
@@ -307,7 +316,7 @@ voiceRoutes.post('/call', async (c) => {
       flow_type: flow_type || 'direct',
     })
   } catch (err: any) {
-    console.error('POST /api/voice/call error:', err?.message)
+    logger.error('POST /api/voice/call error', { error: err?.message })
     return c.json({ error: err.message || 'Failed to place call' }, 500)
   }
 })
@@ -342,7 +351,7 @@ voiceRoutes.post('/targets', async (c) => {
     `)
 
     if (!tableCheck.rows[0].exists) {
-      console.warn('Voice targets table does not exist, creating...')
+      logger.warn('Voice targets table does not exist, creating...')
       await db.query(`
         CREATE TABLE voice_targets (
           id SERIAL PRIMARY KEY,
@@ -366,10 +375,10 @@ voiceRoutes.post('/targets', async (c) => {
 
     return c.json({
       success: true,
-      target: result.rows[0]
+      target: result.rows[0],
     })
   } catch (err: any) {
-    console.error('POST /api/voice/targets error:', err?.message)
+    logger.error('POST /api/voice/targets error', { error: err?.message })
     return c.json({ error: 'Failed to create voice target' }, 500)
   }
 })
@@ -399,7 +408,7 @@ voiceRoutes.delete('/targets/:id', async (c) => {
 
     return c.json({ success: true, message: 'Target deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/voice/targets/:id error:', err?.message)
+    logger.error('DELETE /api/voice/targets/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete voice target' }, 500)
   }
 })

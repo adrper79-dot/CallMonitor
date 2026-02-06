@@ -1,6 +1,6 @@
 /**
  * Bookings Routes - Booking/appointment management
- * 
+ *
  * Endpoints:
  *   GET    /     - List bookings for org
  *   POST   /     - Create a booking
@@ -14,6 +14,7 @@ import { getDb } from '../lib/db'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -50,7 +51,7 @@ bookingsRoutes.get('/', async (c) => {
       bookings: result.rows,
     })
   } catch (err: any) {
-    console.error('GET /api/bookings error:', err?.message)
+    logger.error('GET /api/bookings error', { error: err?.message })
     return c.json({ error: 'Failed to list bookings' }, 500)
   }
 })
@@ -88,7 +89,7 @@ bookingsRoutes.post('/', async (c) => {
 
     return c.json({ success: true, booking: result.rows[0] }, 201)
   } catch (err: any) {
-    console.error('POST /api/bookings error:', err?.message)
+    logger.error('POST /api/bookings error', { error: err?.message })
     return c.json({ error: 'Failed to create booking' }, 500)
   }
 })
@@ -125,7 +126,7 @@ bookingsRoutes.patch('/:id', async (c) => {
 
     return c.json({ success: true, booking: result.rows[0] })
   } catch (err: any) {
-    console.error('PATCH /api/bookings/:id error:', err?.message)
+    logger.error('PATCH /api/bookings/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update booking' }, 500)
   }
 })
@@ -152,7 +153,7 @@ bookingsRoutes.delete('/:id', async (c) => {
 
     return c.json({ success: true, message: 'Booking deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/bookings/:id error:', err?.message)
+    logger.error('DELETE /api/bookings/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete booking' }, 500)
   }
 })

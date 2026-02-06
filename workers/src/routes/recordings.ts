@@ -1,6 +1,6 @@
 /**
  * Recordings Routes
- * 
+ *
  * Endpoints:
  *   GET  /     - List recordings for organization
  *   GET  /:id  - Get a single recording by ID
@@ -12,6 +12,7 @@ import type { Env } from '../index'
 import { getDb } from '../lib/db'
 import { requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
+import { logger } from '../lib/logger'
 
 export const recordingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -61,7 +62,7 @@ recordingsRoutes.get('/', async (c) => {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     })
   } catch (err: any) {
-    console.error('GET /api/recordings error:', err?.message)
+    logger.error('GET /api/recordings error', { error: err?.message })
     return c.json({ success: false, error: 'Failed to list recordings' }, 500)
   }
 })
@@ -98,26 +99,28 @@ recordingsRoutes.get('/:id', async (c) => {
     }
 
     // Audit log: Recording access (sensitive media) - non-blocking, best-effort
-    void db.query(
-      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
+    void db
+      .query(
+        `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        session.organization_id,
-        session.user_id,
-        'recordings',
-        recordingId,
-        'recording:accessed',
-        JSON.stringify({ accessed_at: new Date().toISOString() }),
-        new Date().toISOString(),
-      ]
-    ).catch((e) => console.warn('Failed to write audit log', e))
+        [
+          session.organization_id,
+          session.user_id,
+          'recordings',
+          recordingId,
+          'recording:accessed',
+          JSON.stringify({ accessed_at: new Date().toISOString() }),
+          new Date().toISOString(),
+        ]
+      )
+      .catch((e) => logger.warn('Failed to write audit log', { error: (e as Error)?.message }))
 
     const urlMatch = recording.recording_url?.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/)
     if (!urlMatch) {
       return c.json({
         success: true,
         recording,
-        signedUrl: recording.recording_url
+        signedUrl: recording.recording_url,
       })
     }
 
@@ -129,18 +132,18 @@ recordingsRoutes.get('/:id', async (c) => {
       return c.json({
         success: true,
         recording,
-        signedUrl: recording.recording_url
+        signedUrl: recording.recording_url,
       })
     } catch (e) {
-      console.error('Failed to generate signed URL', e)
+      logger.error('Failed to generate signed URL', { error: (e as Error)?.message })
       return c.json({
         success: true,
         recording,
-        signedUrl: recording.recording_url
+        signedUrl: recording.recording_url,
       })
     }
   } catch (err: any) {
-    console.error('GET /api/recordings/[id] error:', err)
+    logger.error('GET /api/recordings/:id error', { error: (err as Error)?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
@@ -171,23 +174,25 @@ recordingsRoutes.delete('/:id', async (c) => {
     }
 
     // Audit log: Recording deleted - non-blocking
-    void db.query(
-      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
+    void db
+      .query(
+        `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        session.organization_id,
-        session.user_id,
-        'recordings',
-        recordingId,
-        'recording:deleted',
-        JSON.stringify({ deleted_at: new Date().toISOString() }),
-        new Date().toISOString(),
-      ]
-    ).catch((e) => console.warn('Failed to write audit log', e))
+        [
+          session.organization_id,
+          session.user_id,
+          'recordings',
+          recordingId,
+          'recording:deleted',
+          JSON.stringify({ deleted_at: new Date().toISOString() }),
+          new Date().toISOString(),
+        ]
+      )
+      .catch((e) => logger.warn('Failed to write audit log', { error: (e as Error)?.message }))
 
     return c.json({ success: true, message: 'Recording deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/recordings/[id] error:', err)
+    logger.error('DELETE /api/recordings/:id error', { error: err?.message })
     return c.json({ success: false, error: 'Failed to delete recording' }, 500)
   }
 })

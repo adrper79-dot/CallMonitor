@@ -15,6 +15,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateAIConfigSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const aiConfigRoutes = new Hono<{ Bindings: Env }>()
 
@@ -58,9 +59,10 @@ aiConfigRoutes.get('/', async (c) => {
       [session.organization_id]
     )
 
-    const config = result.rows.length > 0
-      ? { ...DEFAULT_CONFIG, ...result.rows[0].config }
-      : { ...DEFAULT_CONFIG }
+    const config =
+      result.rows.length > 0
+        ? { ...DEFAULT_CONFIG, ...result.rows[0].config }
+        : { ...DEFAULT_CONFIG }
 
     return c.json({
       success: true,
@@ -68,7 +70,7 @@ aiConfigRoutes.get('/', async (c) => {
       updated_at: result.rows[0]?.updated_at || null,
     })
   } catch (err: any) {
-    console.error('GET /api/ai-config error:', err?.message)
+    logger.error('GET /api/ai-config error', { error: err?.message })
     return c.json({ error: 'Failed to get AI config' }, 500)
   }
 })
@@ -103,7 +105,7 @@ aiConfigRoutes.put('/', async (c) => {
       updated_at: result.rows[0].updated_at,
     })
   } catch (err: any) {
-    console.error('PUT /api/ai-config error:', err?.message)
+    logger.error('PUT /api/ai-config error', { error: err?.message })
     return c.json({ error: 'Failed to update AI config' }, 500)
   }
 })

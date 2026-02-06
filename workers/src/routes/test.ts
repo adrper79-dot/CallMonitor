@@ -1,12 +1,12 @@
 /**
  * Live Test Runner Routes — Real integration tests executed on Workers
- * 
+ *
  * NO MOCKS. Every test hits real infrastructure and real external services.
  * Tests distinguish between:
  *   - SERVICE DOWN: The service is unreachable (network/config issue)
  *   - TEST FAILURE: The service is reachable but returned unexpected results
  *   - DEGRADED: Service is slow but functional
- * 
+ *
  * Supports individual test execution and full suite runs.
  */
 
@@ -15,11 +15,20 @@ import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import {
-  probeDatabase, probeDatabaseTables, probeKV, probeR2,
-  probeTelnyx, probeOpenAI, probeStripe, probeAssemblyAI,
-  probeAll, type ProbeResult, type ServiceStatus,
+  probeDatabase,
+  probeDatabaseTables,
+  probeKV,
+  probeR2,
+  probeTelnyx,
+  probeOpenAI,
+  probeStripe,
+  probeAssemblyAI,
+  probeAll,
+  type ProbeResult,
+  type ServiceStatus,
 } from '../lib/health-probes'
 import { generateCorrelationId } from '../lib/errors'
+import { logger } from '../lib/logger'
 
 export const testRoutes = new Hono<{ Bindings: Env }>()
 
@@ -47,7 +56,6 @@ type TestFunction = (env: Env, session: any) => Promise<TestResult>
 // ─── Test Registry ──────────────────────────────────────────────────────────
 
 const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
-
   // ═══════════════════════════════════════════════════════════════════════════
   // INFRASTRUCTURE TESTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -68,17 +76,34 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       const probe = await probeR2(env)
       return probeToResult('r2-storage', 'R2 Object Storage', 'infrastructure', probe)
     },
-    'hyperdrive': async (env) => {
+    hyperdrive: async (env) => {
       const start = Date.now()
       try {
         if (!env.HYPERDRIVE) {
-          return fail('hyperdrive', 'Hyperdrive Binding', 'infrastructure', 'HYPERDRIVE binding not available', Date.now() - start)
+          return fail(
+            'hyperdrive',
+            'Hyperdrive Binding',
+            'infrastructure',
+            'HYPERDRIVE binding not available',
+            Date.now() - start
+          )
         }
         const connStr = env.HYPERDRIVE.connectionString
-        return pass('hyperdrive', 'Hyperdrive Binding', 'infrastructure',
-          `Hyperdrive connected (host: ${new URL(connStr).hostname.substring(0, 20)}...)`, Date.now() - start)
+        return pass(
+          'hyperdrive',
+          'Hyperdrive Binding',
+          'infrastructure',
+          `Hyperdrive connected (host: ${new URL(connStr).hostname.substring(0, 20)}...)`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('hyperdrive', 'Hyperdrive Binding', 'infrastructure', err.message, Date.now() - start)
+        return serviceDown(
+          'hyperdrive',
+          'Hyperdrive Binding',
+          'infrastructure',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -89,21 +114,46 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   auth: {
     'session-valid': async (env, session) => {
       const start = Date.now()
-      if (!session) return fail('session-valid', 'Session Validation', 'auth', 'No valid session — test runner must be authenticated', Date.now() - start)
-      return pass('session-valid', 'Session Validation', 'auth',
-        `Authenticated as ${session.email} (role: ${session.role})`, Date.now() - start,
-        [`User ID: ${session.user_id}`, `Org: ${session.organization_id}`, `Role: ${session.role}`])
+      if (!session)
+        return fail(
+          'session-valid',
+          'Session Validation',
+          'auth',
+          'No valid session — test runner must be authenticated',
+          Date.now() - start
+        )
+      return pass(
+        'session-valid',
+        'Session Validation',
+        'auth',
+        `Authenticated as ${session.email} (role: ${session.role})`,
+        Date.now() - start,
+        [`User ID: ${session.user_id}`, `Org: ${session.organization_id}`, `Role: ${session.role}`]
+      )
     },
     'session-table': async (env) => {
       const start = Date.now()
       try {
         const db = getDb(env)
-        const result = await db.query(`SELECT COUNT(*) as count FROM public.sessions WHERE expires > NOW()`)
+        const result = await db.query(
+          `SELECT COUNT(*) as count FROM public.sessions WHERE expires > NOW()`
+        )
         const count = parseInt(result.rows[0]?.count || '0')
-        return pass('session-table', 'Sessions Table', 'auth',
-          `${count} active sessions in database`, Date.now() - start)
+        return pass(
+          'session-table',
+          'Sessions Table',
+          'auth',
+          `${count} active sessions in database`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('session-table', 'Sessions Table', 'auth', err.message, Date.now() - start)
+        return serviceDown(
+          'session-table',
+          'Sessions Table',
+          'auth',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'user-table': async (env) => {
@@ -112,8 +162,13 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM public.users`)
         const count = parseInt(result.rows[0]?.count || '0')
-        return pass('user-table', 'Users Table', 'auth',
-          `${count} users in database`, Date.now() - start)
+        return pass(
+          'user-table',
+          'Users Table',
+          'auth',
+          `${count} users in database`,
+          Date.now() - start
+        )
       } catch (err: any) {
         return serviceDown('user-table', 'Users Table', 'auth', err.message, Date.now() - start)
       }
@@ -134,14 +189,30 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         const pbkdf2 = parseInt(row?.pbkdf2_count || '0')
         const legacy = parseInt(row?.legacy_count || '0')
         if (legacy > 0) {
-          return warn('password-security', 'Password Security (PBKDF2)', 'auth',
-            `${legacy} users still on legacy SHA-256 hashing (will migrate on next login)`, Date.now() - start,
-            [`Total with passwords: ${total}`, `PBKDF2: ${pbkdf2}`, `Legacy SHA-256: ${legacy}`])
+          return warn(
+            'password-security',
+            'Password Security (PBKDF2)',
+            'auth',
+            `${legacy} users still on legacy SHA-256 hashing (will migrate on next login)`,
+            Date.now() - start,
+            [`Total with passwords: ${total}`, `PBKDF2: ${pbkdf2}`, `Legacy SHA-256: ${legacy}`]
+          )
         }
-        return pass('password-security', 'Password Security (PBKDF2)', 'auth',
-          `All ${total} users on PBKDF2-SHA256`, Date.now() - start)
+        return pass(
+          'password-security',
+          'Password Security (PBKDF2)',
+          'auth',
+          `All ${total} users on PBKDF2-SHA256`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('password-security', 'Password Security (PBKDF2)', 'auth', err.message, Date.now() - start)
+        return serviceDown(
+          'password-security',
+          'Password Security (PBKDF2)',
+          'auth',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -150,19 +221,19 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   // EXTERNAL SERVICES
   // ═══════════════════════════════════════════════════════════════════════════
   services: {
-    'telnyx': async (env) => {
+    telnyx: async (env) => {
       const probe = await probeTelnyx(env)
       return probeToResult('telnyx', 'Telnyx Telephony API', 'services', probe)
     },
-    'openai': async (env) => {
+    openai: async (env) => {
       const probe = await probeOpenAI(env)
       return probeToResult('openai', 'OpenAI API', 'services', probe)
     },
-    'stripe': async (env) => {
+    stripe: async (env) => {
       const probe = await probeStripe(env)
       return probeToResult('stripe', 'Stripe Billing API', 'services', probe)
     },
-    'assemblyai': async (env) => {
+    assemblyai: async (env) => {
       const probe = await probeAssemblyAI(env)
       return probeToResult('assemblyai', 'AssemblyAI Transcription API', 'services', probe)
     },
@@ -177,10 +248,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM bond_ai_conversations`)
-        return pass('conversations-table', 'Bond AI Conversations Table', 'bond_ai',
-          `${result.rows[0]?.count || 0} conversations`, Date.now() - start)
+        return pass(
+          'conversations-table',
+          'Bond AI Conversations Table',
+          'bond_ai',
+          `${result.rows[0]?.count || 0} conversations`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('conversations-table', 'Bond AI Conversations Table', 'bond_ai', err.message, Date.now() - start)
+        return serviceDown(
+          'conversations-table',
+          'Bond AI Conversations Table',
+          'bond_ai',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'messages-table': async (env) => {
@@ -188,10 +270,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM bond_ai_messages`)
-        return pass('messages-table', 'Bond AI Messages Table', 'bond_ai',
-          `${result.rows[0]?.count || 0} messages`, Date.now() - start)
+        return pass(
+          'messages-table',
+          'Bond AI Messages Table',
+          'bond_ai',
+          `${result.rows[0]?.count || 0} messages`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('messages-table', 'Bond AI Messages Table', 'bond_ai', err.message, Date.now() - start)
+        return serviceDown(
+          'messages-table',
+          'Bond AI Messages Table',
+          'bond_ai',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'alerts-table': async (env) => {
@@ -205,31 +298,62 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           FROM bond_ai_alerts
         `)
         const r = result.rows[0]
-        return pass('alerts-table', 'Bond AI Alerts Table', 'bond_ai',
-          `${r?.total || 0} alerts (${r?.active || 0} active, ${r?.critical || 0} critical)`, Date.now() - start)
+        return pass(
+          'alerts-table',
+          'Bond AI Alerts Table',
+          'bond_ai',
+          `${r?.total || 0} alerts (${r?.active || 0} active, ${r?.critical || 0} critical)`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('alerts-table', 'Bond AI Alerts Table', 'bond_ai', err.message, Date.now() - start)
+        return serviceDown(
+          'alerts-table',
+          'Bond AI Alerts Table',
+          'bond_ai',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'alert-rules-table': async (env) => {
       const start = Date.now()
       try {
         const db = getDb(env)
-        const result = await db.query(`SELECT COUNT(*) as count FROM bond_ai_alert_rules WHERE is_enabled = true`)
-        return pass('alert-rules-table', 'Bond AI Alert Rules', 'bond_ai',
-          `${result.rows[0]?.count || 0} active alert rules`, Date.now() - start)
+        const result = await db.query(
+          `SELECT COUNT(*) as count FROM bond_ai_alert_rules WHERE is_enabled = true`
+        )
+        return pass(
+          'alert-rules-table',
+          'Bond AI Alert Rules',
+          'bond_ai',
+          `${result.rows[0]?.count || 0} active alert rules`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('alert-rules-table', 'Bond AI Alert Rules', 'bond_ai', err.message, Date.now() - start)
+        return serviceDown(
+          'alert-rules-table',
+          'Bond AI Alert Rules',
+          'bond_ai',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'openai-chat': async (env) => {
       const start = Date.now()
-      if (!env.OPENAI_API_KEY) return fail('openai-chat', 'Bond AI Chat (OpenAI)', 'bond_ai', 'OPENAI_API_KEY not configured', 0)
+      if (!env.OPENAI_API_KEY)
+        return fail(
+          'openai-chat',
+          'Bond AI Chat (OpenAI)',
+          'bond_ai',
+          'OPENAI_API_KEY not configured',
+          0
+        )
       try {
         const resp = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -242,13 +366,29 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         if (resp.status === 200) {
           const data: any = await resp.json()
           const reply = data.choices?.[0]?.message?.content || ''
-          return pass('openai-chat', 'Bond AI Chat (OpenAI)', 'bond_ai',
-            `Model responded in ${ms}ms: "${reply.trim()}"`, ms)
+          return pass(
+            'openai-chat',
+            'Bond AI Chat (OpenAI)',
+            'bond_ai',
+            `Model responded in ${ms}ms: "${reply.trim()}"`,
+            ms
+          )
         }
-        return fail('openai-chat', 'Bond AI Chat (OpenAI)', 'bond_ai',
-          `OpenAI returned ${resp.status}`, ms)
+        return fail(
+          'openai-chat',
+          'Bond AI Chat (OpenAI)',
+          'bond_ai',
+          `OpenAI returned ${resp.status}`,
+          ms
+        )
       } catch (err: any) {
-        return serviceDown('openai-chat', 'Bond AI Chat (OpenAI)', 'bond_ai', err.message, Date.now() - start)
+        return serviceDown(
+          'openai-chat',
+          'Bond AI Chat (OpenAI)',
+          'bond_ai',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -262,8 +402,13 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM teams WHERE is_active = true`)
-        return pass('teams-table', 'Teams Table', 'teams',
-          `${result.rows[0]?.count || 0} active teams`, Date.now() - start)
+        return pass(
+          'teams-table',
+          'Teams Table',
+          'teams',
+          `${result.rows[0]?.count || 0} active teams`,
+          Date.now() - start
+        )
       } catch (err: any) {
         return serviceDown('teams-table', 'Teams Table', 'teams', err.message, Date.now() - start)
       }
@@ -273,10 +418,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM team_members`)
-        return pass('team-members-table', 'Team Members Table', 'teams',
-          `${result.rows[0]?.count || 0} team memberships`, Date.now() - start)
+        return pass(
+          'team-members-table',
+          'Team Members Table',
+          'teams',
+          `${result.rows[0]?.count || 0} team memberships`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('team-members-table', 'Team Members Table', 'teams', err.message, Date.now() - start)
+        return serviceDown(
+          'team-members-table',
+          'Team Members Table',
+          'teams',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'rbac-permissions': async (env) => {
@@ -290,10 +446,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         `)
         const roleMap = result.rows.map((r: any) => `${r.role}: ${r.perm_count}`).join(', ')
         const total = result.rows.reduce((sum: number, r: any) => sum + parseInt(r.perm_count), 0)
-        return pass('rbac-permissions', 'RBAC Permissions', 'teams',
-          `${total} permissions across ${result.rows.length} roles (${roleMap})`, Date.now() - start)
+        return pass(
+          'rbac-permissions',
+          'RBAC Permissions',
+          'teams',
+          `${total} permissions across ${result.rows.length} roles (${roleMap})`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('rbac-permissions', 'RBAC Permissions', 'teams', err.message, Date.now() - start)
+        return serviceDown(
+          'rbac-permissions',
+          'RBAC Permissions',
+          'teams',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'org-members': async (env) => {
@@ -306,10 +473,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           GROUP BY role ORDER BY role
         `)
         const roleMap = result.rows.map((r: any) => `${r.role}: ${r.count}`).join(', ')
-        return pass('org-members', 'Organization Members', 'teams',
-          `${roleMap}`, Date.now() - start)
+        return pass(
+          'org-members',
+          'Organization Members',
+          'teams',
+          `${roleMap}`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('org-members', 'Organization Members', 'teams', err.message, Date.now() - start)
+        return serviceDown(
+          'org-members',
+          'Organization Members',
+          'teams',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -330,8 +508,13 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           FROM calls
         `)
         const r = result.rows[0]
-        return pass('calls-table', 'Calls Table', 'voice',
-          `${r?.total || 0} total calls (${r?.completed || 0} completed, ${r?.last_24h || 0} in last 24h)`, Date.now() - start)
+        return pass(
+          'calls-table',
+          'Calls Table',
+          'voice',
+          `${r?.total || 0} total calls (${r?.completed || 0} completed, ${r?.last_24h || 0} in last 24h)`,
+          Date.now() - start
+        )
       } catch (err: any) {
         return serviceDown('calls-table', 'Calls Table', 'voice', err.message, Date.now() - start)
       }
@@ -347,10 +530,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           FROM voice_configs
         `)
         const r = result.rows[0]
-        return pass('voice-configs', 'Voice Configurations', 'voice',
-          `${r?.total || 0} configs (${r?.recording_enabled || 0} with recording, ${r?.transcription_enabled || 0} with transcription)`, Date.now() - start)
+        return pass(
+          'voice-configs',
+          'Voice Configurations',
+          'voice',
+          `${r?.total || 0} configs (${r?.recording_enabled || 0} with recording, ${r?.transcription_enabled || 0} with transcription)`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('voice-configs', 'Voice Configurations', 'voice', err.message, Date.now() - start)
+        return serviceDown(
+          'voice-configs',
+          'Voice Configurations',
+          'voice',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'recordings-table': async (env) => {
@@ -358,30 +552,74 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM recordings`)
-        return pass('recordings-table', 'Recordings Table', 'voice',
-          `${result.rows[0]?.count || 0} recordings stored`, Date.now() - start)
+        return pass(
+          'recordings-table',
+          'Recordings Table',
+          'voice',
+          `${result.rows[0]?.count || 0} recordings stored`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('recordings-table', 'Recordings Table', 'voice', err.message, Date.now() - start)
+        return serviceDown(
+          'recordings-table',
+          'Recordings Table',
+          'voice',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'telnyx-connection': async (env) => {
       const start = Date.now()
-      if (!env.TELNYX_API_KEY) return fail('telnyx-connection', 'Telnyx Connection ID', 'voice', 'TELNYX_API_KEY not configured', 0)
+      if (!env.TELNYX_API_KEY)
+        return fail(
+          'telnyx-connection',
+          'Telnyx Connection ID',
+          'voice',
+          'TELNYX_API_KEY not configured',
+          0
+        )
       try {
-        if (!env.TELNYX_CONNECTION_ID) return fail('telnyx-connection', 'Telnyx Connection ID', 'voice', 'TELNYX_CONNECTION_ID not configured', 0)
-        const resp = await fetch(`https://api.telnyx.com/v2/credential_connections/${env.TELNYX_CONNECTION_ID}`, {
-          headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
-        })
+        if (!env.TELNYX_CONNECTION_ID)
+          return fail(
+            'telnyx-connection',
+            'Telnyx Connection ID',
+            'voice',
+            'TELNYX_CONNECTION_ID not configured',
+            0
+          )
+        const resp = await fetch(
+          `https://api.telnyx.com/v2/credential_connections/${env.TELNYX_CONNECTION_ID}`,
+          {
+            headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
+          }
+        )
         const ms = Date.now() - start
         if (resp.status === 200) {
           const data: any = await resp.json()
-          return pass('telnyx-connection', 'Telnyx Credential Connection', 'voice',
-            `Connection "${data?.data?.connection_name || 'unknown'}" is active`, ms)
+          return pass(
+            'telnyx-connection',
+            'Telnyx Credential Connection',
+            'voice',
+            `Connection "${data?.data?.connection_name || 'unknown'}" is active`,
+            ms
+          )
         }
-        return fail('telnyx-connection', 'Telnyx Credential Connection', 'voice',
-          `Telnyx returned ${resp.status} for connection ID`, ms)
+        return fail(
+          'telnyx-connection',
+          'Telnyx Credential Connection',
+          'voice',
+          `Telnyx returned ${resp.status} for connection ID`,
+          ms
+        )
       } catch (err: any) {
-        return serviceDown('telnyx-connection', 'Telnyx Credential Connection', 'voice', err.message, Date.now() - start)
+        return serviceDown(
+          'telnyx-connection',
+          'Telnyx Credential Connection',
+          'voice',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -400,13 +638,18 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           FROM audit_logs
         `)
         const r = result.rows[0]
-        return pass('audit-logs', 'Audit Logs', 'analytics',
-          `${r?.total || 0} total entries (${r?.last_24h || 0} in last 24h)`, Date.now() - start)
+        return pass(
+          'audit-logs',
+          'Audit Logs',
+          'analytics',
+          `${r?.total || 0} total entries (${r?.last_24h || 0} in last 24h)`,
+          Date.now() - start
+        )
       } catch (err: any) {
         return serviceDown('audit-logs', 'Audit Logs', 'analytics', err.message, Date.now() - start)
       }
     },
-    'organizations': async (env) => {
+    organizations: async (env) => {
       const start = Date.now()
       try {
         const db = getDb(env)
@@ -416,26 +659,53 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           FROM organizations
         `)
         const r = result.rows[0]
-        return pass('organizations', 'Organizations', 'analytics',
-          `${r?.count || 0} organizations (${r?.enterprise || 0} enterprise)`, Date.now() - start)
+        return pass(
+          'organizations',
+          'Organizations',
+          'analytics',
+          `${r?.count || 0} organizations (${r?.enterprise || 0} enterprise)`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('organizations', 'Organizations', 'analytics', err.message, Date.now() - start)
+        return serviceDown(
+          'organizations',
+          'Organizations',
+          'analytics',
+          err.message,
+          Date.now() - start
+        )
       }
     },
-    'scorecards': async (env) => {
+    scorecards: async (env) => {
       const start = Date.now()
       try {
         const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM scorecards`)
-        return pass('scorecards', 'Scorecards Table', 'analytics',
-          `${result.rows[0]?.count || 0} scorecards`, Date.now() - start)
+        return pass(
+          'scorecards',
+          'Scorecards Table',
+          'analytics',
+          `${result.rows[0]?.count || 0} scorecards`,
+          Date.now() - start
+        )
       } catch (err: any) {
         // Table might not exist — that's a valid finding, not a service-down
         if (err.message?.includes('does not exist')) {
-          return fail('scorecards', 'Scorecards Table', 'analytics',
-            'Table "scorecards" does not exist', Date.now() - start)
+          return fail(
+            'scorecards',
+            'Scorecards Table',
+            'analytics',
+            'Table "scorecards" does not exist',
+            Date.now() - start
+          )
         }
-        return serviceDown('scorecards', 'Scorecards Table', 'analytics', err.message, Date.now() - start)
+        return serviceDown(
+          'scorecards',
+          'Scorecards Table',
+          'analytics',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -454,10 +724,21 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           WHERE constraint_type = 'FOREIGN KEY' AND table_schema = 'public'
         `)
         const count = parseInt(result.rows[0]?.count || '0')
-        return pass('fk-constraints', 'Foreign Key Constraints', 'integrity',
-          `${count} foreign key constraints enforced`, Date.now() - start)
+        return pass(
+          'fk-constraints',
+          'Foreign Key Constraints',
+          'integrity',
+          `${count} foreign key constraints enforced`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('fk-constraints', 'Foreign Key Constraints', 'integrity', err.message, Date.now() - start)
+        return serviceDown(
+          'fk-constraints',
+          'Foreign Key Constraints',
+          'integrity',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'rls-policies': async (env) => {
@@ -472,12 +753,28 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         const count = result.rows.length
         const tables = [...new Set(result.rows.map((r: any) => r.tablename))]
         return count > 0
-          ? pass('rls-policies', 'Row-Level Security Policies', 'integrity',
-              `${count} RLS policies on ${tables.length} tables`, Date.now() - start)
-          : warn('rls-policies', 'Row-Level Security Policies', 'integrity',
-              'No RLS policies found — data isolation not enforced', Date.now() - start)
+          ? pass(
+              'rls-policies',
+              'Row-Level Security Policies',
+              'integrity',
+              `${count} RLS policies on ${tables.length} tables`,
+              Date.now() - start
+            )
+          : warn(
+              'rls-policies',
+              'Row-Level Security Policies',
+              'integrity',
+              'No RLS policies found — data isolation not enforced',
+              Date.now() - start
+            )
       } catch (err: any) {
-        return serviceDown('rls-policies', 'Row-Level Security Policies', 'integrity', err.message, Date.now() - start)
+        return serviceDown(
+          'rls-policies',
+          'Row-Level Security Policies',
+          'integrity',
+          err.message,
+          Date.now() - start
+        )
       }
     },
     'orphaned-sessions': async (env) => {
@@ -489,13 +786,29 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         `)
         const expired = parseInt(result.rows[0]?.count || '0')
         if (expired > 100) {
-          return warn('orphaned-sessions', 'Expired Sessions Cleanup', 'integrity',
-            `${expired} expired sessions need cleanup`, Date.now() - start)
+          return warn(
+            'orphaned-sessions',
+            'Expired Sessions Cleanup',
+            'integrity',
+            `${expired} expired sessions need cleanup`,
+            Date.now() - start
+          )
         }
-        return pass('orphaned-sessions', 'Expired Sessions Cleanup', 'integrity',
-          `${expired} expired sessions (acceptable)`, Date.now() - start)
+        return pass(
+          'orphaned-sessions',
+          'Expired Sessions Cleanup',
+          'integrity',
+          `${expired} expired sessions (acceptable)`,
+          Date.now() - start
+        )
       } catch (err: any) {
-        return serviceDown('orphaned-sessions', 'Expired Sessions Cleanup', 'integrity', err.message, Date.now() - start)
+        return serviceDown(
+          'orphaned-sessions',
+          'Expired Sessions Cleanup',
+          'integrity',
+          err.message,
+          Date.now() - start
+        )
       }
     },
   },
@@ -503,33 +816,106 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
 
 // ─── Helper Functions ───────────────────────────────────────────────────────
 
-function pass(id: string, name: string, category: string, details: string, duration_ms: number, output: string[] = []): TestResult {
-  return { test_id: id, test_name: name, category, passed: true, warning: false, service_down: false, duration_ms, details, output }
-}
-
-function fail(id: string, name: string, category: string, details: string, duration_ms: number, output: string[] = []): TestResult {
-  return { test_id: id, test_name: name, category, passed: false, warning: false, service_down: false, duration_ms, details, error: details, output,
-    differential: { expected: `${name} to be operational`, actual: details } }
-}
-
-function warn(id: string, name: string, category: string, details: string, duration_ms: number, output: string[] = []): TestResult {
-  return { test_id: id, test_name: name, category, passed: true, warning: true, service_down: false, duration_ms, details, output }
-}
-
-function serviceDown(id: string, name: string, category: string, error: string, duration_ms: number): TestResult {
+function pass(
+  id: string,
+  name: string,
+  category: string,
+  details: string,
+  duration_ms: number,
+  output: string[] = []
+): TestResult {
   return {
-    test_id: id, test_name: name, category,
-    passed: false, warning: false, service_down: true,
-    duration_ms, details: `SERVICE DOWN: ${error}`, error,
+    test_id: id,
+    test_name: name,
+    category,
+    passed: true,
+    warning: false,
+    service_down: false,
+    duration_ms,
+    details,
+    output,
+  }
+}
+
+function fail(
+  id: string,
+  name: string,
+  category: string,
+  details: string,
+  duration_ms: number,
+  output: string[] = []
+): TestResult {
+  return {
+    test_id: id,
+    test_name: name,
+    category,
+    passed: false,
+    warning: false,
+    service_down: false,
+    duration_ms,
+    details,
+    error: details,
+    output,
+    differential: { expected: `${name} to be operational`, actual: details },
+  }
+}
+
+function warn(
+  id: string,
+  name: string,
+  category: string,
+  details: string,
+  duration_ms: number,
+  output: string[] = []
+): TestResult {
+  return {
+    test_id: id,
+    test_name: name,
+    category,
+    passed: true,
+    warning: true,
+    service_down: false,
+    duration_ms,
+    details,
+    output,
+  }
+}
+
+function serviceDown(
+  id: string,
+  name: string,
+  category: string,
+  error: string,
+  duration_ms: number
+): TestResult {
+  return {
+    test_id: id,
+    test_name: name,
+    category,
+    passed: false,
+    warning: false,
+    service_down: true,
+    duration_ms,
+    details: `SERVICE DOWN: ${error}`,
+    error,
     output: [`⛔ ${name} is unreachable — this is an infrastructure issue, not a test failure`],
     differential: { expected: `${name} to be reachable`, actual: `Service unreachable: ${error}` },
   }
 }
 
 function probeToResult(id: string, name: string, category: string, probe: ProbeResult): TestResult {
-  if (probe.status === 'down') return serviceDown(id, name, category, probe.error || probe.details, probe.latency_ms)
-  if (probe.status === 'error') return fail(id, name, category, probe.error || probe.details, probe.latency_ms)
-  if (probe.status === 'degraded') return warn(id, name, category, `DEGRADED: ${probe.details} (${probe.latency_ms}ms)`, probe.latency_ms)
+  if (probe.status === 'down')
+    return serviceDown(id, name, category, probe.error || probe.details, probe.latency_ms)
+  if (probe.status === 'error')
+    return fail(id, name, category, probe.error || probe.details, probe.latency_ms)
+  if (probe.status === 'degraded')
+    return warn(
+      id,
+      name,
+      category,
+      `DEGRADED: ${probe.details} (${probe.latency_ms}ms)`,
+      probe.latency_ms
+    )
   return pass(id, name, category, probe.details, probe.latency_ms)
 }
 
@@ -544,7 +930,11 @@ testRoutes.get('/catalog', async (c) => {
       category: categoryId,
     })),
   }))
-  return c.json({ success: true, catalog, total_tests: catalog.reduce((sum, cat) => sum + cat.tests.length, 0) })
+  return c.json({
+    success: true,
+    catalog,
+    total_tests: catalog.reduce((sum, cat) => sum + cat.tests.length, 0),
+  })
 })
 
 // POST /api/test/run — Run a single test
@@ -568,27 +958,41 @@ testRoutes.post('/run', async (c) => {
 
     const category = TEST_REGISTRY[categoryId]
     if (!category) {
-      return c.json({ passed: false, error: `Unknown category: ${categoryId}`, correlation_id }, 404)
+      return c.json(
+        { passed: false, error: `Unknown category: ${categoryId}`, correlation_id },
+        404
+      )
     }
 
     const testFn = category[testId]
     if (!testFn) {
-      return c.json({ passed: false, error: `Unknown test: ${testId} in ${categoryId}`, correlation_id }, 404)
+      return c.json(
+        { passed: false, error: `Unknown test: ${testId} in ${categoryId}`, correlation_id },
+        404
+      )
     }
 
     const result = await testFn(c.env, session)
     return c.json({ ...result, correlation_id })
   } catch (err: any) {
-    console.error(JSON.stringify({
-      level: 'ERROR', correlation_id, path: '/api/test/run',
-      error: err.message, stack: err.stack,
-    }))
-    return c.json({
-      passed: false, warning: false, service_down: false,
-      error: err.message, details: 'Test runner crashed',
+    logger.error('Test runner error', {
       correlation_id,
-      differential: { expected: 'Test to execute', actual: `Runner error: ${err.message}` },
-    }, 500)
+      path: '/api/test/run',
+      error: err.message,
+      stack: err.stack,
+    })
+    return c.json(
+      {
+        passed: false,
+        warning: false,
+        service_down: false,
+        error: err.message,
+        details: 'Test runner crashed',
+        correlation_id,
+        differential: { expected: 'Test to execute', actual: `Runner error: ${err.message}` },
+      },
+      500
+    )
   }
 })
 
@@ -603,7 +1007,10 @@ testRoutes.post('/run-all', async (c) => {
   } catch (_) {}
 
   const results: TestResult[] = []
-  const category_results: Record<string, { passed: number; failed: number; warnings: number; down: number; tests: TestResult[] }> = {}
+  const category_results: Record<
+    string,
+    { passed: number; failed: number; warnings: number; down: number; tests: TestResult[] }
+  > = {}
 
   for (const [categoryId, tests] of Object.entries(TEST_REGISTRY)) {
     category_results[categoryId] = { passed: 0, failed: 0, warnings: 0, down: 0, tests: [] }
@@ -629,18 +1036,20 @@ testRoutes.post('/run-all', async (c) => {
 
   const summary = {
     total: results.length,
-    passed: results.filter(r => r.passed && !r.warning).length,
-    warnings: results.filter(r => r.warning).length,
-    failed: results.filter(r => !r.passed && !r.service_down).length,
-    services_down: results.filter(r => r.service_down).length,
+    passed: results.filter((r) => r.passed && !r.warning).length,
+    warnings: results.filter((r) => r.warning).length,
+    failed: results.filter((r) => !r.passed && !r.service_down).length,
+    services_down: results.filter((r) => r.service_down).length,
     suite_duration_ms: Date.now() - suite_start,
   }
 
   // Log full suite result for monitoring
-  console.log(JSON.stringify({
-    level: 'INFO', event: 'test_suite_complete', correlation_id, ...summary,
+  logger.info('Test suite complete', {
+    event: 'test_suite_complete',
+    correlation_id,
+    ...summary,
     timestamp: new Date().toISOString(),
-  }))
+  })
 
   return c.json({
     success: true,

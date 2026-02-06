@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const healthRoutes = new Hono<{ Bindings: Env }>()
 
@@ -23,7 +24,7 @@ healthRoutes.get('/', async (c) => {
   // 1. Database check via Hyperdrive
   try {
     const dbStart = Date.now()
-    
+
     // Check if Hyperdrive is available
     if (!c.env.HYPERDRIVE) {
       checks.push({
@@ -45,7 +46,7 @@ healthRoutes.get('/', async (c) => {
       })
     }
   } catch (err: any) {
-    console.error('Database health check error:', err)
+    logger.error('Database health check error', { error: err?.message || err })
     checks.push({
       service: 'database',
       status: 'critical',
@@ -96,22 +97,25 @@ healthRoutes.get('/', async (c) => {
   }
 
   // Determine overall status
-  const hasCritical = checks.some(c => c.status === 'critical')
-  const hasDegraded = checks.some(c => c.status === 'degraded')
+  const hasCritical = checks.some((c) => c.status === 'critical')
+  const hasDegraded = checks.some((c) => c.status === 'degraded')
   const overallStatus = hasCritical ? 'critical' : hasDegraded ? 'degraded' : 'healthy'
 
   const totalTime = Date.now() - startTime
 
-  return c.json({
-    status: overallStatus,
-    timestamp: new Date().toISOString(),
-    responseTime: totalTime,
-    checks,
-    environment: {
-      runtime: 'cloudflare-workers',
-      region: c.req.header('cf-ray')?.split('-')[1] || 'unknown',
+  return c.json(
+    {
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      responseTime: totalTime,
+      checks,
+      environment: {
+        runtime: 'cloudflare-workers',
+        region: c.req.header('cf-ray')?.split('-')[1] || 'unknown',
+      },
     },
-  }, overallStatus === 'critical' ? 503 : 200)
+    overallStatus === 'critical' ? 503 : 200
+  )
 })
 
 // Simple ping
@@ -127,6 +131,6 @@ healthRoutes.get('/auth-providers', (c) => {
       { id: 'google', name: 'Google', enabled: false },
       { id: 'github', name: 'GitHub', enabled: false },
     ],
-    defaultProvider: 'credentials'
+    defaultProvider: 'credentials',
   })
 })

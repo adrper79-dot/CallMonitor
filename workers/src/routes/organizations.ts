@@ -4,6 +4,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateOrgSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const organizationsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -46,7 +47,7 @@ organizationsRoutes.post('/', async (c) => {
         [name.trim(), user_id]
       )
     } catch (insertError: any) {
-      console.error('POST /api/organizations insert error:', insertError?.message)
+      logger.error('POST /api/organizations insert error', { error: insertError?.message })
       throw insertError
     }
 
@@ -67,13 +68,13 @@ organizationsRoutes.post('/', async (c) => {
         plan: 'free',
         plan_status: 'active',
         member_count: 1,
-        created_at: org.created_at
+        created_at: org.created_at,
       },
       role: 'admin',
-      message: 'Organization created successfully'
+      message: 'Organization created successfully',
     })
   } catch (err: any) {
-    console.error('POST /api/organizations error:', err?.message)
+    logger.error('POST /api/organizations error', { error: err?.message })
     return c.json({ error: 'Failed to create organization' }, 500)
   }
 })
@@ -108,8 +109,8 @@ organizationsRoutes.get('/current', async (c) => {
       id: org.id,
       name: org.name,
       plan: org.plan || 'free',
-      plan_status: 'active'
+      plan_status: 'active',
     },
-    role: org.role || 'viewer'
+    role: org.role || 'viewer',
   })
 })

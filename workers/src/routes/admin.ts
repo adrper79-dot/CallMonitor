@@ -15,6 +15,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateAuthProviderSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const adminRoutes = new Hono<{ Bindings: Env }>()
 
@@ -61,7 +62,7 @@ adminRoutes.get('/auth-providers', async (c) => {
       const existing = providerMap.get(name)
       return {
         provider: name,
-        enabled: existing?.enabled ?? (name === 'credentials'),
+        enabled: existing?.enabled ?? name === 'credentials',
         configured: !!existing,
         client_id: existing?.client_id ? '***' + existing.client_id.slice(-4) : null,
         updated_at: existing?.updated_at || null,
@@ -70,7 +71,7 @@ adminRoutes.get('/auth-providers', async (c) => {
 
     return c.json({ success: true, providers })
   } catch (err: any) {
-    console.error('GET /api/_admin/auth-providers error:', err?.message)
+    logger.error('GET /api/_admin/auth-providers error', { error: err?.message })
     return c.json({ error: 'Failed to fetch auth providers' }, 500)
   }
 })
@@ -118,7 +119,7 @@ adminRoutes.post('/auth-providers', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('POST /api/_admin/auth-providers error:', err?.message)
+    logger.error('POST /api/_admin/auth-providers error', { error: err?.message })
     return c.json({ error: 'Failed to update auth provider' }, 500)
   }
 })

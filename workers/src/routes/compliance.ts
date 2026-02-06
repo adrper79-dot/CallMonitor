@@ -16,10 +16,8 @@ import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
-import {
-  LogComplianceViolationSchema,
-  ResolveComplianceViolationSchema,
-} from '../lib/schemas'
+import { LogComplianceViolationSchema, ResolveComplianceViolationSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const complianceRoutes = new Hono<{ Bindings: Env }>()
 
@@ -51,12 +49,15 @@ complianceRoutes.post('/violations', async (c) => {
       ]
     )
 
-    return c.json({
-      success: true,
-      violation: result.rows[0],
-    }, 201)
+    return c.json(
+      {
+        success: true,
+        violation: result.rows[0],
+      },
+      201
+    )
   } catch (err: any) {
-    console.error('POST /api/compliance/violations error:', err?.message)
+    logger.error('POST /api/compliance/violations error', { error: err?.message })
     return c.json({ error: 'Failed to log violation' }, 500)
   }
 })
@@ -110,7 +111,7 @@ complianceRoutes.get('/violations', async (c) => {
       offset,
     })
   } catch (err: any) {
-    console.error('GET /api/compliance/violations error:', err?.message)
+    logger.error('GET /api/compliance/violations error', { error: err?.message })
     // Return empty on error (table may not exist yet)
     return c.json({ success: true, violations: [], total: 0 })
   }
@@ -141,7 +142,7 @@ complianceRoutes.get('/violations/:id', async (c) => {
 
     return c.json({ success: true, violation: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/compliance/violations/:id error:', err?.message)
+    logger.error('GET /api/compliance/violations/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get violation' }, 500)
   }
 })
@@ -167,7 +168,13 @@ complianceRoutes.patch('/violations/:id', async (c) => {
           resolved_at = NOW()
       WHERE id = $4 AND organization_id = $5
       RETURNING *`,
-      [resolution_status, resolution_notes || null, session.user_id, violationId, session.organization_id]
+      [
+        resolution_status,
+        resolution_notes || null,
+        session.user_id,
+        violationId,
+        session.organization_id,
+      ]
     )
 
     if (result.rows.length === 0) {
@@ -176,7 +183,7 @@ complianceRoutes.patch('/violations/:id', async (c) => {
 
     return c.json({ success: true, violation: result.rows[0] })
   } catch (err: any) {
-    console.error('PATCH /api/compliance/violations/:id error:', err?.message)
+    logger.error('PATCH /api/compliance/violations/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update violation' }, 500)
   }
 })

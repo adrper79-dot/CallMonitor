@@ -1,6 +1,6 @@
 /**
  * Caller ID Routes - Manage verified caller ID numbers
- * 
+ *
  * Endpoints:
  *   GET  /         - List caller IDs for org
  *   GET  /verify   - Alias for GET / (frontend compat)
@@ -16,6 +16,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const callerIdRoutes = new Hono<{ Bindings: Env }>()
 
@@ -125,7 +126,7 @@ callerIdRoutes.get('/', async (c) => {
   try {
     return await listCallerIds(c)
   } catch (err: any) {
-    console.error('GET /api/caller-id error:', err?.message)
+    logger.error('GET /api/caller-id error', { error: err?.message })
     return c.json({ error: 'Failed to get caller IDs' }, 500)
   }
 })
@@ -135,7 +136,7 @@ callerIdRoutes.get('/verify', async (c) => {
   try {
     return await listCallerIds(c)
   } catch (err: any) {
-    console.error('GET /api/caller-id/verify error:', err?.message)
+    logger.error('GET /api/caller-id/verify error', { error: err?.message })
     return c.json({ error: 'Failed to get caller IDs' }, 500)
   }
 })
@@ -145,7 +146,7 @@ callerIdRoutes.post('/', async (c) => {
   try {
     return await initiateVerification(c)
   } catch (err: any) {
-    console.error('POST /api/caller-id error:', err?.message)
+    logger.error('POST /api/caller-id error', { error: err?.message })
     return c.json({ error: 'Failed to initiate verification' }, 500)
   }
 })
@@ -155,7 +156,7 @@ callerIdRoutes.post('/verify', async (c) => {
   try {
     return await initiateVerification(c)
   } catch (err: any) {
-    console.error('POST /api/caller-id/verify error:', err?.message)
+    logger.error('POST /api/caller-id/verify error', { error: err?.message })
     return c.json({ error: 'Failed to initiate verification' }, 500)
   }
 })
@@ -204,7 +205,7 @@ callerIdRoutes.put('/verify', async (c) => {
       phone_number,
     })
   } catch (err: any) {
-    console.error('PUT /api/caller-id/verify error:', err?.message)
+    logger.error('PUT /api/caller-id/verify error', { error: err?.message })
     return c.json({ error: 'Failed to verify caller ID' }, 500)
   }
 })
@@ -234,7 +235,7 @@ callerIdRoutes.delete('/:id', async (c) => {
 
     return c.json({ success: true, message: 'Caller ID removed' })
   } catch (err: any) {
-    console.error('DELETE /api/caller-id/:id error:', err?.message)
+    logger.error('DELETE /api/caller-id/:id error', { error: err?.message })
     return c.json({ error: 'Failed to remove caller ID' }, 500)
   }
 })

@@ -50,3 +50,4 @@ vercel.json
 # Workers dev secrets
 workers/.dev.vars
 .dev.vars
+workers/dist_dry/

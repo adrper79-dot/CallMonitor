@@ -9,6 +9,7 @@
 
 import type { Context, Next, MiddlewareHandler } from 'hono'
 import type { Env } from '../index'
+import { logger } from './logger'
 
 interface RateLimitConfig {
   /** Max requests allowed in the window */
@@ -39,7 +40,7 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
     const kv = c.env.KV
     if (!kv) {
       // KV not available (e.g. local dev without --kv) — skip silently
-      console.warn('[rate-limit] KV not bound, skipping rate limit check')
+      logger.warn('[rate-limit] KV not bound, skipping rate limit check')
       return next()
     }
 
@@ -93,7 +94,7 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
       }
     } catch (err) {
       // KV failure should never block requests — fail open
-      console.error('[rate-limit] KV error, failing open:', (err as Error).message)
+      logger.error('[rate-limit] KV error, failing open', { error: (err as Error).message })
     }
 
     return next()

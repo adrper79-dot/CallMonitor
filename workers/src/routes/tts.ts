@@ -14,6 +14,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TTSGenerateSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const ttsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -78,7 +79,7 @@ ttsRoutes.post('/generate', async (c) => {
 
     if (!ttsResponse.ok) {
       const errText = await ttsResponse.text()
-      console.error('[TTS] ElevenLabs error:', ttsResponse.status, errText)
+      logger.error('ElevenLabs TTS error', { status: ttsResponse.status, body: errText })
       return c.json({ error: 'TTS generation failed', status: ttsResponse.status }, 500)
     }
 
@@ -98,7 +99,14 @@ ttsRoutes.post('/generate', async (c) => {
       await db.query(
         `INSERT INTO tts_audio (organization_id, text, voice_id, language, file_key, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [session.organization_id, text.substring(0, 500), voiceIdResolved, language || 'en', fileName, session.user_id]
+        [
+          session.organization_id,
+          text.substring(0, 500),
+          voiceIdResolved,
+          language || 'en',
+          fileName,
+          session.user_id,
+        ]
       )
 
       return c.json({
@@ -114,7 +122,7 @@ ttsRoutes.post('/generate', async (c) => {
       headers: { 'Content-Type': 'audio/mpeg' },
     })
   } catch (err: any) {
-    console.error('POST /api/tts/generate error:', err?.message)
+    logger.error('POST /api/tts/generate error', { error: err?.message })
     return c.json({ error: 'Failed to generate TTS' }, 500)
   }
 })

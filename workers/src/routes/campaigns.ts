@@ -1,6 +1,6 @@
 /**
  * Campaigns Routes - Voice campaign management
- * 
+ *
  * Endpoints:
  *   GET    /           - List campaigns
  *   POST   /           - Create campaign
@@ -16,6 +16,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateCampaignSchema, UpdateCampaignSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const campaignsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -51,7 +52,7 @@ campaignsRoutes.get('/', async (c) => {
 
     return c.json({ success: true, campaigns: result.rows })
   } catch (err: any) {
-    console.error('GET /api/campaigns error:', err?.message)
+    logger.error('GET /api/campaigns error', { error: err?.message })
     return c.json({ error: 'Failed to get campaigns' }, 500)
   }
 })
@@ -93,7 +94,7 @@ campaignsRoutes.post('/', async (c) => {
 
     return c.json({ success: true, campaign: result.rows[0] }, 201)
   } catch (err: any) {
-    console.error('POST /api/campaigns error:', err?.message)
+    logger.error('POST /api/campaigns error', { error: err?.message })
     return c.json({ error: 'Failed to create campaign' }, 500)
   }
 })
@@ -125,7 +126,7 @@ campaignsRoutes.get('/:id', async (c) => {
 
     return c.json({ success: true, campaign: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/campaigns/:id error:', err?.message)
+    logger.error('GET /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get campaign' }, 500)
   }
 })
@@ -168,7 +169,9 @@ campaignsRoutes.get('/:id/stats', async (c) => {
       if (statsResult.rows.length > 0) {
         callStats = statsResult.rows[0]
       }
-    } catch { /* campaign_id column might not exist */ }
+    } catch {
+      /* campaign_id column might not exist */
+    }
 
     return c.json({
       success: true,
@@ -180,13 +183,12 @@ campaignsRoutes.get('/:id/stats', async (c) => {
         completed_calls: campaign.completed_calls || callStats.completed,
         failed_calls: callStats.failed,
         in_progress_calls: callStats.in_progress,
-        progress_percent: callStats.total > 0
-          ? Math.round((callStats.completed / callStats.total) * 100)
-          : 0,
+        progress_percent:
+          callStats.total > 0 ? Math.round((callStats.completed / callStats.total) * 100) : 0,
       },
     })
   } catch (err: any) {
-    console.error('GET /api/campaigns/:id/stats error:', err?.message)
+    logger.error('GET /api/campaigns/:id/stats error', { error: err?.message })
     return c.json({ error: 'Failed to get campaign stats' }, 500)
   }
 })
@@ -213,7 +215,14 @@ campaignsRoutes.put('/:id', async (c) => {
           updated_at = NOW()
       WHERE id = $5 AND organization_id = $6
       RETURNING *`,
-      [name || null, description || null, scenario || null, status || null, campaignId, session.organization_id]
+      [
+        name || null,
+        description || null,
+        scenario || null,
+        status || null,
+        campaignId,
+        session.organization_id,
+      ]
     )
 
     if (result.rows.length === 0) {
@@ -222,7 +231,7 @@ campaignsRoutes.put('/:id', async (c) => {
 
     return c.json({ success: true, campaign: result.rows[0] })
   } catch (err: any) {
-    console.error('PUT /api/campaigns/:id error:', err?.message)
+    logger.error('PUT /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update campaign' }, 500)
   }
 })
@@ -249,7 +258,7 @@ campaignsRoutes.delete('/:id', async (c) => {
 
     return c.json({ success: true, message: 'Campaign deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/campaigns/:id error:', err?.message)
+    logger.error('DELETE /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete campaign' }, 500)
   }
 })

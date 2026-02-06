@@ -1,6 +1,6 @@
 /**
  * Auth Routes - Custom Session-Based Authentication
- * 
+ *
  * Handles all authentication for the application:
  * - Session creation/validation
  * - User signup/login
@@ -15,6 +15,7 @@ import { parseSessionToken, verifySession } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { ValidateKeySchema, SignupSchema, LoginSchema, ForgotPasswordSchema } from '../lib/schemas'
 import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
+import { logger } from '../lib/logger'
 
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
@@ -22,13 +23,13 @@ export const authRoutes = new Hono<{ Bindings: Env }>()
 authRoutes.get('/session', async (c) => {
   try {
     const token = parseSessionToken(c)
-    
+
     if (!token) {
       return c.json({ user: null, expires: null })
     }
 
     const session = await verifySession(c, token)
-    
+
     if (!session) {
       return c.json({ user: null, expires: null })
     }
@@ -44,7 +45,7 @@ authRoutes.get('/session', async (c) => {
       expires: session.expires,
     })
   } catch (err: any) {
-    console.error('Session verification error')
+    logger.error('Session verification error', { error: err?.message })
     return c.json({ user: null, expires: null })
   }
 })
@@ -74,10 +75,7 @@ authRoutes.post('/validate-key', async (c) => {
     const keyRecord = result.rows[0]
 
     // Update last used
-    await db.query(
-      `UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`,
-      [keyRecord.id]
-    )
+    await db.query(`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, [keyRecord.id])
 
     return c.json({
       valid: true,
@@ -86,7 +84,7 @@ authRoutes.post('/validate-key', async (c) => {
       permissions: keyRecord.permissions,
     })
   } catch (err: any) {
-    console.error('API key validation error')
+    logger.error('API key validation error', { error: err?.message })
     return c.json({ valid: false, error: 'Validation failed' }, 500)
   }
 })
@@ -97,7 +95,7 @@ async function hashApiKey(key: string): Promise<string> {
   const data = encoder.encode(key)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 // Signup endpoint
@@ -109,10 +107,7 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
 
     const db = getDb(c.env)
 
-    const existing = await db.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email.toLowerCase()]
-    )
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()])
 
     if (existing.rows && existing.rows.length > 0) {
       return c.json({ error: 'User already exists' }, 409)
@@ -133,12 +128,11 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
     }
 
     // Get the created user
-    let userResult;
+    let userResult
     try {
-      userResult = await db.query(
-        'SELECT id, email, name FROM users WHERE email = $1',
-        [email.toLowerCase()]
-      )
+      userResult = await db.query('SELECT id, email, name FROM users WHERE email = $1', [
+        email.toLowerCase(),
+      ])
     } catch (selectError: any) {
       return c.json({ error: 'Signup failed' }, 500)
     }
@@ -162,7 +156,7 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
            RETURNING id`,
           [organizationName, user.id]
         )
-        
+
         const orgId = orgInsertResult.rows[0]?.id
 
         if (orgId) {
@@ -179,10 +173,10 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
 
     return c.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name }
+      user: { id: user.id, email: user.email, name: user.name },
     })
   } catch (err: any) {
-    console.error('Signup error')
+    logger.error('Signup error', { error: err?.message })
     return c.json({ error: 'Signup failed' }, 500)
   }
 })
@@ -191,13 +185,13 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
 authRoutes.get('/csrf', async (c) => {
   // Generate a CSRF token and store in KV for server-side validation
   const csrf_token = crypto.randomUUID()
-  
+
   // Store token in KV with 10-minute TTL — will be validated on login
   await c.env.KV.put(`csrf:${csrf_token}`, '1', { expirationTtl: 600 })
-  
+
   // Set cookie for same-origin requests
   c.header('Set-Cookie', `csrf-token=${csrf_token}; Path=/; SameSite=None; Secure; HttpOnly`)
-  
+
   return c.json({ csrf_token })
 })
 
@@ -210,8 +204,8 @@ authRoutes.get('/providers', async (c) => {
       name: 'Credentials',
       type: 'credentials',
       signinUrl: '/api/auth/signin/credentials',
-      callbackUrl: '/api/auth/callback/credentials'
-    }
+      callbackUrl: '/api/auth/callback/credentials',
+    },
   })
 })
 
@@ -224,7 +218,7 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
 
     // Use snake_case version if available, otherwise fall back to camelCase
     const csrfTokenValue = csrf_token || csrfToken
-    
+
     // Use email if username not provided
     const loginIdentifier = username || email
 
@@ -261,7 +255,7 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
 
     // Verify password (supports legacy SHA-256 + new PBKDF2 formats)
     const { valid: validPassword, needsRehash } = await verifyPassword(password, user.password_hash)
-    
+
     if (!validPassword) {
       return c.json({ error: 'Invalid credentials' }, 401)
     }
@@ -270,10 +264,10 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     if (needsRehash) {
       try {
         const upgradedHash = await hashPassword(password)
-        await db.query(
-          'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
-          [upgradedHash, user.id]
-        )
+        await db.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [
+          upgradedHash,
+          user.id,
+        ])
       } catch (_rehashErr) {
         // Non-fatal — login still succeeds, hash will be upgraded next time
       }
@@ -312,7 +306,10 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     // For cross-origin requests, we return the token in the response
     // The frontend will store it and send it in Authorization header
     // Also set cookie for same-origin requests with SameSite=None for cross-origin
-    c.header('Set-Cookie', `session-token=${sessionToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=None; Secure; HttpOnly`)
+    c.header(
+      'Set-Cookie',
+      `session-token=${sessionToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=None; Secure; HttpOnly`
+    )
 
     return c.json({
       url: '/dashboard',
@@ -325,11 +322,11 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
         email: user.email,
         name: user.name,
         organization_id: org?.organization_id || null,
-        role: org?.role || null
-      }
+        role: org?.role || null,
+      },
     })
   } catch (err: any) {
-    console.error('Authentication error')
+    logger.error('Authentication error', { error: err?.message })
     return c.json({ error: 'Authentication failed' }, 500)
   }
 })
@@ -344,19 +341,22 @@ authRoutes.post('/_log', async (c) => {
 authRoutes.post('/signout', async (c) => {
   try {
     const token = c.req.header('Authorization')?.replace('Bearer ', '')
-    
+
     if (token) {
       // Delete session from database
       const db = getDb(c.env)
       await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
     }
-    
+
     // Clear session cookie
-    c.header('Set-Cookie', 'session-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure; HttpOnly')
-    
+    c.header(
+      'Set-Cookie',
+      'session-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure; HttpOnly'
+    )
+
     return c.json({ success: true })
   } catch (err: any) {
-    console.error('Signout error')
+    logger.error('Signout error', { error: err?.message })
     // Still return success - client should clear local state regardless
     return c.json({ success: true })
   }
@@ -372,21 +372,24 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
     // Check if user exists
     const db = getDb(c.env)
 
-    const userResult = await db.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email.toLowerCase()]
-    )
-    
+    const userResult = await db.query('SELECT id FROM users WHERE email = $1', [
+      email.toLowerCase(),
+    ])
+
     if (!userResult.rows || userResult.rows.length === 0) {
       // Don't reveal if user exists or not for security
-      return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+      return c.json({
+        message: 'If an account with that email exists, a password reset link has been sent.',
+      })
     }
 
     // TODO: Implement actual password reset email sending
-    
-    return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
+
+    return c.json({
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    })
   } catch (err: any) {
-    console.error('Forgot password error')
+    logger.error('Forgot password error', { error: err?.message })
     return c.json({ error: 'Failed to process request' }, 500)
   }
 })
@@ -402,7 +405,9 @@ const SALT_BYTES = 32
 const KEY_BYTES = 32
 
 function hexEncode(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 function hexDecode(hex: string): Uint8Array {
@@ -423,7 +428,11 @@ async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
 
   const keyMaterial = await crypto.subtle.importKey(
-    'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
   )
 
   const derived = await crypto.subtle.deriveBits(
@@ -440,7 +449,10 @@ async function hashPassword(password: string): Promise<string> {
  * Supports both new PBKDF2 format and legacy SHA-256 format for migration.
  * Returns { valid, needsRehash } so callers can upgrade hashes transparently.
  */
-async function verifyPassword(password: string, storedHash: string): Promise<{ valid: boolean; needsRehash: boolean }> {
+async function verifyPassword(
+  password: string,
+  storedHash: string
+): Promise<{ valid: boolean; needsRehash: boolean }> {
   if (!storedHash) return { valid: false, needsRehash: false }
 
   // New PBKDF2 format: "pbkdf2:iterations:saltHex:hashHex"
@@ -455,7 +467,11 @@ async function verifyPassword(password: string, storedHash: string): Promise<{ v
     const encoder = new TextEncoder()
 
     const keyMaterial = await crypto.subtle.importKey(
-      'raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits']
     )
 
     const derived = await crypto.subtle.deriveBits(

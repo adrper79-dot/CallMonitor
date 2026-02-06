@@ -18,6 +18,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateRetentionSchema, CreateLegalHoldSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const retentionRoutes = new Hono<{ Bindings: Env }>()
 
@@ -79,7 +80,7 @@ retentionRoutes.get('/', async (c) => {
 
     return c.json({ success: true, policy })
   } catch (err: any) {
-    console.error('GET /api/retention error:', err?.message)
+    logger.error('GET /api/retention error', { error: err?.message })
     return c.json({ error: 'Failed to get retention policy' }, 500)
   }
 })
@@ -129,7 +130,7 @@ retentionRoutes.put('/', async (c) => {
 
     return c.json({ success: true, policy: result.rows[0] })
   } catch (err: any) {
-    console.error('PUT /api/retention error:', err?.message)
+    logger.error('PUT /api/retention error', { error: err?.message })
     return c.json({ error: 'Failed to update retention policy' }, 500)
   }
 })
@@ -152,7 +153,7 @@ retentionRoutes.get('/legal-holds', async (c) => {
 
     return c.json({ success: true, legalHolds: result.rows })
   } catch (err: any) {
-    console.error('GET /api/retention/legal-holds error:', err?.message)
+    logger.error('GET /api/retention/legal-holds error', { error: err?.message })
     return c.json({ error: 'Failed to list legal holds' }, 500)
   }
 })
@@ -174,12 +175,18 @@ retentionRoutes.post('/legal-holds', async (c) => {
       `INSERT INTO legal_holds (organization_id, name, matter_reference, applies_to_all, created_by)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [session.organization_id, name, matter_reference || null, applies_to_all ?? false, session.user_id]
+      [
+        session.organization_id,
+        name,
+        matter_reference || null,
+        applies_to_all ?? false,
+        session.user_id,
+      ]
     )
 
     return c.json({ success: true, legalHold: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/retention/legal-holds error:', err?.message)
+    logger.error('POST /api/retention/legal-holds error', { error: err?.message })
     return c.json({ error: 'Failed to create legal hold' }, 500)
   }
 })
@@ -205,7 +212,7 @@ retentionRoutes.delete('/legal-holds/:id', async (c) => {
 
     return c.json({ success: true, message: 'Legal hold released' })
   } catch (err: any) {
-    console.error('DELETE /api/retention/legal-holds/:id error:', err?.message)
+    logger.error('DELETE /api/retention/legal-holds/:id error', { error: err?.message })
     return c.json({ error: 'Failed to release legal hold' }, 500)
   }
 })

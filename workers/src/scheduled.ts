@@ -1,6 +1,6 @@
 /**
  * Scheduled Jobs Handler
- * 
+ *
  * Handles cron-triggered tasks:
  * - Every 5 min: Retry failed transcriptions
  * - Hourly: Cleanup expired sessions
@@ -9,11 +9,9 @@
 
 import type { Env } from './index'
 import { getDb } from './lib/db'
+import { logger } from './lib/logger'
 
-export async function handleScheduled(
-  event: ScheduledEvent,
-  env: Env
-): Promise<void> {
+export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
   const cron = event.cron
 
   try {
@@ -29,7 +27,7 @@ export async function handleScheduled(
         break
     }
   } catch (error) {
-    console.error('Scheduled job failed')
+    logger.error('Scheduled job failed')
     // Don't throw - let the job complete so it can retry next interval
   }
 }
@@ -40,7 +38,7 @@ export async function handleScheduled(
  */
 async function retryFailedTranscriptions(env: Env): Promise<void> {
   const db = getDb(env)
-  
+
   // Find calls with failed transcriptions that haven't exceeded retry limit
   const result = await db.query(`
     SELECT id, call_sid, recording_url, transcript_retries
@@ -55,11 +53,14 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
   for (const call of result.rows) {
     try {
       // TODO: Trigger AssemblyAI transcription
-      await db.query(`
+      await db.query(
+        `
         UPDATE calls 
         SET transcript_status = 'pending', transcript_retries = transcript_retries + 1
         WHERE id = $1
-      `, [call.id])
+      `,
+        [call.id]
+      )
     } catch (error) {
       // Skip failed individual retries
     }
@@ -72,7 +73,7 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
  */
 async function cleanupExpiredSessions(env: Env): Promise<void> {
   const db = getDb(env)
-  
+
   // Delete expired sessions from public.sessions
   await db.query(`
     DELETE FROM public.sessions
@@ -86,14 +87,15 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
  */
 async function aggregateUsage(env: Env): Promise<void> {
   const db = getDb(env)
-  
+
   // Calculate usage for the previous day
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   const dateStr = yesterday.toISOString().split('T')[0]
-  
+
   // Aggregate call statistics per organization
-  await db.query(`
+  await db.query(
+    `
     INSERT INTO usage_stats (organization_id, date, total_calls, total_duration_seconds, total_recordings)
     SELECT 
       organization_id,
@@ -110,5 +112,7 @@ async function aggregateUsage(env: Env): Promise<void> {
       total_recordings = EXCLUDED.total_recordings,
       updated_at = NOW()
     RETURNING organization_id
-  `, [dateStr])
+  `,
+    [dateStr]
+  )
 }

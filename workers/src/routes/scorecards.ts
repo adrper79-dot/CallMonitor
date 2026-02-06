@@ -1,6 +1,6 @@
 /**
  * Scorecards Routes - QA scorecard management
- * 
+ *
  * Endpoints:
  *   GET  /        - List scorecards for org
  *   POST /        - Create a scorecard
@@ -14,6 +14,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateScorecardSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
 
 export const scorecardsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -45,7 +46,7 @@ scorecardsRoutes.get('/', async (c) => {
 
     return c.json({ success: true, scorecards: result.rows })
   } catch (err: any) {
-    console.error('GET /api/scorecards error:', err?.message)
+    logger.error('GET /api/scorecards error', { error: err?.message })
     return c.json({ error: 'Failed to get scorecards' }, 500)
   }
 })
@@ -89,13 +90,13 @@ scorecardsRoutes.post('/', async (c) => {
         JSON.stringify(scores || {}),
         notes || '',
         overall_score || null,
-        session.user_id
+        session.user_id,
       ]
     )
 
     return c.json({ success: true, scorecard: result.rows[0], scorecardId: result.rows[0].id }, 201)
   } catch (err: any) {
-    console.error('POST /api/scorecards error:', err?.message)
+    logger.error('POST /api/scorecards error', { error: err?.message })
     return c.json({ error: 'Failed to create scorecard' }, 500)
   }
 })
@@ -130,7 +131,7 @@ scorecardsRoutes.get('/alerts', async (c) => {
 
     return c.json({ success: true, alerts: alertsResult.rows })
   } catch (err: any) {
-    console.error('GET /api/scorecards/alerts error:', err?.message)
+    logger.error('GET /api/scorecards/alerts error', { error: err?.message })
     return c.json({ alerts: [] })
   }
 })
@@ -156,7 +157,7 @@ scorecardsRoutes.get('/:id', async (c) => {
 
     return c.json({ success: true, scorecard: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/scorecards/:id error:', err?.message)
+    logger.error('GET /api/scorecards/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get scorecard' }, 500)
   }
 })

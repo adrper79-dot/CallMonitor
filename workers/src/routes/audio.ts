@@ -16,6 +16,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TranscribeSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const audioRoutes = new Hono<{ Bindings: Env }>()
 
@@ -79,12 +80,19 @@ audioRoutes.post('/upload', async (c) => {
       `INSERT INTO audio_files (organization_id, file_key, original_name, content_type, size_bytes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, file_key, original_name, content_type, size_bytes, created_at`,
-      [session.organization_id, fileName, file.name, file.type || 'audio/mpeg', arrayBuffer.byteLength, session.user_id]
+      [
+        session.organization_id,
+        fileName,
+        file.name,
+        file.type || 'audio/mpeg',
+        arrayBuffer.byteLength,
+        session.user_id,
+      ]
     )
 
     return c.json({ success: true, file: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/audio/upload error:', err?.message)
+    logger.error('POST /api/audio/upload error', { error: err?.message })
     return c.json({ error: 'Upload failed' }, 500)
   }
 })
@@ -107,7 +115,13 @@ audioRoutes.post('/transcribe', async (c) => {
       `INSERT INTO transcriptions (organization_id, audio_file_id, file_key, language, status, created_by)
        VALUES ($1, $2, $3, $4, 'processing', $5)
        RETURNING id, status, language, created_at`,
-      [session.organization_id, audio_file_id || null, file_key || null, language || 'en', session.user_id]
+      [
+        session.organization_id,
+        audio_file_id || null,
+        file_key || null,
+        language || 'en',
+        session.user_id,
+      ]
     )
     const transcription = insertResult.rows[0]
 
@@ -133,7 +147,7 @@ audioRoutes.post('/transcribe', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('POST /api/audio/transcribe error:', err?.message)
+    logger.error('POST /api/audio/transcribe error', { error: err?.message })
     return c.json({ error: 'Transcription failed' }, 500)
   }
 })
@@ -162,7 +176,7 @@ audioRoutes.get('/transcriptions/:id', async (c) => {
 
     return c.json({ success: true, transcription: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/audio/transcriptions/:id error:', err?.message)
+    logger.error('GET /api/audio/transcriptions/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get transcription' }, 500)
   }
 })

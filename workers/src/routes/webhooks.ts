@@ -1,11 +1,11 @@
 /**
  * Webhook Receivers & Subscription Management
- * 
+ *
  * Handles incoming webhooks from:
  * - Telnyx (call events) — verified via HMAC-SHA256 signature
  * - AssemblyAI (transcription)
  * - Stripe (billing events) — verified via HMAC-SHA256 signature
- * 
+ *
  * Also provides CRUD for user-configured webhook subscriptions:
  *   GET    /subscriptions              - List org's webhook subscriptions
  *   POST   /subscriptions              - Create a webhook subscription
@@ -13,7 +13,7 @@
  *   DELETE /subscriptions/:id          - Delete a webhook subscription
  *   POST   /subscriptions/:id/test     - Send a test delivery
  *   GET    /subscriptions/:id/deliveries - Delivery log for a webhook
- * 
+ *
  * Aliases at root path for newer frontend:
  *   GET    /                            - Alias for GET /subscriptions
  *   POST   /                            - Alias for POST /subscriptions
@@ -28,6 +28,7 @@ import { getDb, DbClient } from '../lib/db'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
@@ -44,8 +45,8 @@ async function verifyStripeSignature(
   toleranceSeconds = 300
 ): Promise<boolean> {
   const parts = signatureHeader.split(',')
-  const timestampPart = parts.find(p => p.startsWith('t='))
-  const sigPart = parts.find(p => p.startsWith('v1='))
+  const timestampPart = parts.find((p) => p.startsWith('t='))
+  const sigPart = parts.find((p) => p.startsWith('v1='))
 
   if (!timestampPart || !sigPart) return false
 
@@ -67,7 +68,7 @@ async function verifyStripeSignature(
   )
   const signed = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${payload}`))
   const computedSig = Array.from(new Uint8Array(signed))
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 
   // Constant-time comparison
@@ -106,9 +107,13 @@ async function verifyTelnyxSignature(
     false,
     ['sign']
   )
-  const signed = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestampHeader}.${payload}`))
+  const signed = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(`${timestampHeader}.${payload}`)
+  )
   const computedSig = Array.from(new Uint8Array(signed))
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 
   // Constant-time comparison
@@ -128,11 +133,12 @@ webhooksRoutes.post('/telnyx', async (c) => {
     // Verify Telnyx signature — fail-closed (reject if secret not configured)
     const telnyxSecret = (c.env as any).TELNYX_WEBHOOK_SECRET
     if (!telnyxSecret) {
-      console.error('TELNYX_WEBHOOK_SECRET not configured — rejecting unverified webhook')
+      logger.error('TELNYX_WEBHOOK_SECRET not configured — rejecting unverified webhook')
       return c.json({ error: 'Webhook verification not configured' }, 500)
     }
     const timestamp = c.req.header('telnyx-timestamp') || ''
-    const signature = c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
+    const signature =
+      c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
     const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
     if (!valid) {
       return c.json({ error: 'Invalid webhook signature' }, 401)
@@ -161,7 +167,7 @@ webhooksRoutes.post('/telnyx', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('Telnyx webhook processing error')
+    logger.error('Telnyx webhook processing error')
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -185,7 +191,7 @@ webhooksRoutes.post('/assemblyai', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('AssemblyAI webhook processing error')
+    logger.error('AssemblyAI webhook processing error')
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -199,7 +205,7 @@ webhooksRoutes.post('/stripe', async (c) => {
     // Verify Stripe webhook signature
     const stripeSecret = (c.env as any).STRIPE_WEBHOOK_SECRET
     if (!stripeSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET not configured')
+      logger.error('STRIPE_WEBHOOK_SECRET not configured')
       return c.json({ error: 'Webhook verification not configured' }, 500)
     }
 
@@ -232,7 +238,7 @@ webhooksRoutes.post('/stripe', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('Stripe webhook processing error')
+    logger.error('Stripe webhook processing error')
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -241,7 +247,7 @@ webhooksRoutes.post('/stripe', async (c) => {
 
 async function handleCallInitiated(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, from, to } = payload
-  
+
   await db.query(
     `UPDATE calls 
      SET call_sid = $1, status = 'initiated'
@@ -252,7 +258,7 @@ async function handleCallInitiated(db: DbClient, payload: any) {
 
 async function handleCallAnswered(db: DbClient, payload: any) {
   const { call_control_id, call_session_id } = payload
-  
+
   await db.query(
     `UPDATE calls 
      SET status = 'in_progress', answered_at = NOW()
@@ -263,7 +269,7 @@ async function handleCallAnswered(db: DbClient, payload: any) {
 
 async function handleCallHangup(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, hangup_cause } = payload
-  
+
   await db.query(
     `UPDATE calls 
      SET status = 'completed', ended_at = NOW(), hangup_cause = $3
@@ -274,17 +280,17 @@ async function handleCallHangup(db: DbClient, payload: any) {
 
 async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
   const { call_session_id, recording_urls } = payload
-  
+
   // Download recording and store in R2
   if (recording_urls?.mp3) {
     const response = await fetch(recording_urls.mp3)
     const audioBuffer = await response.arrayBuffer()
-    
+
     const key = `recordings/${call_session_id}.mp3`
     await env.R2.put(key, audioBuffer, {
       httpMetadata: { contentType: 'audio/mpeg' },
     })
-    
+
     await db.query(
       `UPDATE calls 
        SET recording_url = $2
@@ -301,7 +307,12 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
     `UPDATE organizations 
      SET subscription_status = $2, subscription_id = $3, plan_id = $4
      WHERE stripe_customer_id = $1`,
-    [subscription.customer, subscription.status, subscription.id, subscription.items.data[0]?.price?.id]
+    [
+      subscription.customer,
+      subscription.status,
+      subscription.id,
+      subscription.items.data[0]?.price?.id,
+    ]
   )
 }
 
@@ -328,10 +339,15 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
 // ============================================================
 
 const VALID_WEBHOOK_EVENTS = [
-  'call.started', 'call.ended', 'call.recording.ready',
-  'call.transcript.ready', 'call.outcome.declared',
-  'booking.created', 'booking.cancelled',
-  'campaign.started', 'campaign.completed',
+  'call.started',
+  'call.ended',
+  'call.recording.ready',
+  'call.transcript.ready',
+  'call.outcome.declared',
+  'booking.created',
+  'booking.cancelled',
+  'campaign.started',
+  'campaign.completed',
 ] as const
 
 /** Shared: list webhook subscriptions */
@@ -411,7 +427,14 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
          updated_at = NOW()
      WHERE id = $5 AND organization_id = $6
      RETURNING *`,
-    [url || null, events || null, is_active ?? null, description || null, webhookId, session.organization_id]
+    [
+      url || null,
+      events || null,
+      is_active ?? null,
+      description || null,
+      webhookId,
+      session.organization_id,
+    ]
   )
 
   if (result.rows.length === 0) {
@@ -533,28 +556,48 @@ async function testWebhookDelivery(c: any, webhookId: string) {
 // --- Subscription routes (at /subscriptions sub-path) ---
 
 webhooksRoutes.get('/subscriptions', async (c) => {
-  try { return await listWebhookSubscriptions(c) }
-  catch (err: any) { console.error('GET /webhooks/subscriptions error:', err?.message); return c.json({ error: 'Failed to list webhooks' }, 500) }
+  try {
+    return await listWebhookSubscriptions(c)
+  } catch (err: any) {
+    logger.error('GET /webhooks/subscriptions error', { error: err?.message })
+    return c.json({ error: 'Failed to list webhooks' }, 500)
+  }
 })
 
 webhooksRoutes.post('/subscriptions', async (c) => {
-  try { return await createWebhookSubscription(c) }
-  catch (err: any) { console.error('POST /webhooks/subscriptions error:', err?.message); return c.json({ error: 'Failed to create webhook' }, 500) }
+  try {
+    return await createWebhookSubscription(c)
+  } catch (err: any) {
+    logger.error('POST /webhooks/subscriptions error', { error: err?.message })
+    return c.json({ error: 'Failed to create webhook' }, 500)
+  }
 })
 
 webhooksRoutes.patch('/subscriptions/:id', async (c) => {
-  try { return await updateWebhookSubscription(c, c.req.param('id')) }
-  catch (err: any) { console.error('PATCH /webhooks/subscriptions error:', err?.message); return c.json({ error: 'Failed to update webhook' }, 500) }
+  try {
+    return await updateWebhookSubscription(c, c.req.param('id'))
+  } catch (err: any) {
+    logger.error('PATCH /webhooks/subscriptions error', { error: err?.message })
+    return c.json({ error: 'Failed to update webhook' }, 500)
+  }
 })
 
 webhooksRoutes.delete('/subscriptions/:id', async (c) => {
-  try { return await deleteWebhookSubscription(c, c.req.param('id')) }
-  catch (err: any) { console.error('DELETE /webhooks/subscriptions error:', err?.message); return c.json({ error: 'Failed to delete webhook' }, 500) }
+  try {
+    return await deleteWebhookSubscription(c, c.req.param('id'))
+  } catch (err: any) {
+    logger.error('DELETE /webhooks/subscriptions error', { error: err?.message })
+    return c.json({ error: 'Failed to delete webhook' }, 500)
+  }
 })
 
 webhooksRoutes.post('/subscriptions/:id/test', async (c) => {
-  try { return await testWebhookDelivery(c, c.req.param('id')) }
-  catch (err: any) { console.error('POST /webhooks/subscriptions test error:', err?.message); return c.json({ error: 'Failed to test webhook' }, 500) }
+  try {
+    return await testWebhookDelivery(c, c.req.param('id'))
+  } catch (err: any) {
+    logger.error('POST /webhooks/subscriptions test error', { error: err?.message })
+    return c.json({ error: 'Failed to test webhook' }, 500)
+  }
 })
 
 webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
@@ -597,7 +640,7 @@ webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
 
     return c.json({ success: true, deliveries: deliveries.rows, page, limit })
   } catch (err: any) {
-    console.error('GET /webhooks/subscriptions deliveries error:', err?.message)
+    logger.error('GET /webhooks/subscriptions deliveries error', { error: err?.message })
     return c.json({ error: 'Failed to get deliveries' }, 500)
   }
 })
@@ -620,8 +663,11 @@ webhooksRoutes.patch('/:id', async (c) => {
   if (['telnyx', 'stripe', 'assemblyai', 'subscriptions'].includes(id)) {
     return c.json({ error: 'Not found' }, 404)
   }
-  try { return await updateWebhookSubscription(c, id) }
-  catch (err: any) { return c.json({ error: 'Failed to update webhook' }, 500) }
+  try {
+    return await updateWebhookSubscription(c, id)
+  } catch (err: any) {
+    return c.json({ error: 'Failed to update webhook' }, 500)
+  }
 })
 
 webhooksRoutes.delete('/:id', async (c) => {
@@ -629,8 +675,11 @@ webhooksRoutes.delete('/:id', async (c) => {
   if (['telnyx', 'stripe', 'assemblyai', 'subscriptions'].includes(id)) {
     return c.json({ error: 'Not found' }, 404)
   }
-  try { return await deleteWebhookSubscription(c, id) }
-  catch (err: any) { return c.json({ error: 'Failed to delete webhook' }, 500) }
+  try {
+    return await deleteWebhookSubscription(c, id)
+  } catch (err: any) {
+    return c.json({ error: 'Failed to delete webhook' }, 500)
+  }
 })
 
 webhooksRoutes.post('/:id/test', async (c) => {
@@ -638,6 +687,9 @@ webhooksRoutes.post('/:id/test', async (c) => {
   if (['telnyx', 'stripe', 'assemblyai', 'subscriptions'].includes(id)) {
     return c.json({ error: 'Not found' }, 404)
   }
-  try { return await testWebhookDelivery(c, id) }
-  catch (err: any) { return c.json({ error: 'Failed to test webhook' }, 500) }
+  try {
+    return await testWebhookDelivery(c, id)
+  } catch (err: any) {
+    return c.json({ error: 'Failed to test webhook' }, 500)
+  }
 })

@@ -16,6 +16,7 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateSurveySchema } from '../lib/schemas'
+import { logger } from '../lib/logger'
 
 export const surveysRoutes = new Hono<{ Bindings: Env }>()
 
@@ -78,7 +79,7 @@ surveysRoutes.get('/', async (c) => {
       total: surveys.length,
     })
   } catch (err: any) {
-    console.error('GET /api/surveys error:', err?.message)
+    logger.error('GET /api/surveys error', { error: err?.message })
     return c.json({ error: 'Failed to get surveys' }, 500)
   }
 })
@@ -117,9 +118,13 @@ surveysRoutes.post('/', async (c) => {
       try {
         await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS title TEXT`)
         await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS description TEXT`)
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS questions JSONB DEFAULT '[]'::jsonb`)
+        await db.query(
+          `ALTER TABLE surveys ADD COLUMN IF NOT EXISTS questions JSONB DEFAULT '[]'::jsonb`
+        )
         await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`)
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS trigger_type TEXT DEFAULT 'post_call'`)
+        await db.query(
+          `ALTER TABLE surveys ADD COLUMN IF NOT EXISTS trigger_type TEXT DEFAULT 'post_call'`
+        )
         await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS created_by UUID`)
         const result = await db.query(
           `INSERT INTO surveys (organization_id, title, description, questions, active, trigger_type, created_by)
@@ -137,14 +142,14 @@ surveysRoutes.post('/', async (c) => {
         )
         survey = result.rows[0]
       } catch (addErr: any) {
-        console.error('POST /api/surveys column-add error:', addErr?.message)
+        logger.error('POST /api/surveys column-add error', { error: addErr?.message })
         return c.json({ error: 'Failed to create survey' }, 500)
       }
     }
 
     return c.json({ success: true, survey })
   } catch (err: any) {
-    console.error('POST /api/surveys error:', err?.message)
+    logger.error('POST /api/surveys error', { error: err?.message })
     return c.json({ error: 'Failed to create survey' }, 500)
   }
 })
@@ -169,7 +174,7 @@ surveysRoutes.delete('/:id', async (c) => {
 
     return c.json({ success: true, deleted: id })
   } catch (err: any) {
-    console.error('DELETE /api/surveys/:id error:', err?.message)
+    logger.error('DELETE /api/surveys/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete survey' }, 500)
   }
 })
