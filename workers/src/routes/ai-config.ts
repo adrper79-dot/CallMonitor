@@ -4,21 +4,19 @@
  * Endpoints:
  *   GET /  - Get AI config for org
  *   PUT /  - Update AI config for org
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateAIConfigSchema } from '../lib/schemas'
 
 export const aiConfigRoutes = new Hono<{ Bindings: Env }>()
-
-async function getSQL(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
 
 const DEFAULT_CONFIG = {
   enabled: false,
@@ -31,8 +29,8 @@ const DEFAULT_CONFIG = {
   language: 'en',
 }
 
-async function ensureTable(sql: any) {
-  await sql`
+async function ensureTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
     CREATE TABLE IF NOT EXISTS ai_configs (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL UNIQUE,
@@ -41,7 +39,7 @@ async function ensureTable(sql: any) {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
-  `
+  `)
 }
 
 // GET / — Get AI configuration
@@ -50,23 +48,24 @@ aiConfigRoutes.get('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTable(sql)
+    const db = getDb(c.env)
+    await ensureTable(db)
 
-    const rows = await sql`
-      SELECT config, updated_at
-      FROM ai_configs
-      WHERE organization_id = ${session.organization_id}
-    `
+    const result = await db.query(
+      `SELECT config, updated_at
+       FROM ai_configs
+       WHERE organization_id = $1`,
+      [session.organization_id]
+    )
 
-    const config = rows.length > 0
-      ? { ...DEFAULT_CONFIG, ...rows[0].config }
+    const config = result.rows.length > 0
+      ? { ...DEFAULT_CONFIG, ...result.rows[0].config }
       : { ...DEFAULT_CONFIG }
 
     return c.json({
       success: true,
       config,
-      updated_at: rows[0]?.updated_at || null,
+      updated_at: result.rows[0]?.updated_at || null,
     })
   } catch (err: any) {
     console.error('GET /api/ai-config error:', err?.message)
@@ -80,27 +79,28 @@ aiConfigRoutes.put('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTable(sql)
+    const db = getDb(c.env)
+    await ensureTable(db)
 
     const parsed = await validateBody(c, UpdateAIConfigSchema)
     if (!parsed.success) return parsed.response
     const merged = { ...DEFAULT_CONFIG, ...parsed.data }
 
-    const [result] = await sql`
-      INSERT INTO ai_configs (organization_id, config, updated_by)
-      VALUES (${session.organization_id}, ${JSON.stringify(merged)}::jsonb, ${session.user_id})
-      ON CONFLICT (organization_id) DO UPDATE SET
-        config = ${JSON.stringify(merged)}::jsonb,
-        updated_by = ${session.user_id},
-        updated_at = NOW()
-      RETURNING config, updated_at
-    `
+    const result = await db.query(
+      `INSERT INTO ai_configs (organization_id, config, updated_by)
+       VALUES ($1, $2::jsonb, $3)
+       ON CONFLICT (organization_id) DO UPDATE SET
+         config = $2::jsonb,
+         updated_by = $3,
+         updated_at = NOW()
+       RETURNING config, updated_at`,
+      [session.organization_id, JSON.stringify(merged), session.user_id]
+    )
 
     return c.json({
       success: true,
-      config: result.config,
-      updated_at: result.updated_at,
+      config: result.rows[0].config,
+      updated_at: result.rows[0].updated_at,
     })
   } catch (err: any) {
     console.error('PUT /api/ai-config error:', err?.message)

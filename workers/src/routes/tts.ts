@@ -3,13 +3,35 @@
  *
  * Endpoints:
  *   POST /generate - Generate TTS audio from text
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import { TTSGenerateSchema } from '../lib/schemas'
 
 export const ttsRoutes = new Hono<{ Bindings: Env }>()
+
+async function ensureTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS tts_audio (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      text TEXT NOT NULL,
+      voice_id TEXT,
+      language TEXT DEFAULT 'en',
+      file_key TEXT NOT NULL,
+      duration_seconds INTEGER,
+      created_by UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+}
 
 // POST /generate — Generate TTS audio
 ttsRoutes.post('/generate', async (c) => {
@@ -17,10 +39,9 @@ ttsRoutes.post('/generate', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { text, voice_id, language, organization_id } = body
-
-    if (!text) return c.json({ error: 'Text is required' }, 400)
+    const parsed = await validateBody(c, TTSGenerateSchema)
+    if (!parsed.success) return parsed.response
+    const { text, voice_id, language, organization_id } = parsed.data
 
     // Validate org if provided
     if (organization_id && organization_id !== session.organization_id) {
@@ -30,7 +51,6 @@ ttsRoutes.post('/generate', async (c) => {
     // Use ElevenLabs API if configured, otherwise return stub
     const elevenLabsKey = c.env.ELEVENLABS_API_KEY
     if (!elevenLabsKey) {
-      // Return stub response when no API key configured
       return c.json({
         success: true,
         audio_url: null,
@@ -72,28 +92,14 @@ ttsRoutes.post('/generate', async (c) => {
       })
 
       // Store record in DB
-      const { neon } = await import('@neondatabase/serverless')
-      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-      const sql = neon(connectionString)
+      const db = getDb(c.env)
+      await ensureTable(db)
 
-      await sql`
-        CREATE TABLE IF NOT EXISTS tts_audio (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          organization_id UUID NOT NULL,
-          text TEXT NOT NULL,
-          voice_id TEXT,
-          language TEXT DEFAULT 'en',
-          file_key TEXT NOT NULL,
-          duration_seconds INTEGER,
-          created_by UUID,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `
-
-      await sql`
-        INSERT INTO tts_audio (organization_id, text, voice_id, language, file_key, created_by)
-        VALUES (${session.organization_id}, ${text.substring(0, 500)}, ${voiceIdResolved}, ${language || 'en'}, ${fileName}, ${session.user_id})
-      `
+      await db.query(
+        `INSERT INTO tts_audio (organization_id, text, voice_id, language, file_key, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [session.organization_id, text.substring(0, 500), voiceIdResolved, language || 'en', fileName, session.user_id]
+      )
 
       return c.json({
         success: true,

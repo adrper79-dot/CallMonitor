@@ -431,7 +431,7 @@ PASS 200 analytics/export         PASS 200 surveys
 ### S2: High Security
 | ID | Issue | Status | Effort |
 |----|-------|--------|--------|
-| H1 | Zero Zod input validation on 23 route files | ✅ FIXED (v4.5 central schemas + Feb 6 teams/bookings/surveys/retention/ai-config) | — |
+| H1 | Zero Zod input validation on 23 route files | ✅ FIXED (v4.5 central schemas + Feb 6 all 9 mutation routes: teams/bookings/surveys/retention/ai-config/admin/reliability/tts/audio) | — |
 | H2 | Session token returned in JSON body (XSS vector) | ⬜ TODO | 4h |
 | H3 | DB Pool connection leak (no finally close) | ✅ FIXED (Feb 6 — pool singleton in pgClient.ts) | — |
 | H6 | 57 console.log statements in Workers (PII leak) | ✅ AUDITED (Feb 6 — no PII found in console.logs) | — |
@@ -440,7 +440,7 @@ PASS 200 analytics/export         PASS 200 surveys
 ### S3: Medium Security
 | ID | Issue | Status | Effort |
 |----|-------|--------|--------|
-| M6 | No rate limiting on auth endpoints | ⬜ TODO | 3h |
+| M6 | No rate limiting on auth endpoints | ✅ DONE (KV-backed sliding-window in `workers/src/lib/rate-limit.ts`, applied to login/signup/forgot-password) | — |
 | M7 | 30-day session expiry with no refresh token | ⬜ TODO | 4h |
 
 ---

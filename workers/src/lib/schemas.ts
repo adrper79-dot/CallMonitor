@@ -417,3 +417,41 @@ export const UpdateShopperSchema = z.object({
 export const DeleteShopperByIdSchema = z.object({
   id: uuid,
 })
+
+// ─── Admin (Auth Providers) Schemas ──────────────────────────────────────────
+
+export const UpdateAuthProviderSchema = z.object({
+  provider: nonEmptyString,
+  enabled: z.boolean().optional(),
+  client_id: z.string().max(500).optional().nullable(),
+  client_secret: z.string().max(500).optional().nullable(),
+  config: z.record(z.unknown()).optional(),
+})
+
+// ─── Reliability Schemas ─────────────────────────────────────────────────────
+
+export const WebhookActionSchema = z.object({
+  failure_id: z.string().uuid(),
+  action: z.enum(['retry', 'discard', 'manual_review']),
+  resolution_notes: z.string().max(5000).optional(),
+})
+
+// ─── TTS Schemas ─────────────────────────────────────────────────────────────
+
+export const TTSGenerateSchema = z.object({
+  text: nonEmptyString,
+  voice_id: z.string().max(100).optional(),
+  language: z.string().max(10).optional(),
+  organization_id: z.string().uuid().optional(),
+})
+
+// ─── Audio Schemas ───────────────────────────────────────────────────────────
+
+export const TranscribeSchema = z.object({
+  audio_file_id: z.string().uuid().optional().nullable(),
+  file_key: z.string().max(500).optional().nullable(),
+  language: z.string().max(10).optional(),
+}).refine(
+  (d) => d.audio_file_id || d.file_key,
+  { message: 'Either audio_file_id or file_key is required' }
+)

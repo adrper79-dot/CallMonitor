@@ -5,24 +5,23 @@
  *   POST /upload        - Upload audio file to R2
  *   POST /transcribe    - Start transcription job
  *   GET  /transcriptions/:id - Get transcription status/result
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import { TranscribeSchema } from '../lib/schemas'
 
 export const audioRoutes = new Hono<{ Bindings: Env }>()
 
-// Helper: get DB connection
-async function getSQL(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
-
 // Ensure tables exist
-async function ensureTables(sql: any) {
-  await sql`
+async function ensureTables(db: ReturnType<typeof getDb>) {
+  await db.query(`
     CREATE TABLE IF NOT EXISTS audio_files (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -34,8 +33,8 @@ async function ensureTables(sql: any) {
       created_by UUID,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
-  `
-  await sql`
+  `)
+  await db.query(`
     CREATE TABLE IF NOT EXISTS transcriptions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -51,7 +50,7 @@ async function ensureTables(sql: any) {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       completed_at TIMESTAMPTZ
     )
-  `
+  `)
 }
 
 // POST /upload — Upload audio file
@@ -60,8 +59,8 @@ audioRoutes.post('/upload', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTables(sql)
+    const db = getDb(c.env)
+    await ensureTables(db)
 
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
@@ -76,13 +75,14 @@ audioRoutes.post('/upload', async (c) => {
       })
     }
 
-    const [record] = await sql`
-      INSERT INTO audio_files (organization_id, file_key, original_name, content_type, size_bytes, created_by)
-      VALUES (${session.organization_id}, ${fileName}, ${file.name}, ${file.type || 'audio/mpeg'}, ${arrayBuffer.byteLength}, ${session.user_id})
-      RETURNING id, file_key, original_name, content_type, size_bytes, created_at
-    `
+    const result = await db.query(
+      `INSERT INTO audio_files (organization_id, file_key, original_name, content_type, size_bytes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, file_key, original_name, content_type, size_bytes, created_at`,
+      [session.organization_id, fileName, file.name, file.type || 'audio/mpeg', arrayBuffer.byteLength, session.user_id]
+    )
 
-    return c.json({ success: true, file: record })
+    return c.json({ success: true, file: result.rows[0] })
   } catch (err: any) {
     console.error('POST /api/audio/upload error:', err?.message)
     return c.json({ error: 'Upload failed' }, 500)
@@ -95,40 +95,33 @@ audioRoutes.post('/transcribe', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTables(sql)
+    const db = getDb(c.env)
+    await ensureTables(db)
 
-    const body = await c.req.json()
-    const { audio_file_id, file_key, language } = body
-
-    if (!audio_file_id && !file_key) {
-      return c.json({ error: 'audio_file_id or file_key is required' }, 400)
-    }
+    const parsed = await validateBody(c, TranscribeSchema)
+    if (!parsed.success) return parsed.response
+    const { audio_file_id, file_key, language } = parsed.data
 
     // Create transcription record
-    const [transcription] = await sql`
-      INSERT INTO transcriptions (organization_id, audio_file_id, file_key, language, status, created_by)
-      VALUES (
-        ${session.organization_id},
-        ${audio_file_id || null},
-        ${file_key || null},
-        ${language || 'en'},
-        'processing',
-        ${session.user_id}
-      )
-      RETURNING id, status, language, created_at
-    `
+    const insertResult = await db.query(
+      `INSERT INTO transcriptions (organization_id, audio_file_id, file_key, language, status, created_by)
+       VALUES ($1, $2, $3, $4, 'processing', $5)
+       RETURNING id, status, language, created_at`,
+      [session.organization_id, audio_file_id || null, file_key || null, language || 'en', session.user_id]
+    )
+    const transcription = insertResult.rows[0]
 
     // In production, this would queue a Deepgram/Whisper job via a durable object or queue.
     // For now, mark as completed with a placeholder.
-    await sql`
-      UPDATE transcriptions
-      SET status = 'completed',
-          transcript = 'Transcription processing is configured but no speech-to-text provider is set.',
-          confidence = 0,
-          completed_at = NOW()
-      WHERE id = ${transcription.id}
-    `
+    await db.query(
+      `UPDATE transcriptions
+       SET status = 'completed',
+           transcript = 'Transcription processing is configured but no speech-to-text provider is set.',
+           confidence = 0,
+           completed_at = NOW()
+       WHERE id = $1`,
+      [transcription.id]
+    )
 
     return c.json({
       success: true,
@@ -151,22 +144,23 @@ audioRoutes.get('/transcriptions/:id', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTables(sql)
+    const db = getDb(c.env)
+    await ensureTables(db)
 
     const id = c.req.param('id')
 
-    const rows = await sql`
-      SELECT id, audio_file_id, file_key, status, language, transcript, confidence, word_count, error, created_at, completed_at
-      FROM transcriptions
-      WHERE id = ${id} AND organization_id = ${session.organization_id}
-    `
+    const result = await db.query(
+      `SELECT id, audio_file_id, file_key, status, language, transcript, confidence, word_count, error, created_at, completed_at
+       FROM transcriptions
+       WHERE id = $1 AND organization_id = $2`,
+      [id, session.organization_id]
+    )
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Transcription not found' }, 404)
     }
 
-    return c.json({ success: true, transcription: rows[0] })
+    return c.json({ success: true, transcription: result.rows[0] })
   } catch (err: any) {
     console.error('GET /api/audio/transcriptions/:id error:', err?.message)
     return c.json({ error: 'Failed to get transcription' }, 500)

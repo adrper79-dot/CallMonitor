@@ -4,22 +4,22 @@
  * Endpoints:
  *   GET /webhooks  - List webhook failures/metrics
  *   PUT /webhooks  - Action on a webhook failure (retry, discard, manual_review)
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import { WebhookActionSchema } from '../lib/schemas'
 
 export const reliabilityRoutes = new Hono<{ Bindings: Env }>()
 
-async function getSQL(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
-
-async function ensureTable(sql: any) {
-  await sql`
+async function ensureTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_failures (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -36,7 +36,7 @@ async function ensureTable(sql: any) {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       resolved_at TIMESTAMPTZ
     )
-  `
+  `)
 }
 
 // GET /webhooks — List webhook failures and metrics
@@ -45,7 +45,7 @@ reliabilityRoutes.get('/webhooks', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const status = c.req.query('status') || 'all'
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200)
     const offset = parseInt(c.req.query('offset') || '0')
@@ -55,34 +55,39 @@ reliabilityRoutes.get('/webhooks', async (c) => {
 
     try {
       if (status === 'all') {
-        failures = await sql`
-          SELECT * FROM webhook_failures
-          WHERE organization_id = ${session.organization_id}
-          ORDER BY created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `
+        const result = await db.query(
+          `SELECT * FROM webhook_failures
+           WHERE organization_id = $1
+           ORDER BY created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [session.organization_id, limit, offset]
+        )
+        failures = result.rows
       } else {
-        failures = await sql`
-          SELECT * FROM webhook_failures
-          WHERE organization_id = ${session.organization_id} AND status = ${status}
-          ORDER BY created_at DESC
-          LIMIT ${limit} OFFSET ${offset}
-        `
+        const result = await db.query(
+          `SELECT * FROM webhook_failures
+           WHERE organization_id = $1 AND status = $2
+           ORDER BY created_at DESC
+           LIMIT $3 OFFSET $4`,
+          [session.organization_id, status, limit, offset]
+        )
+        failures = result.rows
       }
 
-      const metricsRows = await sql`
-        SELECT
-          COUNT(*) FILTER (WHERE status = 'failed')::int AS active_failures,
-          COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved,
-          COUNT(*) FILTER (WHERE status = 'discarded')::int AS discarded,
-          COUNT(*)::int AS total
-        FROM webhook_failures
-        WHERE organization_id = ${session.organization_id}
-      `
-      if (metricsRows.length > 0) metrics = metricsRows[0]
+      const metricsResult = await db.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'failed')::int AS active_failures,
+           COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved,
+           COUNT(*) FILTER (WHERE status = 'discarded')::int AS discarded,
+           COUNT(*)::int AS total
+         FROM webhook_failures
+         WHERE organization_id = $1`,
+        [session.organization_id]
+      )
+      if (metricsResult.rows.length > 0) metrics = metricsResult.rows[0]
     } catch {
       // Table may not exist or have different schema — create it
-      await ensureTable(sql)
+      await ensureTable(db)
     }
 
     return c.json({
@@ -103,27 +108,24 @@ reliabilityRoutes.put('/webhooks', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
-    await ensureTable(sql)
+    const db = getDb(c.env)
+    await ensureTable(db)
 
-    const body = await c.req.json()
-    const { failure_id, action, resolution_notes } = body
-
-    if (!failure_id) return c.json({ error: 'failure_id is required' }, 400)
-    if (!action || !['retry', 'discard', 'manual_review'].includes(action)) {
-      return c.json({ error: 'action must be retry, discard, or manual_review' }, 400)
-    }
+    const parsed = await validateBody(c, WebhookActionSchema)
+    if (!parsed.success) return parsed.response
+    const { failure_id, action, resolution_notes } = parsed.data
 
     // Check failure belongs to org
-    const existing = await sql`
-      SELECT id, webhook_url, payload, retry_count, max_retries
-      FROM webhook_failures
-      WHERE id = ${failure_id} AND organization_id = ${session.organization_id}
-    `
-    if (existing.length === 0) return c.json({ error: 'Failure not found' }, 404)
+    const existing = await db.query(
+      `SELECT id, webhook_url, payload, retry_count, max_retries
+       FROM webhook_failures
+       WHERE id = $1 AND organization_id = $2`,
+      [failure_id, session.organization_id]
+    )
+    if (existing.rows.length === 0) return c.json({ error: 'Failure not found' }, 404)
 
     if (action === 'retry') {
-      const fail = existing[0]
+      const fail = existing.rows[0]
       // Attempt re-delivery
       try {
         const resp = await fetch(fail.webhook_url, {
@@ -132,53 +134,58 @@ reliabilityRoutes.put('/webhooks', async (c) => {
           body: JSON.stringify(fail.payload),
         })
         if (resp.ok) {
-          await sql`
-            UPDATE webhook_failures
-            SET status = 'resolved', retry_count = retry_count + 1,
-                resolution_notes = ${'Retried successfully — HTTP ' + resp.status},
-                resolved_by = ${session.user_id}, resolved_at = NOW()
-            WHERE id = ${failure_id}
-          `
+          await db.query(
+            `UPDATE webhook_failures
+             SET status = 'resolved', retry_count = retry_count + 1,
+                 resolution_notes = $1,
+                 resolved_by = $2, resolved_at = NOW()
+             WHERE id = $3`,
+            ['Retried successfully — HTTP ' + resp.status, session.user_id, failure_id]
+          )
           return c.json({ success: true, status: 'resolved', message: 'Retry succeeded' })
         } else {
-          await sql`
-            UPDATE webhook_failures
-            SET retry_count = retry_count + 1,
-                error_message = ${'Retry failed — HTTP ' + resp.status}
-            WHERE id = ${failure_id}
-          `
+          await db.query(
+            `UPDATE webhook_failures
+             SET retry_count = retry_count + 1,
+                 error_message = $1
+             WHERE id = $2`,
+            ['Retry failed — HTTP ' + resp.status, failure_id]
+          )
           return c.json({ success: false, status: 'failed', message: 'Retry failed with HTTP ' + resp.status })
         }
       } catch (retryErr: any) {
-        await sql`
-          UPDATE webhook_failures
-          SET retry_count = retry_count + 1,
-              error_message = ${retryErr?.message || 'Retry fetch error'}
-          WHERE id = ${failure_id}
-        `
+        await db.query(
+          `UPDATE webhook_failures
+           SET retry_count = retry_count + 1,
+               error_message = $1
+           WHERE id = $2`,
+          [retryErr?.message || 'Retry fetch error', failure_id]
+        )
         return c.json({ success: false, status: 'failed', message: 'Retry error: ' + retryErr?.message })
       }
     }
 
     if (action === 'discard') {
-      await sql`
-        UPDATE webhook_failures
-        SET status = 'discarded',
-            resolution_notes = ${resolution_notes || 'Discarded by user'},
-            resolved_by = ${session.user_id}, resolved_at = NOW()
-        WHERE id = ${failure_id}
-      `
+      await db.query(
+        `UPDATE webhook_failures
+         SET status = 'discarded',
+             resolution_notes = $1,
+             resolved_by = $2, resolved_at = NOW()
+         WHERE id = $3`,
+        [resolution_notes || 'Discarded by user', session.user_id, failure_id]
+      )
       return c.json({ success: true, status: 'discarded' })
     }
 
     if (action === 'manual_review') {
-      await sql`
-        UPDATE webhook_failures
-        SET status = 'under_review',
-            resolution_notes = ${resolution_notes || 'Marked for manual review'},
-            resolved_by = ${session.user_id}
-        WHERE id = ${failure_id}
-      `
+      await db.query(
+        `UPDATE webhook_failures
+         SET status = 'under_review',
+             resolution_notes = $1,
+             resolved_by = $2
+         WHERE id = $3`,
+        [resolution_notes || 'Marked for manual review', session.user_id, failure_id]
+      )
       return c.json({ success: true, status: 'under_review' })
     }
 

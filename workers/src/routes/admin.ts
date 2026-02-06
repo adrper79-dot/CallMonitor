@@ -4,22 +4,22 @@
  * Endpoints:
  *   GET  /auth-providers  - List auth providers & status
  *   POST /auth-providers  - Toggle / update an auth provider
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import { UpdateAuthProviderSchema } from '../lib/schemas'
 
 export const adminRoutes = new Hono<{ Bindings: Env }>()
 
-async function getSQL(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
-
-async function ensureTable(sql: any) {
-  await sql`
+async function ensureTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
     CREATE TABLE IF NOT EXISTS auth_providers (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -32,7 +32,7 @@ async function ensureTable(sql: any) {
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(organization_id, provider)
     )
-  `
+  `)
 }
 
 // GET /auth-providers — List auth providers & diagnostic info
@@ -42,21 +42,22 @@ adminRoutes.get('/auth-providers', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
 
-    const sql = await getSQL(c)
-    await ensureTable(sql)
+    const db = getDb(c.env)
+    await ensureTable(db)
 
-    const providers = await sql`
-      SELECT id, provider, enabled, client_id, config, created_at, updated_at
-      FROM auth_providers
-      WHERE organization_id = ${session.organization_id}
-      ORDER BY provider ASC
-    `
+    const result = await db.query(
+      `SELECT id, provider, enabled, client_id, config, created_at, updated_at
+       FROM auth_providers
+       WHERE organization_id = $1
+       ORDER BY provider ASC`,
+      [session.organization_id]
+    )
 
     // Default provider list with status
     const defaults = ['credentials', 'google', 'github', 'microsoft', 'saml']
-    const providerMap = new Map(providers.map((p: any) => [p.provider, p]))
+    const providerMap = new Map(result.rows.map((p: any) => [p.provider, p]))
 
-    const result = defaults.map((name) => {
+    const providers = defaults.map((name) => {
       const existing = providerMap.get(name)
       return {
         provider: name,
@@ -67,7 +68,7 @@ adminRoutes.get('/auth-providers', async (c) => {
       }
     })
 
-    return c.json({ success: true, providers: result })
+    return c.json({ success: true, providers })
   } catch (err: any) {
     console.error('GET /api/_admin/auth-providers error:', err?.message)
     return c.json({ error: 'Failed to fetch auth providers' }, 500)
@@ -81,39 +82,39 @@ adminRoutes.post('/auth-providers', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
 
-    const sql = await getSQL(c)
-    await ensureTable(sql)
+    const parsed = await validateBody(c, UpdateAuthProviderSchema)
+    if (!parsed.success) return parsed.response
+    const { provider, enabled, client_id, client_secret, config } = parsed.data
 
-    const body = await c.req.json()
-    const { provider, enabled, client_id, client_secret, config } = body
+    const db = getDb(c.env)
+    await ensureTable(db)
 
-    if (!provider) return c.json({ error: 'provider is required' }, 400)
+    const result = await db.query(
+      `INSERT INTO auth_providers (organization_id, provider, enabled, client_id, client_secret_hash, config)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+       ON CONFLICT (organization_id, provider) DO UPDATE SET
+         enabled = COALESCE($3, auth_providers.enabled),
+         client_id = COALESCE($4, auth_providers.client_id),
+         client_secret_hash = CASE WHEN $5 IS NOT NULL THEN '***hashed***' ELSE auth_providers.client_secret_hash END,
+         config = COALESCE($6::jsonb, auth_providers.config),
+         updated_at = NOW()
+       RETURNING id, provider, enabled, client_id, updated_at`,
+      [
+        session.organization_id,
+        provider,
+        enabled ?? false,
+        client_id || null,
+        client_secret ? '***hashed***' : null,
+        JSON.stringify(config || {}),
+      ]
+    )
 
-    // Upsert
-    const [result] = await sql`
-      INSERT INTO auth_providers (organization_id, provider, enabled, client_id, client_secret_hash, config)
-      VALUES (
-        ${session.organization_id},
-        ${provider},
-        ${enabled ?? false},
-        ${client_id || null},
-        ${client_secret ? '***hashed***' : null},
-        ${JSON.stringify(config || {})}
-      )
-      ON CONFLICT (organization_id, provider) DO UPDATE SET
-        enabled = COALESCE(${enabled ?? null}, auth_providers.enabled),
-        client_id = COALESCE(${client_id || null}, auth_providers.client_id),
-        client_secret_hash = CASE WHEN ${client_secret || null} IS NOT NULL THEN '***hashed***' ELSE auth_providers.client_secret_hash END,
-        config = COALESCE(${JSON.stringify(config || {})}::jsonb, auth_providers.config),
-        updated_at = NOW()
-      RETURNING id, provider, enabled, client_id, updated_at
-    `
-
+    const row = result.rows[0]
     return c.json({
       success: true,
       provider: {
-        ...result,
-        client_id: result.client_id ? '***' + result.client_id.slice(-4) : null,
+        ...row,
+        client_id: row.client_id ? '***' + row.client_id.slice(-4) : null,
       },
     })
   } catch (err: any) {

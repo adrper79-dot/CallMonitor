@@ -7,20 +7,50 @@
  *   GET  /legal-holds   - List legal holds
  *   POST /legal-holds   - Create legal hold
  *   DELETE /legal-holds/:id - Release (delete) legal hold
+ *
+ * P2-2: Uses centralized getDb() — no inline neon imports
+ * H1: Zod-validated request bodies via validateBody()
  */
 
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateRetentionSchema, CreateLegalHoldSchema } from '../lib/schemas'
 
 export const retentionRoutes = new Hono<{ Bindings: Env }>()
 
-async function getNeon(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
+async function ensureRetentionTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS retention_policies (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL UNIQUE,
+      recording_retention_days INTEGER DEFAULT 365,
+      transcript_retention_days INTEGER DEFAULT 365,
+      call_log_retention_days INTEGER DEFAULT 730,
+      auto_delete_enabled BOOLEAN DEFAULT false,
+      gdpr_mode BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+}
+
+async function ensureLegalHoldsTable(db: ReturnType<typeof getDb>) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS legal_holds (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      name TEXT NOT NULL,
+      matter_reference TEXT,
+      applies_to_all BOOLEAN DEFAULT false,
+      status TEXT DEFAULT 'active',
+      created_by UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      released_at TIMESTAMPTZ
+    )
+  `)
 }
 
 // GET / — Get retention policy
@@ -29,29 +59,17 @@ retentionRoutes.get('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
+    await ensureRetentionTable(db)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS retention_policies (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL UNIQUE,
-        recording_retention_days INTEGER DEFAULT 365,
-        transcript_retention_days INTEGER DEFAULT 365,
-        call_log_retention_days INTEGER DEFAULT 730,
-        auto_delete_enabled BOOLEAN DEFAULT false,
-        gdpr_mode BOOLEAN DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `
+    const result = await db.query(
+      `SELECT * FROM retention_policies
+       WHERE organization_id = $1
+       LIMIT 1`,
+      [session.organization_id]
+    )
 
-    const rows = await sql`
-      SELECT * FROM retention_policies
-      WHERE organization_id = ${session.organization_id}
-      LIMIT 1
-    `
-
-    const policy = rows[0] || {
+    const policy = result.rows[0] || {
       recording_retention_days: 365,
       transcript_retention_days: 365,
       call_log_retention_days: 730,
@@ -82,46 +100,34 @@ retentionRoutes.put('/', async (c) => {
       gdpr_mode,
     } = parsed.data
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
+    await ensureRetentionTable(db)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS retention_policies (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL UNIQUE,
-        recording_retention_days INTEGER DEFAULT 365,
-        transcript_retention_days INTEGER DEFAULT 365,
-        call_log_retention_days INTEGER DEFAULT 730,
-        auto_delete_enabled BOOLEAN DEFAULT false,
-        gdpr_mode BOOLEAN DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `
+    const result = await db.query(
+      `INSERT INTO retention_policies (
+         organization_id, recording_retention_days, transcript_retention_days,
+         call_log_retention_days, auto_delete_enabled, gdpr_mode
+       ) VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         recording_retention_days = EXCLUDED.recording_retention_days,
+         transcript_retention_days = EXCLUDED.transcript_retention_days,
+         call_log_retention_days = EXCLUDED.call_log_retention_days,
+         auto_delete_enabled = EXCLUDED.auto_delete_enabled,
+         gdpr_mode = EXCLUDED.gdpr_mode,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        session.organization_id,
+        recording_retention_days ?? 365,
+        transcript_retention_days ?? 365,
+        call_log_retention_days ?? 730,
+        auto_delete_enabled ?? false,
+        gdpr_mode ?? false,
+      ]
+    )
 
-    const result = await sql`
-      INSERT INTO retention_policies (
-        organization_id, recording_retention_days, transcript_retention_days,
-        call_log_retention_days, auto_delete_enabled, gdpr_mode
-      ) VALUES (
-        ${session.organization_id},
-        ${recording_retention_days ?? 365},
-        ${transcript_retention_days ?? 365},
-        ${call_log_retention_days ?? 730},
-        ${auto_delete_enabled ?? false},
-        ${gdpr_mode ?? false}
-      )
-      ON CONFLICT (organization_id)
-      DO UPDATE SET
-        recording_retention_days = EXCLUDED.recording_retention_days,
-        transcript_retention_days = EXCLUDED.transcript_retention_days,
-        call_log_retention_days = EXCLUDED.call_log_retention_days,
-        auto_delete_enabled = EXCLUDED.auto_delete_enabled,
-        gdpr_mode = EXCLUDED.gdpr_mode,
-        updated_at = NOW()
-      RETURNING *
-    `
-
-    return c.json({ success: true, policy: result[0] })
+    return c.json({ success: true, policy: result.rows[0] })
   } catch (err: any) {
     console.error('PUT /api/retention error:', err?.message)
     return c.json({ error: 'Failed to update retention policy' }, 500)
@@ -134,29 +140,17 @@ retentionRoutes.get('/legal-holds', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
+    await ensureLegalHoldsTable(db)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS legal_holds (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        matter_reference TEXT,
-        applies_to_all BOOLEAN DEFAULT false,
-        status TEXT DEFAULT 'active',
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        released_at TIMESTAMPTZ
-      )
-    `
+    const result = await db.query(
+      `SELECT * FROM legal_holds
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [session.organization_id]
+    )
 
-    const rows = await sql`
-      SELECT * FROM legal_holds
-      WHERE organization_id = ${session.organization_id}
-      ORDER BY created_at DESC
-    `
-
-    return c.json({ success: true, legalHolds: rows })
+    return c.json({ success: true, legalHolds: result.rows })
   } catch (err: any) {
     console.error('GET /api/retention/legal-holds error:', err?.message)
     return c.json({ error: 'Failed to list legal holds' }, 500)
@@ -173,29 +167,17 @@ retentionRoutes.post('/legal-holds', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, matter_reference, applies_to_all } = parsed.data
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
+    await ensureLegalHoldsTable(db)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS legal_holds (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        matter_reference TEXT,
-        applies_to_all BOOLEAN DEFAULT false,
-        status TEXT DEFAULT 'active',
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        released_at TIMESTAMPTZ
-      )
-    `
+    const result = await db.query(
+      `INSERT INTO legal_holds (organization_id, name, matter_reference, applies_to_all, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [session.organization_id, name, matter_reference || null, applies_to_all ?? false, session.user_id]
+    )
 
-    const result = await sql`
-      INSERT INTO legal_holds (organization_id, name, matter_reference, applies_to_all, created_by)
-      VALUES (${session.organization_id}, ${name}, ${matter_reference || null}, ${applies_to_all ?? false}, ${session.user_id})
-      RETURNING *
-    `
-
-    return c.json({ success: true, legalHold: result[0] })
+    return c.json({ success: true, legalHold: result.rows[0] })
   } catch (err: any) {
     console.error('POST /api/retention/legal-holds error:', err?.message)
     return c.json({ error: 'Failed to create legal hold' }, 500)
@@ -209,16 +191,17 @@ retentionRoutes.delete('/legal-holds/:id', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const holdId = c.req.param('id')
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      UPDATE legal_holds
-      SET status = 'released', released_at = NOW()
-      WHERE id = ${holdId}::uuid AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `UPDATE legal_holds
+       SET status = 'released', released_at = NOW()
+       WHERE id = $1::uuid AND organization_id = $2
+       RETURNING id`,
+      [holdId, session.organization_id]
+    )
 
-    if (result.length === 0) return c.json({ error: 'Legal hold not found' }, 404)
+    if (result.rows.length === 0) return c.json({ error: 'Legal hold not found' }, 404)
 
     return c.json({ success: true, message: 'Legal hold released' })
   } catch (err: any) {

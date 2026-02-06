@@ -105,15 +105,15 @@ Many frontend components call API endpoints that don't exist in Workers yet.
 
 | Route | Workers File | Status |
 |-------|--------------|--------|
-| `/api/voice/*` | `workers/src/routes/voice.ts` | ⬜ TODO |
-| `/api/team/*` | `workers/src/routes/team.ts` | ⬜ TODO |
-| `/api/billing/*` | `workers/src/routes/billing.ts` | ⬜ TODO |
-| `/api/retention/*` | `workers/src/routes/retention.ts` | ⬜ TODO |
-| `/api/ai-config` | `workers/src/routes/ai-config.ts` | ⬜ TODO |
-| `/api/campaigns/*` | `workers/src/routes/campaigns.ts` | ⬜ TODO |
-| `/api/reports/*` | `workers/src/routes/reports.ts` | ⬜ TODO |
-| `/api/caller-id/*` | `workers/src/routes/caller-id.ts` | ⬜ TODO |
-| `/api/compliance/*` | `workers/src/routes/compliance.ts` | ⬜ TODO |
+| `/api/voice/*` | `workers/src/routes/voice.ts` | ✅ DONE |
+| `/api/team/*` | `workers/src/routes/team.ts` | ✅ DONE |
+| `/api/billing/*` | `workers/src/routes/billing.ts` | ✅ DONE |
+| `/api/retention/*` | `workers/src/routes/retention.ts` | ✅ DONE |
+| `/api/ai-config` | `workers/src/routes/ai-config.ts` | ✅ DONE |
+| `/api/campaigns/*` | `workers/src/routes/campaigns.ts` | ✅ DONE |
+| `/api/reports/*` | `workers/src/routes/reports.ts` | ✅ DONE |
+| `/api/caller-id/*` | `workers/src/routes/caller-id.ts` | ✅ DONE |
+| `/api/compliance/*` | `workers/src/routes/compliance.ts` | ⬜ TODO (only remaining) |
 
 **Migration Pattern:**
 1. Copy logic from `app/api/[route]/route.ts` 
@@ -139,16 +139,18 @@ cd workers && npx wrangler deploy
 ### P2-2: Centralize Database Connection in Workers
 - **Issue:** Every route does `const { neon } = await import('@neondatabase/serverless')`
 - **Fix:** Use centralized `getDb()` from `workers/src/lib/db.ts`
-- **Status:** ⬜ TODO
+- **Batch 1 (7 files):** ✅ DONE — admin, reliability, tts, audio, surveys, retention, ai-config migrated to `getDb()` + parameterized queries
+- **Batch 2 (~15 files):** ⬜ TODO — webhooks, auth, organizations, webrtc, audit, voice, billing, shopper, caller-id, usage, users, campaigns, scorecards, reports, analytics
+- **Status:** 🔄 IN PROGRESS (7/22 files migrated)
 
 ---
 
 ## 🟡 P3: LOW PRIORITY
 
 ### P3-1: Add Rate Limiting to Workers
-- **File:** `workers/src/index.ts`
-- **Action:** Add Hono rate limiter middleware
-- **Status:** ⬜ TODO
+- **Auth endpoints:** ✅ DONE via M6 — KV-backed sliding-window rate limiter in `workers/src/lib/rate-limit.ts`
+- **Broader API rate limiting:** ⬜ TODO — Cloudflare WAF can handle general rate limiting; app-level middleware deferred
+- **Status:** ⚠️ PARTIAL (auth done, broader API deferred)
 
 ### P3-2: Session Storage Key Alignment
 - **Issue:** Frontend uses `wb-session-token` in localStorage, Workers reads `session-token` cookie
