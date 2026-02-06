@@ -24,6 +24,7 @@ import { CheckoutSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { billingRateLimit } from '../lib/rate-limit'
 
 export const billingRoutes = new Hono<{ Bindings: Env }>()
 
@@ -61,10 +62,9 @@ async function getBillingInfo(c: any) {
     org = result.rows?.[0]
   } catch {
     // 'plan' column might not exist — fall back to minimal query
-    const result = await db.query(
-      'SELECT o.id, o.name FROM organizations o WHERE o.id = $1',
-      [session.organization_id]
-    )
+    const result = await db.query('SELECT o.id, o.name FROM organizations o WHERE o.id = $1', [
+      session.organization_id,
+    ])
     org = result.rows?.[0]
   }
 
@@ -209,7 +209,7 @@ billingRoutes.get('/payment-methods', async (c) => {
 })
 
 // Delete a payment method
-billingRoutes.delete('/payment-methods/:id', async (c) => {
+billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -298,7 +298,7 @@ billingRoutes.get('/invoices', async (c) => {
 })
 
 // Create Stripe Checkout session for plan upgrade
-billingRoutes.post('/checkout', idempotent(), async (c) => {
+billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -392,7 +392,7 @@ billingRoutes.post('/checkout', idempotent(), async (c) => {
 })
 
 // Create Stripe Customer Portal session
-billingRoutes.post('/portal', idempotent(), async (c) => {
+billingRoutes.post('/portal', billingRateLimit, idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -447,7 +447,7 @@ billingRoutes.post('/portal', idempotent(), async (c) => {
 })
 
 // Cancel subscription
-billingRoutes.post('/cancel', idempotent(), async (c) => {
+billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {

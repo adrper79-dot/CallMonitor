@@ -123,3 +123,47 @@ export const forgotPasswordRateLimit = rateLimit({
   windowSeconds: 15 * 60,
   prefix: 'rl:forgot',
 })
+
+// ─── Pre-configured limiters for business-critical routes ────────────────────
+
+/** Billing mutations: 20 per 15 minutes per IP (checkout, cancel, portal) */
+export const billingRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:billing',
+})
+
+/** Call mutations: 30 per 5 minutes per IP (start, end, outcome) */
+export const callMutationRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:call',
+})
+
+/** Voice/telephony actions: 20 per 5 minutes per IP (place call, config) */
+export const voiceRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:voice',
+})
+
+/** Team management: 15 per 15 minutes per IP (invites, members) */
+export const teamRateLimit = rateLimit({
+  limit: 15,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:team',
+})
+
+/** Booking mutations: 20 per 5 minutes per IP */
+export const bookingRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:booking',
+})
+
+/** Webhook subscriptions: 10 per 5 minutes per IP */
+export const webhookRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:webhook',
+})

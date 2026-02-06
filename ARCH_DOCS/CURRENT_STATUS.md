@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 6, 2026  
-**Version:** 4.10 - Full Audit Coverage & Operational Tooling Sprint  
+**Version:** 4.11 - Rate Limiting, API Documentation & DX Sprint  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,38 @@
 ---
 
 ## 🔧 **Recent Updates (February 6, 2026)**
+
+### **Rate Limiting, API Documentation & DX Sprint (v4.11):** ✅ **DEPLOYED**
+
+1. **KV-Backed Rate Limiting** ⭐ **SECURITY**
+   - Added 6 pre-configured limiters to `workers/src/lib/rate-limit.ts`: billing (20/15min), calls (30/5min), voice (20/5min), team (15/15min), bookings (20/5min), webhooks (10/5min)
+   - Applied to **22 mutation endpoints** across 6 route files (billing, calls, voice, team, bookings, webhooks)
+   - Sliding-window counter with KV TTL, fail-open, `Retry-After` + `X-RateLimit-*` headers
+
+2. **OpenAPI Spec Update** ✅ **DOCUMENTATION**
+   - Added 12 new route groups: bookings, audit, organizations, users, scorecards, caller-id, webrtc, bond-ai, tts, usage + System tag
+   - Added 7 new schemas: Booking, CreateBookingRequest, UpdateBookingRequest, AuditLog, UserProfile, CreateScorecardRequest
+   - Added production Workers API server URL
+
+3. **Permission Matrix Generator** ✅ **DX**
+   - Created `tools/generate-permission-matrix.ts` — auto-generates `docs/PERMISSION_MATRIX.md`
+   - 66 routes × 7 roles with inheritance (viewer → agent → manager → admin → owner + compliance/analyst branches)
+   - New npm script: `gen:permissions`
+
+4. **Schema ERD Mermaid Diagram** ✅ **DOCUMENTATION**
+   - Created `docs/SCHEMA_ERD.md` — full Mermaid ER diagram with 47 active tables
+   - 16 entity groups: Auth, Tenancy, Calls, Recordings, Voice, Campaigns, Team, Billing, Compliance, AI, Scorecards, Webhooks, RBAC, Surveys, Reports, Admin
+   - Multi-tenant isolation documentation
+
+5. **Cloudflare Image Resizing** ✅ **PERFORMANCE**
+   - Created `lib/cloudflare-image-loader.ts` — custom Next.js image loader for CF edge resizing
+   - Updated `next.config.js` with `remotePatterns` for R2 + Pages domains
+   - Auto WebP/AVIF format negotiation via `format=auto`
+
+6. **ROADMAP Progress** ✅ **TRACKING**
+   - RISK/SCALE: 18/25 → 20/25 (Image CDN + OpenAPI + Rate Limiting)
+   - DX/CI: 16/20 → 18/20 (Schema Doc + Permission Matrix)
+   - Overall: 62/109 → **69/109 (63%)**
 
 ### **Full Audit Coverage & Operational Tooling Sprint (v4.10):** ✅ **DEPLOYED**
 

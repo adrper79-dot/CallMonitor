@@ -21,6 +21,7 @@ import {
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { callMutationRateLimit } from '../lib/rate-limit'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -134,7 +135,7 @@ callsRoutes.get('/:id', async (c) => {
 })
 
 // Start a new call
-callsRoutes.post('/start', idempotent(), async (c) => {
+callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -179,7 +180,7 @@ callsRoutes.post('/start', idempotent(), async (c) => {
 })
 
 // End a call
-callsRoutes.post('/:id/end', async (c) => {
+callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -349,7 +350,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
 })
 
 // POST /api/calls/[id]/outcome
-callsRoutes.post('/:id/outcome', async (c) => {
+callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
   try {
     const session = await requireRole(c, 'operator')
     if (!session) {
@@ -995,7 +996,7 @@ callsRoutes.post('/:id/notes', async (c) => {
 })
 
 // PUT /api/calls/:id/disposition — set call disposition
-callsRoutes.put('/:id/disposition', async (c) => {
+callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
   try {
     const session = await requireRole(c, 'operator')
     if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)

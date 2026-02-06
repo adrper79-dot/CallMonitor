@@ -3,7 +3,7 @@
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 54/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Progress**: 69/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -36,7 +36,7 @@
 
 ---
 
-## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 18/25
+## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 20/25
 
 ### ✅ Completed
 
@@ -64,10 +64,11 @@
 - [ ] ~~**Sentry Workers** (`sentry.config.ts`): Edge init.~~ **N/A** — Sentry removed; use Cloudflare Logpush.
 - [ ] **WAF Rules** (CF Dashboard): Rate limit /api. **10min**
 - [ ] **Origin CA** (secrets): Custom TLS cert. **20min**
-- [ ] **Image CDN** (`next.config.js`): CF Image Resizing. **15min**
+- [x] **Image CDN** (`next.config.js` + `lib/cloudflare-image-loader.ts`): CF Image Resizing loader + remotePatterns config. ✅
 - [ ] **Backup Policy** (`scripts/`): Weekly Neon backup. **1hr**
 - [ ] **Public Compress** (`public/branding/`): WebP conversion. **30min**
-- [ ] **OpenAPI Gen** (`public/openapi.yaml`): Zod-based. **1hr**
+- [x] **OpenAPI Gen** (`public/openapi.yaml`): Updated with 12 new route groups (bookings, audit, orgs, users, scorecards, caller-id, webrtc, bond-ai, tts, usage) + 7 new schemas. ✅
+- [x] **Rate Limiting** (6 route files): KV-backed per-IP rate limits on billing, calls, voice, team, bookings, webhooks — 22 mutation endpoints protected. ✅
 
 ### 📋 Recommendations
 
@@ -78,7 +79,7 @@
 
 ---
 
-## 🔧 DX/CI (Dev Flow) - PROGRESS: 16/20
+## 🔧 DX/CI (Dev Flow) - PROGRESS: 18/20
 
 ### ✅ Completed
 
@@ -103,8 +104,8 @@
 
 - [ ] **Test E2E** (`tests/e2e/`): Playwright setup. **2hr**
 - [ ] **Manual Tests** (`tests/manual/`): Automate. **1hr**
-- [ ] **Schema Doc** (`schema.sql`): Mermaid ERD. **1hr**
-- [ ] **Permission Matrix** (`tools/`): RBAC gen. **30min**
+- [x] **Schema Doc** (`docs/SCHEMA_ERD.md`): Mermaid ERD with 47 active tables, all relationships, multi-tenant isolation diagram. ✅
+- [x] **Permission Matrix** (`tools/generate-permission-matrix.ts` → `docs/PERMISSION_MATRIX.md`): Auto-generated 66 routes × 7 roles matrix with role inheritance. ✅
 
 ### 📋 Recommendations
 
@@ -253,13 +254,13 @@ npm run health-check
 1. [ ] **CVA Migration** (Tailwind): Design system
 2. [ ] **Suspense/Streaming** (app/): Performance
 3. [ ] **HOF Hooks** (useCallModulation): Elegant patterns
-4. [ ] OpenAPI generation
-5. [ ] Idempotency layer
+4. [x] OpenAPI generation ✅
+5. [x] Idempotency layer ✅
 6. [x] Full audit logging ✅
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 62/109 (57%).
+**Track**: Update [x] as items complete. **Progress**: 69/109 (63%).
 **Last Updated**: Feb 6, 2026 by GitHub Copilot
 
 ---

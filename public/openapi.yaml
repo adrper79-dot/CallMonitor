@@ -32,8 +32,10 @@ info:
     url: https://wordisbond.com/terms
 
 servers:
+  - url: https://wordisbond-api.adrper79.workers.dev/api
+    description: Production Workers API
   - url: /api
-    description: API Base URL
+    description: Local API (relative)
 
 tags:
   - name: Authentication
@@ -58,6 +60,28 @@ tags:
     description: Retention policies and legal holds
   - name: AI Configuration
     description: AI agent and live translation settings
+  - name: Bookings
+    description: Appointment and booking management
+  - name: Audit
+    description: Audit log access
+  - name: Organizations
+    description: Organization management
+  - name: Users
+    description: User profile management
+  - name: Scorecards
+    description: Call quality scoring
+  - name: Caller ID
+    description: Verified caller ID management
+  - name: WebRTC
+    description: Browser-based voice connectivity
+  - name: Bond AI
+    description: AI assistant and co-pilot
+  - name: TTS
+    description: Text-to-speech generation
+  - name: Usage
+    description: Account usage metrics
+  - name: System
+    description: Health and diagnostics
 
 paths:
   /calls:
@@ -991,6 +1015,416 @@ paths:
                     type: string
                     format: date-time
 
+  # ── Bookings ─────────────────────────────────────────────────────────────────
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings
+      operationId: listBookings
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed]
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Bookings list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  bookings: { type: array, items: { $ref: '#/components/schemas/Booking' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Bookings]
+      summary: Create a booking
+      operationId: createBooking
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBookingRequest' }
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Rate limited
+  /bookings/{bookingId}:
+    patch:
+      tags: [Bookings]
+      summary: Update a booking
+      operationId: updateBooking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBookingRequest' }
+      responses:
+        '200':
+          description: Booking updated
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Bookings]
+      summary: Delete a booking
+      operationId: deleteBooking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Booking deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── Audit ────────────────────────────────────────────────────────────────────
+  /audit:
+    get:
+      tags: [Audit]
+      summary: List audit logs
+      operationId: listAuditLogs
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Paginated audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  logs: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── Organizations ────────────────────────────────────────────────────────────
+  /organizations:
+    post:
+      tags: [Organizations]
+      summary: Create an organization
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Organization created
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /organizations/current:
+    get:
+      tags: [Organizations]
+      summary: Get current organization
+      operationId: getCurrentOrganization
+      responses:
+        '200':
+          description: Organization info
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── Users ────────────────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── Scorecards ───────────────────────────────────────────────────────────────
+  /scorecards:
+    get:
+      tags: [Scorecards]
+      summary: List scorecards
+      operationId: listScorecards
+      responses:
+        '200':
+          description: Scorecards list
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Scorecards]
+      summary: Create a scorecard
+      operationId: createScorecard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateScorecardRequest' }
+      responses:
+        '201':
+          description: Scorecard created
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /scorecards/{scorecardId}:
+    get:
+      tags: [Scorecards]
+      summary: Get a scorecard
+      operationId: getScorecard
+      parameters:
+        - name: scorecardId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Scorecard details
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── Caller ID ────────────────────────────────────────────────────────────────
+  /caller-id:
+    get:
+      tags: [Caller ID]
+      summary: List verified caller IDs
+      operationId: listCallerIds
+      responses:
+        '200':
+          description: Caller IDs
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Caller ID]
+      summary: Initiate caller ID verification
+      operationId: verifyCallerId
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone_number]
+              properties:
+                phone_number: { type: string }
+      responses:
+        '200':
+          description: Verification initiated
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /caller-id/{callerId}/verify:
+    put:
+      tags: [Caller ID]
+      summary: Confirm caller ID verification
+      operationId: confirmCallerId
+      parameters:
+        - name: callerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: Verified
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /caller-id/{callerId}:
+    delete:
+      tags: [Caller ID]
+      summary: Remove a caller ID
+      operationId: deleteCallerId
+      parameters:
+        - name: callerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── WebRTC ───────────────────────────────────────────────────────────────────
+  /webrtc/token:
+    get:
+      tags: [WebRTC]
+      summary: Get a WebRTC JWT token
+      operationId: getWebRtcToken
+      responses:
+        '200':
+          description: WebRTC token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /webrtc/dial:
+    post:
+      tags: [WebRTC]
+      summary: Initiate outbound call via Telnyx
+      operationId: dialWebRtc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to: { type: string }
+                from: { type: string }
+      responses:
+        '200':
+          description: Call initiated
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── Bond AI ──────────────────────────────────────────────────────────────────
+  /bond-ai/chat:
+    post:
+      tags: [Bond AI]
+      summary: Send AI chat message
+      operationId: bondAiChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+                conversation_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response: { type: string }
+                  conversation_id: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /bond-ai/copilot:
+    post:
+      tags: [Bond AI]
+      summary: Real-time call co-pilot
+      operationId: bondAiCopilot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [call_id, context]
+              properties:
+                call_id: { type: string, format: uuid }
+                context: { type: string }
+      responses:
+        '200':
+          description: Co-pilot suggestions
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /bond-ai/conversations:
+    get:
+      tags: [Bond AI]
+      summary: List AI conversations
+      operationId: listConversations
+      responses:
+        '200':
+          description: Conversations list
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /bond-ai/insights:
+    get:
+      tags: [Bond AI]
+      summary: AI-powered org insights
+      operationId: getInsights
+      responses:
+        '200':
+          description: Cross-tier insights
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── TTS ──────────────────────────────────────────────────────────────────────
+  /tts/generate:
+    post:
+      tags: [TTS]
+      summary: Generate text-to-speech audio
+      operationId: generateTts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+                voice_id: { type: string }
+      responses:
+        '200':
+          description: Audio generated (URL to R2 object)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── Usage ────────────────────────────────────────────────────────────────────
+  /usage:
+    get:
+      tags: [Usage]
+      summary: Get account usage
+      operationId: getUsage
+      responses:
+        '200':
+          description: Usage metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  calls: { type: integer }
+                  minutes: { type: number }
+                  recordings: { type: integer }
+                  plan_limit: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
 components:
   schemas:
     CallListResponse:
@@ -1515,6 +1949,65 @@ components:
               type: string
             message:
               type: string
+
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+        status: { type: string, enum: [pending, confirmed, cancelled, completed] }
+        created_at: { type: string, format: date-time }
+
+    CreateBookingRequest:
+      type: object
+      required: [title, start_time, end_time]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+
+    UpdateBookingRequest:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [pending, confirmed, cancelled, completed] }
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        resource_type: { type: string }
+        resource_id: { type: string }
+        action: { type: string }
+        old_value: { type: object }
+        new_value: { type: object }
+        created_at: { type: string, format: date-time }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { type: string, enum: [owner, admin, operator, analyst, viewer] }
+        organization_id: { type: string, format: uuid }
+
+    CreateScorecardRequest:
+      type: object
+      required: [call_id, overall_score]
+      properties:
+        call_id: { type: string, format: uuid }
+        overall_score: { type: integer, minimum: 1, maximum: 10 }
+        notes: { type: string }
+        scores: { type: object }
 
   responses:
     Unauthorized:

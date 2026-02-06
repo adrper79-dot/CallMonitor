@@ -10,6 +10,7 @@ import { validateBody } from '../lib/validate'
 import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { voiceRateLimit } from '../lib/rate-limit'
 
 export const voiceRoutes = new Hono<{ Bindings: Env }>()
 
@@ -98,7 +99,7 @@ voiceRoutes.get('/config', async (c) => {
 })
 
 // Update voice configuration
-voiceRoutes.put('/config', async (c) => {
+voiceRoutes.put('/config', voiceRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -175,7 +176,11 @@ voiceRoutes.put('/config', async (c) => {
       resourceType: 'voice_configs',
       resourceId: session.organization_id,
       action: AuditAction.VOICE_CONFIG_UPDATED,
-      after: { record: modulations.record, transcribe: modulations.transcribe, translate: modulations.translate },
+      after: {
+        record: modulations.record,
+        transcribe: modulations.transcribe,
+        translate: modulations.translate,
+      },
     })
 
     return c.json({
@@ -189,7 +194,7 @@ voiceRoutes.put('/config', async (c) => {
 })
 
 // Place a voice call via Telnyx Call Control API
-voiceRoutes.post('/call', async (c) => {
+voiceRoutes.post('/call', voiceRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -323,7 +328,11 @@ voiceRoutes.post('/call', async (c) => {
       resourceType: 'calls',
       resourceId: callId,
       action: AuditAction.CALL_STARTED,
-      after: { to: destinationNumber, telnyx_call_id: telnyxCallId, flow_type: flow_type || 'direct' },
+      after: {
+        to: destinationNumber,
+        telnyx_call_id: telnyxCallId,
+        flow_type: flow_type || 'direct',
+      },
     })
 
     return c.json({
@@ -341,7 +350,7 @@ voiceRoutes.post('/call', async (c) => {
 })
 
 // Create voice target
-voiceRoutes.post('/targets', async (c) => {
+voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -403,7 +412,7 @@ voiceRoutes.post('/targets', async (c) => {
 })
 
 // Delete voice target
-voiceRoutes.delete('/targets/:id', async (c) => {
+voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {

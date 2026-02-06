@@ -29,6 +29,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { webhookRateLimit } from '../lib/rate-limit'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
@@ -223,6 +224,9 @@ webhooksRoutes.post('/stripe', async (c) => {
     const db = getDb(c.env)
 
     switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(db, event.data.object)
+        break
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await handleSubscriptionUpdate(db, event.data.object)
@@ -232,6 +236,9 @@ webhooksRoutes.post('/stripe', async (c) => {
         break
       case 'invoice.paid':
         await handleInvoicePaid(db, event.data.object)
+        break
+      case 'invoice.payment_failed':
+        await handleInvoiceFailed(db, event.data.object)
         break
       // Silently ignore other event types
     }
@@ -564,7 +571,7 @@ webhooksRoutes.get('/subscriptions', async (c) => {
   }
 })
 
-webhooksRoutes.post('/subscriptions', async (c) => {
+webhooksRoutes.post('/subscriptions', webhookRateLimit, async (c) => {
   try {
     return await createWebhookSubscription(c)
   } catch (err: any) {
@@ -573,7 +580,7 @@ webhooksRoutes.post('/subscriptions', async (c) => {
   }
 })
 
-webhooksRoutes.patch('/subscriptions/:id', async (c) => {
+webhooksRoutes.patch('/subscriptions/:id', webhookRateLimit, async (c) => {
   try {
     return await updateWebhookSubscription(c, c.req.param('id'))
   } catch (err: any) {
@@ -582,7 +589,7 @@ webhooksRoutes.patch('/subscriptions/:id', async (c) => {
   }
 })
 
-webhooksRoutes.delete('/subscriptions/:id', async (c) => {
+webhooksRoutes.delete('/subscriptions/:id', webhookRateLimit, async (c) => {
   try {
     return await deleteWebhookSubscription(c, c.req.param('id'))
   } catch (err: any) {
@@ -591,7 +598,7 @@ webhooksRoutes.delete('/subscriptions/:id', async (c) => {
   }
 })
 
-webhooksRoutes.post('/subscriptions/:id/test', async (c) => {
+webhooksRoutes.post('/subscriptions/:id/test', webhookRateLimit, async (c) => {
   try {
     return await testWebhookDelivery(c, c.req.param('id'))
   } catch (err: any) {

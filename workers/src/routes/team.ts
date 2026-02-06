@@ -10,6 +10,7 @@ import { validateBody } from '../lib/validate'
 import { InviteMemberSchema, AddMemberSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { teamRateLimit } from '../lib/rate-limit'
 
 export const teamRoutes = new Hono<{ Bindings: Env }>()
 
@@ -80,7 +81,7 @@ teamRoutes.get('/invites', async (c) => {
 })
 
 // Create invite
-teamRoutes.post('/invites', async (c) => {
+teamRoutes.post('/invites', teamRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -211,7 +212,7 @@ teamRoutes.get('/invites/validate/:token', async (c) => {
 })
 
 // Accept invite (called after signup or by existing user)
-teamRoutes.post('/invites/accept/:token', async (c) => {
+teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -291,7 +292,7 @@ teamRoutes.post('/invites/accept/:token', async (c) => {
 })
 
 // Cancel/revoke invite
-teamRoutes.delete('/invites/:id', async (c) => {
+teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -328,7 +329,7 @@ teamRoutes.delete('/invites/:id', async (c) => {
 })
 
 // Add team member (direct add - for admins only)
-teamRoutes.post('/members', async (c) => {
+teamRoutes.post('/members', teamRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -354,7 +355,7 @@ teamRoutes.post('/members', async (c) => {
 })
 
 // Remove team member
-teamRoutes.delete('/members/:id', async (c) => {
+teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {

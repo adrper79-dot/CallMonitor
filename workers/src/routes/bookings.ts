@@ -17,6 +17,7 @@ import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { bookingRateLimit } from '../lib/rate-limit'
 
 export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -59,7 +60,7 @@ bookingsRoutes.get('/', async (c) => {
 })
 
 // POST / — create a booking
-bookingsRoutes.post('/', idempotent(), async (c) => {
+bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -108,7 +109,7 @@ bookingsRoutes.post('/', idempotent(), async (c) => {
 })
 
 // PATCH /:id — update booking (cancel, reschedule, etc.)
-bookingsRoutes.patch('/:id', async (c) => {
+bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -154,7 +155,7 @@ bookingsRoutes.patch('/:id', async (c) => {
 })
 
 // DELETE /:id — delete a booking
-bookingsRoutes.delete('/:id', async (c) => {
+bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
