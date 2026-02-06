@@ -20,6 +20,7 @@ import {
 } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -157,6 +158,16 @@ callsRoutes.post('/start', idempotent(), async (c) => {
 
     const call = result.rows[0]
 
+    // Audit log: call initiated
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: call.id,
+      action: AuditAction.CALL_STARTED,
+      after: { phone: caller_id || phone_number, system_id, status: 'pending' },
+    })
+
     // TODO: Trigger actual call via Telnyx
     // This would be: await telnyxClient.calls.create({ ... })
 
@@ -190,9 +201,21 @@ callsRoutes.post('/:id/end', async (c) => {
       return c.json({ error: 'Call not found' }, 404)
     }
 
+    const endedCall = result.rows[0]
+
+    // Audit log: call ended
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: callId,
+      action: AuditAction.CALL_ENDED,
+      after: { status: 'completed', ended_at: endedCall.ended_at },
+    })
+
     // TODO: Trigger actual call hangup via Telnyx
 
-    return c.json({ success: true, call: result.rows[0] })
+    return c.json({ success: true, call: endedCall })
   } catch (err: any) {
     logger.error('POST /api/calls/:id/end error', { error: err?.message })
     return c.json({ error: 'Failed to end call' }, 500)
@@ -422,6 +445,16 @@ callsRoutes.post('/:id/outcome', async (c) => {
       callId,
       outcomeId: outcome.id,
       status: outcome_status,
+    })
+
+    // Audit log: outcome declared
+    writeAuditLog(db, {
+      organizationId: organization_id,
+      userId: user_id,
+      resourceType: 'call_outcomes',
+      resourceId: outcome.id,
+      action: AuditAction.CALL_OUTCOME_DECLARED,
+      after: { call_id: callId, outcome_status, confidence_level },
     })
 
     return c.json(
@@ -989,6 +1022,16 @@ callsRoutes.put('/:id/disposition', async (c) => {
     if (updated.length === 0) {
       return c.json({ success: false, error: 'Call not found' }, 404)
     }
+
+    // Audit log: disposition updated
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: callId,
+      action: AuditAction.CALL_DISPOSITION_SET,
+      after: { disposition, disposition_notes },
+    })
 
     return c.json({ success: true, call: updated[0] })
   } catch (error: any) {

@@ -13,6 +13,7 @@ import { getDb } from '../lib/db'
 import { requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const recordingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -99,21 +100,14 @@ recordingsRoutes.get('/:id', async (c) => {
     }
 
     // Audit log: Recording access (sensitive media) - non-blocking, best-effort
-    void db
-      .query(
-        `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          session.organization_id,
-          session.user_id,
-          'recordings',
-          recordingId,
-          'recording:accessed',
-          JSON.stringify({ accessed_at: new Date().toISOString() }),
-          new Date().toISOString(),
-        ]
-      )
-      .catch((e) => logger.warn('Failed to write audit log', { error: (e as Error)?.message }))
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'recordings',
+      resourceId: recordingId,
+      action: AuditAction.RECORDING_ACCESSED,
+      after: { accessed_at: new Date().toISOString() },
+    })
 
     const urlMatch = recording.recording_url?.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/)
     if (!urlMatch) {
@@ -174,21 +168,14 @@ recordingsRoutes.delete('/:id', async (c) => {
     }
 
     // Audit log: Recording deleted - non-blocking
-    void db
-      .query(
-        `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, after, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          session.organization_id,
-          session.user_id,
-          'recordings',
-          recordingId,
-          'recording:deleted',
-          JSON.stringify({ deleted_at: new Date().toISOString() }),
-          new Date().toISOString(),
-        ]
-      )
-      .catch((e) => logger.warn('Failed to write audit log', { error: (e as Error)?.message }))
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'recordings',
+      resourceId: recordingId,
+      action: AuditAction.RECORDING_DELETED,
+      after: { deleted_at: new Date().toISOString() },
+    })
 
     return c.json({ success: true, message: 'Recording deleted' })
   } catch (err: any) {

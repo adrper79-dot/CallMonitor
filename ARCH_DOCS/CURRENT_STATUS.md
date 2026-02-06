@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 7, 2026  
-**Version:** 4.8 - Production Reliability Sprint (Idempotency & Billing Fix)  
+**Last Updated:** February 8, 2026  
+**Version:** 4.9 - Audit & DX Sprint (Centralized Audit Logging, CORS Fix, DX)  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,41 @@
 
 ---
 
-## 🔧 **Recent Updates (February 7, 2026)**
+## 🔧 **Recent Updates (February 8, 2026)**
+
+### **Audit & DX Sprint (v4.9):** ✅ **DEPLOYED**
+
+1. **CORS Fix for Idempotency-Key** ⭐ **CRITICAL FIX**
+   - **Root cause:** v4.8 idempotency layer shipped without `Idempotency-Key` in CORS `allowHeaders` — browsers strip the header in cross-origin preflight, making idempotency silently broken for all clients
+   - **Fix:** Added `'Idempotency-Key'` to CORS `allowHeaders` array in `workers/src/index.ts`
+   - **Added:** `exposeHeaders: ['Idempotent-Replayed']` so frontend JS can detect replayed responses
+   - **Impact:** Without this fix, the entire v4.8 idempotency layer was non-functional cross-origin
+
+2. **Centralized Audit Log Utility** ⭐ **COMPLIANCE**
+   - **Created `workers/src/lib/audit.ts`** — DRY audit logging utility with `writeAuditLog()` function
+   - **Pattern:** Fire-and-forget with `.catch()` — failures logged but never block the main request
+   - **`AuditAction` constants:** 21 pre-defined action strings for consistency across routes
+   - **Schema:** `audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)`
+   - **Wired to:** `recordings.ts` (accessed/deleted), `calls.ts` (started/ended/outcome/disposition), `billing.ts` (cancelled/payment_method_removed)
+   - **Refactored:** `recordings.ts` — replaced 2 inline 13-line INSERT patterns with 7-line utility calls
+
+3. **DB Reset Test-Data Script** ✅ **DX**
+   - **Created `migrations/reset_test.sql`** — idempotent truncate + deterministic seed
+   - **Fixed UUIDs:** Test org, 3 users (admin/operator/viewer), 3 calls, 2 outcomes, 2 audit entries
+   - **npm script:** `db:reset-test` now has its backing file (was a dead reference before)
+
+4. **Root README.md** ✅ **DX**
+   - **Created `README.md`** — first-ever root documentation for the project
+   - **Contents:** Architecture overview, quick start, all npm scripts, project structure, env vars, deployment guide, contributing rules
+
+5. **ROADMAP Progress** ✅ **TRACKING**
+   - Updated RISK/SCALE: 14/25 → 16/25 (Audit Logs + CORS Fix)
+   - Updated DX/CI: 13/20 → 15/20 (DB Reset + README)
+   - Overall: 54/109 → 58/109 (53%)
+
+---
+
+## 🔧 **Previous Updates (February 7, 2026)**
 
 ### **Production Reliability Sprint (v4.8):** ✅ **DEPLOYED**
 

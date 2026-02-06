@@ -23,6 +23,7 @@ import { validateBody } from '../lib/validate'
 import { CheckoutSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const billingRoutes = new Hono<{ Bindings: Env }>()
 
@@ -232,6 +233,17 @@ billingRoutes.delete('/payment-methods/:id', async (c) => {
       logger.error('Stripe detach payment method failed', { status: stripeRes.status })
       return c.json({ error: 'Failed to remove payment method' }, 500)
     }
+
+    // Audit log: payment method removed
+    const db = getDb(c.env)
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'billing',
+      resourceId: pmId,
+      action: AuditAction.PAYMENT_METHOD_REMOVED,
+      after: { payment_method_id: pmId },
+    })
 
     return c.json({ success: true, message: 'Payment method removed' })
   } catch (err: any) {
@@ -480,6 +492,16 @@ billingRoutes.post('/cancel', idempotent(), async (c) => {
     await db.query(`UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`, [
       session.organization_id,
     ])
+
+    // Audit log: subscription cancelled
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'billing',
+      resourceId: subscriptionId,
+      action: AuditAction.SUBSCRIPTION_CANCELLED,
+      after: { subscription_id: subscriptionId, cancel_at_period_end: true },
+    })
 
     return c.json({
       success: true,

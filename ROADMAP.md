@@ -36,7 +36,7 @@
 
 ---
 
-## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 14/25
+## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 16/25
 
 ### ✅ Completed
 
@@ -54,6 +54,8 @@
 - [x] **Structured Logger** (`workers/src/lib/logger.ts`): JSON structured logging, all console.log/warn/error migrated. ✅
 - [x] **Idempotency** (`workers/src/lib/idempotency.ts`): KV-backed, fail-open, 24h TTL, wired to billing/calls/bookings mutations. ✅
 - [x] **Billing 500 Fix** (`workers/src/routes/billing.ts`): Column fallback for missing `plan` column. ✅
+- [x] **Audit Logs** (`workers/src/lib/audit.ts`): Centralized writeAuditLog utility + wired to calls, billing, recordings. ✅
+- [x] **CORS Idempotency Fix** (`workers/src/index.ts`): Added `Idempotency-Key` to allowHeaders + `Idempotent-Replayed` to exposeHeaders. ✅
 
 ### 🔄 Remaining
 
@@ -62,7 +64,6 @@
 - [ ] **Origin CA** (secrets): Custom TLS cert. **20min**
 - [ ] **Image CDN** (`next.config.js`): CF Image Resizing. **15min**
 - [ ] **RLS Audit** (`migrations/`): Policy coverage check. **1hr**
-- [ ] **Audit Logs** (`lib/audit.ts`): All mutation logging. **1hr**
 - [ ] **Backup Policy** (`scripts/`): Weekly Neon backup. **1hr**
 - [ ] **Schema Drift** (`current_schema.sql`): CI diff check. **1hr**
 - [ ] **Public Compress** (`public/branding/`): WebP conversion. **30min**
@@ -77,7 +78,7 @@
 
 ---
 
-## 🔧 DX/CI (Dev Flow) - PROGRESS: 13/20
+## 🔧 DX/CI (Dev Flow) - PROGRESS: 15/20
 
 ### ✅ Completed
 
@@ -94,15 +95,15 @@
 - [x] **React Hooks Fix** (`useVoiceConfig.tsx`): Fixed conditional hooks violation. ✅
 - [x] **Husky** (`.husky/pre-commit`): Pre-commit hooks with lint-staged (ESLint + Prettier). ✅
 - [x] **Console Cleanup** (`workers/src/`): All console.log/warn/error → structured logger. ✅
+- [x] **DB Reset** (`migrations/reset_test.sql`): Idempotent truncate + deterministic test org/users/calls/audit seed. ✅
+- [x] **README Scripts** (`README.md`): Root README with architecture, all npm scripts, project structure, env vars, deploy guide. ✅
 
 ### 🔄 Remaining
 
 - [ ] **Types Gen** (`cloudflare-env.d.ts`): CI hook. **10min**
 - [ ] **Test E2E** (`tests/e2e/`): Playwright setup. **2hr**
-- [ ] **DB Reset** (`scripts/db:reset-test`): Truncate test data. **30min**
 - [ ] **Manual Tests** (`tests/manual/`): Automate. **1hr**
 - [ ] **Schema Doc** (`schema.sql`): Mermaid ERD. **1hr**
-- [ ] **README Scripts** (`README.md`): Document all. **30min**
 - [ ] **Permission Matrix** (`tools/`): RBAC gen. **30min**
 
 ### 📋 Recommendations
@@ -254,12 +255,12 @@ npm run health-check
 3. [ ] **HOF Hooks** (useCallModulation): Elegant patterns
 4. [ ] OpenAPI generation
 5. [ ] Idempotency layer
-6. [ ] Full audit logging
+6. [x] Full audit logging ✅
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 52/109 (48%).
-**Last Updated**: Feb 7, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 58/109 (53%).
+**Last Updated**: Feb 8, 2026 by GitHub Copilot
 
 ---
 
