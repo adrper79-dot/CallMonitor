@@ -4,12 +4,11 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Logo } from '@/components/Logo'
+import { signOut } from '@/components/AuthProvider'
 import { BottomNav } from './BottomNav'
 import { ModeToggle } from '@/components/mode-toggle'
 import { BondAIChat } from '@/components/bond-ai'
 import OrgSwitcher from '@/components/teams/OrgSwitcher'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 
 interface NavItemProps {
   href: string
@@ -66,22 +65,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
 
   const handleSignOut = async () => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('wb-session-token') : null
-      await fetch(`${API_BASE}/api/auth/signout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        }
-      })
-      
-      // Clear local token
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('wb-session-token')
-        localStorage.removeItem('wb-session-token-expires')
-      }
-      
-      router.push('/signin')
+      await signOut({ callbackUrl: '/signin' })
     } catch (error) {
       console.error('Sign out failed:', error)
       router.push('/signin')

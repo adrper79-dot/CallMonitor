@@ -178,4 +178,83 @@ export async function apiDelete<T = any>(endpoint: string) {
   return response.data
 }
 
+/**
+ * Raw fetch with auth — returns the Response object directly.
+ * Use for blob downloads, streaming, or non-JSON responses.
+ */
+export async function apiFetchRaw(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const url = `${API_BASE}${endpoint}`
+  const headers: HeadersInit = { ...options.headers }
+  const token = getStoredToken()
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+  }
+  const res = await fetch(url, { ...options, headers, credentials: 'include' })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new Error(errBody.error || `HTTP ${res.status}`)
+  }
+  return res
+}
+
+/**
+ * POST FormData with auth — browser sets Content-Type with boundary automatically.
+ * Use for file uploads.
+ */
+export async function apiPostFormData<T = any>(endpoint: string, formData: FormData): Promise<T> {
+  const url = `${API_BASE}${endpoint}`
+  const headers: Record<string, string> = {}
+  const token = getStoredToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  // Do NOT set Content-Type — browser adds multipart boundary automatically
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: formData,
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+/**
+ * Unauthenticated POST — for pre-auth flows (forgot-password, reset-password, CSRF).
+ * No Bearer token is attached.
+ */
+export async function apiPostNoAuth<T = any>(endpoint: string, body?: any): Promise<T> {
+  const url = `${API_BASE}${endpoint}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+/**
+ * Unauthenticated GET — for pre-auth flows (health checks, CSRF).
+ */
+export async function apiGetNoAuth<T = any>(endpoint: string): Promise<T> {
+  const url = `${API_BASE}${endpoint}`
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
 export default api

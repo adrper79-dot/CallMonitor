@@ -37,6 +37,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, Download, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { apiGet } from '@/lib/api-client'
 
 interface Invoice {
   id: string
@@ -75,22 +76,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       setLoading(true)
       setError(null)
 
-      const res = await fetch(
-        `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`,
-        { credentials: 'include' }
-      )
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          // No invoices found
-          setInvoices([])
-          setHasMore(false)
-          return
-        }
-        throw new Error('Failed to fetch invoices')
-      }
-
-      const data = await res.json()
+      const data = await apiGet(`/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`)
       setInvoices(data.invoices || [])
       setHasMore(data.hasMore || false)
     } catch (err) {

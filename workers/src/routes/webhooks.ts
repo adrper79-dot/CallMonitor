@@ -125,15 +125,17 @@ webhooksRoutes.post('/telnyx', async (c) => {
   try {
     const rawBody = await c.req.text()
 
-    // Verify Telnyx signature if secret is configured
+    // Verify Telnyx signature — fail-closed (reject if secret not configured)
     const telnyxSecret = (c.env as any).TELNYX_WEBHOOK_SECRET
-    if (telnyxSecret) {
-      const timestamp = c.req.header('telnyx-timestamp') || ''
-      const signature = c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
-      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
-      if (!valid) {
-        return c.json({ error: 'Invalid webhook signature' }, 401)
-      }
+    if (!telnyxSecret) {
+      console.error('TELNYX_WEBHOOK_SECRET not configured — rejecting unverified webhook')
+      return c.json({ error: 'Webhook verification not configured' }, 500)
+    }
+    const timestamp = c.req.header('telnyx-timestamp') || ''
+    const signature = c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
+    const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
+    if (!valid) {
+      return c.json({ error: 'Invalid webhook signature' }, 401)
     }
 
     const body = JSON.parse(rawBody)

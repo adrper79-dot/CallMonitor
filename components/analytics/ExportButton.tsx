@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { logger } from '@/lib/logger'
+import { apiFetchRaw } from '@/lib/api-client'
 
 /**
  * ExportButton - Professional Design System v3.0
@@ -25,15 +26,9 @@ export function ExportButton({ type, startDate, endDate }: ExportButtonProps) {
     setError(null)
     
     try {
-      const response = await fetch(
-        `/api/analytics/export?type=${type}&format=${format}&startDate=${startDate}&endDate=${endDate}`,
-        { credentials: 'include' }
+      const response = await apiFetchRaw(
+        `/api/analytics/export?type=${type}&format=${format}&startDate=${startDate}&endDate=${endDate}`
       )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: 'Export failed' } }))
-        throw new Error(errorData.error?.message || 'Export failed')
-      }
 
       // Create download link
       const blob = await response.blob()

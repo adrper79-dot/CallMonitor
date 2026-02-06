@@ -13,6 +13,7 @@ import CallAnalytics from './CallAnalytics'
 import { OutcomeDeclaration } from './OutcomeDeclaration'
 import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
 import { apiGet } from '@/lib/apiClient'
+import { apiFetchRaw } from '@/lib/api-client'
 import { BondAICopilot } from '@/components/bond-ai'
 
 export interface CallDetailViewProps {
@@ -77,19 +78,7 @@ export default function CallDetailView({ callId, organizationId, onModulationCha
 
     try {
       setExporting(true)
-      // Note: apiGet returns JSON by default, need raw fetch for blob
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-      const token = localStorage.getItem('wb-session-token')
-      const res = await fetch(`${API_BASE}/api/calls/${callId}/export`, {
-        method: 'GET',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Export failed' }))
-        throw new Error(errorData.error || 'Failed to export evidence')
-      }
+      const res = await apiFetchRaw(`/api/calls/${callId}/export`)
 
       // Get the blob and trigger download
       const blob = await res.blob()

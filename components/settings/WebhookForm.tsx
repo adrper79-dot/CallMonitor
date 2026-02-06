@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { WEBHOOK_EVENT_TYPES, WebhookSubscription, CreateWebhookRequest } from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
+import { apiPost, apiPut } from '@/lib/api-client'
 
 interface WebhookFormProps {
   organizationId: string
@@ -135,21 +136,9 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
         ? `/api/webhooks/subscriptions/${webhook.id}`
         : '/api/webhooks/subscriptions'
 
-      const method = isEditing ? 'PATCH' : 'POST'
-
-      const res = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body)
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error?.message || 'Failed to save webhook')
-      }
-
-      const data = await res.json()
+      const data = isEditing
+        ? await apiPut(endpoint, body)
+        : await apiPost(endpoint, body)
 
       if (!isEditing && data.subscription?.secret) {
         // Show secret for new webhooks

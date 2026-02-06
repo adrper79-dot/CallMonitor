@@ -3,9 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
-
-// Workers API URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiPostNoAuth } from '@/lib/api-client'
 
 /**
  * Forgot Password Page
@@ -25,19 +23,7 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send reset email')
-      }
-
+      await apiPostNoAuth('/api/auth/forgot-password', { email })
       setSuccess(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')

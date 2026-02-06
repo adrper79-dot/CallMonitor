@@ -6,6 +6,7 @@ import { Badge } from './ui/badge'
 import { toast } from './ui/use-toast'
 import { logger } from '@/lib/logger'
 import { apiGet, apiPost } from '@/lib/apiClient'
+import { apiPostFormData } from '@/lib/api-client'
 
 export interface AudioUploadProps {
   organizationId: string
@@ -147,26 +148,12 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
     setProgress(0)
 
     try {
-      // Step 1: Upload to Supabase Storage (FormData needs raw fetch with Bearer token)
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-      const token = localStorage.getItem('wb-session-token')
+      // Step 1: Upload to Supabase Storage via Workers API
       const formData = new FormData()
       formData.append('file', file)
       formData.append('organization_id', organizationId)
 
-      const uploadRes = await fetch(`${API_BASE}/api/audio/upload`, {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        credentials: 'include',
-        body: formData
-      })
-
-      if (!uploadRes.ok) {
-        const error = await uploadRes.json()
-        throw new Error(error.error || 'Upload failed')
-      }
-
-      const uploadData = await uploadRes.json()
+      const uploadData = await apiPostFormData('/api/audio/upload', formData)
       setProgress(50)
 
       // Step 2: Request transcription

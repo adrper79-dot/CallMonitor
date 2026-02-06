@@ -58,13 +58,26 @@ const getConnectionString = () => {
   return null
 }
 
+let _poolInstance: Pool | null = null
+let _poolConnStr: string | null = null
+
 const getPool = () => {
   const connectionString = getConnectionString()
   if (!connectionString) {
     console.warn('No Postgres connection configured - returning null pool')
     return null
   }
-  return new Pool({ connectionString })
+  // Reuse existing pool if connection string hasn't changed
+  if (_poolInstance && _poolConnStr === connectionString) {
+    return _poolInstance
+  }
+  // Close stale pool if connection string changed
+  if (_poolInstance) {
+    _poolInstance.end().catch(() => {})
+  }
+  _poolInstance = new Pool({ connectionString, max: 5 })
+  _poolConnStr = connectionString
+  return _poolInstance
 }
 
 export interface QueryOptions {

@@ -5,6 +5,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
 const SESSION_KEY = 'wb-session-token'
 
+import { apiGetNoAuth, apiPostNoAuth, apiPost, apiGet } from '@/lib/api-client'
+
 interface User {
   id: string
   email: string
@@ -63,38 +65,14 @@ export async function signIn(
   if (provider === 'credentials') {
     try {
       // First, get CSRF token (no auth needed for this endpoint)
-      // Request CSRF token. include credentials so browser will accept
-      // Set-Cookie from the workers API when present (SameSite=None).
-      const csrfRes = await fetch(`${API_BASE}/api/auth/csrf`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      })
-      
-      if (!csrfRes.ok) {
-        return { error: 'Failed to get CSRF token', ok: false }
-      }
-      
-      const csrfData = await csrfRes.json()
+      const csrfData = await apiGetNoAuth('/api/auth/csrf')
       
       // Now make the credentials callback request with CSRF token (no auth needed - this IS the login)
-      // Use credentials: 'include' so cookies set by the API will be stored
-      // in the browser (the API sets SameSite=None; Secure; HttpOnly cookies).
-      const res = await fetch(`${API_BASE}/api/auth/callback/credentials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          username: options?.username,
-          password: options?.password,
-          csrf_token: csrfData.csrf_token
-        })
+      const data = await apiPostNoAuth('/api/auth/callback/credentials', {
+        username: options?.username,
+        password: options?.password,
+        csrf_token: csrfData.csrf_token
       })
-      
-      const data = await res.json()
-      
-      if (!res.ok) {
-        return { error: data.error || 'Authentication failed', ok: false }
-      }
       
       // Store session token from response (API returns snake_case)
       if (data.session_token) {
@@ -119,14 +97,7 @@ export async function signIn(
 export async function signOut(options?: { callbackUrl?: string }) {
   try {
     // Call signout endpoint with Bearer token
-    const token = getStoredToken()
-    await fetch(`${API_BASE}/api/auth/signout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    })
+    await apiPost('/api/auth/signout', {})
   } catch {
     // Ignore errors
   }
@@ -156,21 +127,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return null
       }
       
-      const res = await fetch(`${API_BASE}/api/auth/session`, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (!res.ok) {
-        clearToken()
-        setSession(null)
-        setStatus('unauthenticated')
-        return null
-      }
-      
-      const data = await res.json()
+      const data = await apiGet('/api/auth/session')
       
       if (data.user) {
         const sess = { user: data.user, expires: data.expires }

@@ -6,9 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from '@/components/AuthProvider'
 import { Logo } from '@/components/Logo'
 import { EmailInput, PasswordInput, isValidEmail } from '@/components/ui/form-validation'
-
-// API base URL for Workers API
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+import { apiGetNoAuth } from '@/lib/api-client'
 
 /**
  * SIGN IN PAGE
@@ -41,9 +39,8 @@ export default function SignInPage() {
 
   // Check available auth providers
   useEffect(() => {
-    fetch(`${API_BASE}/api/health/auth-providers`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(j => {
+    apiGetNoAuth('/api/health/auth-providers')
+      .then((j: any) => {
         setGoogleAvailable(Boolean(j?.googleEnv))
         setEmailLinkAvailable(Boolean(j?.adapterEnv && j?.resendEnv))
       })
