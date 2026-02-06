@@ -32,27 +32,17 @@ healthRoutes.get('/', async (c) => {
         message: 'Hyperdrive binding not available',
       })
     } else {
-      // Use direct neon query for health check
-      const { neon } = await import('@neondatabase/serverless')
-      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-      if (!connectionString) {
-        checks.push({
-          service: 'database',
-          status: 'critical',
-          message: 'No database connection string available',
-        })
-      } else {
-        const sqlClient = neon(connectionString)
-        const result = await sqlClient`SELECT version()`
-        const dbTime = Date.now() - dbStart
+      // Use centralized DB client for health check
+      const db = getDb(c.env)
+      const result = await db.query('SELECT version()')
+      const dbTime = Date.now() - dbStart
 
-        checks.push({
-          service: 'database',
-          status: 'healthy',
-          message: 'Database connection successful',
-          responseTime: dbTime,
-        })
-      }
+      checks.push({
+        service: 'database',
+        status: 'healthy',
+        message: 'Database connection successful',
+        responseTime: dbTime,
+      })
     }
   } catch (err: any) {
     console.error('Database health check error:', err)

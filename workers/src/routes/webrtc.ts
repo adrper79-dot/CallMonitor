@@ -7,6 +7,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebRTCDialSchema } from '../lib/schemas'
 
@@ -223,20 +224,18 @@ webrtcRoutes.post('/dial', async (c) => {
       return c.json({ error: 'Telnyx configuration incomplete' }, 500)
     }
 
-    // Use neon client to create call record
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client to create call record
+    const db = getDb(c.env)
 
     // Create call record - using actual schema columns
-    // Schema has: id, organization_id, status, started_at, created_by, call_sid, phone_number, from_number, direction, flow_type, user_id
-    const callResult = await sql`
-      INSERT INTO calls (id, organization_id, status, started_at, created_by, phone_number, from_number, direction, flow_type, user_id)
-      VALUES (gen_random_uuid(), ${session.organization_id}, 'initiated', NOW(), ${session.user_id}, ${phone_number}, ${c.env.TELNYX_NUMBER}, 'outbound', 'webrtc', ${session.user_id})
-      RETURNING id
-    `
+    const callResult = await db.query(
+      `INSERT INTO calls (id, organization_id, status, started_at, created_by, phone_number, from_number, direction, flow_type, user_id)
+       VALUES (gen_random_uuid(), $1, 'initiated', NOW(), $2, $3, $4, 'outbound', 'webrtc', $2)
+       RETURNING id`,
+      [session.organization_id, session.user_id, phone_number, c.env.TELNYX_NUMBER]
+    )
 
-    const callId = callResult[0].id
+    const callId = callResult.rows[0].id
 
     // Initiate call via Telnyx Call Control API
     const telnyxResponse = await fetch('https://api.telnyx.com/v2/calls', {
@@ -264,9 +263,10 @@ webrtcRoutes.post('/dial', async (c) => {
         console.log('Using mock call initiation for testing')
 
         // Update call record with mock call SID
-        await sql`
-          UPDATE calls SET call_sid = ${'mock-call-' + callId}, status = 'ringing' WHERE id = ${callId}
-        `
+        await db.query(
+          'UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3',
+          ['mock-call-' + callId, 'ringing', callId]
+        )
 
         return c.json({
           success: true,
@@ -278,9 +278,10 @@ webrtcRoutes.post('/dial', async (c) => {
       }
 
       // Update call status to failed
-      await sql`
-        UPDATE calls SET status = 'failed' WHERE id = ${callId}
-      `
+      await db.query(
+        'UPDATE calls SET status = $1 WHERE id = $2',
+        ['failed', callId]
+      )
 
       return c.json({ error: 'Failed to initiate call' }, 500)
     }
@@ -289,9 +290,10 @@ webrtcRoutes.post('/dial', async (c) => {
     const callSid = telnyxData.data.call_control_id
 
     // Update call record with Telnyx call SID (column is call_sid, not external_id)
-    await sql`
-      UPDATE calls SET call_sid = ${callSid}, status = 'ringing' WHERE id = ${callId}
-    `
+    await db.query(
+      'UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3',
+      [callSid, 'ringing', callId]
+    )
 
     return c.json({
       success: true,

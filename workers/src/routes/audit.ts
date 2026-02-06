@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 
 export const auditRoutes = new Hono<{ Bindings: Env }>()
 
@@ -27,30 +28,28 @@ auditRoutes.get('/', async (c) => {
       })
     }
 
-    // Use neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
     const limit = parseInt(c.req.query('limit') || '12')
     const offset = parseInt(c.req.query('offset') || '0')
 
     // Fetch audit logs for organization
     // Use explicit cast for user_id join since types may differ
-    const result = await sql`
-      SELECT al.*, u.email as user_email, u.name as user_name
-      FROM audit_logs al
-      LEFT JOIN users u ON u.id::text = al.user_id::text
-      WHERE al.organization_id = ${session.organization_id}::uuid
-      ORDER BY al.created_at DESC
-      LIMIT ${limit}
-      OFFSET ${offset}
-    `
+    const result = await db.query(
+      `SELECT al.*, u.email as user_email, u.name as user_name
+       FROM audit_logs al
+       LEFT JOIN users u ON u.id::text = al.user_id::text
+       WHERE al.organization_id = $1::uuid
+       ORDER BY al.created_at DESC
+       LIMIT $2
+       OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
 
     return c.json({
       success: true,
-      logs: result || [],
-      total: result?.length || 0,
+      logs: result.rows || [],
+      total: result.rows?.length || 0,
       limit,
       offset
     })

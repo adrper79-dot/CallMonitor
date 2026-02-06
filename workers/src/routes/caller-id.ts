@@ -13,6 +13,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
 
@@ -25,29 +26,28 @@ async function listCallerIds(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Check if table exists
-  const tableCheck = await sql`
+  const tableCheck = await db.query(`
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
       WHERE table_schema = 'public' AND table_name = 'caller_ids'
     ) as exists
-  `
+  `)
 
-  if (!tableCheck[0].exists) {
+  if (!tableCheck.rows[0].exists) {
     return c.json({ success: true, callerIds: [] })
   }
 
-  const result = await sql`
-    SELECT * FROM caller_ids
-    WHERE organization_id = ${session.organization_id}
-    ORDER BY created_at DESC
-  `
+  const result = await db.query(
+    `SELECT * FROM caller_ids
+     WHERE organization_id = $1
+     ORDER BY created_at DESC`,
+    [session.organization_id]
+  )
 
-  return c.json({ success: true, callerIds: result })
+  return c.json({ success: true, callerIds: result.rows })
 }
 
 /** Shared: initiate verification */
@@ -61,12 +61,10 @@ async function initiateVerification(c: any) {
   if (!parsed.success) return parsed.response
   const { phone_number, label } = parsed.data
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Ensure table exists
-  await sql`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS caller_ids (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -78,34 +76,37 @@ async function initiateVerification(c: any) {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
-  `
+  `)
 
   // Check for duplicate
-  const existing = await sql`
-    SELECT id, status FROM caller_ids
-    WHERE organization_id = ${session.organization_id} AND phone_number = ${phone_number}
-  `
+  const existing = await db.query(
+    `SELECT id, status FROM caller_ids
+     WHERE organization_id = $1 AND phone_number = $2`,
+    [session.organization_id, phone_number]
+  )
 
-  if (existing.length > 0 && existing[0].status === 'verified') {
+  if (existing.rows.length > 0 && existing.rows[0].status === 'verified') {
     return c.json({ error: 'This number is already verified' }, 409)
   }
 
   // Generate a 6-digit verification code
   const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
 
-  if (existing.length > 0) {
+  if (existing.rows.length > 0) {
     // Update existing pending record
-    await sql`
-      UPDATE caller_ids
-      SET verification_code = ${verificationCode}, status = 'pending', updated_at = NOW()
-      WHERE id = ${existing[0].id}
-    `
+    await db.query(
+      `UPDATE caller_ids
+       SET verification_code = $1, status = 'pending', updated_at = NOW()
+       WHERE id = $2`,
+      [verificationCode, existing.rows[0].id]
+    )
   } else {
     // Insert new
-    await sql`
-      INSERT INTO caller_ids (organization_id, phone_number, label, status, verification_code)
-      VALUES (${session.organization_id}, ${phone_number}, ${label || ''}, 'pending', ${verificationCode})
-    `
+    await db.query(
+      `INSERT INTO caller_ids (organization_id, phone_number, label, status, verification_code)
+       VALUES ($1, $2, $3, 'pending', $4)`,
+      [session.organization_id, phone_number, label || '', verificationCode]
+    )
   }
 
   // In production, send the code via SMS/call using Telnyx
@@ -171,31 +172,31 @@ callerIdRoutes.put('/verify', async (c) => {
     if (!parsed.success) return parsed.response
     const { phone_number, code } = parsed.data
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      SELECT id, verification_code FROM caller_ids
-      WHERE organization_id = ${session.organization_id}
-        AND phone_number = ${phone_number}
-        AND status = 'pending'
-    `
+    const result = await db.query(
+      `SELECT id, verification_code FROM caller_ids
+       WHERE organization_id = $1
+         AND phone_number = $2
+         AND status = 'pending'`,
+      [session.organization_id, phone_number]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'No pending verification found for this number' }, 404)
     }
 
-    if (result[0].verification_code !== code) {
+    if (result.rows[0].verification_code !== code) {
       return c.json({ error: 'Invalid verification code' }, 400)
     }
 
     // Mark as verified
-    await sql`
-      UPDATE caller_ids
-      SET status = 'verified', verified_at = NOW(), verification_code = NULL, updated_at = NOW()
-      WHERE id = ${result[0].id}
-    `
+    await db.query(
+      `UPDATE caller_ids
+       SET status = 'verified', verified_at = NOW(), verification_code = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [result.rows[0].id]
+    )
 
     return c.json({
       success: true,
@@ -218,17 +219,16 @@ callerIdRoutes.delete('/:id', async (c) => {
 
     const callerId = c.req.param('id')
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      DELETE FROM caller_ids
-      WHERE id = ${callerId} AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `DELETE FROM caller_ids
+       WHERE id = $1 AND organization_id = $2
+       RETURNING id`,
+      [callerId, session.organization_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Caller ID not found' }, 404)
     }
 

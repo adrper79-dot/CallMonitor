@@ -140,8 +140,8 @@ cd workers && npx wrangler deploy
 - **Issue:** Every route does `const { neon } = await import('@neondatabase/serverless')`
 - **Fix:** Use centralized `getDb()` from `workers/src/lib/db.ts`
 - **Batch 1 (7 files):** ✅ DONE — admin, reliability, tts, audio, surveys, retention, ai-config migrated to `getDb()` + parameterized queries
-- **Batch 2 (~15 files):** ⬜ TODO — webhooks, auth, organizations, webrtc, audit, voice, billing, shopper, caller-id, usage, users, campaigns, scorecards, reports, analytics
-- **Status:** 🔄 IN PROGRESS (7/22 files migrated)
+- **Batch 2 (15 files):** ✅ DONE — auth, webhooks, voice, billing, shopper, caller-id, organizations, users, webrtc, audit, usage, campaigns, scorecards, reports, analytics migrated to `getDb()` + parameterized queries
+- **Status:** ✅ COMPLETE (22/22 files migrated)
 
 ---
 
@@ -209,6 +209,7 @@ const res = await fetch('/api/endpoint', { credentials: 'include' })
 | 2026-02-06 | Agent | P2-1: API client consolidation | Ported 4 functions → `apiClient.ts`, rewrote 21 imports, deleted `api-client.ts` |
 | 2026-02-06 | Agent | Sentry dead code removal | Deleted `monitoring.ts`, `sentry-edge.ts`, uninstalled `@sentry/nextjs` |
 | 2026-02-06 | Agent | Build + Deploy verified | 30/30 pages clean, deployed to Cloudflare Pages |
+| 2026-02-07 | Agent | P2-2 Batch 2: DB centralization (15 files) | auth, webhooks, voice, billing, shopper, caller-id, organizations, users, webrtc, audit, usage, campaigns, scorecards, reports, analytics — all migrated from inline neon to `getDb()` + parameterized queries |
 
 ---
 

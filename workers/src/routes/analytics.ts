@@ -12,14 +12,9 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 
 export const analyticsRoutes = new Hono<{ Bindings: Env }>()
-
-async function getSQL(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
 
 function parseDateRange(c: any) {
   const now = new Date()
@@ -34,11 +29,11 @@ analyticsRoutes.get('/calls', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const { start, end } = parseDateRange(c)
 
-    const metrics = await sql`
-      SELECT
+    const metrics = await db.query(
+      `SELECT
         COUNT(*)::int AS total_calls,
         COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
         COUNT(*) FILTER (WHERE status = 'missed')::int AS missed,
@@ -46,29 +41,31 @@ analyticsRoutes.get('/calls', async (c) => {
         COALESCE(AVG(duration), 0)::int AS avg_duration_seconds,
         COALESCE(SUM(duration), 0)::int AS total_duration_seconds
       FROM calls
-      WHERE organization_id = ${session.organization_id}
-        AND created_at >= ${start}::timestamptz
-        AND created_at <= ${end}::timestamptz
-    `
+      WHERE organization_id = $1
+        AND created_at >= $2::timestamptz
+        AND created_at <= $3::timestamptz`,
+      [session.organization_id, start, end]
+    )
 
     // Daily breakdown
-    const daily = await sql`
-      SELECT
+    const daily = await db.query(
+      `SELECT
         DATE(created_at) AS date,
         COUNT(*)::int AS calls,
         COUNT(*) FILTER (WHERE status = 'completed')::int AS completed
       FROM calls
-      WHERE organization_id = ${session.organization_id}
-        AND created_at >= ${start}::timestamptz
-        AND created_at <= ${end}::timestamptz
+      WHERE organization_id = $1
+        AND created_at >= $2::timestamptz
+        AND created_at <= $3::timestamptz
       GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `
+      ORDER BY date ASC`,
+      [session.organization_id, start, end]
+    )
 
     return c.json({
       success: true,
-      data: metrics[0] || {},
-      daily,
+      data: metrics.rows[0] || {},
+      daily: daily.rows,
       period: { start, end },
     })
   } catch (err: any) {
@@ -84,23 +81,25 @@ analyticsRoutes.get('/sentiment', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const { start, end } = parseDateRange(c)
 
     // Try to get sentiment data from recordings or calls
     let sentimentData: any[] = []
     try {
-      sentimentData = await sql`
-        SELECT
+      const sentimentResult = await db.query(
+        `SELECT
           COALESCE(sentiment, 'unknown') AS sentiment,
           COUNT(*)::int AS count
         FROM recordings
-        WHERE organization_id = ${session.organization_id}
-          AND created_at >= ${start}::timestamptz
-          AND created_at <= ${end}::timestamptz
+        WHERE organization_id = $1
+          AND created_at >= $2::timestamptz
+          AND created_at <= $3::timestamptz
         GROUP BY sentiment
-        ORDER BY count DESC
-      `
+        ORDER BY count DESC`,
+        [session.organization_id, start, end]
+      )
+      sentimentData = sentimentResult.rows
     } catch {
       // recordings table may not have sentiment column
     }
@@ -125,13 +124,13 @@ analyticsRoutes.get('/performance', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const { start, end } = parseDateRange(c)
 
     let agentPerf: any[] = []
     try {
-      agentPerf = await sql`
-        SELECT
+      const perfResult = await db.query(
+        `SELECT
           c.user_id AS agent_id,
           u.name AS agent_name,
           COUNT(*)::int AS total_calls,
@@ -139,14 +138,16 @@ analyticsRoutes.get('/performance', async (c) => {
           COUNT(*) FILTER (WHERE c.status = 'completed')::int AS completed
         FROM calls c
         LEFT JOIN users u ON c.user_id = u.id
-        WHERE c.organization_id = ${session.organization_id}
-          AND c.created_at >= ${start}::timestamptz
-          AND c.created_at <= ${end}::timestamptz
+        WHERE c.organization_id = $1
+          AND c.created_at >= $2::timestamptz
+          AND c.created_at <= $3::timestamptz
           AND c.user_id IS NOT NULL
         GROUP BY c.user_id, u.name
         ORDER BY total_calls DESC
-        LIMIT 20
-      `
+        LIMIT 20`,
+        [session.organization_id, start, end]
+      )
+      agentPerf = perfResult.rows
     } catch {
       // user_id column may not exist on calls
     }
@@ -168,21 +169,22 @@ analyticsRoutes.get('/surveys', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const { start, end } = parseDateRange(c)
 
     let surveyMetrics: any = { total_responses: 0, avg_score: 0 }
     try {
-      const rows = await sql`
-        SELECT
+      const surveyResult = await db.query(
+        `SELECT
           COUNT(*)::int AS total_responses,
           COALESCE(AVG(score), 0) AS avg_score
         FROM survey_responses
-        WHERE organization_id = ${session.organization_id}
-          AND created_at >= ${start}::timestamptz
-          AND created_at <= ${end}::timestamptz
-      `
-      if (rows.length > 0) surveyMetrics = rows[0]
+        WHERE organization_id = $1
+          AND created_at >= $2::timestamptz
+          AND created_at <= $3::timestamptz`,
+        [session.organization_id, start, end]
+      )
+      if (surveyResult.rows.length > 0) surveyMetrics = surveyResult.rows[0]
     } catch {
       // survey_responses table may not exist
     }
@@ -204,32 +206,36 @@ analyticsRoutes.get('/export', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getSQL(c)
+    const db = getDb(c.env)
     const { start, end } = parseDateRange(c)
     const type = c.req.query('type') || 'calls'
 
     let rows: any[] = []
     try {
       if (type === 'calls') {
-        rows = await sql`
-          SELECT id, direction, status, from_number, to_number, duration, created_at
+        const callsResult = await db.query(
+          `SELECT id, direction, status, from_number, to_number, duration, created_at
           FROM calls
-          WHERE organization_id = ${session.organization_id}
-            AND created_at >= ${start}::timestamptz
-            AND created_at <= ${end}::timestamptz
+          WHERE organization_id = $1
+            AND created_at >= $2::timestamptz
+            AND created_at <= $3::timestamptz
           ORDER BY created_at DESC
-          LIMIT 10000
-        `
+          LIMIT 10000`,
+          [session.organization_id, start, end]
+        )
+        rows = callsResult.rows
       } else if (type === 'recordings') {
-        rows = await sql`
-          SELECT id, call_id, status, duration, created_at
+        const recResult = await db.query(
+          `SELECT id, call_id, status, duration, created_at
           FROM recordings
-          WHERE organization_id = ${session.organization_id}
-            AND created_at >= ${start}::timestamptz
-            AND created_at <= ${end}::timestamptz
+          WHERE organization_id = $1
+            AND created_at >= $2::timestamptz
+            AND created_at <= $3::timestamptz
           ORDER BY created_at DESC
-          LIMIT 10000
-        `
+          LIMIT 10000`,
+          [session.organization_id, start, end]
+        )
+        rows = recResult.rows
       }
     } catch {
       // table may not exist

@@ -18,6 +18,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CheckoutSchema } from '../lib/schemas'
 
@@ -44,21 +45,15 @@ async function getBillingInfo(c: any) {
   }
 
   // Query real subscription data from organizations table
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Use a safe column query — only select columns that exist
-  const result = await sql`
-    SELECT 
-      o.id,
-      o.name,
-      o.plan
-    FROM organizations o
-    WHERE o.id = ${session.organization_id}
-  `
+  const result = await db.query(
+    'SELECT o.id, o.name, o.plan FROM organizations o WHERE o.id = $1',
+    [session.organization_id]
+  )
 
-  const org = result?.[0]
+  const org = result.rows?.[0]
 
   if (!org) {
     return c.json({
@@ -76,12 +71,11 @@ async function getBillingInfo(c: any) {
   // Check if subscription columns exist and query them separately
   let subscriptionData: any = null
   try {
-    const subResult = await sql`
-      SELECT subscription_status, subscription_id, plan_id, stripe_customer_id
-      FROM organizations
-      WHERE id = ${session.organization_id}
-    `
-    subscriptionData = subResult?.[0]
+    const subResult = await db.query(
+      'SELECT subscription_status, subscription_id, plan_id, stripe_customer_id FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    subscriptionData = subResult.rows?.[0]
   } catch {
     // subscription columns don't exist yet — that's OK
   }
@@ -152,14 +146,13 @@ billingRoutes.get('/payment-methods', async (c) => {
     }
 
     // Look up stripe_customer_id for this org
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      SELECT stripe_customer_id FROM organizations WHERE id = ${session.organization_id}
-    `
-    const customerId = result?.[0]?.stripe_customer_id
+    const result = await db.query(
+      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    const customerId = result.rows?.[0]?.stripe_customer_id
 
     if (!customerId || !c.env.STRIPE_SECRET_KEY) {
       return c.json({
@@ -248,31 +241,30 @@ billingRoutes.get('/invoices', async (c) => {
       return c.json({ success: true, invoices: [] })
     }
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
 
-    const invoices = await sql`
-      SELECT 
+    const invoices = await db.query(
+      `SELECT 
         id,
         event_type,
         amount,
         invoice_id,
         created_at
       FROM billing_events
-      WHERE organization_id = ${session.organization_id}
+      WHERE organization_id = $1
       ORDER BY created_at DESC
-      LIMIT ${limit}
-      OFFSET ${offset}
-    `
+      LIMIT $2
+      OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
 
     return c.json({
       success: true,
-      invoices: invoices || [],
+      invoices: invoices.rows || [],
       page,
       limit,
     })
@@ -299,19 +291,18 @@ billingRoutes.post('/checkout', async (c) => {
     const { priceId, planId } = parsed.data
 
     // Look up or create Stripe customer
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const orgResult = await sql`
-      SELECT stripe_customer_id FROM organizations WHERE id = ${session.organization_id}
-    `
-    let customerId = orgResult?.[0]?.stripe_customer_id
+    const orgResult = await db.query(
+      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    let customerId = orgResult.rows?.[0]?.stripe_customer_id
 
     // If no Stripe customer yet, create one
     if (!customerId) {
-      const userResult = await sql`SELECT email FROM users WHERE id = ${session.user_id}`
-      const email = userResult?.[0]?.email || ''
+      const userResult = await db.query('SELECT email FROM users WHERE id = $1', [session.user_id])
+      const email = userResult.rows?.[0]?.email || ''
 
       const createRes = await fetch('https://api.stripe.com/v1/customers', {
         method: 'POST',
@@ -333,9 +324,10 @@ billingRoutes.post('/checkout', async (c) => {
       customerId = customer.id
 
       // Save the stripe_customer_id
-      await sql`
-        UPDATE organizations SET stripe_customer_id = ${customerId} WHERE id = ${session.organization_id}
-      `
+      await db.query(
+        'UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2',
+        [customerId, session.organization_id]
+      )
     }
 
     // Create Checkout Session
@@ -390,14 +382,13 @@ billingRoutes.post('/portal', async (c) => {
     }
 
     // Look up Stripe customer
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const orgResult = await sql`
-      SELECT stripe_customer_id FROM organizations WHERE id = ${session.organization_id}
-    `
-    const customerId = orgResult?.[0]?.stripe_customer_id
+    const orgResult = await db.query(
+      'SELECT stripe_customer_id FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    const customerId = orgResult.rows?.[0]?.stripe_customer_id
 
     if (!customerId) {
       return c.json({ error: 'No Stripe customer found. Subscribe to a plan first.' }, 400)
@@ -447,14 +438,13 @@ billingRoutes.post('/cancel', async (c) => {
     }
 
     // Look up subscription ID
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const orgResult = await sql`
-      SELECT subscription_id FROM organizations WHERE id = ${session.organization_id}
-    `
-    const subscriptionId = orgResult?.[0]?.subscription_id
+    const orgResult = await db.query(
+      'SELECT subscription_id FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    const subscriptionId = orgResult.rows?.[0]?.subscription_id
 
     if (!subscriptionId) {
       return c.json({ error: 'No active subscription found' }, 400)
@@ -482,11 +472,10 @@ billingRoutes.post('/cancel', async (c) => {
     }
 
     // Update local status
-    await sql`
-      UPDATE organizations 
-      SET subscription_status = 'cancelling' 
-      WHERE id = ${session.organization_id}
-    `
+    await db.query(
+      `UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`,
+      [session.organization_id]
+    )
 
     return c.json({
       success: true,

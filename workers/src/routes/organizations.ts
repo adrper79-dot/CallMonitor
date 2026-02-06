@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateOrgSchema } from '../lib/schemas'
 
@@ -17,17 +18,16 @@ organizationsRoutes.post('/', async (c) => {
 
     const { user_id } = session
 
-    // Use neon client directly
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
     // Check if user already has an organization
-    const existingOrg = await sql`
-      SELECT organization_id FROM org_members WHERE user_id = ${user_id}
-    `
+    const existingOrg = await db.query(
+      'SELECT organization_id FROM org_members WHERE user_id = $1',
+      [user_id]
+    )
 
-    if (existingOrg.length > 0) {
+    if (existingOrg.rows.length > 0) {
       return c.json({ error: 'User is already part of an organization' }, 400)
     }
 
@@ -39,23 +39,25 @@ organizationsRoutes.post('/', async (c) => {
     // Create organization
     let orgResult
     try {
-      orgResult = await sql`
-        INSERT INTO organizations (name, created_by)
-        VALUES (${name.trim()}, ${user_id})
-        RETURNING id, name, created_at
-      `
+      orgResult = await db.query(
+        `INSERT INTO organizations (name, created_by)
+         VALUES ($1, $2)
+         RETURNING id, name, created_at`,
+        [name.trim(), user_id]
+      )
     } catch (insertError: any) {
       console.error('POST /api/organizations insert error:', insertError?.message)
       throw insertError
     }
 
-    const org = orgResult[0]
+    const org = orgResult.rows[0]
 
     // Add user as admin member
-    await sql`
-      INSERT INTO org_members (organization_id, user_id, role)
-      VALUES (${org.id}, ${user_id}, 'admin')
-    `
+    await db.query(
+      `INSERT INTO org_members (organization_id, user_id, role)
+       VALUES ($1, $2, 'admin')`,
+      [org.id, user_id]
+    )
 
     return c.json({
       success: true,
@@ -82,24 +84,23 @@ organizationsRoutes.get('/current', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  // Use neon client directly
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  // Use centralized DB client
+  const db = getDb(c.env)
 
-  const result = await sql`
-    SELECT o.id, o.name, o.plan, om.role
-    FROM organizations o
-    JOIN org_members om ON om.organization_id = o.id
-    WHERE om.user_id = ${session.user_id}
-    LIMIT 1
-  `
+  const result = await db.query(
+    `SELECT o.id, o.name, o.plan, om.role
+     FROM organizations o
+     JOIN org_members om ON om.organization_id = o.id
+     WHERE om.user_id = $1
+     LIMIT 1`,
+    [session.user_id]
+  )
 
-  if (result.length === 0) {
+  if (result.rows.length === 0) {
     return c.json({ error: 'Organization not found' }, 404)
   }
 
-  const org = result[0]
+  const org = result.rows[0]
 
   return c.json({
     success: true,

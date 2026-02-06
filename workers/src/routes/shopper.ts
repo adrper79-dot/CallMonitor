@@ -14,6 +14,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
 
@@ -26,32 +27,31 @@ async function listScripts(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Check if table exists
-  const tableCheck = await sql`
+  const tableCheck = await db.query(`
     SELECT EXISTS (
       SELECT FROM information_schema.tables 
       WHERE table_schema = 'public' AND table_name = 'shopper_scripts'
     ) as exists
-  `
+  `)
 
-  if (!tableCheck[0].exists) {
+  if (!tableCheck.rows[0].exists) {
     return c.json({ success: true, scripts: [], total: 0 })
   }
 
-  const result = await sql`
-    SELECT * FROM shopper_scripts
-    WHERE organization_id = ${session.organization_id}
-    ORDER BY created_at DESC
-  `
+  const result = await db.query(
+    `SELECT * FROM shopper_scripts
+     WHERE organization_id = $1
+     ORDER BY created_at DESC`,
+    [session.organization_id]
+  )
 
   return c.json({
     success: true,
-    scripts: result,
-    total: result.length,
+    scripts: result.rows,
+    total: result.rows.length,
   })
 }
 
@@ -66,12 +66,10 @@ async function upsertScript(c: any) {
   if (!parsed.success) return parsed.response
   const { id, name, content, scenario, is_active } = parsed.data
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Ensure table exists
-  await sql`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS shopper_scripts (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -82,34 +80,36 @@ async function upsertScript(c: any) {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
-  `
+  `)
 
   if (id) {
     // Update existing
-    const result = await sql`
-      UPDATE shopper_scripts
-      SET name = ${name},
-          content = ${content || ''},
-          scenario = ${scenario || ''},
-          is_active = ${is_active ?? true},
-          updated_at = NOW()
-      WHERE id = ${id} AND organization_id = ${session.organization_id}
-      RETURNING *
-    `
-    if (result.length === 0) {
+    const result = await db.query(
+      `UPDATE shopper_scripts
+       SET name = $1,
+           content = $2,
+           scenario = $3,
+           is_active = $4,
+           updated_at = NOW()
+       WHERE id = $5 AND organization_id = $6
+       RETURNING *`,
+      [name, content || '', scenario || '', is_active ?? true, id, session.organization_id]
+    )
+    if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
-    return c.json({ success: true, script: result[0] })
+    return c.json({ success: true, script: result.rows[0] })
   }
 
   // Create new
-  const result = await sql`
-    INSERT INTO shopper_scripts (organization_id, name, content, scenario, is_active)
-    VALUES (${session.organization_id}, ${name}, ${content || ''}, ${scenario || ''}, ${is_active ?? true})
-    RETURNING *
-  `
+  const result = await db.query(
+    `INSERT INTO shopper_scripts (organization_id, name, content, scenario, is_active)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [session.organization_id, name, content || '', scenario || '', is_active ?? true]
+  )
 
-  return c.json({ success: true, script: result[0] }, 201)
+  return c.json({ success: true, script: result.rows[0] }, 201)
 }
 
 // GET /scripts
@@ -165,26 +165,25 @@ shopperRoutes.put('/scripts/:id', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, content, scenario, is_active } = parsed.data
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      UPDATE shopper_scripts
-      SET name = COALESCE(${name}, name),
-          content = COALESCE(${content}, content),
-          scenario = COALESCE(${scenario}, scenario),
-          is_active = COALESCE(${is_active}, is_active),
-          updated_at = NOW()
-      WHERE id = ${scriptId} AND organization_id = ${session.organization_id}
-      RETURNING *
-    `
+    const result = await db.query(
+      `UPDATE shopper_scripts
+       SET name = COALESCE($1, name),
+           content = COALESCE($2, content),
+           scenario = COALESCE($3, scenario),
+           is_active = COALESCE($4, is_active),
+           updated_at = NOW()
+       WHERE id = $5 AND organization_id = $6
+       RETURNING *`,
+      [name || null, content || null, scenario || null, is_active ?? null, scriptId, session.organization_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
 
-    return c.json({ success: true, script: result[0] })
+    return c.json({ success: true, script: result.rows[0] })
   } catch (err: any) {
     console.error('PUT /api/shopper/scripts/:id error:', err?.message)
     return c.json({ error: 'Failed to update script' }, 500)
@@ -201,17 +200,16 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
 
     const scriptId = c.req.param('id')
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      DELETE FROM shopper_scripts
-      WHERE id = ${scriptId} AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `DELETE FROM shopper_scripts
+       WHERE id = $1 AND organization_id = $2
+       RETURNING id`,
+      [scriptId, session.organization_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
 
@@ -243,17 +241,16 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
       return c.json({ error: 'Script ID required' }, 400)
     }
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      DELETE FROM shopper_scripts
-      WHERE id = ${scriptId} AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `DELETE FROM shopper_scripts
+       WHERE id = $1 AND organization_id = $2
+       RETURNING id`,
+      [scriptId, session.organization_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
 

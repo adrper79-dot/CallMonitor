@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
 
@@ -18,21 +19,19 @@ voiceRoutes.get('/targets', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    // Use neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
     // Check if voice_targets table exists
-    const tableCheck = await sql`
+    const tableCheck = await db.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'voice_targets'
       ) as exists
-    `
+    `)
 
-    if (!tableCheck[0].exists) {
+    if (!tableCheck.rows[0].exists) {
       console.warn('Voice targets table does not exist')
       return c.json({
         success: true,
@@ -40,16 +39,17 @@ voiceRoutes.get('/targets', async (c) => {
       })
     }
 
-    const result = await sql`
-      SELECT *
-      FROM voice_targets
-      WHERE organization_id = ${session.organization_id}
-      ORDER BY created_at DESC
-    `
+    const result = await db.query(
+      `SELECT *
+       FROM voice_targets
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [session.organization_id]
+    )
 
     return c.json({
       success: true,
-      targets: result
+      targets: result.rows
     })
   } catch (err: any) {
     console.error('GET /api/voice/targets error:', err?.message)
@@ -65,20 +65,19 @@ voiceRoutes.get('/config', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    // Use neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
     // Get voice config from database
-    const result = await sql`
-      SELECT * FROM voice_configs 
-      WHERE organization_id = ${session.organization_id}
-      ORDER BY updated_at DESC 
-      LIMIT 1
-    `
+    const result = await db.query(
+      `SELECT * FROM voice_configs 
+       WHERE organization_id = $1
+       ORDER BY updated_at DESC 
+       LIMIT 1`,
+      [session.organization_id]
+    )
 
-    const config = result[0] || {
+    const config = result.rows[0] || {
       record: false,
       transcribe: false,
       translate: false,
@@ -114,13 +113,11 @@ voiceRoutes.put('/config', async (c) => {
       return c.json({ error: 'Invalid organization' }, 400)
     }
 
-    // Use neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
     // Ensure voice_configs table exists
-    await sql`
+    await db.query(`
       CREATE TABLE IF NOT EXISTS voice_configs (
         id SERIAL PRIMARY KEY,
         organization_id UUID NOT NULL UNIQUE,
@@ -135,24 +132,15 @@ voiceRoutes.put('/config', async (c) => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
-    `
+    `)
 
     // Upsert voice config with core columns only
-    const result = await sql`
-      INSERT INTO voice_configs (
+    const result = await db.query(
+      `INSERT INTO voice_configs (
         organization_id, record, transcribe, translate, translate_from, translate_to,
         survey, synthetic_caller, use_voice_cloning, updated_at
       ) VALUES (
-        ${session.organization_id},
-        ${modulations.record ?? false},
-        ${modulations.transcribe ?? false},
-        ${modulations.translate ?? false},
-        ${modulations.translate_from || null},
-        ${modulations.translate_to || null},
-        ${modulations.survey ?? false},
-        ${modulations.synthetic_caller ?? false},
-        ${modulations.use_voice_cloning ?? false},
-        NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
       )
       ON CONFLICT (organization_id)
       DO UPDATE SET
@@ -165,12 +153,23 @@ voiceRoutes.put('/config', async (c) => {
         synthetic_caller = EXCLUDED.synthetic_caller,
         use_voice_cloning = EXCLUDED.use_voice_cloning,
         updated_at = NOW()
-      RETURNING *
-    `
+      RETURNING *`,
+      [
+        session.organization_id,
+        modulations.record ?? false,
+        modulations.transcribe ?? false,
+        modulations.translate ?? false,
+        modulations.translate_from || null,
+        modulations.translate_to || null,
+        modulations.survey ?? false,
+        modulations.synthetic_caller ?? false,
+        modulations.use_voice_cloning ?? false,
+      ]
+    )
 
     return c.json({
       success: true,
-      config: result[0]
+      config: result.rows[0]
     })
   } catch (err: any) {
     console.error('PUT /api/voice/config error:', err?.message)
@@ -197,14 +196,15 @@ voiceRoutes.post('/call', async (c) => {
     // Resolve the target number
     let destinationNumber = to_number
     if (!destinationNumber && target_id) {
-      const { neon } = await import('@neondatabase/serverless')
-      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-      const sql = neon(connectionString)
-      const targets = await sql`SELECT phone_number FROM voice_targets WHERE id = ${target_id} AND organization_id = ${session.organization_id}`
-      if (targets.length === 0) {
+      const db = getDb(c.env)
+      const targets = await db.query(
+        'SELECT phone_number FROM voice_targets WHERE id = $1 AND organization_id = $2',
+        [target_id, session.organization_id]
+      )
+      if (targets.rows.length === 0) {
         return c.json({ error: 'Target not found' }, 404)
       }
-      destinationNumber = targets[0].phone_number
+      destinationNumber = targets.rows[0].phone_number
     }
 
     if (!destinationNumber) {
@@ -276,13 +276,11 @@ voiceRoutes.post('/call', async (c) => {
     const telnyxCallId = callData.data?.call_control_id || callData.data?.id
 
     // Insert call record into database
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const dbForInsert = getDb(c.env)
 
     // Check if calls table exists, create basic record
-    const callRecord = await sql`
-      INSERT INTO calls (
+    const callRecord = await dbForInsert.query(
+      `INSERT INTO calls (
         organization_id, 
         created_by, 
         status, 
@@ -290,17 +288,13 @@ voiceRoutes.post('/call', async (c) => {
         started_at,
         created_at
       ) VALUES (
-        ${session.organization_id},
-        ${session.user_id},
-        'initiating',
-        ${telnyxCallId},
-        NOW(),
-        NOW()
+        $1, $2, 'initiating', $3, NOW(), NOW()
       )
-      RETURNING id
-    `
+      RETURNING id`,
+      [session.organization_id, session.user_id, telnyxCallId]
+    )
 
-    const callId = callRecord[0]?.id
+    const callId = callRecord.rows[0]?.id
 
     console.log(`[Voice] Call created: ${callId} (telnyx: ${telnyxCallId})`)
 
@@ -335,23 +329,21 @@ voiceRoutes.post('/targets', async (c) => {
       return c.json({ error: 'Invalid organization' }, 400)
     }
 
-    // Use neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
     // Check if voice_targets table exists
-    const tableCheck = await sql`
+    const tableCheck = await db.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' 
         AND table_name = 'voice_targets'
       ) as exists
-    `
+    `)
 
-    if (!tableCheck[0].exists) {
+    if (!tableCheck.rows[0].exists) {
       console.warn('Voice targets table does not exist, creating...')
-      await sql`
+      await db.query(`
         CREATE TABLE voice_targets (
           id SERIAL PRIMARY KEY,
           organization_id UUID NOT NULL,
@@ -361,19 +353,20 @@ voiceRoutes.post('/targets', async (c) => {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
-      `
+      `)
     }
 
     // Insert new target
-    const result = await sql`
-      INSERT INTO voice_targets (organization_id, phone_number, name)
-      VALUES (${session.organization_id}, ${phone_number}, ${name})
-      RETURNING *
-    `
+    const result = await db.query(
+      `INSERT INTO voice_targets (organization_id, phone_number, name)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [session.organization_id, phone_number, name]
+    )
 
     return c.json({
       success: true,
-      target: result[0]
+      target: result.rows[0]
     })
   } catch (err: any) {
     console.error('POST /api/voice/targets error:', err?.message)
@@ -391,17 +384,16 @@ voiceRoutes.delete('/targets/:id', async (c) => {
 
     const targetId = c.req.param('id')
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      DELETE FROM voice_targets
-      WHERE id = ${targetId} AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `DELETE FROM voice_targets
+       WHERE id = $1 AND organization_id = $2
+       RETURNING id`,
+      [targetId, session.organization_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Target not found' }, 404)
     }
 

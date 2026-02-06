@@ -339,12 +339,10 @@ async function listWebhookSubscriptions(c: any) {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Ensure table exists
-  await sql`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_subscriptions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -357,15 +355,16 @@ async function listWebhookSubscriptions(c: any) {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
-  `
+  `)
 
-  const result = await sql`
-    SELECT * FROM webhook_subscriptions
-    WHERE organization_id = ${session.organization_id}
-    ORDER BY created_at DESC
-  `
+  const result = await db.query(
+    `SELECT * FROM webhook_subscriptions
+     WHERE organization_id = $1
+     ORDER BY created_at DESC`,
+    [session.organization_id]
+  )
 
-  return c.json({ success: true, webhooks: result })
+  return c.json({ success: true, webhooks: result.rows })
 }
 
 /** Shared: create webhook subscription */
@@ -377,20 +376,19 @@ async function createWebhookSubscription(c: any) {
   if (!parsed.success) return parsed.response
   const { url, events, secret, description } = parsed.data
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Generate a signing secret if not provided
   const signingSecret = secret || crypto.randomUUID()
 
-  const result = await sql`
-    INSERT INTO webhook_subscriptions (organization_id, url, events, secret, description, created_by)
-    VALUES (${session.organization_id}, ${url}, ${events}, ${signingSecret}, ${description || ''}, ${session.user_id})
-    RETURNING *
-  `
+  const result = await db.query(
+    `INSERT INTO webhook_subscriptions (organization_id, url, events, secret, description, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING *`,
+    [session.organization_id, url, events, signingSecret, description || '', session.user_id]
+  )
 
-  return c.json({ success: true, webhook: result[0] }, 201)
+  return c.json({ success: true, webhook: result.rows[0] }, 201)
 }
 
 /** Shared: update webhook subscription */
@@ -402,26 +400,25 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
   if (!parsed.success) return parsed.response
   const { url, events, is_active, description } = parsed.data
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
-  const result = await sql`
-    UPDATE webhook_subscriptions
-    SET url = COALESCE(${url}, url),
-        events = COALESCE(${events}, events),
-        is_active = COALESCE(${is_active}, is_active),
-        description = COALESCE(${description}, description),
-        updated_at = NOW()
-    WHERE id = ${webhookId} AND organization_id = ${session.organization_id}
-    RETURNING *
-  `
+  const result = await db.query(
+    `UPDATE webhook_subscriptions
+     SET url = COALESCE($1, url),
+         events = COALESCE($2, events),
+         is_active = COALESCE($3, is_active),
+         description = COALESCE($4, description),
+         updated_at = NOW()
+     WHERE id = $5 AND organization_id = $6
+     RETURNING *`,
+    [url || null, events || null, is_active ?? null, description || null, webhookId, session.organization_id]
+  )
 
-  if (result.length === 0) {
+  if (result.rows.length === 0) {
     return c.json({ error: 'Webhook not found' }, 404)
   }
 
-  return c.json({ success: true, webhook: result[0] })
+  return c.json({ success: true, webhook: result.rows[0] })
 }
 
 /** Shared: delete webhook subscription */
@@ -429,17 +426,16 @@ async function deleteWebhookSubscription(c: any, webhookId: string) {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
-  const result = await sql`
-    DELETE FROM webhook_subscriptions
-    WHERE id = ${webhookId} AND organization_id = ${session.organization_id}
-    RETURNING id
-  `
+  const result = await db.query(
+    `DELETE FROM webhook_subscriptions
+     WHERE id = $1 AND organization_id = $2
+     RETURNING id`,
+    [webhookId, session.organization_id]
+  )
 
-  if (result.length === 0) {
+  if (result.rows.length === 0) {
     return c.json({ error: 'Webhook not found' }, 404)
   }
 
@@ -451,20 +447,19 @@ async function testWebhookDelivery(c: any, webhookId: string) {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
-  const webhookResult = await sql`
-    SELECT * FROM webhook_subscriptions
-    WHERE id = ${webhookId} AND organization_id = ${session.organization_id}
-  `
+  const webhookResult = await db.query(
+    `SELECT * FROM webhook_subscriptions
+     WHERE id = $1 AND organization_id = $2`,
+    [webhookId, session.organization_id]
+  )
 
-  if (webhookResult.length === 0) {
+  if (webhookResult.rows.length === 0) {
     return c.json({ error: 'Webhook not found' }, 404)
   }
 
-  const webhook = webhookResult[0]
+  const webhook = webhookResult.rows[0]
 
   // Send test payload
   const testPayload = {
@@ -478,7 +473,7 @@ async function testWebhookDelivery(c: any, webhookId: string) {
   }
 
   // Ensure delivery log table exists
-  await sql`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_deliveries (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       webhook_id UUID NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
@@ -490,7 +485,7 @@ async function testWebhookDelivery(c: any, webhookId: string) {
       duration_ms INT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )
-  `
+  `)
 
   const startTime = Date.now()
   let responseStatus = 0
@@ -518,10 +513,11 @@ async function testWebhookDelivery(c: any, webhookId: string) {
   const durationMs = Date.now() - startTime
 
   // Log delivery
-  await sql`
-    INSERT INTO webhook_deliveries (webhook_id, event, payload, response_status, response_body, success, duration_ms)
-    VALUES (${webhookId}, 'test.delivery', ${JSON.stringify(testPayload)}, ${responseStatus}, ${responseBody}, ${success}, ${durationMs})
-  `
+  await db.query(
+    `INSERT INTO webhook_deliveries (webhook_id, event, payload, response_status, response_body, success, duration_ms)
+     VALUES ($1, 'test.delivery', $2, $3, $4, $5, $6)`,
+    [webhookId, JSON.stringify(testPayload), responseStatus, responseBody, success, durationMs]
+  )
 
   return c.json({
     success: true,
@@ -571,36 +567,35 @@ webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
     // Verify webhook belongs to org
-    const webhookCheck = await sql`
-      SELECT id FROM webhook_subscriptions
-      WHERE id = ${webhookId} AND organization_id = ${session.organization_id}
-    `
-    if (webhookCheck.length === 0) return c.json({ error: 'Webhook not found' }, 404)
+    const webhookCheck = await db.query(
+      'SELECT id FROM webhook_subscriptions WHERE id = $1 AND organization_id = $2',
+      [webhookId, session.organization_id]
+    )
+    if (webhookCheck.rows.length === 0) return c.json({ error: 'Webhook not found' }, 404)
 
     // Check if deliveries table exists
-    const tableCheck = await sql`
+    const tableCheck = await db.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public' AND table_name = 'webhook_deliveries'
       ) as exists
-    `
-    if (!tableCheck[0].exists) {
+    `)
+    if (!tableCheck.rows[0].exists) {
       return c.json({ success: true, deliveries: [], total: 0 })
     }
 
-    const deliveries = await sql`
-      SELECT * FROM webhook_deliveries
-      WHERE webhook_id = ${webhookId}
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
+    const deliveries = await db.query(
+      `SELECT * FROM webhook_deliveries
+       WHERE webhook_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [webhookId, limit, offset]
+    )
 
-    return c.json({ success: true, deliveries, page, limit })
+    return c.json({ success: true, deliveries: deliveries.rows, page, limit })
   } catch (err: any) {
     console.error('GET /webhooks/subscriptions deliveries error:', err?.message)
     return c.json({ error: 'Failed to get deliveries' }, 500)

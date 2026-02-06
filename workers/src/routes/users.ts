@@ -9,6 +9,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 
 export const userRoutes = new Hono<{ Bindings: Env }>()
 
@@ -20,26 +21,25 @@ userRoutes.get('/me', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      SELECT u.id, u.email, u.name, u.created_at,
+    const result = await db.query(
+      `SELECT u.id, u.email, u.name, u.created_at,
              om.role, om.organization_id,
              o.name as organization_name, o.plan as organization_plan
       FROM users u
       LEFT JOIN org_members om ON om.user_id = u.id
       LEFT JOIN organizations o ON o.id = om.organization_id
-      WHERE u.id = ${session.user_id}
-      LIMIT 1
-    `
+      WHERE u.id = $1
+      LIMIT 1`,
+      [session.user_id]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'User not found' }, 404)
     }
 
-    const user = result[0]
+    const user = result.rows[0]
 
     return c.json({
       success: true,
@@ -75,24 +75,23 @@ userRoutes.get('/:id/organization', async (c) => {
       return c.json({ error: 'Forbidden' }, 403)
     }
 
-    // Use neon client directly
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sql = neon(connectionString)
+    // Use centralized DB client
+    const db = getDb(c.env)
 
-    const result = await sql`
-      SELECT o.id, o.name, o.plan, om.role
-      FROM organizations o
-      JOIN org_members om ON om.organization_id = o.id
-      WHERE om.user_id = ${userId}
-      LIMIT 1
-    `
+    const result = await db.query(
+      `SELECT o.id, o.name, o.plan, om.role
+       FROM organizations o
+       JOIN org_members om ON om.organization_id = o.id
+       WHERE om.user_id = $1
+       LIMIT 1`,
+      [userId]
+    )
 
-    if (result.length === 0) {
+    if (result.rows.length === 0) {
       return c.json({ error: 'Organization not found' }, 404)
     }
 
-    const org = result[0]
+    const org = result.rows[0]
 
     return c.json({
       success: true,

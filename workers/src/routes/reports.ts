@@ -16,15 +16,9 @@ import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
+import { getDb } from '../lib/db'
 
 export const reportsRoutes = new Hono<{ Bindings: Env }>()
-
-/** Helper: get neon sql client */
-async function getNeon(c: any) {
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  return neon(connectionString)
-}
 
 // GET / — List reports
 reportsRoutes.get('/', async (c) => {
@@ -32,13 +26,13 @@ reportsRoutes.get('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS reports (
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS reports (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL,
         name TEXT NOT NULL,
@@ -51,17 +45,19 @@ reportsRoutes.get('/', async (c) => {
         created_by UUID,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         completed_at TIMESTAMPTZ
-      )
-    `
+      )`
+    )
 
-    const rows = await sql`
-      SELECT *, COUNT(*) OVER() as total_count
+    const rowsResult = await db.query(
+      `SELECT *, COUNT(*) OVER() as total_count
       FROM reports
-      WHERE organization_id = ${session.organization_id}
+      WHERE organization_id = $1
       ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
+      LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
 
+    const rows = rowsResult.rows
     const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0
     const reports = rows.map(({ total_count, ...r }: any) => r)
 
@@ -82,10 +78,10 @@ reportsRoutes.post('/', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, type, filters, metrics, format } = parsed.data
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS reports (
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS reports (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL,
         name TEXT NOT NULL,
@@ -98,25 +94,25 @@ reportsRoutes.post('/', async (c) => {
         created_by UUID,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         completed_at TIMESTAMPTZ
-      )
-    `
+      )`
+    )
 
-    const result = await sql`
-      INSERT INTO reports (organization_id, name, type, status, filters, metrics, format, created_by)
-      VALUES (
-        ${session.organization_id},
-        ${name},
-        ${type || 'call_volume'},
-        'completed',
-        ${JSON.stringify(filters || {})},
-        ${JSON.stringify(metrics || [])},
-        ${format || 'pdf'},
-        ${session.user_id}
-      )
-      RETURNING *
-    `
+    const result = await db.query(
+      `INSERT INTO reports (organization_id, name, type, status, filters, metrics, format, created_by)
+      VALUES ($1, $2, $3, 'completed', $4, $5, $6, $7)
+      RETURNING *`,
+      [
+        session.organization_id,
+        name,
+        type || 'call_volume',
+        JSON.stringify(filters || {}),
+        JSON.stringify(metrics || []),
+        format || 'pdf',
+        session.user_id
+      ]
+    )
 
-    return c.json({ success: true, report: result[0] })
+    return c.json({ success: true, report: result.rows[0] })
   } catch (err: any) {
     console.error('POST /api/reports error:', err?.message)
     return c.json({ error: 'Failed to generate report' }, 500)
@@ -130,31 +126,33 @@ reportsRoutes.get('/:id/export', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const reportId = c.req.param('id')
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    const rows = await sql`
-      SELECT * FROM reports
-      WHERE id = ${reportId}::uuid AND organization_id = ${session.organization_id}
-      LIMIT 1
-    `
+    const rowsResult = await db.query(
+      `SELECT * FROM reports
+      WHERE id = $1::uuid AND organization_id = $2
+      LIMIT 1`,
+      [reportId, session.organization_id]
+    )
 
-    if (rows.length === 0) return c.json({ error: 'Report not found' }, 404)
+    if (rowsResult.rows.length === 0) return c.json({ error: 'Report not found' }, 404)
 
-    const report = rows[0]
+    const report = rowsResult.rows[0]
 
     // Generate basic export data from calls
-    const callData = await sql`
-      SELECT id, status, started_at, ended_at, created_at
+    const callData = await db.query(
+      `SELECT id, status, started_at, ended_at, created_at
       FROM calls
-      WHERE organization_id = ${session.organization_id}
+      WHERE organization_id = $1
       ORDER BY created_at DESC
-      LIMIT 1000
-    `
+      LIMIT 1000`,
+      [session.organization_id]
+    )
 
     return c.json({
       success: true,
       report: { id: report.id, name: report.name, type: report.type },
-      data: callData,
+      data: callData.rows,
       exported_at: new Date().toISOString(),
     })
   } catch (err: any) {
@@ -169,10 +167,10 @@ reportsRoutes.get('/schedules', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS report_schedules (
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS report_schedules (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL,
         name TEXT NOT NULL,
@@ -185,16 +183,17 @@ reportsRoutes.get('/schedules', async (c) => {
         created_by UUID,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `
+      )`
+    )
 
-    const rows = await sql`
-      SELECT * FROM report_schedules
-      WHERE organization_id = ${session.organization_id}
-      ORDER BY created_at DESC
-    `
+    const rowsResult = await db.query(
+      `SELECT * FROM report_schedules
+      WHERE organization_id = $1
+      ORDER BY created_at DESC`,
+      [session.organization_id]
+    )
 
-    return c.json({ success: true, schedules: rows })
+    return c.json({ success: true, schedules: rowsResult.rows })
   } catch (err: any) {
     console.error('GET /api/reports/schedules error:', err?.message)
     return c.json({ error: 'Failed to list schedules' }, 500)
@@ -211,10 +210,10 @@ reportsRoutes.post('/schedules', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, report_type, cron_pattern, delivery_emails, filters, format } = parsed.data
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    await sql`
-      CREATE TABLE IF NOT EXISTS report_schedules (
+    await db.query(
+      `CREATE TABLE IF NOT EXISTS report_schedules (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         organization_id UUID NOT NULL,
         name TEXT NOT NULL,
@@ -227,25 +226,26 @@ reportsRoutes.post('/schedules', async (c) => {
         created_by UUID,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `
+      )`
+    )
 
-    const result = await sql`
-      INSERT INTO report_schedules (organization_id, name, report_type, cron_pattern, delivery_emails, filters, format, created_by)
-      VALUES (
-        ${session.organization_id},
-        ${name},
-        ${report_type || 'call_volume'},
-        ${cron_pattern || '0 8 * * 1'},
-        ${delivery_emails || []},
-        ${JSON.stringify(filters || {})},
-        ${format || 'pdf'},
-        ${session.user_id}
-      )
-      RETURNING *
-    `
+    const result = await db.query(
+      `INSERT INTO report_schedules (organization_id, name, report_type, cron_pattern, delivery_emails, filters, format, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+      [
+        session.organization_id,
+        name,
+        report_type || 'call_volume',
+        cron_pattern || '0 8 * * 1',
+        delivery_emails || [],
+        JSON.stringify(filters || {}),
+        format || 'pdf',
+        session.user_id
+      ]
+    )
 
-    return c.json({ success: true, schedule: result[0] })
+    return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
     console.error('POST /api/reports/schedules error:', err?.message)
     return c.json({ error: 'Failed to create schedule' }, 500)
@@ -263,22 +263,23 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
     if (!parsed.success) return parsed.response
     const { is_active, name, cron_pattern, delivery_emails } = parsed.data
 
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      UPDATE report_schedules
+    const result = await db.query(
+      `UPDATE report_schedules
       SET
-        is_active = COALESCE(${is_active ?? null}::boolean, is_active),
-        name = COALESCE(${name || null}, name),
-        cron_pattern = COALESCE(${cron_pattern || null}, cron_pattern),
+        is_active = COALESCE($1::boolean, is_active),
+        name = COALESCE($2, name),
+        cron_pattern = COALESCE($3, cron_pattern),
         updated_at = NOW()
-      WHERE id = ${scheduleId}::uuid AND organization_id = ${session.organization_id}
-      RETURNING *
-    `
+      WHERE id = $4::uuid AND organization_id = $5
+      RETURNING *`,
+      [is_active ?? null, name || null, cron_pattern || null, scheduleId, session.organization_id]
+    )
 
-    if (result.length === 0) return c.json({ error: 'Schedule not found' }, 404)
+    if (result.rows.length === 0) return c.json({ error: 'Schedule not found' }, 404)
 
-    return c.json({ success: true, schedule: result[0] })
+    return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
     console.error('PATCH /api/reports/schedules/:id error:', err?.message)
     return c.json({ error: 'Failed to update schedule' }, 500)
@@ -292,15 +293,16 @@ reportsRoutes.delete('/schedules/:id', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scheduleId = c.req.param('id')
-    const sql = await getNeon(c)
+    const db = getDb(c.env)
 
-    const result = await sql`
-      DELETE FROM report_schedules
-      WHERE id = ${scheduleId}::uuid AND organization_id = ${session.organization_id}
-      RETURNING id
-    `
+    const result = await db.query(
+      `DELETE FROM report_schedules
+      WHERE id = $1::uuid AND organization_id = $2
+      RETURNING id`,
+      [scheduleId, session.organization_id]
+    )
 
-    if (result.length === 0) return c.json({ error: 'Schedule not found' }, 404)
+    if (result.rows.length === 0) return c.json({ error: 'Schedule not found' }, 404)
 
     return c.json({ success: true, message: 'Schedule deleted' })
   } catch (err: any) {

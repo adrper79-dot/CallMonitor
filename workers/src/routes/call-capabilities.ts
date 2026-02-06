@@ -10,6 +10,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 
 export const callCapabilitiesRoutes = new Hono<{ Bindings: Env }>()
 
@@ -72,15 +73,14 @@ callCapabilitiesRoutes.get('/', async (c) => {
     let plan = 'free'
 
     if (session.organization_id) {
-      const { neon } = await import('@neondatabase/serverless')
-      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-      const sql = neon(connectionString)
+      const db = getDb(c.env)
 
-      const result = await sql`
-        SELECT plan FROM organizations WHERE id = ${session.organization_id}
-      `
-      if (result.length > 0 && result[0].plan) {
-        plan = result[0].plan
+      const result = await db.query(
+        'SELECT plan FROM organizations WHERE id = $1',
+        [session.organization_id]
+      )
+      if (result.rows.length > 0 && result.rows[0].plan) {
+        plan = result.rows[0].plan
       }
     }
 

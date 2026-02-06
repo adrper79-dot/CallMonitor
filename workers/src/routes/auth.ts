@@ -107,13 +107,14 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
     if (!parsed.success) return parsed.response
     const { email, password, name, organizationName } = parsed.data
 
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sqlClient = neon(connectionString)
+    const db = getDb(c.env)
 
-    const existing = await sqlClient`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
+    const existing = await db.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    )
 
-    if (existing && existing.length > 0) {
+    if (existing.rows && existing.rows.length > 0) {
       return c.json({ error: 'User already exists' }, 409)
     }
 
@@ -122,8 +123,11 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
 
     // Create user
     try {
-      await sqlClient`INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
-         VALUES (gen_random_uuid(), ${email.toLowerCase()}, ${name || email.split('@')[0]}, ${passwordHash}, NOW(), NOW())`
+      await db.query(
+        `INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,
+        [email.toLowerCase(), name || email.split('@')[0], passwordHash]
+      )
     } catch (insertError: any) {
       return c.json({ error: 'Signup failed' }, 500)
     }
@@ -131,17 +135,19 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
     // Get the created user
     let userResult;
     try {
-      userResult = await sqlClient`SELECT id, email, name FROM users WHERE email = ${email.toLowerCase()}`
+      userResult = await db.query(
+        'SELECT id, email, name FROM users WHERE email = $1',
+        [email.toLowerCase()]
+      )
     } catch (selectError: any) {
       return c.json({ error: 'Signup failed' }, 500)
     }
 
-    if (!userResult) {
+    if (!userResult.rows || userResult.rows.length === 0) {
       return c.json({ error: 'Signup failed' }, 500)
     }
 
-    // Handle both array and single object returns
-    const user = Array.isArray(userResult) ? userResult[0] : userResult
+    const user = userResult.rows[0]
 
     if (!user || !user.id) {
       return c.json({ error: 'Signup failed' }, 500)
@@ -150,17 +156,21 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
     // Create organization if name provided
     if (organizationName) {
       try {
-        const orgInsertResult = await sqlClient`
-          INSERT INTO organizations (id, name, created_by, created_at)
-          VALUES (gen_random_uuid(), ${organizationName}, ${user.id}, NOW())
-          RETURNING id`
+        const orgInsertResult = await db.query(
+          `INSERT INTO organizations (id, name, created_by, created_at)
+           VALUES (gen_random_uuid(), $1, $2, NOW())
+           RETURNING id`,
+          [organizationName, user.id]
+        )
         
-        const orgId = orgInsertResult[0]?.id
+        const orgId = orgInsertResult.rows[0]?.id
 
         if (orgId) {
-          await sqlClient`
-            INSERT INTO org_members (id, user_id, organization_id, role, created_at)
-            VALUES (gen_random_uuid(), ${user.id}::uuid, ${orgId}, 'admin', NOW())`
+          await db.query(
+            `INSERT INTO org_members (id, user_id, organization_id, role, created_at)
+             VALUES (gen_random_uuid(), $1::uuid, $2, 'admin', NOW())`,
+            [user.id, orgId]
+          )
         }
       } catch (orgErr: any) {
         // Don't fail signup if org creation fails
@@ -235,18 +245,19 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     // Delete CSRF token after use (one-time use)
     await c.env.KV.delete(`csrf:${csrfTokenValue}`)
 
-    // Find user by email - temporarily use direct neon client
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sqlClient = neon(connectionString)
+    // Find user by email
+    const db = getDb(c.env)
 
-    const userResult = await sqlClient`SELECT id, email, name, password_hash FROM users WHERE email = ${loginIdentifier.toLowerCase()}`
+    const userResult = await db.query(
+      'SELECT id, email, name, password_hash FROM users WHERE email = $1',
+      [loginIdentifier.toLowerCase()]
+    )
 
-    if (!userResult || userResult.length === 0) {
+    if (!userResult.rows || userResult.rows.length === 0) {
       return c.json({ error: 'Invalid credentials' }, 401)
     }
 
-    const user = userResult[0]
+    const user = userResult.rows[0]
 
     // Verify password (supports legacy SHA-256 + new PBKDF2 formats)
     const { valid: validPassword, needsRehash } = await verifyPassword(password, user.password_hash)
@@ -259,7 +270,10 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     if (needsRehash) {
       try {
         const upgradedHash = await hashPassword(password)
-        await sqlClient`UPDATE users SET password_hash = ${upgradedHash}, updated_at = NOW() WHERE id = ${user.id}`
+        await db.query(
+          'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+          [upgradedHash, user.id]
+        )
       } catch (_rehashErr) {
         // Non-fatal — login still succeeds, hash will be upgraded next time
       }
@@ -267,13 +281,16 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
 
     // Get user's organization
     // Note: org_members.user_id is UUID, users.id is TEXT - need to cast
-    const orgResult = await sqlClient`SELECT om.organization_id, om.role, o.name as org_name
+    const orgResult = await db.query(
+      `SELECT om.organization_id, om.role, o.name as org_name
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id::text = ${user.id}
-       LIMIT 1`
+       WHERE om.user_id::text = $1
+       LIMIT 1`,
+      [user.id]
+    )
 
-    const org = orgResult?.[0]
+    const org = orgResult.rows?.[0]
 
     // Create session
     const sessionId = crypto.randomUUID()
@@ -282,9 +299,12 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
 
     try {
       // sessions table has UUID columns for id and user_id (per actual schema check)
-      await sqlClient`INSERT INTO public.sessions (id, session_token, user_id, expires)
-        VALUES (${sessionId}::uuid, ${sessionToken}, ${user.id}::uuid, ${expires.toISOString()})
-        ON CONFLICT (session_token) DO NOTHING`
+      await db.query(
+        `INSERT INTO public.sessions (id, session_token, user_id, expires)
+         VALUES ($1::uuid, $2, $3::uuid, $4)
+         ON CONFLICT (session_token) DO NOTHING`,
+        [sessionId, sessionToken, user.id, expires.toISOString()]
+      )
     } catch (sessionError: any) {
       return c.json({ error: 'Session creation failed' }, 500)
     }
@@ -326,12 +346,9 @@ authRoutes.post('/signout', async (c) => {
     const token = c.req.header('Authorization')?.replace('Bearer ', '')
     
     if (token) {
-      // Delete session from database (snake_case per standard)
-      const { neon } = await import('@neondatabase/serverless')
-      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-      const sqlClient = neon(connectionString)
-      
-      await sqlClient`DELETE FROM public.sessions WHERE session_token = ${token}`
+      // Delete session from database
+      const db = getDb(c.env)
+      await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
     }
     
     // Clear session cookie
@@ -353,13 +370,14 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
     const { email } = parsed.data
 
     // Check if user exists
-    const { neon } = await import('@neondatabase/serverless')
-    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-    const sqlClient = neon(connectionString)
+    const db = getDb(c.env)
 
-    const userResult = await sqlClient`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
+    const userResult = await db.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    )
     
-    if (!userResult || userResult.length === 0) {
+    if (!userResult.rows || userResult.rows.length === 0) {
       // Don't reveal if user exists or not for security
       return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' })
     }

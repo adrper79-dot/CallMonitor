@@ -9,6 +9,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { getDb } from '../lib/db'
 
 export const usageRoutes = new Hono<{ Bindings: Env }>()
 
@@ -27,17 +28,15 @@ async function getUsageData(c: any) {
     })
   }
 
-  const { neon } = await import('@neondatabase/serverless')
-  const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-  const sql = neon(connectionString)
+  const db = getDb(c.env)
 
   // Get this month's usage from actual tables
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   // Count calls this month
-  const callsResult = await sql`
-    SELECT 
+  const callsResult = await db.query(
+    `SELECT 
       COUNT(*)::int as total_calls,
       COALESCE(SUM(
         CASE WHEN ended_at IS NOT NULL AND started_at IS NOT NULL
@@ -46,29 +45,32 @@ async function getUsageData(c: any) {
         END
       ), 0)::numeric(10,1) as total_minutes
     FROM calls
-    WHERE organization_id = ${session.organization_id}
-      AND created_at >= ${monthStart}::timestamptz
-  `
+    WHERE organization_id = $1
+      AND created_at >= $2::timestamptz`,
+    [session.organization_id, monthStart]
+  )
 
   // Count recordings this month
-  const recordingsResult = await sql`
-    SELECT COUNT(*)::int as total_recordings
+  const recordingsResult = await db.query(
+    `SELECT COUNT(*)::int as total_recordings
     FROM recordings
-    WHERE organization_id = ${session.organization_id}
-      AND created_at >= ${monthStart}::timestamptz
-  `
+    WHERE organization_id = $1
+      AND created_at >= $2::timestamptz`,
+    [session.organization_id, monthStart]
+  )
 
-  const calls = callsResult?.[0]?.total_calls || 0
-  const minutes = parseFloat(callsResult?.[0]?.total_minutes || '0')
-  const recordings = recordingsResult?.[0]?.total_recordings || 0
+  const calls = callsResult.rows?.[0]?.total_calls || 0
+  const minutes = parseFloat(callsResult.rows?.[0]?.total_minutes || '0')
+  const recordings = recordingsResult.rows?.[0]?.total_recordings || 0
 
   // Get plan limits from organization
   let planId = 'free'
   try {
-    const orgResult = await sql`
-      SELECT plan FROM organizations WHERE id = ${session.organization_id}
-    `
-    planId = orgResult?.[0]?.plan || 'free'
+    const orgResult = await db.query(
+      'SELECT plan FROM organizations WHERE id = $1',
+      [session.organization_id]
+    )
+    planId = orgResult.rows?.[0]?.plan || 'free'
   } catch {
     // plan column might not exist — default to free
   }
