@@ -22,6 +22,7 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CheckoutSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { idempotent } from '../lib/idempotency'
 
 export const billingRoutes = new Hono<{ Bindings: Env }>()
 
@@ -48,13 +49,23 @@ async function getBillingInfo(c: any) {
   // Query real subscription data from organizations table
   const db = getDb(c.env)
 
-  // Use a safe column query — only select columns that exist
-  const result = await db.query(
-    'SELECT o.id, o.name, o.plan FROM organizations o WHERE o.id = $1',
-    [session.organization_id]
-  )
-
-  const org = result.rows?.[0]
+  // Safe query: only select columns guaranteed to exist (id, name)
+  // 'plan' column may not exist — use COALESCE/fallback pattern
+  let org: any = null
+  try {
+    const result = await db.query(
+      'SELECT o.id, o.name, o.plan FROM organizations o WHERE o.id = $1',
+      [session.organization_id]
+    )
+    org = result.rows?.[0]
+  } catch {
+    // 'plan' column might not exist — fall back to minimal query
+    const result = await db.query(
+      'SELECT o.id, o.name FROM organizations o WHERE o.id = $1',
+      [session.organization_id]
+    )
+    org = result.rows?.[0]
+  }
 
   if (!org) {
     return c.json({
@@ -275,7 +286,7 @@ billingRoutes.get('/invoices', async (c) => {
 })
 
 // Create Stripe Checkout session for plan upgrade
-billingRoutes.post('/checkout', async (c) => {
+billingRoutes.post('/checkout', idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -369,7 +380,7 @@ billingRoutes.post('/checkout', async (c) => {
 })
 
 // Create Stripe Customer Portal session
-billingRoutes.post('/portal', async (c) => {
+billingRoutes.post('/portal', idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -424,7 +435,7 @@ billingRoutes.post('/portal', async (c) => {
 })
 
 // Cancel subscription
-billingRoutes.post('/cancel', async (c) => {
+billingRoutes.post('/cancel', idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {

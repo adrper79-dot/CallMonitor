@@ -19,6 +19,7 @@ import {
   EmailCallSchema,
 } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { idempotent } from '../lib/idempotency'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -132,7 +133,7 @@ callsRoutes.get('/:id', async (c) => {
 })
 
 // Start a new call
-callsRoutes.post('/start', async (c) => {
+callsRoutes.post('/start', idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {

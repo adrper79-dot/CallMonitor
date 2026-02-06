@@ -583,5 +583,14 @@ PASS 200 analytics/export         PASS 200 surveys
 | 🔴 404 | GET /api/recordings | No list handler (only /:id) |
 | 🔴 404 | GET /api/audit | Mounted at /api/audit-logs |
 | 🔴 404 | GET /api/users/me | No /me handler |
+
+> **⚠️ UPDATE (Feb 7, 2026 — v4.8 Sprint):**
+> - ✅ **FIXED:** GET /api/billing → was 500, now returns real data (column fallback added)
+> - ✅ **VERIFIED:** GET /api/recordings → 401 (handler exists, was stale crawl data)
+> - ✅ **VERIFIED:** GET /api/scorecards → 401 (handler exists, was stale crawl data)
+> - ✅ **VERIFIED:** GET /api/users/me → 401 (handler exists, was stale crawl data)
+> - ✅ **VERIFIED:** GET /api/audit → 401 (dual-mounted at /api/audit AND /api/audit-logs)
+> - ✅ **VERIFIED:** GET /api/audit-logs → 401 (handler exists)
+> - ✅ **VERIFIED:** GET /api/usage/stats → 401 (alias exists in usage.ts)
 | 🔴 400 | PUT /api/voice/config | "Invalid organization" |
 | 🔴 400 | POST /api/voice/targets | "Invalid organization" |

@@ -3,7 +3,7 @@
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 52/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Progress**: 54/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -36,7 +36,7 @@
 
 ---
 
-## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 12/25
+## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 14/25
 
 ### ✅ Completed
 
@@ -52,6 +52,8 @@
 - [x] **RateLimit Edge** (`workers/src/lib/rate-limit.ts`): KV-backed rate limiting. ✅
 - [x] **Pool Hardening** (`workers/src/lib/db.ts`): max=5, idle/connection timeouts, statement_timeout=30s. ✅
 - [x] **Structured Logger** (`workers/src/lib/logger.ts`): JSON structured logging, all console.log/warn/error migrated. ✅
+- [x] **Idempotency** (`workers/src/lib/idempotency.ts`): KV-backed, fail-open, 24h TTL, wired to billing/calls/bookings mutations. ✅
+- [x] **Billing 500 Fix** (`workers/src/routes/billing.ts`): Column fallback for missing `plan` column. ✅
 
 ### 🔄 Remaining
 
@@ -60,7 +62,6 @@
 - [ ] **Origin CA** (secrets): Custom TLS cert. **20min**
 - [ ] **Image CDN** (`next.config.js`): CF Image Resizing. **15min**
 - [ ] **RLS Audit** (`migrations/`): Policy coverage check. **1hr**
-- [ ] **Idempotency** (`lib/idempotency.ts`): KV-backed. **30min**
 - [ ] **Audit Logs** (`lib/audit.ts`): All mutation logging. **1hr**
 - [ ] **Backup Policy** (`scripts/`): Weekly Neon backup. **1hr**
 - [ ] **Schema Drift** (`current_schema.sql`): CI diff check. **1hr**
@@ -69,9 +70,10 @@
 
 ### 📋 Recommendations
 
-> **Priority**: WAF rules + RLS Audit + Idempotency layer (core resilience).
+> **Priority**: WAF rules + RLS Audit (core resilience).
 > **Security**: WAF rules should be configured in CF Dashboard immediately.
 > **Compliance**: RLS Audit critical for HIPAA/SOC2 requirements.
+> **Resilience**: ✅ Idempotency layer complete — billing, calls, bookings protected.
 
 ---
 

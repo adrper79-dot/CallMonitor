@@ -2,7 +2,7 @@
 
 **Created:** February 3, 2026  
 **Last Updated:** February 7, 2026  
-**Status:** ✅ All P0/P1/P2 Complete — Security items H2/H7 addressed  
+**Status:** ✅ All P0/P1/P2 Complete — v4.8 Reliability Sprint (idempotency + billing fix deployed)  
 **Priority Legend:** 🚨 P0 (Blocking) | 🔴 P1 (High) | 🟠 P2 (Medium) | 🟡 P3 (Low)
 
 ---
@@ -236,6 +236,10 @@ const res = await fetch('/api/endpoint', { credentials: 'include' })
 | 2026-02-07 | Agent   | H7: Zombie auth schema migration                    | Created `migrations/005_drop_zombie_auth_schemas.sql` — drops next_auth, authjs, neon_auth, realtime, graphql schemas                                                                                          |
 | 2026-02-07 | Agent   | Dead code: api-client.ts final deletion             | Fixed last import (CallModulations.tsx), deleted 257-line zombie file                                                                                                                                          |
 | 2026-02-07 | Agent   | ROADMAP cleanup                                     | Removed stale AUTH BLOCKER, duplicate sections, updated progress 44→52/109                                                                                                                                     |
+| 2026-02-07 | Agent   | Billing 500 fix (column fallback)                   | `workers/src/routes/billing.ts` — try/catch around `plan` column query, fallback to minimal `SELECT o.id, o.name`                                                                                              |
+| 2026-02-07 | Agent   | KV-backed idempotency layer                         | Created `workers/src/lib/idempotency.ts` — fail-open, 24h TTL, wired to billing checkout/portal/cancel, calls start, bookings create                                                                           |
+| 2026-02-07 | Agent   | Endpoint verification (6 stale 404s)                | Verified `/api/recordings`, `/api/scorecards`, `/api/users/me`, `/api/audit`, `/api/audit-logs`, `/api/usage/stats` — all return 401 (not 404)                                                                 |
+| 2026-02-07 | Agent   | ROADMAP + ARCH_DOCS update                          | Progress 52→54/109, RISK/SCALE 12→14/25, CURRENT_STATUS v4.8, Progress Log updated                                                                                                                             |
 
 ---
 

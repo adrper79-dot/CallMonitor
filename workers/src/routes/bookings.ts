@@ -15,6 +15,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { idempotent } from '../lib/idempotency'
 
 export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -57,7 +58,7 @@ bookingsRoutes.get('/', async (c) => {
 })
 
 // POST / — create a booking
-bookingsRoutes.post('/', async (c) => {
+bookingsRoutes.post('/', idempotent(), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
