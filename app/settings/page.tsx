@@ -18,6 +18,7 @@ import { InvoiceHistory } from '@/components/settings/InvoiceHistory'
 import { PlanComparisonTable } from '@/components/settings/PlanComparisonTable'
 import { AIAgentConfig } from '@/components/settings/AIAgentConfig'
 import { WebhookList } from '@/components/settings/WebhookList'
+import { WebhookSigningDocs } from '@/components/settings/WebhookSigningDocs'
 import { apiGet } from '@/lib/apiClient'
 import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
@@ -259,11 +260,29 @@ function SettingsPageContent() {
           {activeTab === 'webhooks' && (
             <div className="space-y-8">
               <section className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">Webhook Subscriptions</h2>
+                  <p className="text-sm text-gray-500">
+                    Receive real-time notifications when events occur in your organization.
+                  </p>
+                </div>
                 <WebhookList
                   organizationId={organizationId}
                   canEdit={role === 'owner' || role === 'admin'}
                 />
               </section>
+
+              <div className="border-t border-gray-200 pt-8">
+                <section className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Developer Documentation</h2>
+                    <p className="text-sm text-gray-500">
+                      Learn how to verify webhook signatures and implement webhook handlers.
+                    </p>
+                  </div>
+                  <WebhookSigningDocs />
+                </section>
+              </div>
             </div>
           )}
 

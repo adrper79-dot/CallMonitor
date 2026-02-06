@@ -32,6 +32,7 @@ import { callCapabilitiesRoutes } from './routes/call-capabilities'
 import { billingRoutes } from './routes/billing'
 import { surveysRoutes } from './routes/surveys'
 import { callerIdRoutes } from './routes/caller-id'
+import { capabilitiesRoutes } from './routes/capabilities'
 import { aiConfigRoutes } from './routes/ai-config'
 import { teamRoutes } from './routes/team'
 import { usageRoutes } from './routes/usage'
@@ -135,6 +136,7 @@ app.route('/api/call-capabilities', callCapabilitiesRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/surveys', surveysRoutes)
 app.route('/api/caller-id', callerIdRoutes)
+app.route('/api/capabilities', capabilitiesRoutes)
 app.route('/api/ai-config', aiConfigRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/teams', teamsRoutes)

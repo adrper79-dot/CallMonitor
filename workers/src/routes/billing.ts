@@ -85,7 +85,7 @@ async function getBillingInfo(c: any) {
   let subscriptionData: any = null
   try {
     const subResult = await db.query(
-      'SELECT subscription_status, subscription_id, plan_id, stripe_customer_id FROM organizations WHERE id = $1',
+      'SELECT subscription_status, subscription_id, plan_id, stripe_customer_id, plan_started_at, plan_ends_at FROM organizations WHERE id = $1',
       [session.organization_id]
     )
     subscriptionData = subResult.rows?.[0]
@@ -115,6 +115,36 @@ async function getBillingInfo(c: any) {
         ? 'starter'
         : org.plan || 'free'
 
+  // Fetch subscription details from Stripe API if we have a subscription_id and API key
+  let nextBillingDate = null
+  let amount = 0
+  let cancelAtPeriodEnd = false
+  let currentPeriodEnd = null
+
+  if (c.env.STRIPE_SECRET_KEY && subscriptionData.subscription_id) {
+    try {
+      const stripeRes = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${subscriptionData.subscription_id}`,
+        {
+          headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+        }
+      )
+      if (stripeRes.ok) {
+        const subscription = (await stripeRes.json()) as any
+        nextBillingDate = subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null
+        currentPeriodEnd = nextBillingDate
+        amount = subscription.items?.data?.[0]?.price?.unit_amount || 0
+        cancelAtPeriodEnd = subscription.cancel_at_period_end || false
+      }
+    } catch (err) {
+      logger.warn('Failed to fetch Stripe subscription details', {
+        subscription_id: subscriptionData.subscription_id,
+      })
+    }
+  }
+
   return c.json({
     success: true,
     billing: {
@@ -123,8 +153,13 @@ async function getBillingInfo(c: any) {
       subscriptionId: subscriptionData.subscription_id,
       planId: subscriptionData.plan_id,
       stripeCustomerId: subscriptionData.stripe_customer_id,
-      nextBillingDate: null, // Would need Stripe API call for exact date
+      nextBillingDate: nextBillingDate,
+      currentPeriodEnd: currentPeriodEnd,
+      amount: amount,
       currency: 'USD',
+      cancelAtPeriodEnd: cancelAtPeriodEnd,
+      planStartedAt: subscriptionData.plan_started_at,
+      planEndsAt: subscriptionData.plan_ends_at,
     },
   })
 }

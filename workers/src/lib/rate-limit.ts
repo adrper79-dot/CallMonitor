@@ -167,3 +167,17 @@ export const webhookRateLimit = rateLimit({
   windowSeconds: 5 * 60,
   prefix: 'rl:webhook',
 })
+
+/** Analytics queries: 60 per 5 minutes per IP */
+export const analyticsRateLimit = rateLimit({
+  limit: 60,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:analytics',
+})
+
+/** Analytics export: 5 per 15 minutes per IP (heavy CSV operation) */
+export const analyticsExportRateLimit = rateLimit({
+  limit: 5,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:analytics-export',
+})

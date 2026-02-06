@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 6, 2026  
-**Version:** 4.11 - Rate Limiting, API Documentation & DX Sprint  
+**Last Updated:** February 8, 2026  
+**Version:** 4.12 - Compliance Hardening, Plan Gating & Capabilities Sprint  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,39 +12,49 @@
 
 ---
 
-## 🔧 **Recent Updates (February 6, 2026)**
+## 🔧 **Recent Updates (February 8, 2026)**
 
-### **Rate Limiting, API Documentation & DX Sprint (v4.11):** ✅ **DEPLOYED**
+### **Compliance Hardening, Plan Gating & Capabilities Sprint (v4.12):** ✅ **DEPLOYED**
 
-1. **KV-Backed Rate Limiting** ⭐ **SECURITY**
-   - Added 6 pre-configured limiters to `workers/src/lib/rate-limit.ts`: billing (20/15min), calls (30/5min), voice (20/5min), team (15/15min), bookings (20/5min), webhooks (10/5min)
-   - Applied to **22 mutation endpoints** across 6 route files (billing, calls, voice, team, bookings, webhooks)
-   - Sliding-window counter with KV TTL, fail-open, `Retry-After` + `X-RateLimit-*` headers
+1. **Pool Leak Remediation** ⭐ **CRITICAL FIX**
+   - Fixed `db.end()` never called in 8 analytics endpoints, 3 health check endpoints, and Stripe webhook handler
+   - Pattern: moved `getDb(c.env)` before try block, added `finally { await db.end() }` to every handler
+   - Impact: Prevented connection pool exhaustion under sustained load (12 endpoints fixed)
 
-2. **OpenAPI Spec Update** ✅ **DOCUMENTATION**
-   - Added 12 new route groups: bookings, audit, organizations, users, scorecards, caller-id, webrtc, bond-ai, tts, usage + System tag
-   - Added 7 new schemas: Booking, CreateBookingRequest, UpdateBookingRequest, AuditLog, UserProfile, CreateScorecardRequest
-   - Added production Workers API server URL
+2. **Analytics Rate Limiting** ⭐ **SECURITY**
+   - Added 2 new pre-configured limiters: `analyticsRateLimit` (60 req/5min), `analyticsExportRateLimit` (5 req/15min)
+   - Applied to all 8 analytics read endpoints + 1 CSV export endpoint
+   - Total rate-limited mutation/read endpoints now: **31** (was 22)
 
-3. **Permission Matrix Generator** ✅ **DX**
-   - Created `tools/generate-permission-matrix.ts` — auto-generates `docs/PERMISSION_MATRIX.md`
-   - 66 routes × 7 roles with inheritance (viewer → agent → manager → admin → owner + compliance/analyst branches)
-   - New npm script: `gen:permissions`
+3. **Stripe Webhook Audit Logging** ⭐ **COMPLIANCE**
+   - Added `writeAuditLog()` to 4 Stripe event handlers: `subscription.updated`, `subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+   - 3 new `AuditAction` constants: `SUBSCRIPTION_UPDATED`, `PAYMENT_RECEIVED`, `PAYMENT_FAILED`
+   - Each handler now resolves `org_id` via `stripe_customer_id` lookup before logging
+   - Total audit actions: **24** (was 21)
 
-4. **Schema ERD Mermaid Diagram** ✅ **DOCUMENTATION**
-   - Created `docs/SCHEMA_ERD.md` — full Mermaid ER diagram with 47 active tables
-   - 16 entity groups: Auth, Tenancy, Calls, Recordings, Voice, Campaigns, Team, Billing, Compliance, AI, Scorecards, Webhooks, RBAC, Surveys, Reports, Admin
-   - Multi-tenant isolation documentation
+4. **Plan Gating Middleware** ✅ **BILLING**
+   - New `workers/src/lib/plan-gating.ts` (331 lines): KV-cached plan lookup middleware
+   - `requirePlan('pro')` pattern — guards routes by plan tier (free → starter → pro → enterprise)
+   - `PLAN_HIERARCHY`, `FEATURE_PLAN_REQUIREMENTS`, `PLAN_LIMITS` all defined
+   - Applied to: bond-ai, reports, teams routes
 
-5. **Cloudflare Image Resizing** ✅ **PERFORMANCE**
-   - Created `lib/cloudflare-image-loader.ts` — custom Next.js image loader for CF edge resizing
-   - Updated `next.config.js` with `remotePatterns` for R2 + Pages domains
-   - Auto WebP/AVIF format negotiation via `format=auto`
+5. **Capabilities API** ✅ **FEATURE TOGGLES**
+   - New `workers/src/lib/capabilities.ts` (198 lines): Batch capability checker for UI feature toggles
+   - New `workers/src/routes/capabilities.ts`: 3 HTTP endpoints at `/api/capabilities`
+     - `GET /` — all capabilities for current org plan
+     - `POST /check` — batch check up to 50 capabilities
+     - `GET /plan` — plan details with limits
+   - Rate limited + auth required on all endpoints
 
-6. **ROADMAP Progress** ✅ **TRACKING**
-   - RISK/SCALE: 18/25 → 20/25 (Image CDN + OpenAPI + Rate Limiting)
-   - DX/CI: 16/20 → 18/20 (Schema Doc + Permission Matrix)
-   - Overall: 62/109 → **69/109 (63%)**
+6. **ADR Documentation** ✅ **GOVERNANCE**
+   - ADR-000: Decision process template
+   - ADR-001: Telnyx voice vendor selection
+   - ADR-002: Custom auth over NextAuth rationale
+
+7. **ROADMAP Progress** ✅ **TRACKING**
+   - RISK/SCALE: 20/25 → 22/25 (Analytics rate limiting + Webhook audit logging)
+   - STACK EXCELLENCE: 5/12 → 7/12 (Plan gating + Capabilities API)
+   - Overall: 69/109 → **73/109 (67%)**
 
 ### **Full Audit Coverage & Operational Tooling Sprint (v4.10):** ✅ **DEPLOYED**
 
@@ -76,6 +86,28 @@
    - DX/CI: 15/20 → 16/20 (Types Gen hook)
    - DESIGN/CODE EXCELLENCE: 4/12 → 5/12 (Suspense boundaries)
    - Overall: 58/109 → **62/109 (57%)**
+
+---
+
+## 🔧 **Previous Updates (February 6, 2026)**
+
+### **Rate Limiting, API Documentation & DX Sprint (v4.11):** ✅ **DEPLOYED**
+
+1. **KV-Backed Rate Limiting** ⭐ **SECURITY** — 6 pre-configured limiters, 22 mutation endpoints
+2. **OpenAPI Spec Update** ✅ — 12 new route groups, 7 new schemas
+3. **Permission Matrix Generator** ✅ — 66 routes × 7 roles matrix
+4. **Schema ERD Mermaid Diagram** ✅ — 47 active tables
+5. **Cloudflare Image Resizing** ✅ — CF edge resizing loader
+6. **ROADMAP Progress** — 62/109 → 69/109 (63%)
+
+### **Full Audit Coverage & Operational Tooling Sprint (v4.10):** ✅ **DEPLOYED**
+
+1. **Full Audit Log Coverage** ⭐ — 16 mutation handlers across 6 route files
+2. **Types Gen Pre-commit Hook** ✅
+3. **RLS Policy Audit Script** ⭐
+4. **Schema Drift CI Check** ✅
+5. **Suspense Loading Boundaries** ✅
+6. **ROADMAP Progress** — 58/109 → 62/109 (57%)
 
 ---
 

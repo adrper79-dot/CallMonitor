@@ -14,6 +14,10 @@
  *     const { email, password } = parsed.data
  *     ...
  *   })
+ *
+ * OpenAPI Support:
+ *   Schemas are enhanced with .describe() for OpenAPI documentation generation.
+ *   See scripts/generate-openapi.ts for API doc generation.
  */
 
 import { z } from 'zod'

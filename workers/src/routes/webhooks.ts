@@ -30,6 +30,7 @@ import { validateBody } from '../lib/validate'
 import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { webhookRateLimit } from '../lib/rate-limit'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
@@ -199,6 +200,7 @@ webhooksRoutes.post('/assemblyai', async (c) => {
 
 // Stripe billing webhook — verified via HMAC-SHA256 signature
 webhooksRoutes.post('/stripe', async (c) => {
+  const db = getDb(c.env)
   try {
     const signature = c.req.header('stripe-signature')
     const body = await c.req.text()
@@ -220,8 +222,6 @@ webhooksRoutes.post('/stripe', async (c) => {
     }
 
     const event = JSON.parse(body)
-
-    const db = getDb(c.env)
 
     switch (event.type) {
       case 'checkout.session.completed':
@@ -247,6 +247,8 @@ webhooksRoutes.post('/stripe', async (c) => {
   } catch (err: any) {
     logger.error('Stripe webhook processing error')
     return c.json({ error: 'Webhook processing failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -309,9 +311,60 @@ async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
 
 // --- Stripe Handlers ---
 
-async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
+/**
+ * Handle checkout.session.completed event
+ * Fired when a customer completes checkout and creates a subscription
+ */
+async function handleCheckoutCompleted(db: DbClient, session: any) {
+  const customerId = session.customer
+  const subscriptionId = session.subscription
+  const orgId = session.metadata?.organization_id
+
+  // If we have org_id in metadata, update it directly
+  if (orgId) {
+    await db.query(
+      `UPDATE organizations
+       SET stripe_customer_id = $2,
+           subscription_id = $3,
+           subscription_status = 'active',
+           plan_started_at = NOW()
+       WHERE id = $1`,
+      [orgId, customerId, subscriptionId]
+    )
+  } else {
+    // Fallback: look up by customer_id
+    await db.query(
+      `UPDATE organizations
+       SET subscription_id = $2,
+           subscription_status = 'active',
+           plan_started_at = NOW()
+       WHERE stripe_customer_id = $1`,
+      [customerId, subscriptionId]
+    )
+  }
+
+  // Log the checkout completion
   await db.query(
-    `UPDATE organizations 
+    `INSERT INTO billing_events (organization_id, event_type, amount, metadata, created_at)
+     SELECT id, 'checkout_completed', $2, $3::jsonb, NOW()
+     FROM organizations WHERE stripe_customer_id = $1`,
+    [
+      customerId,
+      session.amount_total || 0,
+      JSON.stringify({ session_id: session.id, subscription_id: subscriptionId }),
+    ]
+  )
+}
+
+async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
+  const orgResult = await db.query(
+    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+    [subscription.customer]
+  )
+  const orgId = orgResult.rows[0]?.id
+
+  await db.query(
+    `UPDATE organizations
      SET subscription_status = $2, subscription_id = $3, plan_id = $4
      WHERE stripe_customer_id = $1`,
     [
@@ -321,24 +374,112 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
       subscription.items.data[0]?.price?.id,
     ]
   )
+
+  if (orgId) {
+    writeAuditLog(db, {
+      userId: null,
+      orgId,
+      action: AuditAction.SUBSCRIPTION_UPDATED,
+      resourceType: 'subscription',
+      resourceId: subscription.id,
+      oldValue: null,
+      newValue: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
+    }).catch(() => {})
+  }
 }
 
 async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
+  const orgResult = await db.query(
+    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+    [subscription.customer]
+  )
+  const orgId = orgResult.rows[0]?.id
+
   await db.query(
     `UPDATE organizations 
      SET subscription_status = 'canceled'
      WHERE stripe_customer_id = $1`,
     [subscription.customer]
   )
+
+  if (orgId) {
+    writeAuditLog(db, {
+      userId: null,
+      orgId,
+      action: AuditAction.SUBSCRIPTION_CANCELLED,
+      resourceType: 'subscription',
+      resourceId: subscription.id,
+      oldValue: null,
+      newValue: { status: 'canceled' },
+    }).catch(() => {})
+  }
 }
 
 async function handleInvoicePaid(db: DbClient, invoice: any) {
-  await db.query(
+  const result = await db.query(
     `INSERT INTO billing_events (organization_id, event_type, amount, invoice_id, created_at)
      SELECT id, 'invoice_paid', $2, $3, NOW()
-     FROM organizations WHERE stripe_customer_id = $1`,
+     FROM organizations WHERE stripe_customer_id = $1
+     RETURNING organization_id`,
     [invoice.customer, invoice.amount_paid, invoice.id]
   )
+
+  const orgId = result.rows[0]?.organization_id
+  if (orgId) {
+    writeAuditLog(db, {
+      userId: null,
+      orgId,
+      action: AuditAction.PAYMENT_RECEIVED,
+      resourceType: 'invoice',
+      resourceId: invoice.id,
+      oldValue: null,
+      newValue: { amount: invoice.amount_paid, status: 'paid' },
+    }).catch(() => {})
+  }
+}
+
+async function handleInvoiceFailed(db: DbClient, invoice: any) {
+  const orgResult = await db.query(
+    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+    [invoice.customer]
+  )
+  const orgId = orgResult.rows[0]?.id
+
+  // Mark subscription as past_due
+  await db.query(
+    `UPDATE organizations
+     SET subscription_status = 'past_due'
+     WHERE stripe_customer_id = $1`,
+    [invoice.customer]
+  )
+
+  // Log the failed payment
+  await db.query(
+    `INSERT INTO billing_events (organization_id, event_type, amount, invoice_id, metadata, created_at)
+     SELECT id, 'invoice_payment_failed', $2, $3, $4::jsonb, NOW()
+     FROM organizations WHERE stripe_customer_id = $1`,
+    [
+      invoice.customer,
+      invoice.amount_due,
+      invoice.id,
+      JSON.stringify({
+        attempt_count: invoice.attempt_count,
+        next_payment_attempt: invoice.next_payment_attempt,
+      }),
+    ]
+  )
+
+  if (orgId) {
+    writeAuditLog(db, {
+      userId: null,
+      orgId,
+      action: AuditAction.PAYMENT_FAILED,
+      resourceType: 'invoice',
+      resourceId: invoice.id,
+      oldValue: null,
+      newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
+    }).catch(() => {})
+  }
 }
 
 // ============================================================

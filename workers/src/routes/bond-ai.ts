@@ -26,6 +26,7 @@ import {
   fetchCallContext,
   fetchTestResults,
 } from '../lib/bond-ai'
+import { requirePlan } from '../lib/plan-gating'
 
 export const bondAiRoutes = new Hono<{ Bindings: Env }>()
 
@@ -89,7 +90,7 @@ bondAiRoutes.post('/conversations', async (c) => {
 })
 
 // Send chat message (the main Tier 1 endpoint)
-bondAiRoutes.post('/chat', async (c) => {
+bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)

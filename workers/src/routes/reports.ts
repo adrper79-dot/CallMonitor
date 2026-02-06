@@ -18,11 +18,12 @@ import { validateBody } from '../lib/validate'
 import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
+import { requirePlan } from '../lib/plan-gating'
 
 export const reportsRoutes = new Hono<{ Bindings: Env }>()
 
 // GET / — List reports
-reportsRoutes.get('/', async (c) => {
+reportsRoutes.get('/', requirePlan('business'), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -70,7 +71,7 @@ reportsRoutes.get('/', async (c) => {
 })
 
 // POST / — Generate a new report
-reportsRoutes.post('/', async (c) => {
+reportsRoutes.post('/', requirePlan('business'), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)

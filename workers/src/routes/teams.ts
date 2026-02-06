@@ -17,6 +17,7 @@ import {
   SwitchOrgSchema,
   UpdateRoleSchema,
 } from '../lib/schemas'
+import { requirePlan } from '../lib/plan-gating'
 
 export const teamsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -25,7 +26,7 @@ export const teamsRoutes = new Hono<{ Bindings: Env }>()
 // ════════════════════════════════════════════════════════════
 
 // List teams in org
-teamsRoutes.get('/', async (c) => {
+teamsRoutes.get('/', requirePlan('pro'), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -54,7 +55,7 @@ teamsRoutes.get('/', async (c) => {
 })
 
 // Create team (manager+ role)
-teamsRoutes.post('/', async (c) => {
+teamsRoutes.post('/', requirePlan('pro'), async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)

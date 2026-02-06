@@ -1,9 +1,9 @@
-# Cloudflare & Codebase Roadmap (Updated: Feb 2, 2026)
+# Cloudflare & Codebase Roadmap (Updated: Feb 8, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 69/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Progress**: 73/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -36,7 +36,7 @@
 
 ---
 
-## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 20/25
+## ⚠️ RISK/SCALE (Perf/Sec) - PROGRESS: 22/25
 
 ### ✅ Completed
 
@@ -69,6 +69,8 @@
 - [ ] **Public Compress** (`public/branding/`): WebP conversion. **30min**
 - [x] **OpenAPI Gen** (`public/openapi.yaml`): Updated with 12 new route groups (bookings, audit, orgs, users, scorecards, caller-id, webrtc, bond-ai, tts, usage) + 7 new schemas. ✅
 - [x] **Rate Limiting** (6 route files): KV-backed per-IP rate limits on billing, calls, voice, team, bookings, webhooks — 22 mutation endpoints protected. ✅
+- [x] **Analytics Rate Limiting** (`workers/src/routes/analytics.ts`): 8 read endpoints (60/5min) + CSV export (5/15min), pool leak fix on all 12 DB-backed endpoints. ✅
+- [x] **Stripe Webhook Audit Logging** (`workers/src/routes/webhooks.ts`): writeAuditLog() on 4 Stripe handlers (subscription updated/canceled, invoice paid/failed), pool leak fix. ✅
 
 ### 📋 Recommendations
 
@@ -260,12 +262,12 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 69/109 (63%).
-**Last Updated**: Feb 6, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 73/109 (67%).
+**Last Updated**: Feb 8, 2026 by GitHub Copilot
 
 ---
 
-## 🚀 STACK EXCELLENCE (Full-Stack Integration) — PROGRESS: 5/12
+## 🚀 STACK EXCELLENCE (Full-Stack Integration) — PROGRESS: 7/12
 
 **Stack**: Cloudflare (Pages/Workers/Hyperdrive/R2/KV) + Neon (Postgres) + Telnyx (Voice) + Stripe (Billing) + AssemblyAI (Transcription) + OpenAI (LLM) + ElevenLabs (TTS)
 
@@ -291,6 +293,8 @@ npm run health-check
 
 - [x] **Connection Pool Hardening** (`workers/src/lib/db.ts`): max=5, idle/connection timeouts, statement_timeout=30s. ✅
 - [x] **Query Timeout Config** (`workers/src/lib/db.ts`): Statement timeout = 30s via connection options. ✅
+- [x] **Plan Gating Middleware** (`workers/src/lib/plan-gating.ts`): KV-cached plan lookup, `requirePlan()` guard, applied to bond-ai/reports/teams. ✅
+- [x] **Capabilities API** (`workers/src/routes/capabilities.ts`): 3 endpoints — all capabilities, batch check, plan details. ✅
 - [ ] **RLS Policy Audit** (migrations/): Verify all tables have RLS. **1hr**
 
 ---

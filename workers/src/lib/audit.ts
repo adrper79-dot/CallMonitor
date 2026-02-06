@@ -104,7 +104,10 @@ export const AuditAction = {
 
   // Billing
   CHECKOUT_CREATED: 'billing:checkout_created',
+  SUBSCRIPTION_UPDATED: 'billing:subscription_updated',
   SUBSCRIPTION_CANCELLED: 'billing:subscription_cancelled',
+  PAYMENT_RECEIVED: 'billing:payment_received',
+  PAYMENT_FAILED: 'billing:payment_failed',
   PAYMENT_METHOD_REMOVED: 'billing:payment_method_removed',
 
   // Bookings
