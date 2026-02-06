@@ -114,6 +114,7 @@ app.route('/api/bookings', bookingsRoutes)
 app.route('/api/users', usersRoutes)
 app.route('/api/recordings', recordingsRoutes)
 app.route('/api/audit-logs', auditRoutes)  // Mount audit routes at /api/audit-logs
+app.route('/api/audit', auditRoutes)       // Alias: frontend also calls /api/audit
 app.route('/api/webrtc', webrtcRoutes)  // Mount webrtc routes at /api/webrtc
 app.route('/webhooks', webhooksRoutes)
 app.route('/api/webhooks', webhooksRoutes)  // Also mount at /api/webhooks

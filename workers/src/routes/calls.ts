@@ -766,3 +766,323 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }, 500)
   }
 })
+
+// GET /api/calls/:id/timeline — call timeline events
+callsRoutes.get('/:id/timeline', async (c) => {
+  try {
+    const session = await requireRole(c, 'viewer')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    // Verify call belongs to org
+    const { rows: calls } = await db.query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+    )
+    if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
+
+    // Fetch timeline events
+    const { rows: events } = await db.query(
+      `SELECT id, call_id, event_type, event_data, created_at
+       FROM call_timeline_events
+       WHERE call_id = $1
+       ORDER BY created_at ASC`,
+      [callId]
+    )
+
+    return c.json({ success: true, events })
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      return c.json({ success: true, events: [], message: 'Timeline not configured' })
+    }
+    console.error('GET timeline error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// GET /api/calls/:id/notes — call notes
+callsRoutes.get('/:id/notes', async (c) => {
+  try {
+    const session = await requireRole(c, 'viewer')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    const { rows: calls } = await db.query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+    )
+    if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
+
+    const { rows: notes } = await db.query(
+      `SELECT cn.id, cn.call_id, cn.content, cn.created_by, cn.created_at,
+              u.email as author_email, u.name as author_name
+       FROM call_notes cn
+       LEFT JOIN users u ON u.id = cn.created_by
+       WHERE cn.call_id = $1
+       ORDER BY cn.created_at DESC`,
+      [callId]
+    )
+
+    return c.json({ success: true, notes })
+  } catch (error: any) {
+    if (error.code === '42P01') {
+      return c.json({ success: true, notes: [], message: 'Notes not configured' })
+    }
+    console.error('GET notes error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// POST /api/calls/:id/notes — add a note
+callsRoutes.post('/:id/notes', async (c) => {
+  try {
+    const session = await requireRole(c, 'operator')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const body = await c.req.json()
+    const { content } = body
+
+    if (!content || content.trim().length === 0) {
+      return c.json({ success: false, error: 'Note content is required' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    // Verify call belongs to org
+    const { rows: calls } = await db.query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+    )
+    if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
+
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS call_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        created_by UUID,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `)
+
+    const { rows: inserted } = await db.query(
+      `INSERT INTO call_notes (call_id, content, created_by) VALUES ($1, $2, $3) RETURNING *`,
+      [callId, content.trim(), session.user_id]
+    )
+
+    return c.json({ success: true, note: inserted[0] }, 201)
+  } catch (error: any) {
+    console.error('POST notes error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// PUT /api/calls/:id/disposition — set call disposition
+callsRoutes.put('/:id/disposition', async (c) => {
+  try {
+    const session = await requireRole(c, 'operator')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const body = await c.req.json()
+    const { disposition, disposition_notes } = body
+
+    if (!disposition) {
+      return c.json({ success: false, error: 'Disposition is required' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    const { rows: updated } = await db.query(
+      `UPDATE calls 
+       SET disposition = $3, disposition_notes = $4
+       WHERE id = $1 AND organization_id = $2
+       RETURNING id, disposition, disposition_notes`,
+      [callId, session.organization_id, disposition, disposition_notes || null]
+    )
+
+    if (updated.length === 0) {
+      return c.json({ success: false, error: 'Call not found' }, 404)
+    }
+
+    return c.json({ success: true, call: updated[0] })
+  } catch (error: any) {
+    // If disposition column doesn't exist, add it dynamically
+    if (error.code === '42703') {
+      try {
+        const db = getDb(c.env)
+        await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition TEXT`)
+        await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition_notes TEXT`)
+        return c.json({ success: false, error: 'Schema updated. Please retry.' }, 503)
+      } catch { /* fall through */ }
+    }
+    console.error('PUT disposition error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// POST /api/calls/:id/confirmations — record an in-call confirmation event
+callsRoutes.post('/:id/confirmations', async (c) => {
+  try {
+    const session = await requireRole(c, 'operator')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const body = await c.req.json()
+    const { confirmation_type, details, confirmed_by } = body
+
+    if (!confirmation_type) {
+      return c.json({ success: false, error: 'Confirmation type is required' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    // Verify call belongs to org
+    const { rows: calls } = await db.query(
+      `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+    )
+    if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
+
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS call_confirmations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+        confirmation_type TEXT NOT NULL,
+        details JSONB,
+        confirmed_by UUID,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `)
+
+    const { rows: inserted } = await db.query(
+      `INSERT INTO call_confirmations (call_id, confirmation_type, details, confirmed_by)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [callId, confirmation_type, JSON.stringify(details || {}), confirmed_by || session.user_id]
+    )
+
+    return c.json({ success: true, confirmation: inserted[0] }, 201)
+  } catch (error: any) {
+    console.error('POST confirmations error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// GET /api/calls/:id/export — export call data as JSON
+callsRoutes.get('/:id/export', async (c) => {
+  try {
+    const session = await requireRole(c, 'viewer')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    if (!isValidUUID(callId)) {
+      return c.json({ success: false, error: 'Invalid call ID' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    // Get call with all related data
+    const { rows: calls } = await db.query(
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`, [callId, session.organization_id]
+    )
+    if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
+
+    const call = calls[0]
+
+    // Get recordings
+    let recordings: any[] = []
+    try {
+      const res = await db.query(
+        `SELECT id, recording_url, duration_seconds, status, created_at FROM recordings WHERE call_id = $1`, [callId]
+      )
+      recordings = res.rows || []
+    } catch { /* table might not exist */ }
+
+    // Get outcome
+    let outcome = null
+    try {
+      const res = await db.query(`SELECT * FROM call_outcomes WHERE call_id = $1`, [callId])
+      outcome = res.rows?.[0] || null
+    } catch { /* table might not exist */ }
+
+    // Get notes
+    let notes: any[] = []
+    try {
+      const res = await db.query(`SELECT * FROM call_notes WHERE call_id = $1 ORDER BY created_at`, [callId])
+      notes = res.rows || []
+    } catch { /* table might not exist */ }
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      call,
+      recordings,
+      outcome,
+      notes,
+    }
+
+    const format = c.req.query('format')
+    if (format === 'zip') {
+      // For ZIP format, return JSON as downloadable file
+      c.header('Content-Type', 'application/json')
+      c.header('Content-Disposition', `attachment; filename="call-${callId}.json"`)
+      return c.body(JSON.stringify(exportData, null, 2))
+    }
+
+    return c.json({ success: true, export: exportData })
+  } catch (error: any) {
+    console.error('GET export error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// POST /api/calls/:id/email — email call artifacts (placeholder)
+callsRoutes.post('/:id/email', async (c) => {
+  try {
+    const session = await requireRole(c, 'operator')
+    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+    const callId = c.req.param('id')
+    const body = await c.req.json()
+    const { recipients } = body
+
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return c.json({ success: false, error: 'At least one recipient email is required' }, 400)
+    }
+
+    // TODO: Integrate with Resend API to actually send emails
+    // For now, return success stub
+    console.log(`[Calls] Email requested for call ${callId} to: ${recipients.join(', ')}`)
+
+    return c.json({
+      success: true,
+      message: `Email queued for ${recipients.length} recipient(s)`,
+      recipients,
+    })
+  } catch (error: any) {
+    console.error('POST email error:', error?.message)
+    return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})

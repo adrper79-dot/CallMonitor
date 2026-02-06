@@ -416,3 +416,34 @@ voiceRoutes.post('/targets', async (c) => {
     return c.json({ error: 'Failed to create voice target' }, 500)
   }
 })
+
+// Delete voice target
+voiceRoutes.delete('/targets/:id', async (c) => {
+  try {
+    const session = await requireAuth(c)
+    if (!session) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+
+    const targetId = c.req.param('id')
+
+    const { neon } = await import('@neondatabase/serverless')
+    const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+    const sql = neon(connectionString)
+
+    const result = await sql`
+      DELETE FROM voice_targets
+      WHERE id = ${targetId} AND organization_id = ${session.organization_id}
+      RETURNING id
+    `
+
+    if (result.length === 0) {
+      return c.json({ error: 'Target not found' }, 404)
+    }
+
+    return c.json({ success: true, message: 'Target deleted' })
+  } catch (err: any) {
+    console.error('DELETE /api/voice/targets/:id error:', err)
+    return c.json({ error: 'Failed to delete voice target' }, 500)
+  }
+})
