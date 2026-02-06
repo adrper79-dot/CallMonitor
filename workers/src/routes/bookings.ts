@@ -12,6 +12,8 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { getDb } from '../lib/db'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
 
 export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -61,12 +63,9 @@ bookingsRoutes.post('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { call_id, title, description, scheduled_at, attendees, status } = body
-
-    if (!title) {
-      return c.json({ error: 'Title is required' }, 400)
-    }
+    const parsed = await validateBody(c, CreateBookingSchema)
+    if (!parsed.success) return parsed.response
+    const { call_id, title, description, scheduled_at, attendees, status } = parsed.data
 
     const db = getDb(c.env)
 
@@ -103,8 +102,9 @@ bookingsRoutes.patch('/:id', async (c) => {
     }
 
     const bookingId = c.req.param('id')
-    const body = await c.req.json()
-    const { status, title, description, scheduled_at } = body
+    const parsed = await validateBody(c, UpdateBookingSchema)
+    if (!parsed.success) return parsed.response
+    const { status, title, description, scheduled_at } = parsed.data
 
     const db = getDb(c.env)
 

@@ -9,6 +9,14 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import {
+  CreateTeamSchema,
+  UpdateTeamSchema,
+  AddTeamMemberSchema,
+  SwitchOrgSchema,
+  UpdateRoleSchema,
+} from '../lib/schemas'
 
 export const teamsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -56,18 +64,9 @@ teamsRoutes.post('/', async (c) => {
       return c.json({ error: 'Manager role required to create teams' }, 403)
     }
 
-    const body = await c.req.json()
-    const { name, description, team_type, parent_team_id, manager_user_id } = body as {
-      name: string
-      description?: string
-      team_type?: string
-      parent_team_id?: string
-      manager_user_id?: string
-    }
-
-    if (!name?.trim()) {
-      return c.json({ error: 'Team name is required' }, 400)
-    }
+    const parsed = await validateBody(c, CreateTeamSchema)
+    if (!parsed.success) return parsed.response
+    const { name, description, team_type, parent_team_id, manager_user_id } = parsed.data
 
     const db = getDb(c.env)
     const result = await db.query(
@@ -106,8 +105,9 @@ teamsRoutes.put('/:id', async (c) => {
     }
 
     const teamId = c.req.param('id')
-    const body = await c.req.json()
-    const { name, description, team_type, parent_team_id, manager_user_id, is_active } = body
+    const parsed = await validateBody(c, UpdateTeamSchema)
+    if (!parsed.success) return parsed.response
+    const { name, description, team_type, parent_team_id, manager_user_id, is_active } = parsed.data
 
     const db = getDb(c.env)
     await db.query(
@@ -212,12 +212,9 @@ teamsRoutes.post('/:id/members', async (c) => {
     }
 
     const teamId = c.req.param('id')
-    const body = await c.req.json()
-    const { user_id, team_role = 'member' } = body as { user_id: string; team_role?: string }
-
-    if (!user_id) {
-      return c.json({ error: 'user_id is required' }, 400)
-    }
+    const parsed = await validateBody(c, AddTeamMemberSchema)
+    if (!parsed.success) return parsed.response
+    const { user_id, team_role } = parsed.data
 
     const db = getDb(c.env)
 
@@ -326,12 +323,9 @@ teamsRoutes.post('/switch-org', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { organization_id } = body as { organization_id: string }
-
-    if (!organization_id) {
-      return c.json({ error: 'organization_id is required' }, 400)
-    }
+    const parsed = await validateBody(c, SwitchOrgSchema)
+    if (!parsed.success) return parsed.response
+    const { organization_id } = parsed.data
 
     const db = getDb(c.env)
 
@@ -386,13 +380,9 @@ teamsRoutes.patch('/members/:userId/role', async (c) => {
     }
 
     const userId = c.req.param('userId')
-    const body = await c.req.json()
-    const { role } = body as { role: string }
-
-    const validRoles = ['viewer', 'agent', 'manager', 'compliance', 'admin', 'owner']
-    if (!validRoles.includes(role)) {
-      return c.json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }, 400)
-    }
+    const parsed = await validateBody(c, UpdateRoleSchema)
+    if (!parsed.success) return parsed.response
+    const { role } = parsed.data
 
     // Can't assign owner unless you are owner
     if (role === 'owner' && session.role !== 'owner') {

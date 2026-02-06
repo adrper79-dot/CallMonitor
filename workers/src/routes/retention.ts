@@ -12,6 +12,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { UpdateRetentionSchema, CreateLegalHoldSchema } from '../lib/schemas'
 
 export const retentionRoutes = new Hono<{ Bindings: Env }>()
 
@@ -70,14 +72,15 @@ retentionRoutes.put('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
+    const parsed = await validateBody(c, UpdateRetentionSchema)
+    if (!parsed.success) return parsed.response
     const {
       recording_retention_days,
       transcript_retention_days,
       call_log_retention_days,
       auto_delete_enabled,
       gdpr_mode,
-    } = body
+    } = parsed.data
 
     const sql = await getNeon(c)
 
@@ -166,10 +169,9 @@ retentionRoutes.post('/legal-holds', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { name, matter_reference, applies_to_all } = body
-
-    if (!name) return c.json({ error: 'Legal hold name required' }, 400)
+    const parsed = await validateBody(c, CreateLegalHoldSchema)
+    if (!parsed.success) return parsed.response
+    const { name, matter_reference, applies_to_all } = parsed.data
 
     const sql = await getNeon(c)
 

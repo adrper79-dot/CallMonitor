@@ -142,6 +142,36 @@ export const VoiceTargetSchema = z.object({
 
 // ─── Team Schemas ────────────────────────────────────────────────────────────
 
+export const CreateTeamSchema = z.object({
+  name: nonEmptyString.refine((v) => v.trim().length > 0, 'Team name cannot be blank'),
+  description: z.string().max(2000).optional(),
+  team_type: z.string().max(50).default('department'),
+  parent_team_id: z.string().uuid().optional().nullable(),
+  manager_user_id: z.string().uuid().optional().nullable(),
+})
+
+export const UpdateTeamSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  team_type: z.string().max(50).optional(),
+  parent_team_id: z.string().uuid().optional().nullable(),
+  manager_user_id: z.string().uuid().optional().nullable(),
+  is_active: z.boolean().optional(),
+})
+
+export const AddTeamMemberSchema = z.object({
+  user_id: uuid,
+  team_role: z.string().max(50).default('member'),
+})
+
+export const SwitchOrgSchema = z.object({
+  organization_id: uuid,
+})
+
+export const UpdateRoleSchema = z.object({
+  role: z.enum(['viewer', 'agent', 'manager', 'compliance', 'admin', 'owner']),
+})
+
 export const InviteMemberSchema = z.object({
   email,
   role: z.enum(['admin', 'editor', 'viewer']).default('viewer'),
@@ -150,6 +180,71 @@ export const InviteMemberSchema = z.object({
 export const AddMemberSchema = z.object({
   email: z.string().email().max(254),
   role: z.string().max(50).default('viewer'),
+})
+
+// ─── Bookings Schemas ────────────────────────────────────────────────────────
+
+export const CreateBookingSchema = z.object({
+  title: nonEmptyString,
+  call_id: z.string().max(200).optional().nullable(),
+  description: z.string().max(5000).optional(),
+  scheduled_at: z.string().max(50).optional().nullable(),
+  attendees: z.array(z.string().max(254)).optional().default([]),
+  status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).default('pending'),
+})
+
+export const UpdateBookingSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(5000).optional(),
+  scheduled_at: z.string().max(50).optional().nullable(),
+  status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
+})
+
+// ─── Surveys Schemas ─────────────────────────────────────────────────────────
+
+const SurveyQuestionSchema = z.object({
+  id: z.string().max(100).optional(),
+  type: z.enum(['text', 'rating', 'multiple_choice', 'boolean', 'scale']).default('text'),
+  question: z.string().max(2000),
+  options: z.array(z.string().max(500)).optional(),
+  required: z.boolean().optional(),
+}).passthrough()
+
+export const CreateSurveySchema = z.object({
+  title: nonEmptyString,
+  description: z.string().max(5000).optional().nullable(),
+  questions: z.array(SurveyQuestionSchema).default([]),
+  active: z.boolean().default(true),
+  trigger_type: z.string().max(50).default('post_call'),
+})
+
+// ─── Retention Schemas ───────────────────────────────────────────────────────
+
+export const UpdateRetentionSchema = z.object({
+  recording_retention_days: z.number().int().min(1).max(3650).optional(),
+  transcript_retention_days: z.number().int().min(1).max(3650).optional(),
+  call_log_retention_days: z.number().int().min(1).max(3650).optional(),
+  auto_delete_enabled: z.boolean().optional(),
+  gdpr_mode: z.boolean().optional(),
+})
+
+export const CreateLegalHoldSchema = z.object({
+  name: nonEmptyString.refine((v) => v.trim().length > 0, 'Legal hold name cannot be blank'),
+  matter_reference: z.string().max(500).optional().nullable(),
+  applies_to_all: z.boolean().default(false),
+})
+
+// ─── AI Config Schemas ───────────────────────────────────────────────────────
+
+export const UpdateAIConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  model: z.string().max(50).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  system_prompt: z.string().max(50_000).optional(),
+  sentiment_analysis: z.boolean().optional(),
+  auto_summarize: z.boolean().optional(),
+  language: z.string().max(10).optional(),
 })
 
 // ─── Billing Schemas ─────────────────────────────────────────────────────────

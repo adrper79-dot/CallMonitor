@@ -423,15 +423,15 @@ PASS 200 analytics/export         PASS 200 surveys
 ### S1: Critical Security
 | ID | Issue | Status | Effort |
 |----|-------|--------|--------|
-| C1 | DB credentials in wrangler.toml (committed to git) | ⬜ TODO | 30min |
+| C1 | DB credentials in wrangler.toml (committed to git) | ✅ FIXED (v4.5 — uses HYPERDRIVE binding only) | — |
 | C3 | CSRF validation never compares tokens properly | ✅ FIXED (prior session) | — |
-| C4 | Stripe webhook signature not verified | ⬜ TODO | 1h |
+| C4 | Stripe webhook signature not verified | ✅ FIXED (v4.5 — HMAC-SHA256 + replay protection in webhooks.ts) | — |
 | C5 | Telnyx webhook has no signature verification | ✅ FIXED (Feb 6 — fail-closed pattern) | — |
 
 ### S2: High Security
 | ID | Issue | Status | Effort |
 |----|-------|--------|--------|
-| H1 | Zero Zod input validation on 23 route files | ⬜ TODO | 8h |
+| H1 | Zero Zod input validation on 23 route files | ✅ FIXED (v4.5 central schemas + Feb 6 teams/bookings/surveys/retention/ai-config) | — |
 | H2 | Session token returned in JSON body (XSS vector) | ⬜ TODO | 4h |
 | H3 | DB Pool connection leak (no finally close) | ✅ FIXED (Feb 6 — pool singleton in pgClient.ts) | — |
 | H6 | 57 console.log statements in Workers (PII leak) | ✅ AUDITED (Feb 6 — no PII found in console.logs) | — |
@@ -449,17 +449,17 @@ PASS 200 analytics/export         PASS 200 surveys
 
 ### D1: Dead Code Removal ✅ COMPLETE (Feb 6)
 - ✅ Deleted `sentry.client.config.ts` — referenced Vercel, no DSN
+- ✅ Deleted `sentry.server.config.ts` — referenced Vercel, no DSN (v4.5)
 - ✅ Deleted `lib/monitoring.ts` — imported Sentry, zero consumers
 - ✅ Deleted `lib/sentry-edge.ts` — zero consumers
 - ✅ Deleted `lib/api-client.ts` — duplicate API client, all 22 imports migrated
 - ✅ Uninstalled `@sentry/nextjs` from package.json
 - ✅ Removed 14 dead `API_BASE` declarations across codebase
 - ✅ Fixed vitest.config.ts reference to deleted setup.ts
+- ✅ Deleted `workers/src/routes/rbac.ts` — superseded by rbac-v2.ts (v4.5)
+- ✅ Deleted `__mocks__/pg.ts` — mock module no longer needed (v4.5)
+- ✅ Deleted `app/_api_to_migrate/` directory (v4.5)
 - Remaining (low priority):
-  - `workers/src/routes/rbac.ts` — imported but NOT mounted (superseded by rbac-v2.ts)
-  - `__mocks__/pg.ts` — mock module no longer needed
-  - `app/_api_to_migrate/` directory still exists
-  - `sentry.server.config.ts` — references Vercel, no DSN
   - SignalWire remnants in code (still active for campaigns/recordings)
 
 ### D2: Frontend Raw fetch() Migration ✅ COMPLETE (Feb 6)

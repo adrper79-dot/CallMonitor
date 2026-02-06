@@ -10,6 +10,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CreateSurveySchema } from '../lib/schemas'
 
 export const surveysRoutes = new Hono<{ Bindings: Env }>()
 
@@ -86,10 +88,9 @@ surveysRoutes.post('/', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const sql = await getSQL(c)
-    const body = await c.req.json()
-    const { title, description, questions, active, trigger_type } = body
-
-    if (!title) return c.json({ error: 'Title is required' }, 400)
+    const parsed = await validateBody(c, CreateSurveySchema)
+    if (!parsed.success) return parsed.response
+    const { title, description, questions, active, trigger_type } = parsed.data
 
     // Try full insert, fall back to adding columns if needed
     let survey: any

@@ -9,6 +9,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { UpdateAIConfigSchema } from '../lib/schemas'
 
 export const aiConfigRoutes = new Hono<{ Bindings: Env }>()
 
@@ -81,8 +83,9 @@ aiConfigRoutes.put('/', async (c) => {
     const sql = await getSQL(c)
     await ensureTable(sql)
 
-    const body = await c.req.json()
-    const merged = { ...DEFAULT_CONFIG, ...body }
+    const parsed = await validateBody(c, UpdateAIConfigSchema)
+    if (!parsed.success) return parsed.response
+    const merged = { ...DEFAULT_CONFIG, ...parsed.data }
 
     const [result] = await sql`
       INSERT INTO ai_configs (organization_id, config, updated_by)
