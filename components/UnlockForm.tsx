@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react"
 import { signIn, useSession, signOut } from "@/components/AuthProvider"
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 export default function UnlockForm() {
   const { data: session } = useSession()
   const [email, setEmail] = useState("")

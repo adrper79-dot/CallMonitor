@@ -80,7 +80,6 @@ async function apiFetch<T>(
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return {
       success: true,
       data: data as T,
@@ -141,16 +140,16 @@ export const api = {
 }
 
 // Convenience functions for common operations
-export async function apiGet(endpoint: string) {
-  const response = await apiFetch(endpoint, { method: 'GET' })
+export async function apiGet<T = any>(endpoint: string) {
+  const response = await apiFetch<T>(endpoint, { method: 'GET' })
   if (!response.success) {
     throw new Error(response.error || 'Request failed')
   }
   return response.data
 }
 
-export async function apiPost(endpoint: string, data: any) {
-  const response = await apiFetch(endpoint, {
+export async function apiPost<T = any>(endpoint: string, data: any) {
+  const response = await apiFetch<T>(endpoint, {
     method: 'POST',
     body: JSON.stringify(data),
   })
@@ -160,8 +159,8 @@ export async function apiPost(endpoint: string, data: any) {
   return response.data
 }
 
-export async function apiPut(endpoint: string, data: any) {
-  const response = await apiFetch(endpoint, {
+export async function apiPut<T = any>(endpoint: string, data: any) {
+  const response = await apiFetch<T>(endpoint, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
@@ -171,8 +170,8 @@ export async function apiPut(endpoint: string, data: any) {
   return response.data
 }
 
-export async function apiDelete(endpoint: string) {
-  const response = await apiFetch(endpoint, { method: 'DELETE' })
+export async function apiDelete<T = any>(endpoint: string) {
+  const response = await apiFetch<T>(endpoint, { method: 'DELETE' })
   if (!response.success) {
     throw new Error(response.error || 'Request failed')
   }

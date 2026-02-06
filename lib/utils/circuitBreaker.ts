@@ -380,3 +380,10 @@ export const elevenLabsBreaker = circuitBreakerRegistry.getBreaker('ElevenLabs',
   resetTimeout: 45000,
   volumeThreshold: 8
 })
+
+export const telnyxBreaker = circuitBreakerRegistry.getBreaker('Telnyx', {
+  timeout: 15000,
+  errorThresholdPercentage: 50,
+  resetTimeout: 30000,
+  volumeThreshold: 10
+})

@@ -69,7 +69,7 @@ export default function SignInPage() {
     try {
       if (authMethod === 'email') {
         // Magic link
-        const res = await signIn('email', { email, redirect: false })
+        const res = await signIn('email', { email, redirect: false } as any)
         if (res?.error) {
           setError('Failed to send sign-in link')
         } else {

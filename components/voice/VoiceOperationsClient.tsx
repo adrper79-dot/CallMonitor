@@ -1,11 +1,10 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from 'react'
-import type { Call } from '@/app/voice/page'
+import type { Call } from '@/app/voice-operations/page'
 import { VoiceConfigProvider } from '@/hooks/useVoiceConfig'
 import { WebRTCProvider, useWebRTCContext } from '@/hooks/WebRTCProvider'
 import { TargetNumberProvider, useTargetNumber } from '@/hooks/TargetNumberProvider'
-import { SignalWireProvider } from '@/contexts/SignalWireContext'
 import VoiceHeader from './VoiceHeader'
 import CallList from './CallList'
 import CallDetailView from './CallDetailView'
@@ -118,8 +117,9 @@ export default function VoiceOperationsClient({
     if (!activeCallId || !updates.length) return
 
     updates.forEach((update) => {
-      if (update.table === 'calls' && update.new?.id === activeCallId) {
-        const status = update.new.status
+      const row = update.data as any
+      if (update.table === 'calls' && row?.id === activeCallId) {
+        const status = row.status
         activeCall.setStatus(status) // Delegate to hook
       }
     })
@@ -199,7 +199,6 @@ export default function VoiceOperationsClient({
 
   return (
     <VoiceConfigProvider organizationId={organizationId}>
-      <SignalWireProvider>
         <WebRTCProvider organizationId={organizationId}>
           <TargetNumberProvider>
             {/* Sync onboarding completion to TargetNumberProvider */}
@@ -479,7 +478,6 @@ export default function VoiceOperationsClient({
             </div>
           </TargetNumberProvider>
         </WebRTCProvider>
-      </SignalWireProvider>
     </VoiceConfigProvider>
   )
 }

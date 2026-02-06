@@ -109,6 +109,9 @@ export async function withTransaction<T>(
   options?: QueryOptions
 ): Promise<T> {
   const pool = getPool()
+  if (!pool) {
+    throw new Error('Database pool not available')
+  }
   const client = await pool.connect()
   try {
     await client.query('BEGIN')

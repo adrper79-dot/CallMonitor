@@ -25,9 +25,9 @@ async function trackErrorWithContext(error: Error, context: ApiHandlerContext, d
   try {
     // Standard error tracking
     if (error instanceof AppError) {
-      await trackAppError(error, context.organizationId)
+      await trackAppError(error, context)
     } else {
-      await trackError(error, context.userId, context.organizationId)
+      await trackError(error, context)
     }
 
     // Edge-specific error metadata
@@ -111,17 +111,16 @@ export function withErrorHandling<T extends any[]>(
     } catch (err: any) {
       const duration = Date.now() - startTime
       
+      // Track error and get TrackedError object
+      const tracked = (err instanceof AppError)
+        ? trackAppError(err, enhancedContext)
+        : trackError(err, enhancedContext)
+
       // Enhanced error tracking with Cloudflare context
       await trackErrorWithContext(err, enhancedContext, duration)
 
       // Record error KPI
-      recordErrorKPI({
-        code: err.code || 'UNKNOWN_ERROR',
-        message: err.message,
-        timestamp: new Date().toISOString(),
-        endpoint: enhancedContext.endpoint,
-        method: enhancedContext.method
-      })
+      recordErrorKPI(tracked)
 
       // Create AppError if not already
       const appError = err instanceof AppError ? err : new AppError({

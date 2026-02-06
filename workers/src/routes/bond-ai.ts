@@ -12,6 +12,11 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import {
+  AnalyzeCallSchema, ChatSchema, UpdateInsightSchema,
+  BulkInsightSchema, CreateAlertRuleSchema, UpdateAlertRuleSchema, CopilotSchema,
+} from '../lib/schemas'
 import {
   buildSystemPrompt,
   chatCompletion,
@@ -57,13 +62,9 @@ bondAiRoutes.post('/conversations', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { title, context_type, context_id, model } = body as {
-      title?: string
-      context_type?: string
-      context_id?: string
-      model?: string
-    }
+    const parsed = await validateBody(c, AnalyzeCallSchema)
+    if (!parsed.success) return parsed.response
+    const { title, context_type, context_id, model } = parsed.data
 
     const db = getDb(c.env)
     const result = await db.query(
@@ -97,17 +98,9 @@ bondAiRoutes.post('/chat', async (c) => {
       return c.json({ error: 'AI service not configured' }, 503)
     }
 
-    const body = await c.req.json()
-    const { message, conversation_id, context_type, context_id } = body as {
-      message: string
-      conversation_id?: string
-      context_type?: string
-      context_id?: string
-    }
-
-    if (!message?.trim()) {
-      return c.json({ error: 'Message is required' }, 400)
-    }
+    const parsed = await validateBody(c, ChatSchema)
+    if (!parsed.success) return parsed.response
+    const { message, conversation_id, context_type, context_id } = parsed.data
 
     const db = getDb(c.env)
     let convoId = conversation_id
@@ -371,12 +364,9 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const alertId = c.req.param('id')
-    const body = await c.req.json()
-    const { status } = body as { status: 'read' | 'acknowledged' | 'dismissed' }
-
-    if (!['read', 'acknowledged', 'dismissed'].includes(status)) {
-      return c.json({ error: 'Invalid status' }, 400)
-    }
+    const parsed = await validateBody(c, UpdateInsightSchema)
+    if (!parsed.success) return parsed.response
+    const { status } = parsed.data
 
     const db = getDb(c.env)
     await db.query(
@@ -397,12 +387,9 @@ bondAiRoutes.post('/alerts/bulk-action', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { alert_ids, action } = body as { alert_ids: string[]; action: string }
-
-    if (!alert_ids?.length || !['read', 'acknowledged', 'dismissed'].includes(action)) {
-      return c.json({ error: 'Invalid request' }, 400)
-    }
+    const parsed = await validateBody(c, BulkInsightSchema)
+    if (!parsed.success) return parsed.response
+    const { alert_ids, action } = parsed.data
 
     const db = getDb(c.env)
     // Build parameterized IN clause
@@ -453,12 +440,9 @@ bondAiRoutes.post('/alert-rules', async (c) => {
       return c.json({ error: 'Manager role required' }, 403)
     }
 
-    const body = await c.req.json()
-    const { name, description, rule_type, rule_config, severity, notification_channels, cooldown_minutes } = body
-
-    if (!name || !rule_type) {
-      return c.json({ error: 'Name and rule_type are required' }, 400)
-    }
+    const parsed = await validateBody(c, CreateAlertRuleSchema)
+    if (!parsed.success) return parsed.response
+    const { name, description, rule_type, rule_config, severity, notification_channels, cooldown_minutes } = parsed.data
 
     const db = getDb(c.env)
     const result = await db.query(
@@ -494,8 +478,9 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
     }
 
     const ruleId = c.req.param('id')
-    const body = await c.req.json()
-    const { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes } = body
+    const parsed = await validateBody(c, UpdateAlertRuleSchema)
+    if (!parsed.success) return parsed.response
+    const { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes } = parsed.data
 
     const db = getDb(c.env)
     await db.query(
@@ -561,17 +546,9 @@ bondAiRoutes.post('/copilot', async (c) => {
       return c.json({ error: 'AI service not configured' }, 503)
     }
 
-    const body = await c.req.json()
-    const { call_id, transcript_segment, agent_question, scorecard_id } = body as {
-      call_id?: string
-      transcript_segment?: string
-      agent_question?: string
-      scorecard_id?: string
-    }
-
-    if (!agent_question?.trim() && !transcript_segment?.trim()) {
-      return c.json({ error: 'Either agent_question or transcript_segment is required' }, 400)
-    }
+    const parsed = await validateBody(c, CopilotSchema)
+    if (!parsed.success) return parsed.response
+    const { call_id, transcript_segment, agent_question, scorecard_id } = parsed.data
 
     // Build co-pilot context
     const contextParts: string[] = []

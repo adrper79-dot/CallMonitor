@@ -212,4 +212,4 @@ export async function invalidateSession(sessionId: string): Promise<void> {
   await sessionService.deleteSession(sessionId)
 }
 
-export { SessionData }
+export type { SessionData }

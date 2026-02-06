@@ -76,8 +76,9 @@ export default function ExecutionControls({ organizationId, onCallPlaced }: Exec
     if (!activeCallId || !updates.length) return
 
     updates.forEach((update) => {
-      if (update.table === 'calls' && update.new?.id === activeCallId) {
-        const status = update.new.status
+      const row = update.data as any
+      if (update.table === 'calls' && row?.id === activeCallId) {
+        const status = row.status
         setCallStatus(status)
         
         if (status === 'completed' || status === 'failed' || status === 'no-answer' || status === 'busy') {

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useRef } from 'react'
-import type { Call } from '@/app/voice/page'
+import type { Call } from '@/app/voice-operations/page'
 import { Input } from '@/components/ui/input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -60,8 +60,8 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
 
     updates.forEach((update) => {
       if (update.table === 'calls') {
-        if (update.eventType === 'INSERT' || update.eventType === 'UPDATE') {
-          const updatedCall = update.new
+        if (update.type === 'INSERT' || update.type === 'UPDATE') {
+          const updatedCall = update.data as any
           setCalls((prev) => {
             const existing = prev.findIndex((c) => c.id === updatedCall.id)
             if (existing >= 0) {

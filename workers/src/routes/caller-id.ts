@@ -13,6 +13,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
 
 export const callerIdRoutes = new Hono<{ Bindings: Env }>()
 
@@ -55,17 +57,9 @@ async function initiateVerification(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const body = await c.req.json()
-  const { phone_number, label } = body
-
-  if (!phone_number) {
-    return c.json({ error: 'Phone number is required' }, 400)
-  }
-
-  // Validate E.164 format
-  if (!/^\+[1-9]\d{1,14}$/.test(phone_number)) {
-    return c.json({ error: 'Invalid phone number format (must be E.164, e.g. +14155551234)' }, 400)
-  }
+  const parsed = await validateBody(c, AddCallerIdSchema)
+  if (!parsed.success) return parsed.response
+  const { phone_number, label } = parsed.data
 
   const { neon } = await import('@neondatabase/serverless')
   const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
@@ -116,7 +110,7 @@ async function initiateVerification(c: any) {
 
   // In production, send the code via SMS/call using Telnyx
   // For now, log it (would be replaced with actual Telnyx verify API)
-  console.log(`[CallerID] Verification code for ${phone_number}: ${verificationCode}`)
+  // Verification code generated (do NOT log the code itself)
 
   return c.json({
     success: true,
@@ -173,12 +167,9 @@ callerIdRoutes.put('/verify', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { phone_number, code } = body
-
-    if (!phone_number || !code) {
-      return c.json({ error: 'Phone number and verification code are required' }, 400)
-    }
+    const parsed = await validateBody(c, VerifyCallerIdSchema)
+    if (!parsed.success) return parsed.response
+    const { phone_number, code } = parsed.data
 
     const { neon } = await import('@neondatabase/serverless')
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString

@@ -139,11 +139,6 @@ export class AttentionService {
             return { success: false, error: (error as Error).message }
         }
 
-        if (error) {
-            logger.error('Failed to emit attention event', error)
-            return { success: false, error: error.message }
-        }
-
         // Immediately evaluate policies and create decision
         await this.evaluatePoliciesForEvent(organizationId, eventId)
 
@@ -493,35 +488,47 @@ export class AttentionService {
         limit: number = 50,
         decisionFilter?: DecisionType
     ): Promise<Array<AttentionEvent & { decision?: AttentionDecision }>> {
-        let query = this.supabaseAdmin
-            .from('attention_events')
-            .select(`
-        *,
-        attention_decisions(*)
-      `)
-            .eq('organization_id', organizationId)
-            .order('occurred_at', { ascending: false })
-            .limit(limit)
+        const result = await this.pool.query(`
+            SELECT ae.*, 
+                   ad.id as decision_id, ad.decision, ad.reason, ad.policy_id,
+                   ad.confidence, ad.uncertainty_notes, ad.produced_by,
+                   ad.produced_by_model, ad.produced_by_user_id, ad.input_refs as decision_input_refs
+            FROM attention_events ae
+            LEFT JOIN LATERAL (
+                SELECT * FROM attention_decisions 
+                WHERE attention_event_id = ae.id 
+                ORDER BY created_at DESC LIMIT 1
+            ) ad ON true
+            WHERE ae.organization_id = $1
+            ${decisionFilter ? 'AND ad.decision = $3' : ''}
+            ORDER BY ae.occurred_at DESC
+            LIMIT $2
+        `, decisionFilter ? [organizationId, limit, decisionFilter] : [organizationId, limit])
 
-        const { data } = await query
-
-        if (!data) return []
-
-        // Flatten and filter
-        return data.map((event: unknown) => {
-            const e = event as Record<string, unknown>
-            const decisions = e.attention_decisions as Array<Record<string, unknown>> | undefined
-            const latestDecision = decisions?.[decisions.length - 1]
-
-            if (decisionFilter && latestDecision?.decision !== decisionFilter) {
-                return null
-            }
-
-            return {
-                ...e,
-                decision: latestDecision
-            }
-        }).filter(Boolean) as Array<AttentionEvent & { decision?: AttentionDecision }>
+        return (result.rows || []).map((row: any) => ({
+            id: row.id,
+            organization_id: row.organization_id,
+            event_type: row.event_type,
+            source_table: row.source_table,
+            source_id: row.source_id,
+            occurred_at: row.occurred_at,
+            payload_snapshot: row.payload_snapshot,
+            input_refs: row.input_refs,
+            decision: row.decision_id ? {
+                id: row.decision_id,
+                organization_id: row.organization_id,
+                attention_event_id: row.id,
+                decision: row.decision,
+                reason: row.reason,
+                policy_id: row.policy_id,
+                confidence: row.confidence,
+                uncertainty_notes: row.uncertainty_notes,
+                produced_by: row.produced_by,
+                produced_by_model: row.produced_by_model,
+                produced_by_user_id: row.produced_by_user_id,
+                input_refs: row.decision_input_refs
+            } : undefined
+        })) as Array<AttentionEvent & { decision?: AttentionDecision }>
     }
 
     /**

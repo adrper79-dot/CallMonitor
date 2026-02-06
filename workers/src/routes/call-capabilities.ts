@@ -1,5 +1,10 @@
 /**
  * Call Capabilities Routes - Voice system capabilities
+ *
+ * Returns platform capabilities gated by the organization's subscription plan.
+ * Plan data is read from the organizations table (System of Record).
+ *
+ * @see ARCH_DOCS/SYSTEM_OF_RECORD_COMPLIANCE.md
  */
 
 import { Hono } from 'hono'
@@ -8,7 +13,55 @@ import { requireAuth } from '../lib/auth'
 
 export const callCapabilitiesRoutes = new Hono<{ Bindings: Env }>()
 
-// Get call capabilities
+/** Capability tiers keyed by plan slug */
+const PLAN_CAPABILITIES: Record<string, any> = {
+  free: {
+    outbound: {
+      enabled: true,
+      supportedFormats: ['e164'],
+      maxDuration: 600,       // 10 min
+      recordingEnabled: false,
+    },
+    inbound:  { enabled: false, voicemailEnabled: false, transcriptionEnabled: false },
+    webrtc:   { enabled: true, browserSupport: ['chrome', 'firefox', 'safari', 'edge'], features: ['audio'] },
+    integrations: { telnyx: true, twilio: false, assemblyai: false, elevenlabs: false },
+  },
+  starter: {
+    outbound: {
+      enabled: true,
+      supportedFormats: ['e164', 'national'],
+      maxDuration: 1800,     // 30 min
+      recordingEnabled: true,
+    },
+    inbound:  { enabled: true, voicemailEnabled: true, transcriptionEnabled: false },
+    webrtc:   { enabled: true, browserSupport: ['chrome', 'firefox', 'safari', 'edge'], features: ['audio'] },
+    integrations: { telnyx: true, twilio: false, assemblyai: true, elevenlabs: false },
+  },
+  pro: {
+    outbound: {
+      enabled: true,
+      supportedFormats: ['e164', 'national', 'international'],
+      maxDuration: 3600,     // 1 hour
+      recordingEnabled: true,
+    },
+    inbound:  { enabled: true, voicemailEnabled: true, transcriptionEnabled: true },
+    webrtc:   { enabled: true, browserSupport: ['chrome', 'firefox', 'safari', 'edge'], features: ['audio', 'video', 'screen-share'] },
+    integrations: { telnyx: true, twilio: false, assemblyai: true, elevenlabs: true },
+  },
+  enterprise: {
+    outbound: {
+      enabled: true,
+      supportedFormats: ['e164', 'national', 'international'],
+      maxDuration: 7200,     // 2 hours
+      recordingEnabled: true,
+    },
+    inbound:  { enabled: true, voicemailEnabled: true, transcriptionEnabled: true },
+    webrtc:   { enabled: true, browserSupport: ['chrome', 'firefox', 'safari', 'edge'], features: ['audio', 'video', 'screen-share'] },
+    integrations: { telnyx: true, twilio: true, assemblyai: true, elevenlabs: true },
+  },
+}
+
+// GET / — capabilities for the caller's organization plan
 callCapabilitiesRoutes.get('/', async (c) => {
   try {
     const session = await requireAuth(c)
@@ -16,36 +69,31 @@ callCapabilitiesRoutes.get('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    // Return system capabilities
+    let plan = 'free'
+
+    if (session.organization_id) {
+      const { neon } = await import('@neondatabase/serverless')
+      const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+      const sql = neon(connectionString)
+
+      const result = await sql`
+        SELECT plan FROM organizations WHERE id = ${session.organization_id}
+      `
+      if (result.length > 0 && result[0].plan) {
+        plan = result[0].plan
+      }
+    }
+
+    // Normalise plan slug to a known tier (fallback → free)
+    const normalisedPlan = Object.keys(PLAN_CAPABILITIES).includes(plan) ? plan : 'free'
+
     return c.json({
       success: true,
-      capabilities: {
-        outbound: {
-          enabled: true,
-          supportedFormats: ['e164', 'national', 'international'],
-          maxDuration: 3600, // 1 hour
-          recordingEnabled: true
-        },
-        inbound: {
-          enabled: true,
-          voicemailEnabled: true,
-          transcriptionEnabled: true
-        },
-        webrtc: {
-          enabled: true,
-          browserSupport: ['chrome', 'firefox', 'safari', 'edge'],
-          features: ['audio', 'video', 'screen-share']
-        },
-        integrations: {
-          telnyx: true,
-          twilio: false,
-          assemblyai: true,
-          elevenlabs: true
-        }
-      }
+      plan: normalisedPlan,
+      capabilities: PLAN_CAPABILITIES[normalisedPlan],
     })
   } catch (err: any) {
-    console.error('GET /api/call-capabilities error:', err)
+    console.error('GET /api/call-capabilities error:', err?.message)
     return c.json({ error: 'Failed to get call capabilities' }, 500)
   }
 })

@@ -38,7 +38,7 @@ class CloudflareSentry {
       environment: 'production',
       ...config
     }
-    this.isEdgeRuntime = typeof EdgeRuntime !== 'undefined' || typeof caches !== 'undefined'
+    this.isEdgeRuntime = typeof (globalThis as any).EdgeRuntime !== 'undefined' || typeof caches !== 'undefined'
   }
 
   /**

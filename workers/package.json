@@ -5,7 +5,8 @@
   "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "1.0.2",
-    "hono": "4.7.4"
+    "hono": "4.7.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20241224.0",

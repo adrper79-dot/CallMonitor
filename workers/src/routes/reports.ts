@@ -14,6 +14,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
 
 export const reportsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -76,10 +78,9 @@ reportsRoutes.post('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { name, type, filters, metrics, format } = body
-
-    if (!name) return c.json({ error: 'Report name required' }, 400)
+    const parsed = await validateBody(c, GenerateReportSchema)
+    if (!parsed.success) return parsed.response
+    const { name, type, filters, metrics, format } = parsed.data
 
     const sql = await getNeon(c)
 
@@ -206,10 +207,9 @@ reportsRoutes.post('/schedules', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const body = await c.req.json()
-    const { name, report_type, cron_pattern, delivery_emails, filters, format } = body
-
-    if (!name) return c.json({ error: 'Schedule name required' }, 400)
+    const parsed = await validateBody(c, ScheduleReportSchema)
+    if (!parsed.success) return parsed.response
+    const { name, report_type, cron_pattern, delivery_emails, filters, format } = parsed.data
 
     const sql = await getNeon(c)
 
@@ -259,8 +259,9 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scheduleId = c.req.param('id')
-    const body = await c.req.json()
-    const { is_active, name, cron_pattern, delivery_emails } = body
+    const parsed = await validateBody(c, UpdateScheduleSchema)
+    if (!parsed.success) return parsed.response
+    const { is_active, name, cron_pattern, delivery_emails } = parsed.data
 
     const sql = await getNeon(c)
 

@@ -12,6 +12,9 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { getDb } from '../lib/db'
 import { parseSessionToken, verifySession } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { ValidateKeySchema, SignupSchema, LoginSchema, ForgotPasswordSchema } from '../lib/schemas'
+import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
 
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
@@ -49,12 +52,9 @@ authRoutes.get('/session', async (c) => {
 // Validate API key (for external integrations)
 authRoutes.post('/validate-key', async (c) => {
   try {
-    const body = await c.req.json()
-    const { apiKey } = body
-
-    if (!apiKey) {
-      return c.json({ valid: false, error: 'API key required' }, 400)
-    }
+    const parsed = await validateBody(c, ValidateKeySchema)
+    if (!parsed.success) return parsed.response
+    const { apiKey } = parsed.data
 
     const db = getDb(c.env)
 
@@ -101,19 +101,11 @@ async function hashApiKey(key: string): Promise<string> {
 }
 
 // Signup endpoint
-authRoutes.post('/signup', async (c) => {
+authRoutes.post('/signup', signupRateLimit, async (c) => {
   try {
-    const body = await c.req.json()
-    const { email, password, name, organizationName } = body as {
-      email?: string
-      password?: string
-      name?: string
-      organizationName?: string
-    }
-
-    if (!email || !password) {
-      return c.json({ error: 'Email and password required' }, 400)
-    }
+    const parsed = await validateBody(c, SignupSchema)
+    if (!parsed.success) return parsed.response
+    const { email, password, name, organizationName } = parsed.data
 
     const { neon } = await import('@neondatabase/serverless')
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
@@ -214,17 +206,11 @@ authRoutes.get('/providers', async (c) => {
 })
 
 // Login endpoint
-authRoutes.post('/callback/credentials', async (c) => {
+authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
   try {
-    const body = await c.req.json()
-    // Accept both snake_case and camelCase for backwards compatibility
-    const { username, email, password, csrf_token, csrfToken } = body as {
-      username?: string
-      email?: string
-      password?: string
-      csrf_token?: string
-      csrfToken?: string // Legacy support
-    }
+    const parsed = await validateBody(c, LoginSchema)
+    if (!parsed.success) return parsed.response
+    const { username, email, password, csrf_token, csrfToken } = parsed.data
 
     // Use snake_case version if available, otherwise fall back to camelCase
     const csrfTokenValue = csrf_token || csrfToken
@@ -360,14 +346,11 @@ authRoutes.post('/signout', async (c) => {
 })
 
 // Forgot password endpoint
-authRoutes.post('/forgot-password', async (c) => {
+authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
   try {
-    const body = await c.req.json()
-    const { email } = body as { email?: string }
-
-    if (!email) {
-      return c.json({ error: 'Email required' }, 400)
-    }
+    const parsed = await validateBody(c, ForgotPasswordSchema)
+    if (!parsed.success) return parsed.response
+    const { email } = parsed.data
 
     // Check if user exists
     const { neon } = await import('@neondatabase/serverless')

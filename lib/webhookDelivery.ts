@@ -375,7 +375,7 @@ export async function emitWebhookEvent(params: {
   eventId?: string
 }): Promise<string> {
   const resolvedEventId = params.eventId || createWebhookEventId()
-  await queueWebhookEvent(params.organization_id, params.eventType, resolvedEventId, params.data)
+  await queueWebhookEvent(params.organizationId, params.eventType, resolvedEventId, params.data)
   return resolvedEventId
 }
 

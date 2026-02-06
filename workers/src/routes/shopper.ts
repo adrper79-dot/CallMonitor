@@ -14,6 +14,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
 
 export const shopperRoutes = new Hono<{ Bindings: Env }>()
 
@@ -60,12 +62,9 @@ async function upsertScript(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const body = await c.req.json()
-  const { id, name, content, scenario, is_active } = body
-
-  if (!name) {
-    return c.json({ error: 'Script name is required' }, 400)
-  }
+  const parsed = await validateBody(c, CreateShopperSchema)
+  if (!parsed.success) return parsed.response
+  const { id, name, content, scenario, is_active } = parsed.data
 
   const { neon } = await import('@neondatabase/serverless')
   const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
@@ -162,8 +161,9 @@ shopperRoutes.put('/scripts/:id', async (c) => {
     }
 
     const scriptId = c.req.param('id')
-    const body = await c.req.json()
-    const { name, content, scenario, is_active } = body
+    const parsed = await validateBody(c, UpdateShopperSchema)
+    if (!parsed.success) return parsed.response
+    const { name, content, scenario, is_active } = parsed.data
 
     const { neon } = await import('@neondatabase/serverless')
     const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString

@@ -58,9 +58,17 @@ function ensureR2() {
 export async function upload(bucket: string, key: string, body: Buffer | string | Readable, contentType?: string) {
   // Try Cloudflare R2 binding first
   if (cloudflareR2.isAvailable()) {
-    const data = body instanceof Buffer ? body : 
-                 typeof body === 'string' ? new TextEncoder().encode(body) : 
-                 body // Assume ReadableStream for other cases
+    let data: ArrayBuffer | ReadableStream
+    if (body instanceof Buffer) {
+      data = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
+    } else if (typeof body === 'string') {
+      data = new TextEncoder().encode(body).buffer as ArrayBuffer
+    } else if (body instanceof Uint8Array) {
+      data = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
+    } else {
+      // Readable stream — convert to ReadableStream via a shim or fall back to S3 path
+      data = body as unknown as ReadableStream
+    }
     await cloudflareR2.upload(key, data, contentType)
     return
   }

@@ -5,6 +5,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
 
 export const voiceRoutes = new Hono<{ Bindings: Env }>()
 
@@ -50,7 +52,7 @@ voiceRoutes.get('/targets', async (c) => {
       targets: result
     })
   } catch (err: any) {
-    console.error('GET /api/voice/targets error:', err)
+    console.error('GET /api/voice/targets error:', err?.message)
     return c.json({ error: 'Failed to get voice targets' }, 500)
   }
 })
@@ -89,7 +91,7 @@ voiceRoutes.get('/config', async (c) => {
       config
     })
   } catch (err: any) {
-    console.error('GET /api/voice/config error:', err)
+    console.error('GET /api/voice/config error:', err?.message)
     return c.json({ error: 'Failed to get voice config' }, 500)
   }
 })
@@ -102,8 +104,9 @@ voiceRoutes.put('/config', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { orgId, modulations } = body
+    const parsed = await validateBody(c, VoiceConfigSchema)
+    if (!parsed.success) return parsed.response
+    const { orgId, modulations } = parsed.data
 
     // Accept orgId from body but fall back to session — frontend always sends orgId
     const effectiveOrgId = orgId || session.organization_id
@@ -170,7 +173,7 @@ voiceRoutes.put('/config', async (c) => {
       config: result[0]
     })
   } catch (err: any) {
-    console.error('PUT /api/voice/config error:', err)
+    console.error('PUT /api/voice/config error:', err?.message)
     return c.json({ error: 'Failed to update voice config' }, 500)
   }
 })
@@ -183,8 +186,9 @@ voiceRoutes.post('/call', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { to_number, from_number, organization_id, target_id, campaign_id, modulations, flow_type } = body
+    const parsed = await validateBody(c, CreateCallSchema)
+    if (!parsed.success) return parsed.response
+    const { to_number, from_number, organization_id, target_id, campaign_id, modulations, flow_type } = parsed.data
 
     if (organization_id && organization_id !== session.organization_id) {
       return c.json({ error: 'Invalid organization' }, 400)
@@ -222,7 +226,7 @@ voiceRoutes.post('/call', async (c) => {
     }
 
     // Use Telnyx Call Control API to create the call
-    console.log(`[Voice] Creating call: ${callerNumber} -> ${destinationNumber}, flow: ${flow_type || 'direct'}`)
+    console.log(`[Voice] Creating call, flow: ${flow_type || 'direct'}`)
 
     const callPayload: Record<string, any> = {
       connection_id: c.env.TELNYX_CONNECTION_ID,
@@ -257,7 +261,7 @@ voiceRoutes.post('/call', async (c) => {
 
     if (!callResponse.ok) {
       const errorText = await callResponse.text()
-      console.error('[Voice] Telnyx call creation failed:', callResponse.status, errorText)
+      console.error('[Voice] Telnyx call creation failed:', callResponse.status)
       let errorMessage = 'Failed to create call'
       try {
         const errorJson = JSON.parse(errorText)
@@ -309,7 +313,7 @@ voiceRoutes.post('/call', async (c) => {
       flow_type: flow_type || 'direct',
     })
   } catch (err: any) {
-    console.error('POST /api/voice/call error:', err)
+    console.error('POST /api/voice/call error:', err?.message)
     return c.json({ error: err.message || 'Failed to place call' }, 500)
   }
 })
@@ -322,12 +326,9 @@ voiceRoutes.post('/targets', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { organization_id, phone_number, name } = body
-
-    if (!phone_number) {
-      return c.json({ error: 'Phone number required' }, 400)
-    }
+    const parsed = await validateBody(c, VoiceTargetSchema)
+    if (!parsed.success) return parsed.response
+    const { organization_id, phone_number, name } = parsed.data
 
     // Accept organization_id from body but verify against session
     if (organization_id && organization_id !== session.organization_id) {
@@ -375,7 +376,7 @@ voiceRoutes.post('/targets', async (c) => {
       target: result[0]
     })
   } catch (err: any) {
-    console.error('POST /api/voice/targets error:', err)
+    console.error('POST /api/voice/targets error:', err?.message)
     return c.json({ error: 'Failed to create voice target' }, 500)
   }
 })
@@ -406,7 +407,7 @@ voiceRoutes.delete('/targets/:id', async (c) => {
 
     return c.json({ success: true, message: 'Target deleted' })
   } catch (err: any) {
-    console.error('DELETE /api/voice/targets/:id error:', err)
+    console.error('DELETE /api/voice/targets/:id error:', err?.message)
     return c.json({ error: 'Failed to delete voice target' }, 500)
   }
 })

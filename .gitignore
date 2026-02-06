@@ -46,3 +46,7 @@ test-telnyx.mjs
 
 # Legacy (migrated to Cloudflare)
 vercel.json
+
+# Workers dev secrets
+workers/.dev.vars
+.dev.vars

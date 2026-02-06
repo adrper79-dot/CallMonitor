@@ -24,7 +24,8 @@ CORS_ORIGIN = "https://voxsouth.online"
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "3948fde8207649108d77e82020091b56"
-localConnectionString = "postgresql://neondb_owner:npg_HKXlEiWM9BF2@ep-mute-recipe-ahsibut8-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
+# For local dev, create workers/.dev.vars with: LOCAL_DB_URL=postgresql://user:pass@host/db
+# Then use: npx wrangler dev --local
 
 # KV for sessions/cache
 [[kv_namespaces]]

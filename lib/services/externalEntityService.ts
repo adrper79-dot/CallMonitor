@@ -218,7 +218,7 @@ export class ExternalEntityService {
                 ]
             )
         } catch (e) {
-            logger.warn('Failed to write audit log for entity creation', e)
+            logger.warn('Failed to write audit log for entity creation', { error: String(e) })
         }
 
         return { entityId }
@@ -270,7 +270,7 @@ export class ExternalEntityService {
                 ]
             )
         } catch (e) {
-            logger.warn('Failed to write audit log for entity linking', e)
+            logger.warn('Failed to write audit log for entity linking', { error: String(e) })
         }
 
         return { linkId }

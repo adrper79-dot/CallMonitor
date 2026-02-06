@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CreateOrgSchema } from '../lib/schemas'
 
 export const organizationsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -13,9 +15,7 @@ organizationsRoutes.post('/', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    console.log('Session object:', session)
     const { user_id } = session
-    console.log('Extracted user_id:', user_id)
 
     // Use neon client directly
     const { neon } = await import('@neondatabase/serverless')
@@ -32,12 +32,9 @@ organizationsRoutes.post('/', async (c) => {
     }
 
     // Parse request body
-    const body = await c.req.json()
-    const { name } = body
-
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return c.json({ error: 'Organization name is required' }, 400)
-    }
+    const parsed = await validateBody(c, CreateOrgSchema)
+    if (!parsed.success) return parsed.response
+    const { name } = parsed.data
 
     // Create organization
     let orgResult
@@ -47,10 +44,8 @@ organizationsRoutes.post('/', async (c) => {
         VALUES (${name.trim()}, ${user_id})
         RETURNING id, name, created_at
       `
-      console.log('Org insert result:', orgResult)
-      console.log('First row:', orgResult[0])
-    } catch (insertError) {
-      console.error('INSERT error:', insertError)
+    } catch (insertError: any) {
+      console.error('POST /api/organizations insert error:', insertError?.message)
       throw insertError
     }
 
@@ -76,8 +71,8 @@ organizationsRoutes.post('/', async (c) => {
       message: 'Organization created successfully'
     })
   } catch (err: any) {
-    console.error('POST /api/organizations error:', err)
-    return c.json({ error: err.message || 'Failed to create organization' }, 500)
+    console.error('POST /api/organizations error:', err?.message)
+    return c.json({ error: 'Failed to create organization' }, 500)
   }
 })
 

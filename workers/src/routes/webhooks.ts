@@ -26,6 +26,8 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { getDb, DbClient } from '../lib/db'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
 
 export const webhooksRoutes = new Hono<{ Bindings: Env }>()
 
@@ -369,16 +371,9 @@ async function createWebhookSubscription(c: any) {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const body = await c.req.json()
-  const { url, events, secret, description } = body
-
-  if (!url) return c.json({ error: 'Webhook URL is required' }, 400)
-  if (!events || !Array.isArray(events) || events.length === 0) {
-    return c.json({ error: 'At least one event type is required' }, 400)
-  }
-
-  // Validate URL
-  try { new URL(url) } catch { return c.json({ error: 'Invalid URL format' }, 400) }
+  const parsed = await validateBody(c, CreateWebhookSchema)
+  if (!parsed.success) return parsed.response
+  const { url, events, secret, description } = parsed.data
 
   const { neon } = await import('@neondatabase/serverless')
   const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
@@ -401,8 +396,9 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const body = await c.req.json()
-  const { url, events, is_active, description } = body
+  const parsed = await validateBody(c, UpdateWebhookSchema)
+  if (!parsed.success) return parsed.response
+  const { url, events, is_active, description } = parsed.data
 
   const { neon } = await import('@neondatabase/serverless')
   const connectionString = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString

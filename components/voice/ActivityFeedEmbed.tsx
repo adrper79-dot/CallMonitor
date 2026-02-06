@@ -60,13 +60,14 @@ export default function ActivityFeedEmbed({
 
     updates.forEach((update) => {
       if (update.table === 'audit_logs' || update.table === 'calls' || update.table === 'recordings' || update.table === 'ai_runs') {
+        const row = update.data as any
         const event: ActivityEvent = {
-          id: update.new?.id || `event-${Date.now()}`,
-          call_id: update.new?.call_id || update.new?.call_sid || undefined,
-          timestamp: update.new?.created_at || new Date().toISOString(),
-          type: mapTableToEventType(update.table, update.new),
-          title: mapTableToEventTitle(update.table, update.new),
-          status: mapTableToEventStatus(update.table, update.new),
+          id: row?.id || `event-${Date.now()}`,
+          call_id: row?.call_id || row?.call_sid || undefined,
+          timestamp: row?.created_at || new Date().toISOString(),
+          type: mapTableToEventType(update.table, row),
+          title: mapTableToEventTitle(update.table, row),
+          status: mapTableToEventStatus(update.table, row),
         }
         setEvents((prev) => [event, ...prev].slice(0, limit * 2))
       }

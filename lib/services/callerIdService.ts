@@ -13,6 +13,9 @@ import { logger } from '@/lib/logger'
 import { bestEffortAuditLog } from '@/lib/monitoring/auditLogMonitor'
 import { pool } from '@/lib/neon'
 
+// Alias for convenience — pool.query with proper typing
+const query = pool.query.bind(pool)
+
 // =============================================================================
 // TYPES
 // =============================================================================

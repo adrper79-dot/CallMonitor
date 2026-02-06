@@ -31,13 +31,11 @@ const nextConfig = {
   },
 
   typescript: {
-    // Allow builds with TS errors during migration
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   
   eslint: {
-    // Allow builds with ESLint errors during migration
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
 
   // Remove X-Powered-By header

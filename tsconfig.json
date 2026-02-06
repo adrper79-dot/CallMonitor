@@ -46,6 +46,9 @@
     "ARCH_DOCS/**",
     "New folder/**",
     "tests/**",
-    "scripts/**"
+    "scripts/**",
+    "tools/**",
+    "workers/**",
+    "test-*.ts"
   ]
 }

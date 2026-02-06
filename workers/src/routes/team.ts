@@ -6,6 +6,8 @@ import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { validateBody } from '../lib/validate'
+import { InviteMemberSchema, AddMemberSchema } from '../lib/schemas'
 
 export const teamRoutes = new Hono<{ Bindings: Env }>()
 
@@ -38,7 +40,7 @@ teamRoutes.get('/members', async (c) => {
       total: result.rows.length,
     })
   } catch (err: any) {
-    console.error('GET /api/team/members error:', err)
+    console.error('GET /api/team/members error:', err?.message)
     return c.json({ error: 'Failed to get team members' }, 500)
   }
 })
@@ -70,7 +72,7 @@ teamRoutes.get('/invites', async (c) => {
 
     return c.json({ success: true, invites: result.rows })
   } catch (err: any) {
-    console.error('GET /api/team/invites error:', err)
+    console.error('GET /api/team/invites error:', err?.message)
     return c.json({ error: 'Failed to get invites' }, 500)
   }
 })
@@ -92,17 +94,9 @@ teamRoutes.post('/invites', async (c) => {
       return c.json({ error: 'Only admins can invite team members' }, 403)
     }
 
-    const body = await c.req.json()
-    const { email, role = 'viewer' } = body as { email?: string; role?: string }
-
-    if (!email) {
-      return c.json({ error: 'Email is required' }, 400)
-    }
-
-    const validRoles = ['admin', 'editor', 'viewer']
-    if (!validRoles.includes(role)) {
-      return c.json({ error: 'Invalid role. Must be: admin, editor, or viewer' }, 400)
-    }
+    const parsed = await validateBody(c, InviteMemberSchema)
+    if (!parsed.success) return parsed.response
+    const { email, role } = parsed.data
 
     const db = getDb(c.env)
 
@@ -151,7 +145,7 @@ teamRoutes.post('/invites', async (c) => {
     const inviteUrl = `${appUrl}/signup?invite=${token}`
 
     // TODO: Send email with Resend (for now, return the link)
-    console.log(`[Invite] Created invite for ${email} to org ${orgName}: ${inviteUrl}`)
+    console.log('[Invite] Invite created successfully')
 
     return c.json({
       success: true,
@@ -164,7 +158,7 @@ teamRoutes.post('/invites', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('POST /api/team/invites error:', err)
+    console.error('POST /api/team/invites error:', err?.message)
     return c.json({ error: 'Failed to create invite' }, 500)
   }
 })
@@ -200,7 +194,7 @@ teamRoutes.get('/invites/validate/:token', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/team/invites/validate/:token error:', err)
+    console.error('GET /api/team/invites/validate/:token error:', err?.message)
     return c.json({ valid: false, error: 'Validation failed' }, 500)
   }
 })
@@ -268,7 +262,7 @@ teamRoutes.post('/invites/accept/:token', async (c) => {
       [session.user_id, invite.id]
     )
 
-    console.log(`[Invite] User ${session.email} accepted invite to org ${invite.organization_name}`)
+    console.log('[Invite] User accepted invite')
 
     return c.json({
       success: true,
@@ -277,7 +271,7 @@ teamRoutes.post('/invites/accept/:token', async (c) => {
       role: invite.role,
     })
   } catch (err: any) {
-    console.error('POST /api/team/invites/accept/:token error:', err)
+    console.error('POST /api/team/invites/accept/:token error:', err?.message)
     return c.json({ error: 'Failed to accept invite' }, 500)
   }
 })
@@ -305,7 +299,7 @@ teamRoutes.delete('/invites/:id', async (c) => {
 
     return c.json({ success: true })
   } catch (err: any) {
-    console.error('DELETE /api/team/invites/:id error:', err)
+    console.error('DELETE /api/team/invites/:id error:', err?.message)
     return c.json({ error: 'Failed to cancel invite' }, 500)
   }
 })
@@ -318,8 +312,9 @@ teamRoutes.post('/members', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { email, role = 'viewer' } = body
+    const parsed = await validateBody(c, AddMemberSchema)
+    if (!parsed.success) return parsed.response
+    const { email, role } = parsed.data
 
     // For now, redirect to invite flow
     return c.json({
@@ -327,7 +322,7 @@ teamRoutes.post('/members', async (c) => {
       action: 'POST /api/team/invites',
     }, 400)
   } catch (err: any) {
-    console.error('POST /api/team/members error:', err)
+    console.error('POST /api/team/members error:', err?.message)
     return c.json({ error: 'Failed to add team member' }, 500)
   }
 })
@@ -359,7 +354,7 @@ teamRoutes.delete('/members/:id', async (c) => {
 
     return c.json({ success: true })
   } catch (err: any) {
-    console.error('DELETE /api/team/members/:id error:', err)
+    console.error('DELETE /api/team/members/:id error:', err?.message)
     return c.json({ error: 'Failed to remove team member' }, 500)
   }
 })

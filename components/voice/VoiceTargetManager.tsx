@@ -9,6 +9,8 @@ import { logger } from '@/lib/logger'
 
 import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
+
 interface VoiceTarget {
   id: string
   phone_number: string

@@ -54,7 +54,7 @@ export class SearchBuilder {
             `SELECT id, version, content_hash FROM search_documents
              WHERE organization_id = $1 AND source_type = $2 AND source_id = $3 AND is_current = TRUE
              LIMIT 1`,
-            [input.organization_id, input.sourceType, input.sourceId]
+            [input.organizationId, input.sourceType, input.sourceId]
         )
         const existing = existingRes.rows || []
 
@@ -82,7 +82,7 @@ export class SearchBuilder {
                  VALUES ($1,$2,$3,$4,$5,TRUE,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
                 [
                     newDocId,
-                    input.organization_id,
+                    input.organizationId,
                     input.sourceType,
                     input.sourceId,
                     newVersion,
@@ -106,7 +106,7 @@ export class SearchBuilder {
 
         // 3. Log event
         await this.logEvent({
-            organization_id: input.organization_id,
+            organizationId: input.organizationId,
             eventType: newVersion === 1 ? 'indexed' : 'reindexed',
             documentId: newDocId,
             sourceType: input.sourceType,
@@ -260,7 +260,7 @@ export class SearchBuilder {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
             [
                 uuidv4(),
-                params.organization_id,
+                params.organizationId,
                 params.eventType,
                 params.documentId || null,
                 params.sourceType || null,

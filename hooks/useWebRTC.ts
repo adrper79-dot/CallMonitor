@@ -99,7 +99,7 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       audio.autoplay = true
       audio.muted = false  // Explicitly unmuted
       audio.volume = 1.0   // Full volume
-      audio.playsInline = true
+      audio.setAttribute('playsinline', '')
       remoteAudioRef.current = audio
       console.log('[Telnyx] Audio element created/configured:', audio.id)
     }
@@ -223,8 +223,8 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
       const client = new TelnyxRTC({
         login_token: tokenRes.token,
         // Do NOT include login/password when using JWT token
-        ringtoneFile: null, // Disable default ringtone
-        ringbackFile: null, // Disable default ringback
+        ringtoneFile: undefined, // Disable default ringtone
+        ringbackFile: undefined, // Disable default ringback
       })
 
       telnyxClientRef.current = client
@@ -498,9 +498,10 @@ export function useWebRTC(organizationId: string | null): UseWebRTCResult {
             await client.disconnect()
             
             // Update client properties
-            client.login_token = tokenRes.token
-            client.login = tokenRes.username
-            client.iceServers = tokenRes.rtcConfig.iceServers
+            const clientAny: any = client
+            clientAny.login_token = tokenRes.token
+            clientAny.login = tokenRes.username
+            clientAny.iceServers = tokenRes.rtcConfig.iceServers
             
             // Reconnect with new token
             await client.connect()

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
-import type { Call } from '@/app/voice/page'
+import type { Call } from '@/app/voice-operations/page'
 import CallList from '@/components/voice/CallList'
 import CallDetailView from '@/components/voice/CallDetailView'
 import { logger } from '@/lib/logger'

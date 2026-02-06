@@ -38,7 +38,7 @@ function SettingsPageContent() {
   const tabParam = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState<TabId>((tabParam as TabId) || 'call-config')
 
-  const [organizationId, setOrganizationId] = React.useState<string | null>(null)
+  const [organizationId, setOrganizationId] = React.useState<string>('')
   const [organizationName, setOrganizationName] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -185,7 +185,7 @@ function SettingsPageContent() {
           {/* AI Control & Intelligence - AI settings + Surveys */}
           {activeTab === 'ai-control' && (
             <div className="space-y-8">
-              <AIControlSection organizationId={organizationId} canEdit={role === 'owner' || role === 'admin'} />
+              <AIControlSection organizationId={organizationId ?? ''} canEdit={role === 'owner' || role === 'admin'} />
 
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">

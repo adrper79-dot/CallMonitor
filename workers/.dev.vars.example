@@ -1,0 +1,20 @@
+# Copy this file to .dev.vars and fill in your values
+# NEVER commit .dev.vars to git
+
+# Neon Postgres (for local wrangler dev)
+NEON_PG_CONN=postgresql://user:password@host/dbname?sslmode=require
+
+# Auth
+AUTH_SECRET=your-auth-secret
+
+# External APIs
+OPENAI_API_KEY=
+RESEND_API_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+TELNYX_API_KEY=
+TELNYX_CONNECTION_ID=
+TELNYX_NUMBER=
+TELNYX_WEBHOOK_SECRET=
+ASSEMBLYAI_API_KEY=
+ELEVENLABS_API_KEY=

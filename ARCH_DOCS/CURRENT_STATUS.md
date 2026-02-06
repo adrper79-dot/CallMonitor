@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 5, 2026  
-**Version:** 4.4 - Bond AI + Team Management + Security Upgrade  
+**Last Updated:** February 6, 2026  
+**Version:** 4.5 - Security Hardening Sprint  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -9,6 +9,23 @@
 📊 **[VIEW COMPREHENSIVE ARCHITECTURE WITH VISUAL DIAGRAMS →](01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md)**
 
 📋 **[VIEW AI ROLE POLICY →](01-CORE/AI_ROLE_POLICY.md)** ⭐ ALL 5 PHASES COMPLETE
+
+---
+
+## 🔧 **Recent Updates (February 6, 2026)**
+
+### **Sprint 4: Security Hardening & Build Enforcement (v4.5):** ✅ **PRODUCTION DEPLOYED**
+
+1. **DB Credential Sanitization** — Removed plaintext Neon password from `wrangler.toml` (uses HYPERDRIVE binding only)
+2. **PII Log Sanitization** — Removed `console.log` calls leaking passwords/tokens in auth routes
+3. **Zod Input Validation** — All 14 Workers route files validated with strict schemas (body, query, params)
+4. **KV-Backed Rate Limiting** — Sliding-window rate limiter on `/api/auth/*` endpoints (10 req/min login, 5 req/min signup)
+5. **Dead Code Cleanup** — Removed `rbac.ts`, `_api_to_migrate/`, `SignalWireContext.tsx`, `tests/archived/`, `supabase_pg_mock`
+6. **Sentry Config Fix** — Deleted broken `sentry.server.config.ts`, updated client config for static export
+7. **Call Capabilities Stub → Real** — Plan-gated from DB (`organization_plans` table) instead of hardcoded JSON
+8. **TypeScript Build Enforcement** — `ignoreBuildErrors: false`, `ignoreDuringBuilds: false` in `next.config.js`; 25+ TS errors fixed across hooks, services, lib files
+9. **tsconfig Hygiene** — Excluded `workers/`, `tools/`, `test-*.ts` from Next.js compilation scope
+10. **New Circuit Breaker** — Added `telnyxBreaker` to `circuitBreaker.ts` registry
 
 ---
 

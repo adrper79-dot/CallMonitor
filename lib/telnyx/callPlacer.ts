@@ -80,7 +80,7 @@ export async function placeTelnyxCall(params: PlaceCallParams): Promise<PlaceCal
     const webhookUrl = `${appUrl}/api/webhooks/telnyx?callId=${callId}&orgId=${organizationId}`
 
     const payload = {
-        connection_id: uuidv4(), // Unique for realtime media
+        connection_id: crypto.randomUUID(), // Unique for realtime media
         from: fromNumber,
         to: toNumber,
         webhook_url: webhookUrl,

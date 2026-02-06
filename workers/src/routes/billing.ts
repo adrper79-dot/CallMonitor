@@ -18,6 +18,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { CheckoutSchema } from '../lib/schemas'
 
 export const billingRoutes = new Hono<{ Bindings: Env }>()
 
@@ -122,7 +124,7 @@ billingRoutes.get('/', async (c) => {
   try {
     return await getBillingInfo(c)
   } catch (err: any) {
-    console.error('GET /api/billing error:', err?.message, err?.stack?.slice(0, 300))
+    console.error('GET /api/billing error:', err?.message)
     return c.json({ error: 'Failed to get billing info' }, 500)
   }
 })
@@ -132,7 +134,7 @@ billingRoutes.get('/subscription', async (c) => {
   try {
     return await getBillingInfo(c)
   } catch (err: any) {
-    console.error('GET /api/billing/subscription error:', err?.message, err?.stack?.slice(0, 300))
+    console.error('GET /api/billing/subscription error:', err?.message)
     return c.json({ error: 'Failed to get billing info' }, 500)
   }
 })
@@ -223,7 +225,7 @@ billingRoutes.delete('/payment-methods/:id', async (c) => {
 
     if (!stripeRes.ok) {
       const errorText = await stripeRes.text()
-      console.error('Stripe detach payment method failed:', stripeRes.status, errorText)
+      console.error('Stripe detach payment method failed:', stripeRes.status)
       return c.json({ error: 'Failed to remove payment method' }, 500)
     }
 
@@ -292,12 +294,9 @@ billingRoutes.post('/checkout', async (c) => {
       return c.json({ error: 'Stripe not configured' }, 503)
     }
 
-    const body = await c.req.json()
-    const { priceId, planId } = body
-
-    if (!priceId) {
-      return c.json({ error: 'priceId is required' }, 400)
-    }
+    const parsed = await validateBody(c, CheckoutSchema)
+    if (!parsed.success) return parsed.response
+    const { priceId, planId } = parsed.data
 
     // Look up or create Stripe customer
     const { neon } = await import('@neondatabase/serverless')
@@ -361,7 +360,7 @@ billingRoutes.post('/checkout', async (c) => {
 
     if (!checkoutRes.ok) {
       const errorText = await checkoutRes.text()
-      console.error('Stripe checkout session creation failed:', checkoutRes.status, errorText)
+      console.error('Stripe checkout session creation failed:', checkoutRes.status)
       return c.json({ error: 'Failed to create checkout session' }, 500)
     }
 
@@ -419,7 +418,7 @@ billingRoutes.post('/portal', async (c) => {
 
     if (!portalRes.ok) {
       const errorText = await portalRes.text()
-      console.error('Stripe portal session creation failed:', portalRes.status, errorText)
+      console.error('Stripe portal session creation failed:', portalRes.status)
       return c.json({ error: 'Failed to create portal session' }, 500)
     }
 
@@ -478,7 +477,7 @@ billingRoutes.post('/cancel', async (c) => {
 
     if (!cancelRes.ok) {
       const errorText = await cancelRes.text()
-      console.error('Stripe subscription cancel failed:', cancelRes.status, errorText)
+      console.error('Stripe subscription cancel failed:', cancelRes.status)
       return c.json({ error: 'Failed to cancel subscription' }, 500)
     }
 

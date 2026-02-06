@@ -7,6 +7,8 @@
 import { Hono } from 'hono'
 import type { Env } from '../index'
 import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import { WebRTCDialSchema } from '../lib/schemas'
 
 export const webrtcRoutes = new Hono<{ Bindings: Env }>()
 
@@ -104,7 +106,7 @@ webrtcRoutes.get('/token', async (c) => {
     }
 
     // Step 1: Create a telephony credential for this user session
-    console.log('[WebRTC] Creating telephony credential for user:', session.user_id)
+    console.log('[WebRTC] Creating telephony credential')
     const createCredResponse = await fetch('https://api.telnyx.com/v2/telephony_credentials', {
       method: 'POST',
       headers: {
@@ -120,7 +122,7 @@ webrtcRoutes.get('/token', async (c) => {
 
     if (!createCredResponse.ok) {
       const errorText = await createCredResponse.text()
-      console.error('[WebRTC] Failed to create credential:', createCredResponse.status, errorText)
+      console.error('[WebRTC] Failed to create credential:', createCredResponse.status)
       
       // Parse error for better feedback
       let errorMessage = 'Failed to create WebRTC credential'
@@ -147,7 +149,7 @@ webrtcRoutes.get('/token', async (c) => {
     const credentialId = credData.data.id
 
     // Step 2: Get JWT token for the created credential
-    console.log('[WebRTC] Getting token for credential:', credentialId)
+    console.log('[WebRTC] Getting token for credential')
     const tokenResponse = await fetch(`https://api.telnyx.com/v2/telephony_credentials/${credentialId}/token`, {
       method: 'POST',
       headers: {
@@ -158,7 +160,7 @@ webrtcRoutes.get('/token', async (c) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('[WebRTC] Failed to get token:', tokenResponse.status, errorText)
+      console.error('[WebRTC] Failed to get token:', tokenResponse.status)
       return c.json({
         success: false,
         error: 'Failed to get WebRTC token',
@@ -179,7 +181,7 @@ webrtcRoutes.get('/token', async (c) => {
       jwtToken = tokenText.trim()
     }
 
-    console.log('[WebRTC] Successfully obtained token for user:', session.user_id)
+    console.log('[WebRTC] Successfully obtained token')
     
     return c.json({
       success: true,
@@ -196,7 +198,7 @@ webrtcRoutes.get('/token', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/webrtc/token error:', err)
+    console.error('GET /api/webrtc/token error:', err?.message)
     return c.json({ 
       error: 'Failed to get WebRTC token',
       details: err?.message || String(err),
@@ -213,12 +215,9 @@ webrtcRoutes.post('/dial', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { phone_number } = body as { phone_number?: string }
-
-    if (!phone_number) {
-      return c.json({ error: 'Phone number required' }, 400)
-    }
+    const parsed = await validateBody(c, WebRTCDialSchema)
+    if (!parsed.success) return parsed.response
+    const { phone_number } = parsed.data
 
     if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_CONNECTION_ID || !c.env.TELNYX_NUMBER) {
       return c.json({ error: 'Telnyx configuration incomplete' }, 500)
@@ -258,7 +257,7 @@ webrtcRoutes.post('/dial', async (c) => {
 
     if (!telnyxResponse.ok) {
       const error = await telnyxResponse.text()
-      console.error('Telnyx call initiation error:', error)
+      console.error('Telnyx call initiation error:', (error as any)?.message)
 
       // For testing: simulate successful call when connection is invalid
       if (error.includes('invalid connection') || error.includes('connection')) {
@@ -301,7 +300,7 @@ webrtcRoutes.post('/dial', async (c) => {
       status: 'ringing',
     })
   } catch (err: any) {
-    console.error('POST /api/webrtc/dial error:', err)
+    console.error('POST /api/webrtc/dial error:', err?.message)
     return c.json({ error: 'Failed to initiate call' }, 500)
   }
 })

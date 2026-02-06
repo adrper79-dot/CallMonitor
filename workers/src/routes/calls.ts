@@ -7,6 +7,12 @@ import type { Env } from '../index'
 import { getDb } from '../lib/db'
 import { requireAuth, requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
+import { validateBody } from '../lib/validate'
+import {
+  StartCallSchema, CallOutcomeSchema, CallOutcomeUpdateSchema,
+  GenerateSummarySchema, CallNoteSchema, DispositionSchema,
+  ConfirmationSchema, EmailCallSchema,
+} from '../lib/schemas'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -23,7 +29,7 @@ callsRoutes.get('/', async (c) => {
     
     // Handle case where user has no organization
     if (!organization_id) {
-      console.log('[Calls] User has no organization:', user_id)
+      console.log('[Calls] User has no organization')
       return c.json({
         success: true,
         calls: [],
@@ -87,8 +93,8 @@ callsRoutes.get('/', async (c) => {
       },
     })
   } catch (err: any) {
-    console.error('GET /api/calls error:', err)
-    return c.json({ error: err.message || 'Failed to fetch calls' }, 500)
+    console.error('GET /api/calls error:', err?.message)
+    return c.json({ error: 'Failed to fetch calls' }, 500)
   }
 })
 
@@ -114,8 +120,8 @@ callsRoutes.get('/:id', async (c) => {
 
     return c.json({ success: true, call: result.rows[0] })
   } catch (err: any) {
-    console.error('GET /api/calls/:id error:', err)
-    return c.json({ error: err.message || 'Failed to fetch call' }, 500)
+    console.error('GET /api/calls/:id error:', err?.message)
+    return c.json({ error: 'Failed to fetch call' }, 500)
   }
 })
 
@@ -127,12 +133,9 @@ callsRoutes.post('/start', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    const body = await c.req.json()
-    const { phone_number, caller_id, system_id } = body
-
-    if (!phone_number) {
-      return c.json({ error: 'Phone number is required' }, 400)
-    }
+    const parsed = await validateBody(c, StartCallSchema)
+    if (!parsed.success) return parsed.response
+    const { phone_number, caller_id, system_id } = parsed.data
 
     const db = getDb(c.env)
 
@@ -152,8 +155,8 @@ callsRoutes.post('/start', async (c) => {
 
     return c.json({ success: true, call }, 201)
   } catch (err: any) {
-    console.error('POST /api/calls/start error:', err)
-    return c.json({ error: err.message || 'Failed to start call' }, 500)
+    console.error('POST /api/calls/start error:', err?.message)
+    return c.json({ error: 'Failed to start call' }, 500)
   }
 })
 
@@ -184,8 +187,8 @@ callsRoutes.post('/:id/end', async (c) => {
 
     return c.json({ success: true, call: result.rows[0] })
   } catch (err: any) {
-    console.error('POST /api/calls/:id/end error:', err)
-    return c.json({ error: err.message || 'Failed to end call' }, 500)
+    console.error('POST /api/calls/:id/end error:', err?.message)
+    return c.json({ error: 'Failed to end call' }, 500)
   }
 })
 
@@ -297,7 +300,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
         data: { call_id: c.req.param('id'), outcome: null, history: [], has_outcome: false, message: 'Feature not configured' }
       })
     }
-    console.error('Outcome GET error', error)
+    console.error('Outcome GET error:', error?.message)
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
   }
 })
@@ -320,52 +323,20 @@ callsRoutes.post('/:id/outcome', async (c) => {
 
     const db = getDb(c.env)
 
-    // Parse request body
-    const body = await c.req.json()
+    // Parse + validate request body
+    const parsed = await validateBody(c, CallOutcomeSchema)
+    if (!parsed.success) return parsed.response
     const {
       outcome_status,
-      confidence_level = 'high',
-      agreed_items = [],
-      declined_items = [],
-      ambiguities = [],
-      follow_up_actions = [],
-      summary_text = '',
-      summary_source = 'human',
-      readback_confirmed = false,
-    } = body
-
-    // Validate outcome_status
-    if (!outcome_status || !VALID_OUTCOME_STATUSES.includes(outcome_status)) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'INVALID_STATUS',
-          message: `Invalid outcome status. Must be one of: ${VALID_OUTCOME_STATUSES.join(', ')}`
-        }
-      }, 400)
-    }
-
-    // Validate confidence_level
-    if (!VALID_CONFIDENCE_LEVELS.includes(confidence_level)) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'INVALID_CONFIDENCE',
-          message: `Invalid confidence level. Must be one of: ${VALID_CONFIDENCE_LEVELS.join(', ')}`
-        }
-      }, 400)
-    }
-
-    // Validate summary_source
-    if (!VALID_SUMMARY_SOURCES.includes(summary_source)) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'INVALID_SOURCE',
-          message: `Invalid summary source. Must be one of: ${VALID_SUMMARY_SOURCES.join(', ')}`
-        }
-      }, 400)
-    }
+      confidence_level,
+      agreed_items,
+      declined_items,
+      ambiguities,
+      follow_up_actions,
+      summary_text,
+      summary_source,
+      readback_confirmed,
+    } = parsed.data
 
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
@@ -409,7 +380,6 @@ callsRoutes.post('/:id/outcome', async (c) => {
       callId,
       outcomeId: outcome.id,
       status: outcome_status,
-      declaredBy: userId
     })
 
     return c.json({
@@ -420,7 +390,7 @@ callsRoutes.post('/:id/outcome', async (c) => {
       },
     }, 201)
   } catch (error: any) {
-    console.error('Outcome POST error', error)
+    console.error('Outcome POST error:', error?.message)
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
   }
 })
@@ -443,8 +413,9 @@ callsRoutes.put('/:id/outcome', async (c) => {
 
     const db = getDb(c.env)
 
-    // Parse request body
-    const body = await c.req.json()
+    // Parse + validate request body
+    const parsed = await validateBody(c, CallOutcomeUpdateSchema)
+    if (!parsed.success) return parsed.response
     const {
       outcome_status,
       confidence_level,
@@ -455,12 +426,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
       summary_text,
       summary_source,
       readback_confirmed,
-    } = body
-
-    // Validation checks
-    if (outcome_status && !VALID_OUTCOME_STATUSES.includes(outcome_status)) {
-      return c.json({ success: false, error: { code: 'INVALID_STATUS', message: 'Invalid status' } }, 400)
-    }
+    } = parsed.data
 
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
@@ -521,7 +487,6 @@ callsRoutes.put('/:id/outcome', async (c) => {
       callId,
       outcomeId: outcome.id,
       revision: outcome.revision_number,
-      updatedBy: userId
     })
 
     return c.json({
@@ -533,7 +498,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
       },
     })
   } catch (error: any) {
-    console.error('Outcome PUT error', error)
+    console.error('Outcome PUT error:', error?.message)
     return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' } }, 500)
   }
 })
@@ -556,13 +521,14 @@ callsRoutes.post('/:id/summary', async (c) => {
 
     const db = getDb(c.env)
 
-    // Parse request body
-    const body = await c.req.json().catch(() => ({}))
+    // Parse + validate request body
+    const parsed = await validateBody(c, GenerateSummarySchema)
+    if (!parsed.success) return parsed.response
     const {
-      use_call_transcript = true,
-      include_structured_extraction = true,
+      use_call_transcript,
+      include_structured_extraction,
       custom_transcript,
-    } = body
+    } = parsed.data
 
     // Get call with transcript
     const { rows: calls } = await db.query(
@@ -663,7 +629,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text()
-      console.error('OpenAI API error', { callId, status: openaiResponse.status, error: errorText })
+      console.error('OpenAI API error', { callId, status: openaiResponse.status })
       return c.json({
         success: false,
         error: {
@@ -741,7 +707,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       )
       aiSummary = inserted[0]
     } catch (insertError) {
-      console.error('Failed to store AI summary', { callId, error: insertError })
+      console.error('Failed to store AI summary', { callId, error: (insertError as any)?.message })
       // Continue anyway
     }
 
@@ -749,7 +715,6 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       callId,
       aiSummaryId: aiSummary?.id,
       summaryLength: summaryResult.summary_text?.length,
-      generatedBy: userId
     })
 
     return c.json({
@@ -854,12 +819,9 @@ callsRoutes.post('/:id/notes', async (c) => {
       return c.json({ success: false, error: 'Invalid call ID' }, 400)
     }
 
-    const body = await c.req.json()
-    const { content } = body
-
-    if (!content || content.trim().length === 0) {
-      return c.json({ success: false, error: 'Note content is required' }, 400)
-    }
+    const parsed = await validateBody(c, CallNoteSchema)
+    if (!parsed.success) return parsed.response
+    const { content } = parsed.data
 
     const db = getDb(c.env)
 
@@ -903,12 +865,9 @@ callsRoutes.put('/:id/disposition', async (c) => {
       return c.json({ success: false, error: 'Invalid call ID' }, 400)
     }
 
-    const body = await c.req.json()
-    const { disposition, disposition_notes } = body
-
-    if (!disposition) {
-      return c.json({ success: false, error: 'Disposition is required' }, 400)
-    }
+    const parsed = await validateBody(c, DispositionSchema)
+    if (!parsed.success) return parsed.response
+    const { disposition, disposition_notes } = parsed.data
 
     const db = getDb(c.env)
 
@@ -951,12 +910,9 @@ callsRoutes.post('/:id/confirmations', async (c) => {
       return c.json({ success: false, error: 'Invalid call ID' }, 400)
     }
 
-    const body = await c.req.json()
-    const { confirmation_type, details, confirmed_by } = body
-
-    if (!confirmation_type) {
-      return c.json({ success: false, error: 'Confirmation type is required' }, 400)
-    }
+    const parsed = await validateBody(c, ConfirmationSchema)
+    if (!parsed.success) return parsed.response
+    const { confirmation_type, details, confirmed_by } = parsed.data
 
     const db = getDb(c.env)
 
@@ -1065,16 +1021,13 @@ callsRoutes.post('/:id/email', async (c) => {
     if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
     const callId = c.req.param('id')
-    const body = await c.req.json()
-    const { recipients } = body
-
-    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
-      return c.json({ success: false, error: 'At least one recipient email is required' }, 400)
-    }
+    const parsed = await validateBody(c, EmailCallSchema)
+    if (!parsed.success) return parsed.response
+    const { recipients } = parsed.data
 
     // TODO: Integrate with Resend API to actually send emails
     // For now, return success stub
-    console.log(`[Calls] Email requested for call ${callId} to: ${recipients.join(', ')}`)
+    console.log(`[Calls] Email requested for call ${callId} to ${recipients.length} recipient(s)`)
 
     return c.json({
       success: true,

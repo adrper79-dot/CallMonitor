@@ -10,10 +10,15 @@ interface ChatUIProps {
 }
 
 export function ChatUI({ endpoint, orgId }: ChatUIProps) {
-    const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    const chat: any = useChat({
         api: endpoint,
         body: { orgId }
-    })
+    } as any)
+    const messages = chat.messages ?? []
+    const handleSubmit = chat.handleSubmit ?? (() => {})
+    const input = chat.input ?? ''
+    const handleInputChange = chat.handleInputChange ?? (() => {})
+    const isLoading = chat.status === 'streaming' || chat.status === 'submitted' || chat.isLoading
 
     const scrollRef = useRef<HTMLDivElement>(null)
 
