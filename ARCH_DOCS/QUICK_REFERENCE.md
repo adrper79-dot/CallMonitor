@@ -1,6 +1,6 @@
 # Quick Reference - Word Is Bond
 
-**Version:** 4.20 | **Date:** February 6, 2026 | **Status:** ✅ Production Ready (100% ROADMAP)
+**Version:** 4.22 | **Date:** February 7, 2026 | **Status:** ✅ Production Ready (100% ROADMAP)
 
 ---
 
@@ -315,7 +315,7 @@ npm run build
 
 - **Client-side:** Use `apiGet/apiPost/apiPut/apiDelete` from `lib/apiClient.ts` — they include Bearer token automatically
 - **Server-side:** Verify `AUTH_SECRET` and `NEON_PG_CONN` are configured in Workers env
-- Check that the session token hasn't expired (24h default TTL)
+- Check that the session token hasn't expired (7-day default TTL)
 
 ### **Build fails with static generation error:**
 
@@ -350,7 +350,7 @@ npm run build
 ### **API route 500 errors (Auth/RBAC):**
 
 - Ensure route handler calls `requireAuth()` middleware
-- Use `c.get('session').orgId` for org isolation
+- Use `c.get('session').organization_id` for org isolation (snake_case — NOT `.orgId`)
 - RBAC roles: viewer (1) / agent (2) / manager (3) / admin (4) / owner (5)
 - All business queries MUST include `org_id` in WHERE clause
 
@@ -406,18 +406,15 @@ console.error('Error:', err) // DON'T DO THIS
 console.log('Debug:', data) // DON'T DO THIS
 ```
 
-### **API Error Responses - Use Centralized Helpers:**
+### **API Error Responses (Workers/Hono):**
 
 ```typescript
-// ✅ CORRECT - Use ApiErrors helpers
-import { ApiErrors, apiSuccess } from '@/lib/errors/apiHandler'
+// ✅ CORRECT - Use Hono's c.json() in Workers route handlers
+return c.json({ error: 'Unauthorized' }, 401)
+return c.json({ error: 'Campaign not found' }, 404)
+return c.json({ data: result.rows[0] }, 200)
 
-return ApiErrors.unauthorized() // 401
-return ApiErrors.notFound('Campaign') // 404
-return ApiErrors.badRequest('Invalid') // 400
-return apiSuccess({ data }) // 200
-
-// ❌ WRONG - Don't use raw error objects
+// ❌ WRONG - NextResponse is dead (static export, no server-side code)
 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) // DON'T DO THIS
 ```
 
@@ -466,7 +463,7 @@ const data = await apiGet('/api/endpoint')
 - [ ] `npm test` passes (98%+)
 - [ ] `npm test` passes (98%+)
 - [ ] All env vars set in Cloudflare Pages
-- [ ] Webhooks configured in SignalWire/AssemblyAI
+- [ ] Webhooks configured in Telnyx/AssemblyAI
 
 ### **Post-Deployment:**
 

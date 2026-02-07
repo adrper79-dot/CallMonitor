@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 9, 2026  
-**Version:** 4.20 - useCallModulation HOF Hook, CVA Migration, ROADMAP 100% Complete  
+**Last Updated:** February 7, 2026  
+**Version:** 4.22 - CIO Audit, Legacy Vendor Purge, apiClient TS Fix  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,38 @@
 
 ---
 
-## 🔧 **Recent Updates (February 9, 2026)**
+## 🔧 **Recent Updates (February 7, 2026)**
+
+### **CIO Audit + Legacy Vendor Purge + TS Build Fix (v4.21 → v4.22.1):** ✅ **DEPLOYED**
+
+1. **CIO Production Audit (v4.21)** ⭐ **CRITICAL FIXES**
+   - Fixed 6× `operator` → `agent` RBAC role in `calls.ts` (operator=level 0, permanently blocked)
+   - Fixed webhook URL in `webrtc.ts` (pointed at static frontend instead of Workers API)
+   - Removed mock call logic in `webrtc.ts` (swallowed Telnyx errors, returned fake SIDs)
+   - Fixed false-critical health check in `health.ts` (errored when Hyperdrive absent but NEON_PG_CONN working)
+   - Sealed 9 DB pool leaks in `webhooks.ts` (try/finally/db.end())
+   - Removed stack trace leak from `webrtc.ts` error responses
+   - Added `API_BASE_URL` to Workers env + Env interface
+   - Added `aiLlmRateLimit` to Bond-AI `/chat` and `/copilot` endpoints (30/5min)
+   - Deleted 40+ garbage files (test scripts with credentials, stale migrations, build artifacts, backup archives)
+   - Hardcoded `output: 'export'` in `next.config.js`, cleaned `tsconfig.json` excludes
+   - Removed server-side deps (hono, resend, ws) from frontend `package.json`
+
+2. **Legacy Vendor Purge (v4.22)** ⭐ **CODEBASE HYGIENE**
+   - Deleted 5 dead legacy lib files (`lib/config.ts`, `lib/env-validation.ts`, `lib/rbac-server.ts`, `lib/middleware/rbac.ts`, `lib/api/utils.ts`)
+   - Renamed error codes: `SIGNALWIRE_CONFIG_MISSING` → `TELNYX_CONFIG_MISSING`, `SIGNALWIRE_API_ERROR` → `TELNYX_API_ERROR`
+   - Fixed SignalWire → Telnyx in 7 UI components (AuthorityBadge, ReviewTimeline, ReviewMode, ReliabilityDashboard, CallingModeSelector, AIAgentConfig)
+   - Cleaned `cloudflare-env-custom.d.ts` (removed 14 stale env vars)
+   - Removed `next-auth` module declarations from `global.d.ts`
+
+3. **Final Cleanup (v4.22.1)** ✅ **SUPPORT FILES**
+   - Replaced bloated 10,942-line auto-generated `cloudflare-env.d.ts` with clean 11-line version matching actual wrangler.jsonc bindings
+   - Fixed `openapi.yaml`: `signalwire_ai_agent_id` → `telnyx_ai_agent_id`
+   - Fixed `test-manual.ps1`: "Check SignalWire configuration" → "Check Telnyx configuration"
+   - Fixed 8 TypeScript `unknown` type errors on `res.json()` in `lib/apiClient.ts` (broke build under strict mode)
+   - Active source code confirmed **100% clean** of legacy vendor references (SignalWire/Supabase/NextAuth)
+
+---
 
 ### **useCallModulation HOF Hook, CVA Migration, ROADMAP 100% (v4.20):** ✅ **DEPLOYED**
 
@@ -728,5 +759,5 @@ Wordis Bond is the System of Record for business conversations - a platform that
 
 ---
 
-**Last Reviewed:** February 6, 2026  
+**Last Reviewed:** February 7, 2026  
 **Maintained by:** Development Team

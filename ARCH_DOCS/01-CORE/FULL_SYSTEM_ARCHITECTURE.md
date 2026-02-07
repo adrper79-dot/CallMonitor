@@ -1,10 +1,15 @@
 # Wordis Bond - Full System Architecture
 
+> **⚠️ HISTORICAL DOCUMENT — January 2026 Snapshot**  
+> This document describes the v1.x architecture (Supabase + SignalWire + NextAuth + Next.js API routes).  
+> The platform has since migrated to: **Cloudflare Workers (Hono) + Neon PostgreSQL + Telnyx + Custom Auth (v4.22+)**  
+> For current architecture, see: [MASTER_ARCHITECTURE.md](../MASTER_ARCHITECTURE.md), [PINNED_TECH_STACK.md](../PINNED_TECH_STACK.md), [CURRENT_STATUS.md](../CURRENT_STATUS.md)
+
 **Product:** Wordis Bond  
 **Company:** Latimer + Woods Tech LLC  
-**Version:** 1.5.1  
+**Version:** 1.5.1 (superseded by v4.22)  
 **Last Updated:** January 17, 2026  
-**Status:** Production with Identified Gaps (82% Complete)
+**Status:** ⚠️ Historical — see CURRENT_STATUS.md for live status
 
 > **Brand Position:** "The System of Record for Business Conversations"
 

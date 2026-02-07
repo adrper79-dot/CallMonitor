@@ -1,7 +1,7 @@
  tir# Wordis Bond Architecture Documentation
 
-**Last Updated:** February 5, 2026  
-**Version:** 2.0 - Hybrid Deployment  
+**Last Updated:** February 7, 2026  
+**Version:** 4.22 - CIO Audit + Legacy Vendor Purge  
 **Status:** ✅ Production Deployed (Static UI + Workers API)
 
 > **"The System of Record for Business Conversations"**  
@@ -21,8 +21,7 @@
 ### **🎯 Start Here (Gospel Truth):**
 - **[CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md)** ⭐ **GOSPEL** — Hybrid architecture (Pages + Workers), deployment guide, best practices
 - **[MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md)** ⭐ **CANONICAL** — Complete system design, data flows, security architecture
-- **[../ROADMAP.md](../ROADMAP.md)** - Development roadmap with progress tracking (34/109 items)
-- **[../API_MIGRATION_GUIDE.md](../API_MIGRATION_GUIDE.md)** - Guide for migrating app/api → workers/src/routes
+- **[../ROADMAP.md](../ROADMAP.md)** - Development roadmap with progress tracking (109/109 items ✅)
 - **[FINAL_STACK.md](FINAL_STACK.md)** - Final consolidated production stack (edge-first)
 - **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - System overview, health metrics, known gaps
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
@@ -57,29 +56,28 @@ ARCH_DOCS/
 | Metric | Value | Status |
 |--------|-------|--------|
 | **Architecture** | Hybrid (Pages+Workers) | ✅ Deployed |
-| **Pages Deployment** | https://827487ca.wordisbond.pages.dev | ✅ Live |
+| **Pages Deployment** | https://voxsouth.online | ✅ Live |
 | **Workers API** | https://wordisbond-api.adrper79.workers.dev | ✅ Live |
-| **Build** | Clean (28 pages) | ✅ |
+| **Build** | Clean (30 pages) | ✅ |
 | **Tests** | 123 passing, 87 skipped | ✅ |
 | **Lint** | 0 errors, 126 warnings | ✅ |
-| **API Migration** | 5+ critical routes in Workers | 🔄 In Progress |
-| **Client Pages** | 2 converted (dashboard, voice-ops) | 🔄 In Progress |
+| **API Migration** | ✅ Complete — 120+ endpoints in Workers | ✅ Done |
+| **Client Pages** | 30 pages (all static export) | ✅ Done |
 
-**Recent Achievement (Feb 2, 2026):**
-- ✅ Successfully deployed hybrid architecture
-- ✅ Static UI build working (Next.js export)
-- ✅ Workers API operational (Hono framework)
-- ✅ Clean separation: Pages (UI) + Workers (API)
-- 🔄 API migration ongoing (~100+ routes to evaluate)
+**Current State (Feb 7, 2026):**
+- ✅ v4.22 deployed — CIO audit complete, all critical fixes applied
+- ✅ 100% clean of legacy vendor references (SignalWire/Supabase/NextAuth)
+- ✅ 120+ API endpoints operational in Workers
+- ✅ 30/30 static pages building successfully
 
 **Services Integrated:**
-- ✅ Neon (DB) + Cloudflare R2 (Storage)
-- ✅ Telnyx (Voice)
+- ✅ Neon (DB) + Cloudflare R2 (Storage) + KV (Sessions/Cache)
+- ✅ Telnyx (Voice/WebRTC)
 - ✅ AssemblyAI (Transcription)
 - ✅ ElevenLabs (TTS)
 - ✅ Resend (Email)
-- ✅ Auth.js (Auth)
-- 🔴 Stripe (Not integrated - GAP)
+- ✅ Custom Workers Auth (PBKDF2 + KV sessions)
+- ✅ Stripe (Billing/Webhooks)
 
 **Recent Additions (Jan 17, 2026):**
 - ✅ Campaign Manager (3 new tables, 6 endpoints, full UI)
@@ -131,10 +129,10 @@ Detailed guides for major features:
 Infrastructure, media plane, and external integrations:
 
 - **CLOUDFLARE_DEPLOYMENT.md** - Cloudflare Pages deployment guide (NEW)
-- **MEDIA_PLANE_ARCHITECTURE.txt** - Media plane design (SignalWire/FreeSWITCH)
-- **FREESWITCH_RUNBOOK.md** - FreeSWITCH operations guide (future)
+- **MEDIA_PLANE_ARCHITECTURE.txt** - Media plane design (⚠️ historical — SignalWire/FreeSWITCH era)
+- **FREESWITCH_RUNBOOK.md** - FreeSWITCH operations guide (⚠️ historical)
 - **media_plane_diagram.md** - Visual architecture diagrams
-- **SIGNALWIRE_AI_AGENTS_RESEARCH.md** - SignalWire AI Agent capabilities
+- **SIGNALWIRE_AI_AGENTS_RESEARCH.md** - SignalWire AI Agent capabilities (⚠️ historical — vendor replaced by Telnyx)
 
 **When to read:** Deploying, scaling, or infrastructure changes
 
@@ -197,10 +195,10 @@ Historical reviews, fixes, and completed implementations:
 1. Check `02-FEATURES/` for existing feature docs
 2. Follow patterns in `01-CORE/MASTER_ARCHITECTURE.txt`
 3. Review `01-CORE/ERROR_HANDLING_PLAN.txt`
-4. Add `export const dynamic = 'force-dynamic'` to new API routes
+4. All API routes live in `workers/src/routes/` (Hono handlers)
 
 ### **For Debugging:**
-1. Check `V4_Issues.txt` for recent fixes
+1. Check `ARCH_DOCS/LESSONS_LEARNED.md` for known pitfalls
 2. Check feature-specific docs in `02-FEATURES/`
 3. Review `archive/fixes/` for similar issues
 4. Consult `01-CORE/ERROR_HANDLING_PLAN.txt`
@@ -218,7 +216,7 @@ Historical reviews, fixes, and completed implementations:
 | Document | Purpose | Audience | Status |
 |----------|---------|----------|--------|
 | CURRENT_STATUS.md | System status & gaps | All | ✅ Current |
-| FULL_SYSTEM_ARCHITECTURE.md | Complete architecture | All devs | ✅ NEW |
+| FULL_SYSTEM_ARCHITECTURE.md | Complete architecture | All devs | ⚠️ Historical (v1.x) |
 | GAP_ANALYSIS.md | Gap analysis & roadmap | Product/Dev | ✅ NEW |
 | QUICK_REFERENCE.md | Cheat sheet | All | ✅ Current |
 | MASTER_ARCHITECTURE.txt | Core system design | All devs | ✅ Current |
@@ -234,35 +232,27 @@ Historical reviews, fixes, and completed implementations:
 
 ---
 
-## 🔧 **Recent Updates (January 14, 2026)**
+## 🔧 **Recent Updates (February 7, 2026)**
 
-### **New Features (v1.3):**
-1. ✅ **Cal.com-Style Booking** - Schedule calls for future execution
-   - Vercel Cron auto-originates at scheduled time
-   - New: `BOOKING_SCHEDULING.md` documentation
-2. ✅ **Chrome Extension** - Click-to-call from any webpage
-   - Quick call, context menu, phone detection
-   - New: `CHROME_EXTENSION.md` documentation
+### **v4.21–4.22: CIO Audit + Legacy Vendor Purge**
+1. ✅ **CIO Production Audit** — 7 critical fixes (RBAC, webhooks, pool leaks, health check)
+2. ✅ **Legacy Vendor Purge** — 100% clean of SignalWire/Supabase/NextAuth in active source
+3. ✅ **40+ garbage files deleted** — test scripts, stale migrations, build artifacts
+4. ✅ **apiClient TS fix** — 8 `unknown` type errors resolved
 
-### **Previous Features (v1.2):**
-3. ✅ **AI Survey Bot** - Inbound calls with SignalWire AI Agents
-   - Dynamic survey prompts, email results, conversation capture
+### **Historical: v1.x Features (January 2026)**
+### **Historical: v1.x Features (January 2026)**
+3. ✅ **AI Survey Bot** - Inbound calls (now via Telnyx)
 4. ✅ **Voice Cloning** - Clone caller's voice for translations (ElevenLabs)
 5. ✅ **Email Artifacts** - Send recordings/transcripts/translations as attachments
-6. ✅ **SignalWire Numbers API** - Manage inbound phone numbers
+6. ✅ **Inbound Numbers API** - Manage inbound phone numbers (now via Telnyx)
 
-### **Codebase Fixes Applied (January 13):**
-1. ✅ Added `export const dynamic = 'force-dynamic'` to all 38 API routes
-2. ✅ Fixed Supabase client centralization (3 files)
-3. ✅ Fixed NextAuth adapter build-time initialization
-4. ✅ Fixed test mock for NextResponse constructor
-5. ✅ Verified all service integrations in Cloudflare
+### **Historical Codebase Fixes (January 13):**
+> ⚠️ These fixes applied to the v1.x architecture (Supabase/NextAuth/Next.js API routes). All have been superseded by the Workers migration.
 
 ### **Documentation Updates:**
-- ✅ Updated `CURRENT_STATUS.md` with new features and metrics
-- ✅ Added `AI_SURVEY_BOT.md` feature documentation
-- ✅ Updated `Schema.txt` with new voice_configs fields
-- ✅ Updated this README with v1.2 status
+- ✅ Updated `CURRENT_STATUS.md` with v4.22 status
+- ✅ All ARCH_DOCS reviewed and stale content flagged/fixed
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Applicable Versions:** v4.8 – v4.13+
+**Applicable Versions:** v4.8 – v4.22+
 
 ---
 
@@ -283,7 +283,7 @@ SELECT * FROM calls WHERE id = $1 AND org_id = $2
 SELECT * FROM calls WHERE id = $1
 ```
 
-**Where org_id comes from:** Session object after `requireAuth()` middleware → `c.get('session').orgId`
+**Where org_id comes from:** Session object after `requireAuth()` middleware → `c.get('session').organization_id`
 
 ### RLS as Defense-in-Depth
 
@@ -314,7 +314,7 @@ In `workers/src/index.ts`, route registration order matters:
 ```typescript
 // After requireAuth() middleware:
 const session = c.get('session')
-const { userId, orgId, role } = session
+const { user_id, organization_id, role } = session // snake_case — see CRITICAL lesson above
 ```
 
 ### Environment Bindings
