@@ -1,9 +1,9 @@
-# Cloudflare & Codebase Roadmap (Updated: Feb 8, 2026)
+# Cloudflare & Codebase Roadmap (Updated: Feb 9, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
-**Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 104/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 30/30 production-verified  
+**Progress**: 107/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -43,7 +43,7 @@
 - [x] **Cache TTL** (`lib/cache.ts`): ORG preset bumped to 10m/24h. ✅
 - [x] **Cron Triggers** (`workers/wrangler.toml`): 3 crons configured. ✅
 - [x] **Health Route** (`workers/src/routes/health.ts`): Full bind checks. ✅
-- [x] **Deps Audit** (`package.json`): Removed 10 unused packages. ✅
+- [x] **Deps Audit** (`package.json`): Removed 10 unused packages. v4.19: Removed @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, stripe; moved pg to devDeps; deleted 25 dead legacy files (lib/services/, app/services/, lib/storage\*.ts). ✅
 - [x] **Workers Split** (`workers/`): Hono API fully scaffolded. ✅
 - [x] **Hyperdrive Fallback** (`lib/pgClient.ts`): Bind preference. ✅
 - [x] **KV Sessions** (`workers/src/lib/auth.ts`): JWT via KV. ✅
@@ -244,7 +244,7 @@ npm run health-check
 
 1. ✅ **Zod API Validation** (45+ schemas): All Workers routes validated
 2. ✅ **Error Boundaries** (app/): Root + 10 route-specific boundaries
-3. ✅ Console.log → Logger service migration (all Workers routes)
+3. ✅ Console.log → Logger service migration (all Workers routes) + v4.19: 60 console.log→debug() in useWebRTC.ts (no-op in prod)
 4. ✅ R2 proxy for recordings (already implemented in Workers)
 5. ✅ KV-backed rate limiting (already implemented)
 6. [ ] Playwright E2E for critical flows
@@ -260,7 +260,7 @@ npm run health-check
 ### Week 4+ (Feb 22+) - **Elegance & Scale**
 
 1. [ ] **CVA Migration** (Tailwind): Design system
-2. [x] **Suspense/Streaming** (app/): Loading boundaries for bookings, campaigns, reports, settings, analytics ✅
+2. [x] **Suspense/Streaming** (app/): Loading boundaries for bookings, campaigns, reports, settings, analytics + admin, teams, review (v4.19) ✅
 3. [ ] **HOF Hooks** (useCallModulation): Elegant patterns
 4. [x] OpenAPI generation ✅
 5. [x] Idempotency layer ✅
@@ -268,8 +268,8 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 104/109 (95%).
-**Last Updated**: Feb 8, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 107/109 (98%).
+**Last Updated**: Feb 9, 2026 by GitHub Copilot
 
 ---
 

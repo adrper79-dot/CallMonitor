@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 8, 2026  
-**Version:** 4.18 - Email Integration, Permissions-Policy, ESLint 9, ARCH_DOCS Fixes  
+**Last Updated:** February 9, 2026  
+**Version:** 4.19 - Dead Code Purge, Bundle Optimization, WebRTC Log Cleanup, Loading States  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,33 @@
 
 ---
 
-## 🔧 **Recent Updates (February 8, 2026)**
+## 🔧 **Recent Updates (February 9, 2026)**
+
+### **Dead Code Purge, Bundle Optimization, WebRTC Log Cleanup, Loading States (v4.19):** ✅ **DEPLOYED**
+
+1. **Dead Legacy Service Files Deleted** ⭐ **CODEBASE HYGIENE**
+   - Deleted entire `lib/services/` directory (11 files): campaignExecutor, crmService, stripeService, usageTracker, searchBuilder, externalEntityService, callerIdService, attentionService, crmProviders/hubspot, crmProviders/salesforce
+   - Deleted entire `app/services/` directory (9 files): aiService, elevenlabs, emailService, evidenceBundle, evidenceManifest, evidenceTypes, scoring, shopperScoring, translation
+   - Deleted `lib/storage.ts` and `lib/storageAdapter.ts` (only consumed by dead app/services/)
+   - All files verified zero-import via 2-pass subagent audit before deletion
+
+2. **Dead npm Dependencies Removed** ⭐ **BUNDLE SIZE**
+   - Removed `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (only used by dead `lib/storageAdapter.ts`; Workers uses R2 bindings)
+   - Removed `stripe` server SDK (only used by dead `lib/services/stripeService.ts`; Workers uses Stripe REST API directly)
+   - Moved `pg` from dependencies → devDependencies (only used by dev/test scripts; Workers uses `@neondatabase/serverless`)
+
+3. **WebRTC Console.log Cleanup** ⭐ **SECURITY + PERFORMANCE**
+   - Replaced 60 `console.log('[Telnyx]...')` statements in `hooks/useWebRTC.ts` with dev-only `debug()` function
+   - Production: zero console output (no-op). Development: full diagnostic logging preserved via `console.info`
+   - Eliminates partial token leakage to browser console in production
+
+4. **Loading State Skeletons** ✅ **UX**
+   - Added `app/admin/loading.tsx` — admin panel skeleton with 3-card layout
+   - Added `app/teams/loading.tsx` — team management skeleton with avatar placeholders
+   - Added `app/review/loading.tsx` — call review 2-column layout skeleton
+   - ROADMAP progress: 104/109 → **107/109 (98%)**
+
+---
 
 ### **Email Integration, Permissions-Policy, ESLint 9, ARCH_DOCS Fixes (v4.18):** ✅ **DEPLOYED**
 

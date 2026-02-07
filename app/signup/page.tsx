@@ -150,7 +150,7 @@ export default function SignUpPage() {
           const acceptData = await apiPost(`/api/team/invites/accept/${inviteToken}`, undefined)
 
           if (acceptData.success) {
-            console.log(`Joined organization: ${acceptData.organization_name}`)
+            console.info(`Joined organization: ${acceptData.organization_name}`)
           } else {
             console.warn('Failed to accept invite:', acceptData.error)
           }
