@@ -11,6 +11,7 @@ import { InviteMemberSchema, AddMemberSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { teamRateLimit } from '../lib/rate-limit'
+import { sendEmail, teamInviteEmailHtml } from '../lib/email'
 
 export const teamRoutes = new Hono<{ Bindings: Env }>()
 
@@ -159,8 +160,14 @@ teamRoutes.post('/invites', teamRateLimit, async (c) => {
       after: { email: email.toLowerCase(), role, expires_at: expiresAt.toISOString() },
     })
 
-    // TODO: Send email with Resend (for now, return the link)
-    logger.info('Invite created successfully')
+    // Send invite email via Resend (fire-and-forget — don't block response)
+    sendEmail(c.env.RESEND_API_KEY, {
+      to: email.toLowerCase(),
+      subject: `You're invited to join ${orgName} on Word Is Bond`,
+      html: teamInviteEmailHtml(inviteUrl, orgName, session.name || 'A team member', role),
+    }).catch(() => {})
+
+    logger.info('Invite created and email sent', { email: email.toLowerCase(), orgName })
 
     return c.json({
       success: true,

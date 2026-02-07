@@ -98,6 +98,12 @@ app.use(
       defaultSrc: ["'none'"],
       frameAncestors: ["'none'"],
     },
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+      payment: [],
+    },
   })
 )
 app.use(

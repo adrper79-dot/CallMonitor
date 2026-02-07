@@ -22,6 +22,7 @@ import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { callMutationRateLimit } from '../lib/rate-limit'
+import { sendEmail, callShareEmailHtml } from '../lib/email'
 
 export const callsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -1191,15 +1192,49 @@ callsRoutes.post('/:id/email', async (c) => {
     if (!parsed.success) return parsed.response
     const { recipients } = parsed.data
 
-    // TODO: Integrate with Resend API to actually send emails
-    // For now, return success stub
-    logger.info('Email requested', { callId, recipientCount: recipients.length })
+    // Fetch call details for the email
+    const db = getDb(c.env)
+    try {
+      const callResult = await db.query(
+        `SELECT id, phone_number, created_at, summary FROM calls WHERE id = $1 AND organization_id = $2`,
+        [callId, session.organization_id]
+      )
+      if (callResult.rows.length === 0) {
+        return c.json({ success: false, error: 'Call not found' }, 404)
+      }
+      const call = callResult.rows[0]
+      const callDate = new Date(call.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
 
-    return c.json({
-      success: true,
-      message: `Email queued for ${recipients.length} recipient(s)`,
-      recipients,
-    })
+      // Send email to all recipients (fire-and-forget per recipient)
+      for (const recipient of recipients) {
+        sendEmail(c.env.RESEND_API_KEY, {
+          to: recipient,
+          subject: `Call record shared by ${session.name || 'a team member'}`,
+          html: callShareEmailHtml(
+            callId,
+            session.name || 'A team member',
+            callDate,
+            call.summary,
+            appUrl
+          ),
+        }).catch(() => {})
+      }
+
+      logger.info('Call share email sent', { callId, recipientCount: recipients.length })
+
+      return c.json({
+        success: true,
+        message: `Email sent to ${recipients.length} recipient(s)`,
+        recipients,
+      })
+    } finally {
+      await db.end()
+    }
   } catch (error: any) {
     logger.error('POST email error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)

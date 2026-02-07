@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 8, 2026  
-**Version:** 4.17 - Password Reset, CSP Headers, SignalWire Cleanup, Dependency Audit  
+**Version:** 4.18 - Email Integration, Permissions-Policy, ESLint 9, ARCH_DOCS Fixes  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,35 @@
 ---
 
 ## 🔧 **Recent Updates (February 8, 2026)**
+
+### **Email Integration, Permissions-Policy, ESLint 9, ARCH_DOCS Fixes (v4.18):** ✅ **DEPLOYED**
+
+1. **Team Invite Emails via Resend** ⭐ **CRITICAL — WAS A TODO**
+   - `POST /api/team/invites` now sends branded HTML invite email via Resend (fire-and-forget)
+   - Uses existing `teamInviteEmailHtml()` template with org name, inviter name, role
+   - Invite link: `https://voxsouth.online/signup?invite={token}`
+
+2. **Call Share Emails via Resend** ⭐ **FEATURE COMPLETE**
+   - `POST /api/calls/:id/email` now sends actual emails (was a stub returning fake success)
+   - New `callShareEmailHtml()` template: call date, summary, review link
+   - Fetches call details from DB, sends to all recipients, proper `finally { db.end() }`
+
+3. **Permissions-Policy Header** ⭐ **SECURITY**
+   - Added `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()` to all API responses
+   - API domain explicitly disables browser features it should never need
+   - Full security header suite verified: CSP, HSTS, COOP, CORP, Referrer-Policy, X-Content-Type-Options
+
+4. **ESLint 9 Script Fix** ✅ **DX**
+   - Removed deprecated `--ext .ts,.tsx` flag from `lint`/`lint:fix` scripts (unsupported in ESLint 9 flat config)
+   - Scripts now work correctly: `npm run lint` / `npm run lint:fix`
+
+5. **ARCH_DOCS Corrections** ✅ **ACCURACY**
+   - `LESSONS_LEARNED.md`: Fixed session TTL documentation (was "24h", actual is 7 days)
+   - `LESSONS_LEARNED.md`: Updated SWML legacy code risk (marked resolved in v4.16)
+   - `LESSONS_LEARNED.md`: KV session TTL corrected from 24h to 7-day
+   - ROADMAP progress: 102/109 → **104/109 (95%)**
+
+---
 
 ### **Password Reset, CSP Headers, SignalWire Cleanup, Dependency Audit (v4.17):** ✅ **DEPLOYED**
 

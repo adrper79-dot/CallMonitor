@@ -437,7 +437,7 @@ Audit logs, analytics events, and cache updates use `.catch(() => {})` to never 
 
 ### 4. KV for Everything Ephemeral
 
-- Sessions (24h TTL)
+- Sessions (7-day TTL)
 - Rate limit counters (sliding window)
 - Idempotency keys (24h TTL)
 - Feature flags (cached)
@@ -527,8 +527,8 @@ The AI on this platform operates as a **notary/stenographer** — it observes, r
 1. **No E2E tests** — Playwright not yet configured. Critical flows (signin → call → recording) have no automated browser coverage.
 2. **WAF not configured** — Cloudflare WAF rules for `/api` not set up in dashboard.
 3. **RLS not audited in production** — `npm run db:rls-audit` has not been run against prod Neon.
-4. **No refresh tokens** — Sessions expire after 24h with no refresh mechanism (~4hr implementation).
-5. **SWML legacy code** — `app/_api_to_migrate/` and `lib/signalwire*` are dead code awaiting Telnyx VXML migration.
+4. **No refresh tokens** — Sessions expire after 7 days (KV TTL + DB `expires` column) with no refresh mechanism (~4hr implementation).
+5. ~~**SWML legacy code**~~ — ✅ Resolved in v4.16. All SignalWire code deleted, `.env.example` updated, Telnyx migration complete. Some references remain in `_api_to_migrate/` legacy files and ARCH_DOCS.
 6. **Workers tests not in vitest** — Workers route tests need wrangler's test runner, currently no CI coverage.
 
 ---

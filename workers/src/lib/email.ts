@@ -144,3 +144,47 @@ export function teamInviteEmailHtml(
 </body>
 </html>`
 }
+
+/**
+ * Call share email HTML template.
+ * Used when an operator shares call artifacts (recording, transcript, summary) via email.
+ */
+export function callShareEmailHtml(
+  callId: string,
+  senderName: string,
+  callDate: string,
+  callSummary: string | null,
+  appUrl: string = 'https://voxsouth.online'
+): string {
+  const reviewUrl = `${appUrl}/review?callId=${callId}`
+  const summaryBlock = callSummary
+    ? `<p style="margin:8px 0;padding:12px;background:#f3f4f6;border-radius:8px;font-size:14px;line-height:1.5;">${callSummary}</p>`
+    : ''
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;">
+    <tr><td style="padding:32px 32px 24px;text-align:center;">
+      <h1 style="margin:0;font-size:20px;color:#111827;font-weight:600;">Call Record Shared With You</h1>
+    </td></tr>
+    <tr><td style="padding:0 32px 16px;color:#4b5563;font-size:15px;line-height:1.6;">
+      <p><strong>${senderName}</strong> shared a call record from <strong>${callDate}</strong> with you.</p>
+      ${summaryBlock}
+    </td></tr>
+    <tr><td style="padding:0 32px 24px;text-align:center;">
+      <a href="${reviewUrl}" style="display:inline-block;padding:12px 32px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:500;font-size:15px;">
+        Review Call
+      </a>
+    </td></tr>
+    <tr><td style="padding:0 32px 24px;color:#6b7280;font-size:13px;line-height:1.5;">
+      <p>You need a Word Is Bond account to view this call. If you don't have one, contact the sender.</p>
+    </td></tr>
+    <tr><td style="padding:16px 32px;border-top:1px solid #f3f4f6;text-align:center;color:#9ca3af;font-size:12px;">
+      Word Is Bond — The System of Record for Business Conversations
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
