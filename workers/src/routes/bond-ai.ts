@@ -259,7 +259,8 @@ bondAiRoutes.post('/chat', requirePlan('pro'), aiLlmRateLimit, async (c) => {
       },
     })
   } catch (err: any) {
-    return c.json({ error: 'AI chat failed: ' + (err.message || 'Unknown error') }, 500)
+    logger.error('POST /api/bond-ai/chat error', { error: err?.message })
+    return c.json({ error: 'AI chat failed' }, 500)
   } finally {
     await db.end()
   }
@@ -676,7 +677,8 @@ bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
       latency_ms: aiResponse.latencyMs,
     })
   } catch (err: any) {
-    return c.json({ error: 'Co-pilot failed: ' + (err.message || 'Unknown error') }, 500)
+    logger.error('POST /api/bond-ai/copilot error', { error: err?.message })
+    return c.json({ error: 'Co-pilot failed' }, 500)
   } finally {
     await db.end()
   }

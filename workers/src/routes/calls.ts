@@ -343,7 +343,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
     return c.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+        error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
       },
       500
     )
@@ -472,7 +472,7 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
     return c.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+        error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
       },
       500
     )
@@ -608,7 +608,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
     return c.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: error.message || 'Internal server error' },
+        error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
       },
       500
     )

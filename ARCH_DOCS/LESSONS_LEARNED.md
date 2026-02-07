@@ -2,7 +2,59 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Applicable Versions:** v4.8 – v4.22+
+**Applicable Versions:** v4.8 – v4.24+
+
+---
+
+## 🔴 CRITICAL — Schema-Frontend Mismatches (v4.24 — 500 Errors in Production)
+
+**The Zod schema + SQL INSERT must match what the frontend actually sends.**
+
+### The Bug
+
+`BookingModal.tsx` sent `{start_time, end_time, duration_minutes, attendee_name, attendee_email, attendee_phone, from_number, notes}` but `CreateBookingSchema` in `schemas.ts` only accepted `{title, call_id, description, scheduled_at, attendees, status}`. Zod **silently stripped** all the unknown fields. The INSERT then tried to write `NULL` into `start_time` (a NOT NULL column) → 500.
+
+### Why It's Insidious
+
+- No Zod validation error — it passes because `title` (the only required field) was present
+- No TypeScript error — the frontend and backend schemas are in different packages
+- The error only surfaces at runtime when the INSERT hits the NOT NULL constraint
+- Appears as a generic "Failed to create booking" to the user
+
+### Prevention
+
+1. When adding form fields to a frontend component, ALWAYS update:
+   - The Zod schema in `workers/src/lib/schemas.ts`
+   - The INSERT/UPDATE SQL in the route handler
+   - The destructuring in the handler
+2. Run the frontend→API audit: verify field names match between `apiPost()` calls and `CreateXxxSchema`
+3. Name fields identically in frontend and DB — don't have `start_time` in the frontend and `scheduled_at` in the schema
+
+---
+
+## 🔴 CRITICAL — Optional Object Fields + Destructuring (v4.24)
+
+**If a Zod schema field is `.optional()` (e.g., `modulations`), the handler MUST null-check before accessing its properties.**
+
+### The Bug
+
+`VoiceConfigSchema.modulations` was `.optional()`, but the PUT handler did:
+
+```typescript
+const { modulations } = parsed.data
+// modulations could be undefined
+db.query(..., [modulations.record ?? false, ...])  // 💥 TypeError
+```
+
+### Compounding Bug
+
+Even when `modulations` was present, the handler used `modulations.record ?? false` — meaning if only `translate` was changed, every OTHER toggle was reset to `false`. The fix: build dynamic SET clauses that only update fields explicitly sent.
+
+### Prevention
+
+- After Zod `.optional()`, always null-check: `if (!modulations) return ...`
+- For UPSERT with optional fields, use dynamic SET clauses instead of blanket overwrite
+- Add `.passthrough()` to schemas that receive mapped field names from the frontend
 
 ---
 

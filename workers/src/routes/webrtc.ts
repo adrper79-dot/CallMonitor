@@ -221,13 +221,7 @@ webrtcRoutes.get('/token', async (c) => {
     })
   } catch (err: any) {
     logger.error('GET /api/webrtc/token error', { error: err?.message })
-    return c.json(
-      {
-        error: 'Failed to get WebRTC token',
-        details: err?.message || String(err),
-      },
-      500
-    )
+    return c.json({ error: 'Failed to get WebRTC token' }, 500)
   }
 })
 

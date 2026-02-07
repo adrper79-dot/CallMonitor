@@ -117,6 +117,15 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       return c.json({ error: 'Invalid organization' }, 400)
     }
 
+    // If no modulations provided, nothing to update
+    if (!modulations || Object.keys(modulations).length === 0) {
+      const existing = await db.query(
+        'SELECT * FROM voice_configs WHERE organization_id = $1 LIMIT 1',
+        [session.organization_id]
+      )
+      return c.json({ success: true, config: existing.rows[0] || {} })
+    }
+
     // Ensure voice_configs table exists
     await db.query(`
       CREATE TABLE IF NOT EXISTS voice_configs (
@@ -135,38 +144,63 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       )
     `)
 
-    // Upsert voice config with core columns only
-    const result = await db.query(
-      `INSERT INTO voice_configs (
-        organization_id, record, transcribe, translate, translate_from, translate_to,
-        survey, synthetic_caller, use_voice_cloning, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()
-      )
-      ON CONFLICT (organization_id)
-      DO UPDATE SET
-        record = EXCLUDED.record,
-        transcribe = EXCLUDED.transcribe,
-        translate = EXCLUDED.translate,
-        translate_from = EXCLUDED.translate_from,
-        translate_to = EXCLUDED.translate_to,
-        survey = EXCLUDED.survey,
-        synthetic_caller = EXCLUDED.synthetic_caller,
-        use_voice_cloning = EXCLUDED.use_voice_cloning,
-        updated_at = NOW()
-      RETURNING *`,
-      [
+    // Build dynamic SET clause — only update fields that were explicitly sent
+    const setClauses: string[] = []
+    const values: any[] = [session.organization_id]
+    let paramIndex = 2
+
+    if (modulations.record !== undefined) {
+      setClauses.push(`record = $${paramIndex++}`)
+      values.push(modulations.record)
+    }
+    if (modulations.transcribe !== undefined) {
+      setClauses.push(`transcribe = $${paramIndex++}`)
+      values.push(modulations.transcribe)
+    }
+    if (modulations.translate !== undefined) {
+      setClauses.push(`translate = $${paramIndex++}`)
+      values.push(modulations.translate)
+    }
+    if (modulations.translate_from !== undefined) {
+      setClauses.push(`translate_from = $${paramIndex++}`)
+      values.push(modulations.translate_from)
+    }
+    if (modulations.translate_to !== undefined) {
+      setClauses.push(`translate_to = $${paramIndex++}`)
+      values.push(modulations.translate_to)
+    }
+    if (modulations.survey !== undefined) {
+      setClauses.push(`survey = $${paramIndex++}`)
+      values.push(modulations.survey)
+    }
+    if (modulations.synthetic_caller !== undefined) {
+      setClauses.push(`synthetic_caller = $${paramIndex++}`)
+      values.push(modulations.synthetic_caller)
+    }
+    if (modulations.use_voice_cloning !== undefined) {
+      setClauses.push(`use_voice_cloning = $${paramIndex++}`)
+      values.push(modulations.use_voice_cloning)
+    }
+
+    let result
+    if (setClauses.length === 0) {
+      // No known fields changed — return existing config
+      result = await db.query('SELECT * FROM voice_configs WHERE organization_id = $1 LIMIT 1', [
         session.organization_id,
-        modulations.record ?? false,
-        modulations.transcribe ?? false,
-        modulations.translate ?? false,
-        modulations.translate_from || null,
-        modulations.translate_to || null,
-        modulations.survey ?? false,
-        modulations.synthetic_caller ?? false,
-        modulations.use_voice_cloning ?? false,
-      ]
-    )
+      ])
+    } else {
+      // Upsert: INSERT with defaults, UPDATE only the sent fields
+      result = await db.query(
+        `INSERT INTO voice_configs (
+          organization_id, record, transcribe, translate, translate_from, translate_to,
+          survey, synthetic_caller, use_voice_cloning, updated_at
+        ) VALUES ($1, false, false, false, NULL, NULL, false, false, false, NOW())
+        ON CONFLICT (organization_id)
+        DO UPDATE SET ${setClauses.join(', ')}, updated_at = NOW()
+        RETURNING *`,
+        values
+      )
+    }
 
     writeAuditLog(db, {
       organizationId: session.organization_id,
@@ -174,11 +208,7 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       resourceType: 'voice_configs',
       resourceId: session.organization_id,
       action: AuditAction.VOICE_CONFIG_UPDATED,
-      after: {
-        record: modulations.record,
-        transcribe: modulations.transcribe,
-        translate: modulations.translate,
-      },
+      after: modulations,
     })
 
     return c.json({
@@ -343,7 +373,7 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     })
   } catch (err: any) {
     logger.error('POST /api/voice/call error', { error: err?.message })
-    return c.json({ error: err.message || 'Failed to place call' }, 500)
+    return c.json({ error: 'Failed to place call' }, 500)
   } finally {
     await db.end()
   }

@@ -146,6 +146,7 @@ export const VoiceConfigSchema = z.object({
       synthetic_caller: z.boolean().optional(),
       use_voice_cloning: z.boolean().optional(),
     })
+    .passthrough()
     .optional(),
 })
 
@@ -213,15 +214,28 @@ export const CreateBookingSchema = z.object({
   title: nonEmptyString,
   call_id: z.string().max(200).optional().nullable(),
   description: z.string().max(5000).optional(),
-  scheduled_at: z.string().max(50).optional().nullable(),
-  attendees: z.array(z.string().max(254)).optional().default([]),
+  start_time: z.string().max(50),
+  end_time: z.string().max(50),
+  duration_minutes: z.number().int().min(1).max(480).default(30),
+  attendee_name: z.string().max(200).optional(),
+  attendee_email: z.string().email().max(254).optional(),
+  attendee_phone: z.string().max(30),
+  from_number: z.string().max(30).optional(),
+  notes: z.string().max(5000).optional(),
   status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).default('pending'),
 })
 
 export const UpdateBookingSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(5000).optional(),
-  scheduled_at: z.string().max(50).optional().nullable(),
+  start_time: z.string().max(50).optional(),
+  end_time: z.string().max(50).optional(),
+  duration_minutes: z.number().int().min(1).max(480).optional(),
+  attendee_name: z.string().max(200).optional(),
+  attendee_email: z.string().email().max(254).optional(),
+  attendee_phone: z.string().max(30).optional(),
+  from_number: z.string().max(30).optional().nullable(),
+  notes: z.string().max(5000).optional(),
   status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
 })
 
