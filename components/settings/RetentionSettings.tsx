@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { Switch } from '@/components/ui/switch'
@@ -38,7 +38,7 @@ interface RetentionSettingsProps {
 
 /**
  * Retention & Lifecycle Settings
- * 
+ *
  * Manages org-level retention policies, legal holds, and export compliance.
  * Per ARCH_DOCS/01-CORE/SYSTEM_OF_RECORD_COMPLIANCE.md
  */
@@ -48,45 +48,47 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   // New hold form state
   const [showNewHoldForm, setShowNewHoldForm] = useState(false)
   const [newHoldName, setNewHoldName] = useState('')
   const [newHoldMatter, setNewHoldMatter] = useState('')
   const [newHoldAppliesToAll, setNewHoldAppliesToAll] = useState(false)
-  
+
   // Fetch policy and holds
   useEffect(() => {
     async function fetchData() {
       try {
         const [policyData, holdsData] = await Promise.all([
           apiGet<{ policy: RetentionPolicy }>('/api/retention').catch(() => ({ policy: null })),
-          apiGet<{ legal_holds: LegalHold[] }>('/api/retention/legal-holds').catch(() => ({ legal_holds: [] })),
+          apiGet<{ legal_holds: LegalHold[] }>('/api/retention/legal-holds').catch(() => ({
+            legal_holds: [],
+          })),
         ])
-        
+
         if (policyData.policy) {
           setPolicy(policyData.policy)
         }
-        
+
         setLegalHolds(holdsData.legal_holds || [])
       } catch (err) {
         setError('Failed to load retention settings')
         logger.error('RetentionSettings: failed to load policy or holds', err, {
-          organizationId
+          organizationId,
         })
       } finally {
         setLoading(false)
       }
     }
-    
+
     fetchData()
   }, [organizationId])
-  
+
   // Save policy updates
   async function savePolicy(updates: Partial<RetentionPolicy>) {
     setSaving(true)
     setError(null)
-    
+
     try {
       const data = await apiPut<{ policy: RetentionPolicy }>('/api/retention', updates)
       setPolicy(data.policy)
@@ -94,28 +96,28 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       setError('Failed to save retention policy')
       logger.error('RetentionSettings: failed to save policy', err, {
         organizationId,
-        updates
+        updates,
       })
     } finally {
       setSaving(false)
     }
   }
-  
+
   // Create legal hold
   async function createLegalHold() {
     if (!newHoldName.trim()) return
-    
+
     setSaving(true)
     setError(null)
-    
+
     try {
       const data = await apiPost<{ legal_hold: LegalHold }>('/api/retention/legal-holds', {
         hold_name: newHoldName,
         matter_reference: newHoldMatter || undefined,
         applies_to_all: newHoldAppliesToAll,
       })
-      
-      setLegalHolds(prev => [data.legal_hold, ...prev])
+
+      setLegalHolds((prev) => [data.legal_hold, ...prev])
       setShowNewHoldForm(false)
       setNewHoldName('')
       setNewHoldMatter('')
@@ -125,35 +127,37 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       logger.error('RetentionSettings: failed to create legal hold', err, {
         organizationId,
         holdName: newHoldName,
-        appliesToAll: newHoldAppliesToAll
+        appliesToAll: newHoldAppliesToAll,
       })
     } finally {
       setSaving(false)
     }
   }
-  
+
   // Release legal hold
   async function releaseLegalHold(holdId: string, reason: string) {
     setSaving(true)
     setError(null)
-    
+
     try {
-      await apiDelete(`/api/retention/legal-holds?hold_id=${holdId}&release_reason=${encodeURIComponent(reason)}`)
-      
-      setLegalHolds(prev => prev.map(h => 
-        h.id === holdId ? { ...h, status: 'released' as const } : h
-      ))
+      await apiDelete(
+        `/api/retention/legal-holds/${holdId}?release_reason=${encodeURIComponent(reason)}`
+      )
+
+      setLegalHolds((prev) =>
+        prev.map((h) => (h.id === holdId ? { ...h, status: 'released' as const } : h))
+      )
     } catch (err) {
       setError('Failed to release legal hold')
       logger.error('RetentionSettings: failed to release legal hold', err, {
         organizationId,
-        holdId
+        holdId,
       })
     } finally {
       setSaving(false)
     }
   }
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -162,9 +166,9 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
       </div>
     )
   }
-  
-  const activeHolds = legalHolds.filter(h => h.status === 'active')
-  
+
+  const activeHolds = legalHolds.filter((h) => h.status === 'active')
+
   return (
     <div className="space-y-8">
       {error && (
@@ -172,7 +176,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
           {error}
         </div>
       )}
-      
+
       {/* Retention Policy Section */}
       <section className="space-y-6">
         <div>
@@ -181,7 +185,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
             Configure how long call evidence is retained and when it's automatically archived.
           </p>
         </div>
-        
+
         <div className="bg-white rounded-md border border-gray-200 p-6 space-y-6">
           {/* Default Retention Class */}
           <div>
@@ -202,7 +206,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
               Applied to all new calls. Existing calls are not affected.
             </p>
           </div>
-          
+
           {/* Auto-Archive */}
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -213,15 +217,15 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                 type="number"
                 min="0"
                 value={policy?.auto_archive_after_days ?? 90}
-                onChange={(e) => savePolicy({ auto_archive_after_days: parseInt(e.target.value) || null })}
+                onChange={(e) =>
+                  savePolicy({ auto_archive_after_days: parseInt(e.target.value) || null })
+                }
                 disabled={!canEdit || saving}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                0 = Never auto-archive
-              </p>
+              <p className="text-xs text-gray-500 mt-1">0 = Never auto-archive</p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">
                 Regulated Retention (Days)
@@ -230,7 +234,9 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                 type="number"
                 min="0"
                 value={policy?.regulated_retention_days ?? 2555}
-                onChange={(e) => savePolicy({ regulated_retention_days: parseInt(e.target.value) || 0 })}
+                onChange={(e) =>
+                  savePolicy({ regulated_retention_days: parseInt(e.target.value) || 0 })
+                }
                 disabled={!canEdit || saving}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
               />
@@ -239,7 +245,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
               </p>
             </div>
           </div>
-          
+
           {/* Legal Hold Contact */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
@@ -259,7 +265,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
           </div>
         </div>
       </section>
-      
+
       {/* Legal Holds Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
@@ -279,13 +285,23 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
             </button>
           )}
         </div>
-        
+
         {/* Active Holds Warning */}
         {activeHolds.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
             <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-amber-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <svg
+                className="w-5 h-5 text-amber-600 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
               </svg>
               <div>
                 <p className="text-sm font-medium text-amber-800">
@@ -298,16 +314,14 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
             </div>
           </div>
         )}
-        
+
         {/* New Hold Form */}
         {showNewHoldForm && (
           <div className="bg-white rounded-md border border-gray-200 p-6 space-y-4">
             <h3 className="text-base font-semibold text-gray-900">New Legal Hold</h3>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hold Name *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hold Name *</label>
               <input
                 type="text"
                 value={newHoldName}
@@ -316,7 +330,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Matter Reference
@@ -329,7 +343,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Switch
                 checked={newHoldAppliesToAll}
@@ -341,7 +355,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                 <p className="text-xs text-gray-500">Hold all current and future call evidence</p>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={() => setShowNewHoldForm(false)}
@@ -359,7 +373,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
             </div>
           </div>
         )}
-        
+
         {/* Holds List */}
         <div className="bg-white rounded-md border border-gray-200 divide-y divide-gray-200">
           {legalHolds.length === 0 ? (
@@ -367,7 +381,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
               No legal holds. Evidence can be exported and deleted normally.
             </div>
           ) : (
-            legalHolds.map(hold => (
+            legalHolds.map((hold) => (
               <div key={hold.id} className="p-4">
                 <div className="flex items-start justify-between">
                   <div>
@@ -386,7 +400,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
                       Created {new Date(hold.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  
+
                   {canEdit && hold.status === 'active' && (
                     <button
                       onClick={() => {
@@ -407,32 +421,72 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
           )}
         </div>
       </section>
-      
+
       {/* Export Compliance Info */}
       <section className="bg-white rounded-md border border-gray-200 p-6">
         <h3 className="text-base font-semibold text-gray-900 mb-4">Export Compliance</h3>
         <ul className="space-y-3 text-sm text-gray-600">
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <span>All export requests are logged in the audit trail</span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <span>Calls under legal hold cannot be exported until released</span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <span>Retention policy compliance is verified before each export</span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <span>Export bundles include cryptographic integrity verification</span>
           </li>

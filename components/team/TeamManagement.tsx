@@ -36,7 +36,7 @@ const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-purple-900/50 text-purple-300 border-purple-600',
   operator: 'bg-blue-900/50 text-blue-300 border-blue-600',
   analyst: 'bg-green-900/50 text-green-300 border-green-600',
-  viewer: 'bg-slate-700/50 text-slate-300 border-slate-600'
+  viewer: 'bg-slate-700/50 text-slate-300 border-slate-600',
 }
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -44,7 +44,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   admin: 'Manage team, calls, and settings',
   operator: 'Make calls, view recordings, run campaigns',
   analyst: 'View recordings, transcripts, and analytics',
-  viewer: 'View-only access to dashboards'
+  viewer: 'View-only access to dashboards',
 }
 
 export default function TeamManagement({ organizationId }: TeamManagementProps) {
@@ -53,7 +53,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Invite form state
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -67,11 +67,11 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
   async function fetchTeam() {
     if (!organizationId) return
-    
+
     try {
       setLoading(true)
       const data = await apiGet('/api/team/members')
-      
+
       if (data.success) {
         setMembers(data.members || [])
         setPendingInvites(data.pending_invites || [])
@@ -95,11 +95,11 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     setInviteSuccess(null)
 
     try {
-      const data = await apiPost('/api/team/invite', { 
-        email: inviteEmail.trim(), 
-        role: inviteRole 
+      const data = await apiPost('/api/team/invites', {
+        email: inviteEmail.trim(),
+        role: inviteRole,
       })
-      
+
       if (data.success) {
         setInviteSuccess(`Invitation sent to ${inviteEmail}`)
         setInviteEmail('')
@@ -117,11 +117,11 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
   async function handleRoleChange(memberId: string, newRole: string) {
     try {
-      const data = await apiPut('/api/team/members', { 
-        member_id: memberId, 
-        role: newRole 
+      const data = await apiPost('/api/team/members', {
+        member_id: memberId,
+        role: newRole,
       })
-      
+
       if (data.success) {
         fetchTeam()
       } else {
@@ -136,8 +136,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     if (!confirm('Are you sure you want to remove this team member?')) return
 
     try {
-      const data = await apiDelete(`/api/team/members?member_id=${memberId}`)
-      
+      const data = await apiDelete(`/api/team/members/${memberId}`)
+
       if (data.success) {
         fetchTeam()
       } else {
@@ -150,8 +150,8 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
   async function handleCancelInvite(inviteId: string) {
     try {
-      const data = await apiDelete(`/api/team/invite?invite_id=${inviteId}`)
-      
+      const data = await apiDelete(`/api/team/invites/${inviteId}`)
+
       if (data.success) {
         fetchTeam()
       } else {
@@ -162,7 +162,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     }
   }
 
-  const currentUserRole = members.find(m => m.user?.id === currentUserId)?.role
+  const currentUserRole = members.find((m) => m.user?.id === currentUserId)?.role
   const canManageTeam = currentUserRole === 'owner' || currentUserRole === 'admin'
 
   if (loading) {
@@ -184,15 +184,13 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
           </h2>
           <p className="text-sm text-slate-400">
             {members.length} member{members.length !== 1 ? 's' : ''}
-            {pendingInvites.length > 0 && ` • ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`}
+            {pendingInvites.length > 0 &&
+              ` • ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`}
           </p>
         </div>
-        
+
         {canManageTeam && (
-          <Button
-            onClick={() => setShowInviteForm(true)}
-            className="bg-teal-600 hover:bg-teal-700"
-          >
+          <Button onClick={() => setShowInviteForm(true)} className="bg-teal-600 hover:bg-teal-700">
             + Invite Member
           </Button>
         )}
@@ -212,7 +210,10 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
 
       {/* Invite Form */}
       {showInviteForm && (
-        <form onSubmit={handleInvite} className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+        <form
+          onSubmit={handleInvite}
+          className="p-4 bg-slate-800/50 rounded-xl border border-slate-700"
+        >
           <h3 className="font-medium text-white mb-4">Invite Team Member</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -236,9 +237,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
               <option value="viewer">Viewer</option>
             </select>
           </div>
-          <p className="text-xs text-slate-500 mt-2">
-            {ROLE_DESCRIPTIONS[inviteRole]}
-          </p>
+          <p className="text-xs text-slate-500 mt-2">{ROLE_DESCRIPTIONS[inviteRole]}</p>
           <div className="flex gap-2 mt-4">
             <Button type="submit" disabled={inviting} className="bg-teal-600 hover:bg-teal-700">
               {inviting ? 'Sending...' : 'Send Invitation'}
@@ -255,16 +254,22 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
         <table className="w-full">
           <thead className="bg-slate-900/50">
             <tr>
-              <th className="text-left p-4 text-xs text-slate-400 uppercase tracking-wide">Member</th>
+              <th className="text-left p-4 text-xs text-slate-400 uppercase tracking-wide">
+                Member
+              </th>
               <th className="text-left p-4 text-xs text-slate-400 uppercase tracking-wide">Role</th>
-              <th className="text-left p-4 text-xs text-slate-400 uppercase tracking-wide">Joined</th>
+              <th className="text-left p-4 text-xs text-slate-400 uppercase tracking-wide">
+                Joined
+              </th>
               {canManageTeam && (
-                <th className="text-right p-4 text-xs text-slate-400 uppercase tracking-wide">Actions</th>
+                <th className="text-right p-4 text-xs text-slate-400 uppercase tracking-wide">
+                  Actions
+                </th>
               )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700">
-            {members.map(member => (
+            {members.map((member) => (
               <tr key={member.id} className="hover:bg-slate-700/30">
                 <td className="p-4">
                   <div className="flex items-center gap-3">
@@ -292,7 +297,9 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
                       <option value="viewer">Viewer</option>
                     </select>
                   ) : (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${ROLE_COLORS[member.role]}`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium border ${ROLE_COLORS[member.role]}`}
+                    >
                       {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                     </span>
                   )}
@@ -323,14 +330,18 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
         <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
           <h3 className="text-sm font-medium text-slate-300 mb-4">Pending Invitations</h3>
           <div className="space-y-2">
-            {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+            {pendingInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg"
+              >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">✉️</span>
                   <div>
                     <p className="text-white">{invite.email}</p>
                     <p className="text-xs text-slate-400">
-                      Role: {invite.role} • Expires {new Date(invite.expires_at).toLocaleDateString()}
+                      Role: {invite.role} • Expires{' '}
+                      {new Date(invite.expires_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -354,7 +365,9 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           {Object.entries(ROLE_DESCRIPTIONS).map(([role, desc]) => (
             <div key={role} className="text-center p-2">
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${ROLE_COLORS[role]} mb-2`}>
+              <span
+                className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${ROLE_COLORS[role]} mb-2`}
+              >
                 {role.charAt(0).toUpperCase() + role.slice(1)}
               </span>
               <p className="text-xs text-slate-500">{desc}</p>

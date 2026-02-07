@@ -35,7 +35,7 @@ const QUESTION_TYPES = [
   { value: 'scale', label: 'Rating Scale (1-5)' },
   { value: 'yes_no', label: 'Yes/No' },
   { value: 'text', label: 'Free Text' },
-  { value: 'multiple_choice', label: 'Multiple Choice' }
+  { value: 'multiple_choice', label: 'Multiple Choice' },
 ]
 
 /**
@@ -48,7 +48,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
   const [error, setError] = useState<string | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [saving, setSaving] = useState(false)
-  
+
   const { role, plan } = useRBAC(organizationId)
   const canEdit = role === 'owner' || role === 'admin'
   const hasSurveyFeature = plan && ['insights', 'global', 'business', 'enterprise'].includes(plan)
@@ -58,18 +58,18 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
   const [newQuestion, setNewQuestion] = useState<Partial<SurveyQuestion>>({
     text: '',
     type: 'scale',
-    required: true
+    required: true,
   })
   const [newOption, setNewOption] = useState('')
 
   const fetchSurveys = async () => {
     if (!organizationId) return
-    
+
     try {
       setLoading(true)
       setError(null)
       const data = await apiGet(`/api/surveys?orgId=${encodeURIComponent(organizationId)}`)
-      
+
       if (data.success) {
         setSurveys(data.surveys || [])
       } else {
@@ -95,7 +95,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
       name: '',
       description: '',
       questions: [],
-      is_active: true
+      is_active: true,
     })
     setShowEditor(true)
   }
@@ -107,16 +107,16 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
 
   const handleSaveSurvey = async () => {
     if (!editingSurvey || !organizationId || !editingSurvey.name) return
-    
+
     try {
       setSaving(true)
       setError(null)
-      
+
       const data = await apiPost('/api/surveys', {
         ...editingSurvey,
-        organization_id: organizationId
+        organization_id: organizationId,
       })
-      
+
       if (data.success) {
         setShowEditor(false)
         setEditingSurvey(null)
@@ -133,44 +133,44 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
 
   const handleDeleteSurvey = async (surveyId: string) => {
     if (!confirm('Delete this survey?')) return
-    
+
     try {
-      await apiDelete(`/api/surveys?id=${surveyId}&orgId=${organizationId}`)
+      await apiDelete(`/api/surveys/${surveyId}`)
       fetchSurveys()
     } catch (err) {
       logger.error('SurveyBuilder: failed to delete survey', err, {
         organizationId,
-        surveyId
+        surveyId,
       })
     }
   }
 
   const addQuestion = () => {
     if (!editingSurvey || !newQuestion.text || !newQuestion.type) return
-    
+
     const question: SurveyQuestion = {
       id: `q_${Date.now()}`,
       text: newQuestion.text,
       type: newQuestion.type as any,
       options: newQuestion.type === 'multiple_choice' ? newQuestion.options : undefined,
       required: newQuestion.required ?? true,
-      order: (editingSurvey.questions?.length || 0) + 1
+      order: (editingSurvey.questions?.length || 0) + 1,
     }
-    
+
     setEditingSurvey({
       ...editingSurvey,
-      questions: [...(editingSurvey.questions || []), question]
+      questions: [...(editingSurvey.questions || []), question],
     })
-    
+
     setNewQuestion({ text: '', type: 'scale', required: true, options: [] })
   }
 
   const removeQuestion = (questionId: string) => {
     if (!editingSurvey) return
-    
+
     setEditingSurvey({
       ...editingSurvey,
-      questions: editingSurvey.questions?.filter(q => q.id !== questionId)
+      questions: editingSurvey.questions?.filter((q) => q.id !== questionId),
     })
   }
 
@@ -178,7 +178,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
     if (!newOption.trim()) return
     setNewQuestion({
       ...newQuestion,
-      options: [...(newQuestion.options || []), newOption.trim()]
+      options: [...(newQuestion.options || []), newOption.trim()],
     })
     setNewOption('')
   }
@@ -186,7 +186,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
   const removeOption = (index: number) => {
     setNewQuestion({
       ...newQuestion,
-      options: newQuestion.options?.filter((_, i) => i !== index)
+      options: newQuestion.options?.filter((_, i) => i !== index),
     })
   }
 
@@ -197,14 +197,22 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
   if (!hasSurveyFeature) {
     return (
       <div className="text-center py-12 bg-warning-light rounded-md border border-amber-200">
-        <svg className="w-12 h-12 mx-auto mb-4 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <svg
+          className="w-12 h-12 mx-auto mb-4 text-warning"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
         </svg>
         <h4 className="text-lg font-medium text-gray-900 mb-2">Survey Feature</h4>
-        <p className="text-gray-600 mb-4">
-          After-call surveys require the Insights plan or higher
-        </p>
-        <Button onClick={() => window.location.href = '/settings?tab=billing'}>
+        <p className="text-gray-600 mb-4">After-call surveys require the Insights plan or higher</p>
+        <Button onClick={() => (window.location.href = '/settings?tab=billing')}>
           Upgrade Plan
         </Button>
       </div>
@@ -236,23 +244,27 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
       )}
 
       {/* Loading */}
-      {loading && (
-        <div className="text-center py-8 text-gray-500">Loading surveys...</div>
-      )}
+      {loading && <div className="text-center py-8 text-gray-500">Loading surveys...</div>}
 
       {/* Empty State */}
       {!loading && surveys.length === 0 && !showEditor && (
         <div className="text-center py-12 bg-gray-50 rounded-md border border-gray-200">
-          <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            className="w-12 h-12 mx-auto mb-4 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
           <h4 className="text-lg font-medium text-gray-900 mb-2">No Surveys Yet</h4>
-          <p className="text-gray-500 mb-4">
-            Create a survey to collect feedback after calls
-          </p>
-          {canEdit && (
-            <Button onClick={handleNewSurvey}>Create Your First Survey</Button>
-          )}
+          <p className="text-gray-500 mb-4">Create a survey to collect feedback after calls</p>
+          {canEdit && <Button onClick={handleNewSurvey}>Create Your First Survey</Button>}
         </div>
       )}
 
@@ -278,18 +290,12 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                   <div className="flex gap-4 text-xs text-gray-400">
                     <span>{survey.questions?.length || 0} questions</span>
                     <span>Created {new Date(survey.created_at).toLocaleDateString()}</span>
-                    {survey.use_count !== undefined && (
-                      <span>{survey.use_count} responses</span>
-                    )}
+                    {survey.use_count !== undefined && <span>{survey.use_count} responses</span>}
                   </div>
                 </div>
                 {canEdit && (
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditSurvey(survey)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handleEditSurvey(survey)}>
                       Edit
                     </Button>
                     <Button
@@ -303,7 +309,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                   </div>
                 )}
               </div>
-              
+
               {/* Preview questions */}
               {survey.questions && survey.questions.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
@@ -311,7 +317,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                   <div className="space-y-1">
                     {survey.questions.slice(0, 3).map((q, idx) => (
                       <div key={q.id} className="text-sm text-gray-600">
-                        {idx + 1}. {q.text} 
+                        {idx + 1}. {q.text}
                         <span className="text-gray-400 ml-2">({q.type})</span>
                       </div>
                     ))}
@@ -361,7 +367,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Questions ({editingSurvey.questions?.length || 0})
             </label>
-            
+
             {/* Existing questions */}
             <div className="space-y-2 mb-4">
               {editingSurvey.questions?.map((question, idx) => (
@@ -381,7 +387,12 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                     className="text-error"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </Button>
                 </div>
@@ -391,28 +402,32 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
             {/* Add new question */}
             <div className="p-4 bg-gray-50 rounded-md border border-gray-200 space-y-3">
               <div className="text-sm font-medium text-gray-700">Add Question</div>
-              
+
               <Input
                 label="Question Text"
                 value={newQuestion.text || ''}
                 onChange={(e) => setNewQuestion({ ...newQuestion, text: e.target.value })}
                 placeholder="How satisfied were you with our service today?"
               />
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                   <select
                     value={newQuestion.type || 'scale'}
-                    onChange={(e) => setNewQuestion({ 
-                      ...newQuestion, 
-                      type: e.target.value as any,
-                      options: e.target.value === 'multiple_choice' ? [] : undefined
-                    })}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        type: e.target.value as any,
+                        options: e.target.value === 'multiple_choice' ? [] : undefined,
+                      })
+                    }
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 text-sm focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                   >
                     {QUESTION_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -421,7 +436,9 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                     <input
                       type="checkbox"
                       checked={newQuestion.required ?? true}
-                      onChange={(e) => setNewQuestion({ ...newQuestion, required: e.target.checked })}
+                      onChange={(e) =>
+                        setNewQuestion({ ...newQuestion, required: e.target.checked })
+                      }
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-600"
                     />
                     Required
@@ -449,8 +466,18 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                       <Badge key={idx} variant="default" className="gap-1">
                         {opt}
                         <button onClick={() => removeOption(idx)} className="ml-1 hover:text-error">
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
                           </svg>
                         </button>
                       </Badge>
@@ -459,9 +486,9 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
                 </div>
               )}
 
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={addQuestion}
                 disabled={!newQuestion.text}
                 className="w-full"
@@ -505,11 +532,21 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
       <div className="p-4 bg-info-light border border-blue-200 rounded-md">
         <h4 className="text-sm font-medium text-gray-900 mb-2">How Surveys Work</h4>
         <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-          <li><strong>After-Call:</strong> Survey runs automatically after call ends</li>
-          <li><strong>AI-Powered:</strong> Voice bot asks questions using natural TTS</li>
-          <li><strong>Analytics:</strong> Results appear in call artifacts and dashboard</li>
-          <li><strong>Scale Questions:</strong> "Rate 1 to 5" with voice recognition</li>
-          <li><strong>Text Questions:</strong> Open-ended responses transcribed</li>
+          <li>
+            <strong>After-Call:</strong> Survey runs automatically after call ends
+          </li>
+          <li>
+            <strong>AI-Powered:</strong> Voice bot asks questions using natural TTS
+          </li>
+          <li>
+            <strong>Analytics:</strong> Results appear in call artifacts and dashboard
+          </li>
+          <li>
+            <strong>Scale Questions:</strong> "Rate 1 to 5" with voice recognition
+          </li>
+          <li>
+            <strong>Text Questions:</strong> Open-ended responses transcribed
+          </li>
         </ul>
       </div>
     </div>

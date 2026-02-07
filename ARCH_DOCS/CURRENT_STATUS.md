@@ -1,7 +1,7 @@
-# Wordis Bond - Current Status & Quick Reference
+# Word Is Bond - Current Status & Quick Reference
 
 **Last Updated:** February 7, 2026  
-**Version:** 4.22 - CIO Audit, Legacy Vendor Purge, apiClient TS Fix  
+**Version:** 4.23 - Production Site Crawl + Defect Remediation  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,53 @@
 ---
 
 ## 🔧 **Recent Updates (February 7, 2026)**
+
+### **Production Site Crawl + Defect Remediation (v4.23):** ✅ **DEPLOYED**
+
+Full-site crawl of all 27 pages on `voxsouth.online` + API smoke test of 18 endpoints. Discovered and fixed:
+
+**🔴 Critical Defects Fixed (4):**
+
+- **DEF-1**: 16 broken `/api/auth/signin` links → `/signin` + `/signup` across 4 vertical pages (government, healthcare, legal, property-management)
+- **DEF-2**: Dead `/docs/API` links → `/api-docs` in healthcare + legal footers
+- **DEF-3**: Blank `/api-docs` page — rewrote from server-rendered `<script />` (doesn't execute in JSX) to client component with dynamic `useEffect` Swagger UI initialization
+- **DEF-4**: Pricing mismatch — case studies ROI calculator aligned to canonical pricing ($49/$149)
+
+**🟡 Frontend-API Path Mismatches Fixed (8):**
+
+- `/api/analytics/sentiment-trends` → `/api/analytics/sentiment` (actual worker route)
+- `/api/team/invite` POST → `/api/team/invites` (plural)
+- `/api/team/invite?invite_id=X` DELETE → `/api/team/invites/:id` (path param)
+- `/api/team/members` PUT → POST (no PUT handler exists)
+- `/api/team/members?member_id=X` DELETE → `/api/team/members/:id` (path param)
+- `/api/surveys?id=X` DELETE → `/api/surveys/:id` (path param)
+- `/api/retention/legal-holds?hold_id=X` DELETE → `/api/retention/legal-holds/:id` (path param)
+- `/api/voice/targets?id=X` DELETE → `/api/voice/targets/:id` (path param)
+
+**🟢 Warnings Fixed (9):**
+
+- WARN-2: Healthcare page copyright → "Latimer + Woods Tech LLC" (consistent)
+- WARN-3: Government SOC 2 → added "Ready" qualifier (consistent with other pages)
+- WARN-4: Added metadata to 5 pages (signin, signup, forgot-password, reset-password, pricing)
+- WARN-5: Added `og:image` + `metadataBase` to root layout
+- WARN-7: "Start Free Trial" CTAs → `/signup` (was `/signin`) on case-studies + compare pages
+- WARN-8: Pricing page CTAs → `/signup` (was auth-gated `/settings?tab=billing`)
+- Fixed "Wordis Bond" → "Word Is Bond" in root layout metadata
+- Fixed apple icon path (`/logo.png` → `/logo.jpg` — matching actual file)
+
+**📊 API Smoke Test Results:**
+
+- 11/18 endpoints PASS (auth enforcement verified, 404s correct)
+- 7 test-path mismatches confirmed NOT bugs (tester used wrong sub-paths)
+- Security: CLEAN — no stack traces, no secrets leaked
+
+**⚠️ Known Open Items (require user decision):**
+
+- WARN-1: 3 different email domains in use (wordisbond.com, wordisbond.ai, voxsouth.online)
+- WARN-6: "See How It Works" homepage button has no scroll target (needs `id="how-it-works"` section)
+- WARN-9: Duplicate nav links in vertical page footers (low priority)
+- `/api/auth/unlock`, `/api/auth/sso` — frontend components call non-existent worker routes (features not yet implemented)
+- `/api/calls/getCallStatus` — frontend hook calls non-existent worker route (feature not yet implemented)
 
 ### **CIO Audit + Legacy Vendor Purge + TS Build Fix (v4.21 → v4.22.1):** ✅ **DEPLOYED**
 

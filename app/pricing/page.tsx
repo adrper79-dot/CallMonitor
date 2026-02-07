@@ -1,5 +1,12 @@
+import { Metadata } from 'next'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
+
+export const metadata: Metadata = {
+  title: 'Pricing | Word Is Bond',
+  description:
+    'Simple, transparent pricing for evidence-grade call monitoring. Start free, scale as you grow.',
+}
 
 export default function PricingPage() {
   return (
@@ -11,8 +18,12 @@ export default function PricingPage() {
             <span className="font-semibold text-gray-900">Wordis Bond</span>
           </Link>
           <div className="flex items-center gap-4 text-sm">
-            <Link href="/trust" className="text-gray-600 hover:text-gray-900">Trust Pack</Link>
-            <Link href="/dashboard" className="text-primary-600 hover:text-primary-700 font-medium">Go to App</Link>
+            <Link href="/trust" className="text-gray-600 hover:text-gray-900">
+              Trust Pack
+            </Link>
+            <Link href="/dashboard" className="text-primary-600 hover:text-primary-700 font-medium">
+              Go to App
+            </Link>
           </div>
         </div>
       </header>
@@ -36,7 +47,7 @@ export default function PricingPage() {
               'Recording + transcription',
               'Evidence manifests',
               'Export bundle (basic)',
-              'Email artifacts'
+              'Email artifacts',
             ]}
             cta="Start Pro"
           />
@@ -49,7 +60,7 @@ export default function PricingPage() {
               'Audit-ready evidence bundle',
               'Verification endpoint',
               'Translation + TTS',
-              'Secret shopper scripts'
+              'Secret shopper scripts',
             ]}
             cta="Upgrade to Business"
           />
@@ -61,7 +72,7 @@ export default function PricingPage() {
               'Retention controls + legal hold',
               'Dedicated support',
               'SSO + custom roles',
-              'Custom compliance requirements'
+              'Custom compliance requirements',
             ]}
             cta="Talk to Sales"
           />
@@ -97,7 +108,7 @@ function PlanCard({
   description,
   features,
   cta,
-  highlight = false
+  highlight = false,
 }: {
   name: string
   price: string
@@ -107,7 +118,9 @@ function PlanCard({
   highlight?: boolean
 }) {
   return (
-    <div className={`border rounded-md p-6 ${highlight ? 'border-primary-600 bg-primary-50' : 'border-gray-200 bg-white'}`}>
+    <div
+      className={`border rounded-md p-6 ${highlight ? 'border-primary-600 bg-primary-50' : 'border-gray-200 bg-white'}`}
+    >
       <div className="mb-4">
         <p className="text-sm text-gray-500 uppercase tracking-wide">{name}</p>
         <p className="text-3xl font-semibold text-gray-900 mt-2">{price}</p>
@@ -119,9 +132,11 @@ function PlanCard({
         ))}
       </ul>
       <Link
-        href="/settings?tab=billing"
+        href="/signup"
         className={`block text-center py-2 rounded-md font-medium ${
-          highlight ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-900 text-white hover:bg-gray-800'
+          highlight
+            ? 'bg-primary-600 text-white hover:bg-primary-700'
+            : 'bg-gray-900 text-white hover:bg-gray-800'
         }`}
       >
         {cta}

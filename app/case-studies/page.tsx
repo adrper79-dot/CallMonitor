@@ -3,14 +3,15 @@ import { Logo } from '@/components/Logo'
 
 /**
  * Case Studies Page
- * 
+ *
  * Customer success stories with ROI examples demonstrating
  * the value of Word Is Bond as a system of record.
  */
 
 export const metadata = {
   title: 'Case Studies & ROI Examples | Word Is Bond',
-  description: 'Real-world examples of how businesses use Word Is Bond to resolve disputes, reduce legal costs, and maintain compliance. See proven ROI from our customers.',
+  description:
+    'Real-world examples of how businesses use Word Is Bond to resolve disputes, reduce legal costs, and maintain compliance. See proven ROI from our customers.',
   keywords: 'case studies, ROI examples, customer success, dispute resolution, legal cost savings',
 }
 
@@ -25,16 +26,22 @@ export default function CaseStudiesPage() {
             <span className="text-lg font-semibold text-gray-900">Word Is Bond</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/#solutions" className="text-sm text-gray-600 hover:text-gray-900">Solutions</Link>
-            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</Link>
-            <Link href="/trust" className="text-sm text-gray-600 hover:text-gray-900">Trust Pack</Link>
+            <Link href="/#solutions" className="text-sm text-gray-600 hover:text-gray-900">
+              Solutions
+            </Link>
+            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">
+              Pricing
+            </Link>
+            <Link href="/trust" className="text-sm text-gray-600 hover:text-gray-900">
+              Trust Pack
+            </Link>
           </nav>
           <div className="flex items-center gap-4">
             <Link href="/signin" className="text-sm text-gray-600 hover:text-gray-900">
               Sign In
             </Link>
-            <Link 
-              href="/signin"
+            <Link
+              href="/signup"
               className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Start Free Trial
@@ -47,12 +54,13 @@ export default function CaseStudiesPage() {
       <section className="pt-32 pb-16 px-6">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Real Results from<br />
+            Real Results from
+            <br />
             <span className="text-primary-600">Real Customers</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            See how businesses across healthcare, legal, and property management use Word Is Bond 
-            to resolve disputes, reduce costs, and maintain compliance.
+            See how businesses across healthcare, legal, and property management use Word Is Bond to
+            resolve disputes, reduce costs, and maintain compliance.
           </p>
         </div>
       </section>
@@ -62,17 +70,20 @@ export default function CaseStudiesPage() {
         <div className="max-w-5xl mx-auto">
           <div className="bg-blue-50 rounded-2xl border border-blue-200 p-8 md:p-12">
             <div className="flex items-center gap-3 mb-6">
-              <div className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">Healthcare</div>
+              <div className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-full">
+                Healthcare
+              </div>
               <div className="text-sm text-blue-700 font-medium">Patient Scheduling Clinic</div>
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Medical Practice Ends 50 "No-Show" Disputes
             </h2>
-            
+
             <p className="text-lg text-gray-700 mb-8">
-              A 12-provider family practice was losing $15,000/month to disputed appointment confirmations 
-              and "I never agreed to that" billing conflicts. Word Is Bond eliminated the problem.
+              A 12-provider family practice was losing $15,000/month to disputed appointment
+              confirmations and "I never agreed to that" billing conflicts. Word Is Bond eliminated
+              the problem.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -124,8 +135,9 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-blue-600 pl-4 italic text-gray-700">
-                "We went from 40-50 no-show disputes per month to less than 3. Patients now know 
-                we have the recording, and suddenly they 'remember' the conversation. ROI in the first month."
+                "We went from 40-50 no-show disputes per month to less than 3. Patients now know we
+                have the recording, and suddenly they 'remember' the conversation. ROI in the first
+                month."
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Dr. Sarah Chen, Practice Administrator</p>
             </div>
@@ -138,17 +150,19 @@ export default function CaseStudiesPage() {
         <div className="max-w-5xl mx-auto">
           <div className="bg-purple-50 rounded-2xl border border-purple-200 p-8 md:p-12">
             <div className="flex items-center gap-3 mb-6">
-              <div className="px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded-full">Legal</div>
+              <div className="px-3 py-1 bg-purple-600 text-white text-sm font-medium rounded-full">
+                Legal
+              </div>
               <div className="text-sm text-purple-700 font-medium">Immigration Law Firm</div>
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Law Firm Defeats Malpractice Claim with Documented Evidence
             </h2>
-            
+
             <p className="text-lg text-gray-700 mb-8">
-              A 5-attorney immigration firm faced a $250,000 malpractice claim alleging "improper advice." 
-              Word Is Bond's evidence bundle led to immediate dismissal.
+              A 5-attorney immigration firm faced a $250,000 malpractice claim alleging "improper
+              advice." Word Is Bond's evidence bundle led to immediate dismissal.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -200,8 +214,8 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-purple-600 pl-4 italic text-gray-700">
-                "The transcript was crystal clear: we gave the correct advice, the client misunderstood. 
-                Case dismissed within 30 days. Word Is Bond just saved our practice."
+                "The transcript was crystal clear: we gave the correct advice, the client
+                misunderstood. Case dismissed within 30 days. Word Is Bond just saved our practice."
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Michael Rodriguez, Managing Partner</p>
             </div>
@@ -214,16 +228,18 @@ export default function CaseStudiesPage() {
         <div className="max-w-5xl mx-auto">
           <div className="bg-green-50 rounded-2xl border border-green-200 p-8 md:p-12">
             <div className="flex items-center gap-3 mb-6">
-              <div className="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-full">Property Management</div>
+              <div className="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-full">
+                Property Management
+              </div>
               <div className="text-sm text-green-700 font-medium">Multi-Family Housing</div>
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Property Manager Cuts Dispute Resolution Time by 85%
             </h2>
-            
+
             <p className="text-lg text-gray-700 mb-8">
-              A 500-unit property management company was spending 20+ hours per week resolving 
+              A 500-unit property management company was spending 20+ hours per week resolving
               tenant disputes. Word Is Bond reduced it to 3 hours.
             </p>
 
@@ -276,8 +292,8 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-green-600 pl-4 italic text-gray-700">
-                "Disputes resolve in minutes now. We pull the recording, show the tenant, done. 
-                No more 3-hour back-and-forth arguments. This pays for itself monthly."
+                "Disputes resolve in minutes now. We pull the recording, show the tenant, done. No
+                more 3-hour back-and-forth arguments. This pays for itself monthly."
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Jennifer Martinez, Regional Manager</p>
             </div>
@@ -288,16 +304,16 @@ export default function CaseStudiesPage() {
       {/* ROI Calculator */}
       <section className="py-20 px-6 bg-gray-50">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Calculate Your ROI
-          </h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Calculate Your ROI</h2>
           <p className="text-lg text-gray-600 mb-12">
             Most customers see positive ROI within the first month.
           </p>
 
           <div className="grid md:grid-cols-2 gap-8 text-left">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Typical Costs Eliminated:</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Typical Costs Eliminated:
+              </h3>
               <ul className="space-y-3 text-gray-700">
                 <li className="flex justify-between">
                   <span>Dispute resolution time</span>
@@ -327,11 +343,11 @@ export default function CaseStudiesPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-700">Pro Plan</span>
-                  <span className="text-2xl font-bold text-primary-600">$79/mo</span>
+                  <span className="text-2xl font-bold text-primary-600">$49/mo</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-700">Business Plan</span>
-                  <span className="text-2xl font-bold text-primary-600">$199/mo</span>
+                  <span className="text-2xl font-bold text-primary-600">$149/mo</span>
                 </div>
                 <div className="border-t pt-4 mt-4">
                   <div className="text-center">
@@ -358,13 +374,13 @@ export default function CaseStudiesPage() {
             Start your 14-day free trial. No credit card required.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link 
-              href="/signin"
+            <Link
+              href="/signup"
               className="w-full sm:w-auto px-8 py-4 bg-primary-600 text-white text-lg font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Start Free Trial
             </Link>
-            <Link 
+            <Link
               href="/pricing"
               className="w-full sm:w-auto px-8 py-4 border border-gray-300 text-gray-700 text-lg font-medium rounded-md hover:bg-gray-50 transition-colors"
             >
@@ -383,11 +399,21 @@ export default function CaseStudiesPage() {
               <span className="text-white font-semibold">Word Is Bond</span>
             </div>
             <nav className="flex items-center gap-8">
-              <Link href="/pricing" className="text-sm text-gray-400 hover:text-white">Pricing</Link>
-              <Link href="/trust" className="text-sm text-gray-400 hover:text-white">Trust Pack</Link>
-              <Link href="/compare" className="text-sm text-gray-400 hover:text-white">Compare</Link>
-              <Link href="/verticals/healthcare" className="text-sm text-gray-400 hover:text-white">Healthcare</Link>
-              <Link href="/verticals/legal" className="text-sm text-gray-400 hover:text-white">Legal</Link>
+              <Link href="/pricing" className="text-sm text-gray-400 hover:text-white">
+                Pricing
+              </Link>
+              <Link href="/trust" className="text-sm text-gray-400 hover:text-white">
+                Trust Pack
+              </Link>
+              <Link href="/compare" className="text-sm text-gray-400 hover:text-white">
+                Compare
+              </Link>
+              <Link href="/verticals/healthcare" className="text-sm text-gray-400 hover:text-white">
+                Healthcare
+              </Link>
+              <Link href="/verticals/legal" className="text-sm text-gray-400 hover:text-white">
+                Legal
+              </Link>
             </nav>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">

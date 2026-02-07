@@ -16,10 +16,10 @@ import { apiGet } from '@/lib/apiClient'
 
 /**
  * Analytics Page - Professional Design System v3.0
- * 
+ *
  * Comprehensive analytics dashboard with tabbed navigation
  * Clean, data-first design following architectural standards
- * 
+ *
  * Architecture Compliance:
  * - Uses getSession() for authentication
  * - Fetches from /api/analytics/* endpoints
@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const { data: session, status } = useSession()
-  
+
   // Date range state (default: last 30 days)
   const [startDate, setStartDate] = useState(() => {
     const date = new Date()
@@ -95,7 +95,7 @@ export default function AnalyticsPage() {
   // Authentication check
   useEffect(() => {
     if (status === 'loading') return
-    
+
     if (status === 'unauthenticated') {
       router.push('/signin?callbackUrl=/analytics')
       return
@@ -105,7 +105,7 @@ export default function AnalyticsPage() {
       try {
         // Get organization
         const data = await apiGet<{ organization?: { id: string } }>('/api/organizations/current')
-        
+
         const orgId = data.organization?.id || 'test-org-id'
         setOrganizationId(orgId)
         setLoading(false)
@@ -113,7 +113,7 @@ export default function AnalyticsPage() {
         logger.error('Failed to fetch organization, using test-org-id', err)
         // Use test-org-id as fallback for testing
         setOrganizationId('test-org-id')
-      setLoading(false)
+        setLoading(false)
       }
     }
     fetchOrg()
@@ -126,22 +126,22 @@ export default function AnalyticsPage() {
     async function fetchData() {
       setLoading(true)
       setError(null)
-      
+
       try {
         const [callsData, sentimentData, perfData] = await Promise.all([
           apiGet(`/api/analytics/calls?startDate=${startDate}&endDate=${endDate}`),
-          apiGet(`/api/analytics/sentiment-trends?startDate=${startDate}&endDate=${endDate}`),
-          apiGet('/api/analytics/performance')
+          apiGet(`/api/analytics/sentiment?startDate=${startDate}&endDate=${endDate}`),
+          apiGet('/api/analytics/performance'),
         ])
 
         if (callsData.success) {
           setCallMetrics(callsData.metrics)
         }
-        
+
         if (sentimentData.success) {
           setSentimentTrends(sentimentData.trends)
         }
-        
+
         if (perfData.success) {
           setPerformanceMetrics(perfData.metrics)
         }
@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
         <div className="animate-pulse space-y-6">
           <div className="h-10 bg-gray-200 rounded w-1/4" />
           <div className="grid grid-cols-4 gap-4">
-            {[1,2,3,4].map(i => (
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-24 bg-gray-200 rounded" />
             ))}
           </div>
@@ -193,7 +193,7 @@ export default function AnalyticsPage() {
 
       {/* Date Range Picker */}
       <div className="mb-6">
-        <DateRangePicker 
+        <DateRangePicker
           startDate={startDate}
           endDate={endDate}
           onChange={(start, end) => {
@@ -211,8 +211,8 @@ export default function AnalyticsPage() {
             { id: 'calls' as TabId, label: 'Calls' },
             { id: 'sentiment' as TabId, label: 'Sentiment' },
             { id: 'performance' as TabId, label: 'Performance' },
-            { id: 'surveys' as TabId, label: 'Surveys' }
-          ].map(tab => (
+            { id: 'surveys' as TabId, label: 'Surveys' },
+          ].map((tab) => (
             <button
               key={tab.id}
               role="tab"
@@ -235,25 +235,28 @@ export default function AnalyticsPage() {
         <div className="space-y-6">
           {/* Top Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard 
+            <MetricCard
               label="Total Calls"
               value={callMetrics.total_calls}
               change={`${callMetrics.completed_calls} completed`}
               trend={callMetrics.completion_rate >= 80 ? 'up' : 'neutral'}
             />
-            <MetricCard 
+            <MetricCard
               label="Completion Rate"
               value={`${callMetrics.completion_rate}%`}
-              trend={callMetrics.completion_rate >= 80 ? 'up' : callMetrics.completion_rate >= 60 ? 'neutral' : 'down'}
+              trend={
+                callMetrics.completion_rate >= 80
+                  ? 'up'
+                  : callMetrics.completion_rate >= 60
+                    ? 'neutral'
+                    : 'down'
+              }
             />
-            <MetricCard 
+            <MetricCard
               label="Avg Duration"
               value={`${Math.floor(callMetrics.avg_duration_seconds / 60)}m ${callMetrics.avg_duration_seconds % 60}s`}
             />
-            <MetricCard 
-              label="Total Minutes"
-              value={callMetrics.total_duration_minutes}
-            />
+            <MetricCard label="Total Minutes" value={callMetrics.total_duration_minutes} />
           </div>
 
           {/* Charts */}
@@ -286,19 +289,25 @@ export default function AnalyticsPage() {
           {sentimentTrends.time_series.length > 0 ? (
             <>
               <div className="grid grid-cols-3 gap-4">
-                <MetricCard 
+                <MetricCard
                   label="Positive Rate"
                   value={`${sentimentTrends.overall_positive_rate}%`}
                   trend="up"
                 />
-                <MetricCard 
+                <MetricCard
                   label="Neutral Rate"
                   value={`${sentimentTrends.overall_neutral_rate}%`}
                 />
-                <MetricCard 
+                <MetricCard
                   label="Negative Rate"
                   value={`${sentimentTrends.overall_negative_rate}%`}
-                  trend={sentimentTrends.overall_negative_rate < 20 ? 'up' : sentimentTrends.overall_negative_rate < 40 ? 'neutral' : 'down'}
+                  trend={
+                    sentimentTrends.overall_negative_rate < 20
+                      ? 'up'
+                      : sentimentTrends.overall_negative_rate < 40
+                        ? 'neutral'
+                        : 'down'
+                  }
                 />
               </div>
               <SentimentChart data={sentimentTrends.time_series} />
@@ -306,7 +315,9 @@ export default function AnalyticsPage() {
           ) : (
             <div className="bg-white border border-gray-200 rounded-md p-8 text-center">
               <p className="text-gray-500">No sentiment data available for this time period</p>
-              <p className="text-sm text-gray-400 mt-1">Enable transcription to unlock sentiment analysis</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Enable transcription to unlock sentiment analysis
+              </p>
             </div>
           )}
         </div>

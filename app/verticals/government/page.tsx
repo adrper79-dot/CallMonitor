@@ -3,9 +3,9 @@ import { Logo } from '@/components/Logo'
 
 /**
  * Government Vertical Landing Page
- * 
+ *
  * Targeting: Government agencies, constituent services offices, public records departments
- * 
+ *
  * Key Messages:
  * - Public Records Act compliance
  * - FOIA/transparency requirements
@@ -15,8 +15,10 @@ import { Logo } from '@/components/Logo'
 
 export const metadata = {
   title: 'Government & Public Services | Word Is Bond - Public Records Compliance',
-  description: 'Evidence-grade documentation for government agencies. FOIA-compliant call recording, constituent interaction tracking, and transparent public records management.',
-  keywords: 'government call recording, public records, FOIA compliance, constituent services, transparency',
+  description:
+    'Evidence-grade documentation for government agencies. FOIA-compliant call recording, constituent interaction tracking, and transparent public records management.',
+  keywords:
+    'government call recording, public records, FOIA compliance, constituent services, transparency',
 }
 
 export default function GovernmentVerticalPage() {
@@ -30,16 +32,22 @@ export default function GovernmentVerticalPage() {
             <span className="text-lg font-semibold text-gray-900">Word Is Bond</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/#solutions" className="text-sm text-gray-600 hover:text-gray-900">Solutions</Link>
-            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</Link>
-            <Link href="/trust" className="text-sm text-gray-600 hover:text-gray-900">Trust Pack</Link>
+            <Link href="/#solutions" className="text-sm text-gray-600 hover:text-gray-900">
+              Solutions
+            </Link>
+            <Link href="/pricing" className="text-sm text-gray-600 hover:text-gray-900">
+              Pricing
+            </Link>
+            <Link href="/trust" className="text-sm text-gray-600 hover:text-gray-900">
+              Trust Pack
+            </Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="/api/auth/signin" className="text-sm text-gray-600 hover:text-gray-900">
+            <Link href="/signin" className="text-sm text-gray-600 hover:text-gray-900">
               Sign In
             </Link>
-            <Link 
-              href="/api/auth/signin"
+            <Link
+              href="/signup"
               className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Request Demo
@@ -55,21 +63,23 @@ export default function GovernmentVerticalPage() {
             Government & Public Services
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-            Transparent Public Records<br />
+            Transparent Public Records
+            <br />
             for <span className="text-primary-600">Accountable Government</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Evidence-grade documentation for constituent interactions. FOIA-compliant call recording, 
-            public records management, and audit trails that meet transparency requirements.
+            Evidence-grade documentation for constituent interactions. FOIA-compliant call
+            recording, public records management, and audit trails that meet transparency
+            requirements.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link 
-              href="/api/auth/signin"
+            <Link
+              href="/signup"
               className="w-full sm:w-auto px-8 py-4 bg-primary-600 text-white text-lg font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Request Demo
             </Link>
-            <Link 
+            <Link
               href="/trust"
               className="w-full sm:w-auto px-8 py-4 border border-gray-300 text-gray-700 text-lg font-medium rounded-md hover:bg-gray-50 transition-colors"
             >
@@ -86,7 +96,8 @@ export default function GovernmentVerticalPage() {
             Government Communications Need Better Documentation
           </h2>
           <p className="text-lg text-gray-600 text-center mb-12">
-            Public agencies face unique challenges with accountability, transparency, and records retention.
+            Public agencies face unique challenges with accountability, transparency, and records
+            retention.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -95,7 +106,8 @@ export default function GovernmentVerticalPage() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">FOIA Requests</h3>
               <p className="text-gray-600">
-                Scrambling to reconstruct constituent conversations when public records requests arrive.
+                Scrambling to reconstruct constituent conversations when public records requests
+                arrive.
               </p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -142,8 +154,8 @@ export default function GovernmentVerticalPage() {
                     FOIA-Ready Documentation
                   </h3>
                   <p className="text-gray-600">
-                    Every call is automatically recorded, transcribed, and retained according to public records 
-                    requirements. Respond to FOIA requests in minutes, not days.
+                    Every call is automatically recorded, transcribed, and retained according to
+                    public records requirements. Respond to FOIA requests in minutes, not days.
                   </p>
                 </div>
               </div>
@@ -156,7 +168,7 @@ export default function GovernmentVerticalPage() {
                     Constituent Interaction Tracking
                   </h3>
                   <p className="text-gray-600">
-                    Complete audit trail of all communications with citizens. Track promises made, 
+                    Complete audit trail of all communications with citizens. Track promises made,
                     follow-ups required, and resolution timelines.
                   </p>
                 </div>
@@ -172,8 +184,8 @@ export default function GovernmentVerticalPage() {
                     Chain of Custody Protection
                   </h3>
                   <p className="text-gray-600">
-                    Immutable records with timestamps, speaker identification, and audit logs. 
-                    Meets legal requirements for public records authentication.
+                    Immutable records with timestamps, speaker identification, and audit logs. Meets
+                    legal requirements for public records authentication.
                   </p>
                 </div>
               </div>
@@ -186,7 +198,7 @@ export default function GovernmentVerticalPage() {
                     Transparent Access Controls
                   </h3>
                   <p className="text-gray-600">
-                    Role-based permissions with complete audit trails. Know exactly who accessed 
+                    Role-based permissions with complete audit trails. Know exactly who accessed
                     what records and when, for oversight compliance.
                   </p>
                 </div>
@@ -211,11 +223,10 @@ export default function GovernmentVerticalPage() {
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-2xl">📞</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Constituent Services
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Constituent Services</h3>
               <p className="text-gray-600 mb-4">
-                Record all citizen inquiries to city council offices, mayor's hotline, or 311 services.
+                Record all citizen inquiries to city council offices, mayor's hotline, or 311
+                services.
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li className="flex items-start gap-2">
@@ -292,9 +303,7 @@ export default function GovernmentVerticalPage() {
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-2xl">🏗️</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Permitting & Licensing
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Permitting & Licensing</h3>
               <p className="text-gray-600 mb-4">
                 Document all guidance provided to permit applicants and license holders.
               </p>
@@ -319,9 +328,7 @@ export default function GovernmentVerticalPage() {
               <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-2xl">📋</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Code Enforcement
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Code Enforcement</h3>
               <p className="text-gray-600 mb-4">
                 Record violation notices, correction timelines, and compliance discussions.
               </p>
@@ -346,11 +353,10 @@ export default function GovernmentVerticalPage() {
               <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
                 <span className="text-2xl">🗳️</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Voter Services
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Voter Services</h3>
               <p className="text-gray-600 mb-4">
-                Document voter registration assistance, polling place information, and ballot inquiries.
+                Document voter registration assistance, polling place information, and ballot
+                inquiries.
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li className="flex items-start gap-2">
@@ -379,50 +385,79 @@ export default function GovernmentVerticalPage() {
               Built for Public Sector Compliance
             </h2>
             <p className="text-lg text-gray-600">
-              Word Is Bond meets the unique requirements of government transparency and accountability.
+              Word Is Bond meets the unique requirements of government transparency and
+              accountability.
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-8">
             <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Public Records Compliance</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Public Records Compliance
+              </h3>
               <ul className="space-y-3 text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">✓</span>
-                  <span><strong>FOIA-Ready:</strong> Export call recordings and transcripts in response to public records requests</span>
+                  <span>
+                    <strong>FOIA-Ready:</strong> Export call recordings and transcripts in response
+                    to public records requests
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">✓</span>
-                  <span><strong>Retention Policies:</strong> Configurable retention schedules based on records management requirements</span>
+                  <span>
+                    <strong>Retention Policies:</strong> Configurable retention schedules based on
+                    records management requirements
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">✓</span>
-                  <span><strong>Audit Trails:</strong> Complete chain of custody documentation for every record</span>
+                  <span>
+                    <strong>Audit Trails:</strong> Complete chain of custody documentation for every
+                    record
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">✓</span>
-                  <span><strong>Redaction Tools:</strong> Protect sensitive information while fulfilling transparency obligations</span>
+                  <span>
+                    <strong>Redaction Tools:</strong> Protect sensitive information while fulfilling
+                    transparency obligations
+                  </span>
                 </li>
               </ul>
             </div>
 
             <div className="bg-green-50 rounded-lg border border-green-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Security & Access Control</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Security & Access Control
+              </h3>
               <ul className="space-y-3 text-gray-700">
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span><strong>Role-Based Permissions:</strong> Control who can access, export, or delete records</span>
+                  <span>
+                    <strong>Role-Based Permissions:</strong> Control who can access, export, or
+                    delete records
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span><strong>Access Logging:</strong> Track every access to every record for oversight compliance</span>
+                  <span>
+                    <strong>Access Logging:</strong> Track every access to every record for
+                    oversight compliance
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span><strong>SOC 2 Type II:</strong> Enterprise-grade security controls and annual audits</span>
+                  <span>
+                    <strong>SOC 2 Type II Ready:</strong> Enterprise-grade security controls and
+                    annual audits
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span><strong>Data Sovereignty:</strong> Your data stays in your jurisdiction for local regulations</span>
+                  <span>
+                    <strong>Data Sovereignty:</strong> Your data stays in your jurisdiction for
+                    local regulations
+                  </span>
                 </li>
               </ul>
             </div>
@@ -440,17 +475,23 @@ export default function GovernmentVerticalPage() {
             <div className="text-center">
               <div className="text-4xl font-bold text-primary-600 mb-2">85%</div>
               <div className="text-lg text-gray-900 font-medium mb-2">Faster FOIA Response</div>
-              <div className="text-sm text-gray-600">Public records requests fulfilled in hours, not weeks</div>
+              <div className="text-sm text-gray-600">
+                Public records requests fulfilled in hours, not weeks
+              </div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-primary-600 mb-2">92%</div>
               <div className="text-lg text-gray-900 font-medium mb-2">Complaint Resolution</div>
-              <div className="text-sm text-gray-600">Constituent disputes resolved with documented evidence</div>
+              <div className="text-sm text-gray-600">
+                Constituent disputes resolved with documented evidence
+              </div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-primary-600 mb-2">$50K+</div>
               <div className="text-lg text-gray-900 font-medium mb-2">Annual Savings</div>
-              <div className="text-sm text-gray-600">Reduced legal costs and staff time on records requests</div>
+              <div className="text-sm text-gray-600">
+                Reduced legal costs and staff time on records requests
+              </div>
             </div>
           </div>
         </div>
@@ -463,17 +504,17 @@ export default function GovernmentVerticalPage() {
             Bring Transparency to Your Agency
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Schedule a demo to see how Word Is Bond can improve accountability and 
-            streamline public records management.
+            Schedule a demo to see how Word Is Bond can improve accountability and streamline public
+            records management.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link 
-              href="/api/auth/signin"
+            <Link
+              href="/signup"
               className="w-full sm:w-auto px-8 py-4 bg-primary-600 text-white text-lg font-medium rounded-md hover:bg-primary-700 transition-colors"
             >
               Request Demo
             </Link>
-            <Link 
+            <Link
               href="/trust"
               className="w-full sm:w-auto px-8 py-4 border border-gray-300 text-gray-700 text-lg font-medium rounded-md hover:bg-gray-50 transition-colors"
             >
@@ -495,10 +536,18 @@ export default function GovernmentVerticalPage() {
               <span className="text-white font-semibold">Word Is Bond</span>
             </div>
             <nav className="flex items-center gap-8">
-              <Link href="/pricing" className="text-sm text-gray-400 hover:text-white">Pricing</Link>
-              <Link href="/trust" className="text-sm text-gray-400 hover:text-white">Trust Pack</Link>
-              <Link href="/compare" className="text-sm text-gray-400 hover:text-white">Compare</Link>
-              <Link href="/case-studies" className="text-sm text-gray-400 hover:text-white">Case Studies</Link>
+              <Link href="/pricing" className="text-sm text-gray-400 hover:text-white">
+                Pricing
+              </Link>
+              <Link href="/trust" className="text-sm text-gray-400 hover:text-white">
+                Trust Pack
+              </Link>
+              <Link href="/compare" className="text-sm text-gray-400 hover:text-white">
+                Compare
+              </Link>
+              <Link href="/case-studies" className="text-sm text-gray-400 hover:text-white">
+                Case Studies
+              </Link>
             </nav>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-sm text-gray-400">
