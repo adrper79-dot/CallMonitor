@@ -5,7 +5,8 @@
  * Writes to the `audit_logs` table with a non-blocking fire-and-forget pattern.
  *
  * Schema:
- *   audit_logs (id, organization_id, user_id, resource_type, resource_id, action, before, after, created_at)
+ *   audit_logs (id, organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)
+ *   Note: Interface uses `before`/`after` properties which map to `old_value`/`new_value` DB columns.
  *
  * Usage:
  * ```ts

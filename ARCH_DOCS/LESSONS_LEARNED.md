@@ -574,14 +574,59 @@ The AI on this platform operates as a **notary/stenographer** — it observes, r
 
 ---
 
+## 🔴 CRITICAL — Runtime DDL in Route Handlers (v4.24 Audit)
+
+**Never put `CREATE TABLE IF NOT EXISTS` inside request handlers.**
+
+### The Problem
+
+The Feb 7, 2026 codebase audit found 5 route files executing DDL on every request: `voice.ts`, `live-translation.ts`, `campaigns.ts`, `surveys.ts`, `scorecards.ts`. This causes:
+- ~20-50ms latency penalty per request (DDL check + lock acquisition)
+- Table catalog locks that can block concurrent requests
+- Tables created outside migration tracking — no version control
+- Schema drift between what migrations define and what runtime DDL creates
+
+### Prevention
+
+1. **All DDL belongs in `migrations/` folder** — run once, not per-request
+2. Route handlers should assume tables exist — if they don't, the query fails loudly (which is correct behavior for missing migrations)
+3. New features must include a migration file BEFORE the route handler is written
+4. Use the audit report pattern: `2026-02-07-audit-remediation.sql`
+
+---
+
+## 🟡 MEDIUM — Documentation Rot (v4.24 Audit)
+
+**ARCH_DOCS rot faster than code. 10 files were stale enough to mislead engineers.**
+
+### What Happened
+
+The Feb 7 audit found:
+- 4 different version numbers (v4.0, v4.22, v4.24) across 4 "current" docs
+- Wrong production URLs (`wordis-bond.com` → actual is `voxsouth.online`)
+- NextAuth code samples in MASTER_ARCHITECTURE.md (NextAuth removed in v4.22)
+- Wrong session property name in copilot-instructions.md (`orgId` → actual is `organization_id`)
+- 10 tracker/review files with all items marked ✅ Complete — zero actionable content
+
+### Prevention
+
+1. When updating code, grep ARCH_DOCS for related terms and update simultaneously
+2. Keep a single canonical version number in CURRENT_STATUS.md — other docs link to it
+3. Archive point-in-time review documents to `archive/reviews/` once resolved
+4. Copilot instructions file is the most-read doc — keep it surgically accurate
+
+---
+
 ## ⚠️ KNOWN REMAINING RISKS
 
 1. **No E2E tests** — Playwright not yet configured. Critical flows (signin → call → recording) have no automated browser coverage.
 2. **WAF not configured** — Cloudflare WAF rules for `/api` not set up in dashboard.
 3. **RLS not audited in production** — `npm run db:rls-audit` has not been run against prod Neon.
 4. **No refresh tokens** — Sessions expire after 7 days (KV TTL + DB `expires` column) with no refresh mechanism (~4hr implementation).
-5. ~~**SWML legacy code**~~ — ✅ Resolved in v4.16. All SignalWire code deleted, `.env.example` updated, Telnyx migration complete. Some references remain in `_api_to_migrate/` legacy files and ARCH_DOCS.
+5. ~~**SWML legacy code**~~ — ✅ Resolved in v4.16 and verified in v4.24 audit. All SignalWire code deleted.
 6. **Workers tests not in vitest** — Workers route tests need wrangler's test runner, currently no CI coverage.
+7. **14 route files missing rate limiting/audit** — Identified in Feb 7 audit. Mutations in bookings, surveys, scorecards, compliance, retention, shopper, caller-id, organizations, reports, ai-config, and analytics routes lack `writeAuditLog()` and/or rate limiting middleware.
+8. **Frontend/backend RBAC role mismatch** — Frontend uses `member`, backend uses `agent`. Needs unification.
 
 ---
 

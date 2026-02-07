@@ -146,7 +146,8 @@ Or use a single domain with Workers routes:
 ```typescript
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/AuthProvider'
+import { apiGet } from '@/lib/apiClient'
 import { useEffect, useState } from 'react'
 
 export default function DashboardPage() {
@@ -154,10 +155,9 @@ export default function DashboardPage() {
   const [data, setData] = useState(null)
 
   useEffect(() => {
-    // Fetch from Workers API
-    fetch('/api/organizations/current')
-      .then(res => res.json())
-      .then(setData)
+    // Fetch from Workers API via apiClient
+    apiGet('/organizations/current')
+      .then(res => setData(res.data))
   }, [])
 
   return <div>Dashboard</div>
@@ -320,22 +320,15 @@ POST /api/auth/signup → User registration
 
 ---
 
-## Current Status (Feb 2, 2026)
+## Current Status (Feb 7, 2026)
 
 ✅ **Successfully Deployed:**
-- Static UI: https://a4b3599d.wordisbond.pages.dev (deployment URL)
-- **Production URL:** https://wordis-bond.com (custom domain - setup in progress)
-- Build: 28 static pages, ~102KB first load JS
-- Client-side pages converted: dashboard, voice-operations
-- Workers APIs: calls, organizations, auth, webhooks, health
-- **Workers Routes:** Configured for `wordis-bond.com/api/*` ✅
-
-⚠️ **In Progress:**
-- Custom domain activation in Cloudflare Dashboard (Pages)
-- DNS configuration for wordis-bond.com
-
-🔧 **Known Issue - Authentication:**
-NextAuth endpoints still need migration (see AUTH_ARCHITECTURE_DECISION.md). Once custom domain is active, API routing will work but authentication requires additional implementation.
+- Static UI: https://voxsouth.online (production) / https://wordisbond.pages.dev (pages)
+- Workers API: https://wordisbond-api.adrper79.workers.dev
+- Build: 28+ static pages, ~102KB first load JS
+- All API routes migrated to `workers/src/routes/`
+- Custom auth (session tokens via Bearer header) — fully operational
+- 109/109 ROADMAP items complete (100%)
 
 ---
 
@@ -343,130 +336,20 @@ NextAuth endpoints still need migration (see AUTH_ARCHITECTURE_DECISION.md). Onc
 
 **Live Deployment:**
 ```
-https://wordis-bond.com          → Cloudflare Pages (Static UI)
-https://wordis-bond.com/api/*    → Cloudflare Workers (API)
+https://voxsouth.online                              → Cloudflare Pages (Static UI)
+https://wordisbond-api.adrper79.workers.dev/api/*     → Cloudflare Workers (API)
 ```
 
 **How It Works:**
-1. User visits `wordis-bond.com` → Cloudflare serves static HTML from Pages
-2. User calls `/api/auth/session` → Cloudflare routes to Workers via Workers Route
-3. Workers process API request and return JSON
-4. **Same origin** = No CORS issues
-
-**Workers Routes (Active):**
-- Pattern: `wordis-bond.com/api/*`
-- Worker: `wordisbond-api`
-- Zone: wordis-bond.com
-- Status: ✅ Deployed (Version: 629f1afa-6e41-4c81-b0d9-98653664d746)
-
-⚠️ **Known Limitation - API Routing:**
-
-**Problem:** Client calls `/api/auth/session` but Pages has no API routes (they're in Workers at a separate URL).
-
-**Error Symptoms:**
-```
-GET /api/auth/session → 404 (Not Found)
-POST /api/auth/signup → 405 (Method Not Allowed)
-GET /api/health/auth-providers → 404 (Not Found)
-```
-
-**Root Cause:** Hybrid architecture has UI and API at **different URLs**:
-- UI: `https://wordisbond.pages.dev`
-- API: `https://wordisbond-api.adrper79.workers.dev`
-
-Client code expects APIs at same origin (`/api/*`), but they don't exist there.
-
-**Solutions (Choose One):**
-
-### Solution 1: Custom Domain with Workers Routes (Production)
-
-Use a single custom domain with Cloudflare Workers Routes:
-
-1. **Configure DNS:**
-   - `wordisbond.com` → Cloudflare Pages project
-   
-2. **Add Workers Route in Cloudflare Dashboard:**
-   - Route: `wordisbond.com/api/*`
-   - Worker: `wordisbond-api`
-   - This intercepts `/api/*` requests and sends them to Workers
-
-3. **Result:** 
-   - `wordisbond.com/` → Pages (UI)
-   - `wordisbond.com/api/*` → Workers (API)
-   - Same origin, no CORS issues
-
-### Solution 2: Environment Variable + CORS (Dev/Testing)
-
-Configure client to call Workers API directly:
-
-1. **Update `.env.local`:**
-   ```bash
-   NEXT_PUBLIC_API_URL=https://wordisbond-api.adrper79.workers.dev
-   ```
-
-2. **Update API calls in client:**
-   ```typescript
-   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
-   fetch(`${apiUrl}/api/auth/session`)
-   ```
-
-3. **Enable CORS in Workers** (already done in `workers/src/index.ts`)
-
-4. **Result:**
-   - Cross-origin requests work
-   - Different URLs (CORS required)
-   - No custom domain needed
-
-### Solution 3: Pages Functions (Proxy Pattern)
-
-Create Pages Functions to proxy API requests:
-
-1. **Create `functions/api/[[path]].ts`:**
-   ```typescript
-   export async function onRequest(context) {
-     const url = new URL(context.request.url)
-     const apiUrl = `https://wordisbond-api.adrper79.workers.dev${url.pathname}`
-     
-     return fetch(apiUrl, {
-       method: context.request.method,
-       headers: context.request.headers,
-       body: context.request.body
-     })
-   }
-   ```
-
-2. **Result:**
-   - Pages proxies `/api/*` to Workers
-   - Same origin (no CORS)
-   - More complex (extra function)
-
-### Recommended: Solution 1 (Custom Domain)
-
-For production, use a custom domain with Workers Routes. This is:
-- ✅ Cleanest architecture (single domain)
-- ✅ No CORS complexity
-- ✅ Native Cloudflare routing
-- ✅ Best performance (no proxy hop)
-
-For now, testing can continue with direct Workers URL calls and CORS.
-
-⚠️ **API Migration In Progress:**
-- Moved `app/api/` → `app/_api_to_migrate/` (100+ routes)
-- Strategy: Migrate on-demand as features are tested
-- See [API_MIGRATION_GUIDE.md](../API_MIGRATION_GUIDE.md) for details
-
-📋 **Next Steps:**
-1. Test deployed site, identify missing API endpoints
-2. Migrate critical routes (campaigns, reports, analytics)
-3. Update client code to call Workers endpoints
-4. Deploy Workers after each migration
-5. Iterate until all features work
+1. User visits `voxsouth.online` → Cloudflare serves static HTML from Pages
+2. Client-side JS calls Workers API via `apiClient` with Bearer auth
+3. Workers process API request (auth → validation → DB → response)
+4. CORS configured for cross-origin (`voxsouth.online` ↔ Workers)
 
 ---
 
 ## References
 
-- [API_MIGRATION_GUIDE.md](../API_MIGRATION_GUIDE.md) - Complete migration guide
 - [Cloudflare Pages Docs](https://developers.cloudflare.com/pages/)
 - [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
 - [Hono Framework](https://hono.dev/)

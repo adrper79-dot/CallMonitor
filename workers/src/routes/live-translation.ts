@@ -51,28 +51,6 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
       return c.json({ error: 'Call not found' }, 404)
     }
 
-    // Ensure call_translations table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS call_translations (
-        id SERIAL PRIMARY KEY,
-        call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
-        organization_id UUID NOT NULL,
-        source_language TEXT NOT NULL DEFAULT 'en',
-        target_language TEXT NOT NULL DEFAULT 'es',
-        original_text TEXT NOT NULL,
-        translated_text TEXT NOT NULL,
-        segment_index INTEGER NOT NULL DEFAULT 0,
-        confidence REAL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
-    // Create index if not exists (idempotent)
-    await db.query(`
-      CREATE INDEX IF NOT EXISTS idx_call_translations_call_id
-        ON call_translations (call_id, segment_index)
-    `)
-
     // Audit the stream start
     writeAuditLog(db, {
       organizationId: session.organization_id,

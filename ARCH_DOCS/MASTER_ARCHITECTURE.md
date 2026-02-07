@@ -1,13 +1,13 @@
 # Master Architecture Reference
 
-**Status**: Production Gospel | Updated: Feb 3, 2026
-**Version**: 4.0 - Bond AI + Team Management + PBKDF2 Security
+**Status**: Production Gospel | Updated: Feb 7, 2026
+**Version**: 4.24+ — Full Platform (Live Translation, Campaigns, Reports, Billing)
 
 ---
 
 ## Architecture Overview
 
-**Wordis Bond** uses a **hybrid Cloudflare architecture**:
+**Word Is Bond** uses a **hybrid Cloudflare architecture**:
 - **Static UI** deployed to Cloudflare Pages (CDN-delivered HTML/CSS/JS)
 - **API layer** deployed to Cloudflare Workers (edge-native Hono framework)
 - **Clean separation** between presentation and business logic
@@ -214,6 +214,7 @@ flowchart TB
 'use client'
 
 import { useSession } from '@/components/AuthProvider'
+import { apiGet } from '@/lib/apiClient'
 import { useEffect, useState } from 'react'
 
 export default function Page() {
@@ -223,12 +224,8 @@ export default function Page() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      fetch('/api/organizations/current', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('wb-session-token')}`
-        }
-      })
-        .then(res => res.json())
+      apiGet('/organizations/current')
+        .then(res => res.data)
         .then(setData)
         .finally(() => setLoading(false))
     } else if (status === 'unauthenticated') {
@@ -272,10 +269,11 @@ Implemented with database persistence:
 
 ### Authentication
 
-- **JWT tokens**: Issued by Workers, stored in HttpOnly cookies
-- **Session validation**: Every API request validates JWT
-- **Expiration**: Configurable (default 7 days)
-- **Refresh**: Automatic with sliding window
+- **Session tokens**: Issued by Workers, stored in Cloudflare KV + PostgreSQL
+- **Transport**: `Authorization: Bearer <sessionToken>` header (via `apiClient`)
+- **Session validation**: Every API request validates token via `requireAuth()` middleware
+- **Expiration**: 7-day TTL, no automatic refresh
+- **Fingerprint binding**: Session bound to User-Agent + Origin hash (H2 hardening)
 
 ### Password Security
 
@@ -356,60 +354,33 @@ const hashPassword = async (password: string): Promise<string> => {
 ### Current Deployments
 
 **Pages (UI)**:
-- URL: https://wordisbond.pages.dev
+- Production URL: https://voxsouth.online
+- Pages URL: https://wordisbond.pages.dev
 - Build: `npm run build` → `out/` directory
-- Deploy: `wrangler pages deploy out --project-name=wordisbond`
+- Deploy: `npm run pages:deploy`
 
 **Workers (API)**:
 - URL: https://wordisbond-api.adrper79.workers.dev
 - Build: TypeScript → JavaScript in `workers/`
-- Deploy: `cd workers && wrangler deploy`
+- Deploy: `npm run api:deploy`
 
 ### Deployment Flow
 
 ```bash
-# 1. Build UI
-npm run build
-
-# 2. Deploy Pages
-wrangler pages deploy out --project-name=wordisbond
-
-# 3. Deploy Workers
-cd workers
-wrangler deploy
-
-# 4. Verify
-curl -I https://827487ca.wordisbond.pages.dev
-curl https://wordisbond-api.adrper79.workers.dev/health
+# Standard deploy chain (order matters):
+npm run api:deploy      # Workers first
+npm run build           # Next.js static export
+npm run pages:deploy    # Pages second
+npm run health-check    # Verify
 ```
 
 ---
 
 ## Migration Status
 
-### ✅ Completed
+✅ **All migrations complete** — 109/109 ROADMAP items delivered.
 
-- Static export build configuration
-- Client-side page conversions (dashboard, voice-operations)
-- Workers API scaffolding (calls, organizations, auth, webhooks)
-- Cloudflare deployment pipeline
-- Security headers configuration
-- **Bond AI 3-tier system** (chat widget, proactive alerts, call co-pilot)
-- **Team Management** (multi-org support, RBAC v2, team/department structure)
-- **PBKDF2 password security upgrade** (backward-compatible migration)
-- Database schema migrations (7 new tables + 58 permissions)
-
-### 🔄 In Progress
-
-- API route migration from `app/_api_to_migrate/` to `workers/src/routes/`
-- On-demand migration as features are tested
-- Strategy: Migrate only what's actually used
-
-### 📋 Remaining
-
-- ~100+ API routes to evaluate and migrate
-- Invite acceptance flow (complex server logic)
-- Feature testing and endpoint discovery
+All API routes migrated from `app/api/` to `workers/src/routes/`. NextAuth, Supabase, and SignalWire fully removed.
 
 ---
 

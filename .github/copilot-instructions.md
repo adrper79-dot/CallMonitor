@@ -5,7 +5,7 @@
 - **Product:** Word Is Bond — AI-powered voice intelligence platform for call centers
 - **Stack:** Next.js 15 (static export on Cloudflare Pages) + Hono 4.7 (Cloudflare Workers API) + Neon PostgreSQL 17 + Telnyx (voice) + Stripe (billing)
 - **URLs:** `https://voxsouth.online` (UI) | `https://wordisbond-api.adrper79.workers.dev` (API)
-- **Version:** v4.11+ | **Progress:** 69/109 ROADMAP items (63%)
+- **Version:** v4.24+ | **Progress:** 109/109 ROADMAP items (100%)
 
 ## Critical Rules (NEVER Violate)
 
@@ -32,7 +32,7 @@ Client components must use `apiGet/apiPost/apiPut/apiDelete` from `@/lib/apiClie
 
 ### 5. Multi-Tenant Isolation
 
-Every business query MUST include `org_id` in WHERE clause. Get from `c.get('session').orgId` after `requireAuth()`.
+Every business query MUST include `organization_id` in WHERE clause. Get from `c.get('session').organization_id` after `requireAuth()`.
 
 ### 6. Parameterized Queries Only
 
@@ -51,10 +51,10 @@ routes.post('/resource', rateLimit, async (c) => {
   const session = c.get('session')
   const db = getDb(c.env)
   try {
-    const result = await db.query('INSERT INTO ... WHERE org_id = $1 RETURNING *', [session.orgId])
+    const result = await db.query('INSERT INTO ... WHERE organization_id = $1 RETURNING *', [session.organization_id])
     writeAuditLog(db, {
-      userId: session.userId,
-      orgId: session.orgId,
+      userId: session.user_id,
+      orgId: session.organization_id,
       action: AuditAction.RESOURCE_CREATED,
       resourceType: 'resource',
       resourceId: result.rows[0].id,
