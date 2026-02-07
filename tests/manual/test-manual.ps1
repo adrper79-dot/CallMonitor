@@ -200,7 +200,7 @@ if (-not $testResults["performance"]) {
     Write-Host "   ❗ Performance issues - Check CDN caching and edge routing" -ForegroundColor Yellow
 }
 if (-not $testResults["webrtc"]) {
-    Write-Host "   ❗ WebRTC connectivity failed - Check SignalWire configuration" -ForegroundColor Yellow
+    Write-Host "   ❗ WebRTC connectivity failed - Check Telnyx configuration" -ForegroundColor Yellow
 }
 
 # Exit with appropriate code

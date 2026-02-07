@@ -1866,7 +1866,7 @@ components:
     AIConfig:
       type: object
       properties:
-        signalwire_ai_agent_id:
+        telnyx_ai_agent_id:
           type: string
         translation_enabled:
           type: boolean
