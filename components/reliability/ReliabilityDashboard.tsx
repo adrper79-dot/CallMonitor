@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -40,7 +40,7 @@ interface ReliabilityDashboardProps {
 
 /**
  * Reliability Dashboard
- * 
+ *
  * Shows webhook failures, retry status, and system health.
  * Per ARCH_DOCS/01-CORE/SYSTEM_OF_RECORD_COMPLIANCE.md - Structured Error Journaling
  */
@@ -51,7 +51,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'pending' | 'failed' | 'all'>('pending')
   const [processing, setProcessing] = useState<string | null>(null)
-  
+
   // Fetch data
   useEffect(() => {
     async function fetchData() {
@@ -63,48 +63,46 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
         setError('Failed to load reliability data')
         logger.error('ReliabilityDashboard: failed to fetch data', err, {
           organizationId,
-          filter
+          filter,
         })
       } finally {
         setLoading(false)
       }
     }
-    
+
     fetchData()
-    
+
     // Refresh every 30 seconds
     const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [organizationId, filter])
-  
+
   // Handle retry/discard actions
   async function handleAction(failureId: string, action: 'retry' | 'discard' | 'manual_review') {
     setProcessing(failureId)
     setError(null)
-    
+
     try {
       const data = await apiPut('/api/reliability/webhooks', {
         failure_id: failureId,
         action,
         resolution_notes: action === 'discard' ? 'Manually discarded by admin' : undefined,
       })
-      
+
       // Update local state
-      setFailures(prev => prev.map(f => 
-        f.id === failureId ? data.failure : f
-      ))
+      setFailures((prev) => prev.map((f) => (f.id === failureId ? data.failure : f)))
     } catch (err) {
       setError('Failed to process action')
       logger.error('ReliabilityDashboard: action failed', err, {
         organizationId,
         failureId,
-        action
+        action,
       })
     } finally {
       setProcessing(null)
     }
   }
-  
+
   const getStatusBadge = (status: WebhookFailure['status']) => {
     switch (status) {
       case 'pending':
@@ -123,9 +121,11 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
         return <Badge>{status}</Badge>
     }
   }
-  
+
   const getSourceIcon = (source: string) => {
     switch (source) {
+      case 'telnyx':
+        return '📞'
       case 'signalwire':
         return '📞'
       case 'assemblyai':
@@ -138,7 +138,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
         return '🔗'
     }
   }
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -147,13 +147,13 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
       </div>
     )
   }
-  
-  const hasIssues = metrics && (
-    metrics.pending_webhooks > 0 || 
-    metrics.failed_webhooks > 0 || 
-    metrics.manual_review_webhooks > 0
-  )
-  
+
+  const hasIssues =
+    metrics &&
+    (metrics.pending_webhooks > 0 ||
+      metrics.failed_webhooks > 0 ||
+      metrics.manual_review_webhooks > 0)
+
   return (
     <div className="space-y-6">
       {error && (
@@ -161,42 +161,59 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
           {error}
         </div>
       )}
-      
+
       {/* Health Status Banner */}
-      <div className={`rounded-md p-4 ${hasIssues ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+      <div
+        className={`rounded-md p-4 ${hasIssues ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}
+      >
         <div className="flex items-center gap-3">
           {hasIssues ? (
             <>
-              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <svg
+                className="w-5 h-5 text-amber-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
               </svg>
               <div>
-                <p className="text-sm font-medium text-amber-800">
-                  Attention Required
-                </p>
+                <p className="text-sm font-medium text-amber-800">Attention Required</p>
                 <p className="text-xs text-amber-700">
-                  {metrics?.pending_webhooks || 0} pending, {metrics?.failed_webhooks || 0} failed webhook{metrics?.failed_webhooks !== 1 ? 's' : ''}
+                  {metrics?.pending_webhooks || 0} pending, {metrics?.failed_webhooks || 0} failed
+                  webhook{metrics?.failed_webhooks !== 1 ? 's' : ''}
                 </p>
               </div>
             </>
           ) : (
             <>
-              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-5 h-5 text-green-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
               <div>
-                <p className="text-sm font-medium text-green-800">
-                  All Systems Operational
-                </p>
-                <p className="text-xs text-green-700">
-                  No pending webhook failures
-                </p>
+                <p className="text-sm font-medium text-green-800">All Systems Operational</p>
+                <p className="text-xs text-green-700">No pending webhook failures</p>
               </div>
             </>
           )}
         </div>
       </div>
-      
+
       {/* Metrics Grid */}
       {metrics && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -218,7 +235,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
           </div>
         </div>
       )}
-      
+
       {/* Source Breakdown */}
       {metrics && (metrics.signalwire_failures > 0 || metrics.assemblyai_failures > 0) && (
         <div className="bg-white rounded-md border border-gray-200 p-4">
@@ -227,36 +244,36 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
             {metrics.signalwire_failures > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-lg">📞</span>
-                <span className="text-sm text-gray-600">SignalWire: {metrics.signalwire_failures}</span>
+                <span className="text-sm text-gray-600">Telnyx: {metrics.signalwire_failures}</span>
               </div>
             )}
             {metrics.assemblyai_failures > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-lg">🎙️</span>
-                <span className="text-sm text-gray-600">AssemblyAI: {metrics.assemblyai_failures}</span>
+                <span className="text-sm text-gray-600">
+                  AssemblyAI: {metrics.assemblyai_failures}
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
-      
+
       {/* Filter Tabs */}
       <div className="flex gap-2">
-        {(['pending', 'failed', 'all'] as const).map(f => (
+        {(['pending', 'failed', 'all'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              filter === f
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
+              filter === f ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
-      
+
       {/* Failures List */}
       <div className="bg-white rounded-md border border-gray-200 divide-y divide-gray-200">
         {failures.length === 0 ? (
@@ -264,7 +281,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
             No {filter === 'all' ? '' : filter} webhook failures
           </div>
         ) : (
-          failures.map(failure => (
+          failures.map((failure) => (
             <div key={failure.id} className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
@@ -278,15 +295,11 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
                       Attempt {failure.attempt_count}/{failure.max_attempts}
                     </span>
                   </div>
-                  
-                  <p className="text-sm text-red-600 truncate mb-1">
-                    {failure.error_message}
-                  </p>
-                  
+
+                  <p className="text-sm text-red-600 truncate mb-1">{failure.error_message}</p>
+
                   <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span>
-                      Created {new Date(failure.created_at).toLocaleString()}
-                    </span>
+                    <span>Created {new Date(failure.created_at).toLocaleString()}</span>
                     {failure.next_retry_at && failure.status === 'pending' && (
                       <span>
                         Next retry: {new Date(failure.next_retry_at).toLocaleTimeString()}
@@ -299,19 +312,20 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
                     )}
                   </div>
                 </div>
-                
+
                 {/* Actions */}
                 {['pending', 'failed', 'manual_review'].includes(failure.status) && (
                   <div className="flex gap-2 ml-4">
-                    {failure.status !== 'failed' && failure.attempt_count < failure.max_attempts && (
-                      <button
-                        onClick={() => handleAction(failure.id, 'retry')}
-                        disabled={processing === failure.id}
-                        className="px-3 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded transition-colors disabled:opacity-50"
-                      >
-                        Retry Now
-                      </button>
-                    )}
+                    {failure.status !== 'failed' &&
+                      failure.attempt_count < failure.max_attempts && (
+                        <button
+                          onClick={() => handleAction(failure.id, 'retry')}
+                          disabled={processing === failure.id}
+                          className="px-3 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 rounded transition-colors disabled:opacity-50"
+                        >
+                          Retry Now
+                        </button>
+                      )}
                     <button
                       onClick={() => handleAction(failure.id, 'discard')}
                       disabled={processing === failure.id}
@@ -326,7 +340,7 @@ export function ReliabilityDashboard({ organizationId }: ReliabilityDashboardPro
           ))
         )}
       </div>
-      
+
       {/* Help Text */}
       <div className="text-xs text-gray-500">
         <p>

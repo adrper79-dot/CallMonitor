@@ -1,9 +1,9 @@
 /**
  * Report Generation Engine
- * 
+ *
  * Core logic for generating reports from various data sources
  * Supports multiple report types and export formats
- * 
+ *
  * @module lib/reports/generator
  */
 
@@ -78,10 +78,13 @@ export async function generateCallVolumeReport(
     total_calls: calls.length,
     successful_calls: calls.filter((c: any) => c.status === 'completed').length,
     failed_calls: calls.filter((c: any) => c.status === 'failed').length,
-    avg_duration: calls.length > 0
-      ? Math.round(calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0) / calls.length)
-      : 0,
-    total_duration: calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0)
+    avg_duration:
+      calls.length > 0
+        ? Math.round(
+            calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0) / calls.length
+          )
+        : 0,
+    total_duration: calls.reduce((sum: number, c: any) => sum + (c.duration || 0), 0),
   }
 
   // Group by date
@@ -97,15 +100,15 @@ export async function generateCallVolumeReport(
       title: 'Calls Over Time',
       data: Object.entries(callsByDate).map(([date, count]) => ({
         date,
-        count
-      }))
-    }
+        count,
+      })),
+    },
   ]
 
   return {
     summary,
     details: calls || [],
-    charts
+    charts,
   }
 }
 
@@ -135,7 +138,7 @@ export async function generateCampaignPerformanceReport(
     params.push(campaign_ids)
   }
 
-  // Fetch campaigns with calls using json_agg to emulate Supabase shape
+  // Fetch campaigns with calls using json_agg
   // Assuming 'calls' table has 'campaign_id'
   const sql = `
     SELECT 
@@ -171,10 +174,12 @@ export async function generateCampaignPerformanceReport(
         calls_completed: completed.length,
         calls_successful: successful.length,
         success_rate: completed.length > 0 ? (successful.length / completed.length) * 100 : 0,
-        avg_duration: completed.length > 0
-          ? completed.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) / completed.length
-          : 0,
-        created_at: campaign.created_at
+        avg_duration:
+          completed.length > 0
+            ? completed.reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0) /
+              completed.length
+            : 0,
+        created_at: campaign.created_at,
       }
     })
 
@@ -184,17 +189,22 @@ export async function generateCampaignPerformanceReport(
       completed_campaigns: campaigns.filter((c: any) => c.status === 'completed').length,
       total_calls: details.reduce((sum: number, d: any) => sum + d.calls_completed, 0),
       total_successful: details.reduce((sum: number, d: any) => sum + d.calls_successful, 0),
-      avg_success_rate: details.length > 0
-        ? details.reduce((sum: number, d: any) => sum + d.success_rate, 0) / details.length
-        : 0
+      avg_success_rate:
+        details.length > 0
+          ? details.reduce((sum: number, d: any) => sum + d.success_rate, 0) / details.length
+          : 0,
     }
 
     return {
       summary,
-      details
+      details,
     }
   } catch (error) {
-    logger.error('Error fetching campaigns for report', error, { organizationId, dateRange: date_range, campaignIds: campaign_ids })
+    logger.error('Error fetching campaigns for report', error, {
+      organizationId,
+      dateRange: date_range,
+      campaignIds: campaign_ids,
+    })
     throw new Error('Failed to generate campaign performance report')
   }
 }
@@ -213,16 +223,18 @@ export function exportToCSV(data: ReportData): string {
   const headers = Object.keys(details[0])
   const csvRows = [
     headers.join(','),
-    ...details.map(row =>
-      headers.map(header => {
-        const value = (row as any)[header]
-        // Escape commas and quotes
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`
-        }
-        return value
-      }).join(',')
-    )
+    ...details.map((row) =>
+      headers
+        .map((header) => {
+          const value = (row as any)[header]
+          // Escape commas and quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`
+          }
+          return value
+        })
+        .join(',')
+    ),
   ]
 
   return csvRows.join('\n')

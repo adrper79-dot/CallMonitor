@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState } from 'react'
 import { AuthorityBadge } from '@/components/ui/AuthorityBadge'
@@ -22,39 +22,34 @@ interface ReviewTimelineProps {
 
 /**
  * ReviewTimeline - Professional Design System v3.0
- * 
+ *
  * Chronological timeline of all artifacts with provenance.
  * Read-only display for evidence review.
- * 
+ *
  * Reference: ARCH_DOCS/01-CORE/ARTIFACT_AUTHORITY_CONTRACT.md
  */
 export function ReviewTimeline({ artifacts }: ReviewTimelineProps) {
   // Sort artifacts chronologically
-  const sorted = [...artifacts].sort((a, b) => 
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  const sorted = [...artifacts].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )
-  
+
   if (sorted.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        No artifacts available for this call.
-      </div>
+      <div className="text-center py-8 text-gray-500">No artifacts available for this call.</div>
     )
   }
-  
+
   return (
     <div className="relative">
       {/* Timeline connector line */}
-      <div 
-        className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" 
-        aria-hidden="true" 
-      />
-      
+      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" aria-hidden="true" />
+
       {/* Artifact cards */}
       <div className="space-y-4">
         {sorted.map((artifact, index) => (
-          <ArtifactCard 
-            key={artifact.id} 
+          <ArtifactCard
+            key={artifact.id}
             artifact={artifact}
             isFirst={index === 0}
             isLast={index === sorted.length - 1}
@@ -73,24 +68,24 @@ interface ArtifactCardProps {
 
 function ArtifactCard({ artifact, isFirst, isLast }: ArtifactCardProps) {
   const [expanded, setExpanded] = useState(false)
-  
+
   const typeConfig = getTypeConfig(artifact.type)
-  
+
   return (
     <div className="relative pl-10">
       {/* Timeline marker */}
-      <div 
+      <div
         className={`absolute left-2 w-4 h-4 rounded-full border-2 ${
-          artifact.is_authoritative 
-            ? 'bg-success-light border-success' 
+          artifact.is_authoritative
+            ? 'bg-success-light border-success'
             : 'bg-warning-light border-warning'
         }`}
         style={{ top: '1.25rem' }}
         aria-hidden="true"
       />
-      
+
       {/* Card */}
-      <div 
+      <div
         className={`p-4 bg-white rounded-md border ${
           artifact.is_authoritative ? 'border-gray-200' : 'border-amber-200'
         }`}
@@ -98,7 +93,9 @@ function ArtifactCard({ artifact, isFirst, isLast }: ArtifactCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg" aria-hidden="true">{typeConfig.icon}</span>
+            <span className="text-lg" aria-hidden="true">
+              {typeConfig.icon}
+            </span>
             <div>
               <h4 className="text-sm font-medium text-gray-900">
                 {artifact.title || typeConfig.label}
@@ -108,28 +105,24 @@ function ArtifactCard({ artifact, isFirst, isLast }: ArtifactCardProps) {
               </p>
             </div>
           </div>
-          
-          <AuthorityBadge 
+
+          <AuthorityBadge
             isAuthoritative={artifact.is_authoritative}
             producer={artifact.produced_by}
           />
         </div>
-        
+
         {/* Summary */}
-        {artifact.summary && (
-          <p className="mt-2 text-sm text-gray-600">{artifact.summary}</p>
-        )}
-        
+        {artifact.summary && <p className="mt-2 text-sm text-gray-600">{artifact.summary}</p>}
+
         {/* Producer attribution */}
         <div className="mt-3 text-xs text-gray-500">
           Produced by: {formatProducer(artifact.produced_by)}
           {artifact.immutability_policy && (
-            <span className="ml-3">
-              Policy: {artifact.immutability_policy}
-            </span>
+            <span className="ml-3">Policy: {artifact.immutability_policy}</span>
           )}
         </div>
-        
+
         {/* Provenance expandable */}
         {artifact.provenance && Object.keys(artifact.provenance).length > 0 && (
           <div className="mt-3 border-t border-gray-100 pt-3">
@@ -137,17 +130,22 @@ function ArtifactCard({ artifact, isFirst, isLast }: ArtifactCardProps) {
               onClick={() => setExpanded(!expanded)}
               className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
             >
-              <svg 
-                className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`} 
-                fill="none" 
-                viewBox="0 0 24 24" 
+              <svg
+                className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
               {expanded ? 'Hide' : 'Show'} Provenance Details
             </button>
-            
+
             {expanded && (
               <pre className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto">
                 {JSON.stringify(artifact.provenance, null, 2)}
@@ -170,20 +168,21 @@ function getTypeConfig(type: TimelineArtifact['type']): { icon: string; label: s
     survey: { icon: '📋', label: 'Survey Response' },
     manifest: { icon: '📜', label: 'Evidence Manifest' },
   }
-  
+
   return configs[type] || { icon: '📎', label: 'Artifact' }
 }
 
 function formatProducer(producer: string): string {
   const producerMap: Record<string, string> = {
-    'signalwire': 'SignalWire',
-    'assemblyai': 'AssemblyAI',
-    'system_cas': 'System CAS',
-    'system': 'System',
-    'human': 'Human',
-    'model': 'AI Model',
+    telnyx: 'Telnyx',
+    signalwire: 'Telnyx',
+    assemblyai: 'AssemblyAI',
+    system_cas: 'System CAS',
+    system: 'System',
+    human: 'Human',
+    model: 'AI Model',
   }
-  
+
   return producerMap[producer?.toLowerCase()] || producer || 'Unknown'
 }
 

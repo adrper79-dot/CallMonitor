@@ -202,7 +202,7 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
   }
 })
 
-// CSRF token endpoint (required by NextAuth client)
+// CSRF token endpoint (used by auth client)
 authRoutes.get('/csrf', async (c) => {
   // Generate a CSRF token and store in KV for server-side validation
   const csrf_token = crypto.randomUUID()
@@ -216,9 +216,9 @@ authRoutes.get('/csrf', async (c) => {
   return c.json({ csrf_token })
 })
 
-// Auth providers endpoint (NextAuth format)
+// Auth providers endpoint
 authRoutes.get('/providers', async (c) => {
-  // Return available auth providers in NextAuth format
+  // Return available auth providers
   return c.json({
     credentials: {
       id: 'credentials',

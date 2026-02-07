@@ -1,11 +1,22 @@
 /**
  * Error Catalog
- * 
+ *
  * Centralized error definitions with codes, categories, severities, and messages.
  * Per ERROR_HANDLING_PLAN.txt
  */
 
-export type ErrorCategory = 'AUTH' | 'USER' | 'ORG' | 'DB' | 'TEST_CONFIG' | 'TEST_EXEC' | 'DATA' | 'SYSTEM' | 'EXTERNAL' | 'VOICE' | 'AI'
+export type ErrorCategory =
+  | 'AUTH'
+  | 'USER'
+  | 'ORG'
+  | 'DB'
+  | 'TEST_CONFIG'
+  | 'TEST_EXEC'
+  | 'DATA'
+  | 'SYSTEM'
+  | 'EXTERNAL'
+  | 'VOICE'
+  | 'AI'
 export type ErrorSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface ErrorDefinition {
@@ -24,7 +35,7 @@ export interface ErrorDefinition {
  */
 export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
   // Authentication errors
-  'AUTH_REQUIRED': {
+  AUTH_REQUIRED: {
     code: 'AUTH_REQUIRED',
     category: 'AUTH',
     severity: 'HIGH',
@@ -32,9 +43,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Please sign in to continue',
     httpStatus: 401,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
-  'AUTH_ORG_MISMATCH': {
+  AUTH_ORG_MISMATCH: {
     code: 'AUTH_ORG_MISMATCH',
     category: 'AUTH',
     severity: 'HIGH',
@@ -42,9 +53,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'You do not have access to this organization',
     httpStatus: 401,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
-  'FORBIDDEN': {
+  FORBIDDEN: {
     code: 'FORBIDDEN',
     category: 'AUTH',
     severity: 'HIGH',
@@ -52,11 +63,11 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'You do not have permission to perform this action',
     httpStatus: 403,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
 
   // Database errors
-  'DB_QUERY_FAILED': {
+  DB_QUERY_FAILED: {
     code: 'DB_QUERY_FAILED',
     category: 'DB',
     severity: 'HIGH',
@@ -64,9 +75,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Could not retrieve data. Please try again.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'DB_INSERT_FAILED': {
+  DB_INSERT_FAILED: {
     code: 'DB_INSERT_FAILED',
     category: 'DB',
     severity: 'HIGH',
@@ -74,9 +85,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Could not save data. Please try again.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'DB_UPDATE_FAILED': {
+  DB_UPDATE_FAILED: {
     code: 'DB_UPDATE_FAILED',
     category: 'DB',
     severity: 'HIGH',
@@ -84,11 +95,11 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Could not update data. Please try again.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
 
   // Voice/Call errors
-  'CALL_START_FAILED': {
+  CALL_START_FAILED: {
     code: 'CALL_START_FAILED',
     category: 'VOICE',
     severity: 'HIGH',
@@ -96,31 +107,31 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Unable to place call. Please try again.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'SIGNALWIRE_CONFIG_MISSING': {
-    code: 'SIGNALWIRE_CONFIG_MISSING',
+  TELNYX_CONFIG_MISSING: {
+    code: 'TELNYX_CONFIG_MISSING',
     category: 'EXTERNAL',
     severity: 'CRITICAL',
-    internalMessage: 'SignalWire credentials missing',
+    internalMessage: 'Telnyx credentials missing',
     userMessage: 'System configuration error. Please contact support.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'SIGNALWIRE_API_ERROR': {
-    code: 'SIGNALWIRE_API_ERROR',
+  TELNYX_API_ERROR: {
+    code: 'TELNYX_API_ERROR',
     category: 'EXTERNAL',
     severity: 'HIGH',
-    internalMessage: 'SignalWire API error',
+    internalMessage: 'Telnyx API error',
     userMessage: 'Call service temporarily unavailable. Please try again.',
     httpStatus: 502,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
 
   // AI/Transcription errors
-  'ASSEMBLYAI_API_ERROR': {
+  ASSEMBLYAI_API_ERROR: {
     code: 'ASSEMBLYAI_API_ERROR',
     category: 'AI',
     severity: 'HIGH',
@@ -128,9 +139,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Transcription service temporarily unavailable.',
     httpStatus: 502,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'TRANSCRIPTION_FAILED': {
+  TRANSCRIPTION_FAILED: {
     code: 'TRANSCRIPTION_FAILED',
     category: 'AI',
     severity: 'MEDIUM',
@@ -138,9 +149,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Transcription could not be completed.',
     httpStatus: 500,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
-  'LIVE_TRANSLATE_EXECUTION_FAILED': {
+  LIVE_TRANSLATE_EXECUTION_FAILED: {
     code: 'LIVE_TRANSLATE_EXECUTION_FAILED',
     category: 'EXTERNAL',
     severity: 'MEDIUM',
@@ -148,21 +159,22 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Live translation encountered an issue. Post-call transcript is still available.',
     httpStatus: 500,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
-  'LIVE_TRANSLATE_VENDOR_DOWN': {
+  LIVE_TRANSLATE_VENDOR_DOWN: {
     code: 'LIVE_TRANSLATE_VENDOR_DOWN',
     category: 'EXTERNAL',
     severity: 'HIGH',
     internalMessage: 'Live translation vendor service unavailable',
-    userMessage: 'Live translation service is temporarily unavailable. Post-call transcript will be available.',
+    userMessage:
+      'Live translation service is temporarily unavailable. Post-call transcript will be available.',
     httpStatus: 503,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
 
   // Organization/Plan errors
-  'PLAN_LIMIT_EXCEEDED': {
+  PLAN_LIMIT_EXCEEDED: {
     code: 'PLAN_LIMIT_EXCEEDED',
     category: 'ORG',
     severity: 'MEDIUM',
@@ -170,9 +182,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'This feature is not available on your current plan. Please upgrade.',
     httpStatus: 403,
     shouldAlert: false,
-    trackKPI: true
+    trackKPI: true,
   },
-  'ORG_NOT_FOUND': {
+  ORG_NOT_FOUND: {
     code: 'ORG_NOT_FOUND',
     category: 'ORG',
     severity: 'MEDIUM',
@@ -180,11 +192,11 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Organization not found',
     httpStatus: 404,
     shouldAlert: false,
-    trackKPI: false
+    trackKPI: false,
   },
 
   // System errors
-  'SYSTEM_ERROR': {
+  SYSTEM_ERROR: {
     code: 'SYSTEM_ERROR',
     category: 'SYSTEM',
     severity: 'CRITICAL',
@@ -192,9 +204,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'An unexpected error occurred. Please try again.',
     httpStatus: 500,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
-  'SERVICE_UNAVAILABLE': {
+  SERVICE_UNAVAILABLE: {
     code: 'SERVICE_UNAVAILABLE',
     category: 'SYSTEM',
     severity: 'HIGH',
@@ -202,11 +214,11 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Service temporarily unavailable. Please try again later.',
     httpStatus: 503,
     shouldAlert: true,
-    trackKPI: true
+    trackKPI: true,
   },
 
   // Input validation errors
-  'INVALID_INPUT': {
+  INVALID_INPUT: {
     code: 'INVALID_INPUT',
     category: 'USER',
     severity: 'MEDIUM',
@@ -214,9 +226,9 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'Invalid input. Please check your request and try again.',
     httpStatus: 400,
     shouldAlert: false,
-    trackKPI: false
+    trackKPI: false,
   },
-  'INVALID_PHONE': {
+  INVALID_PHONE: {
     code: 'INVALID_PHONE',
     category: 'USER',
     severity: 'MEDIUM',
@@ -224,7 +236,7 @@ export const ERROR_CATALOG: Record<string, ErrorDefinition> = {
     userMessage: 'The phone number provided is invalid. Please verify and try again.',
     httpStatus: 400,
     shouldAlert: false,
-    trackKPI: false
+    trackKPI: false,
   },
 }
 

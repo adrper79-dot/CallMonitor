@@ -1,7 +1,7 @@
 /**
  * Neon Database Client
  *
- * Direct pg client for Neon Postgres, replacing Supabase.
+ * Direct pg client for Neon Postgres.
  * Includes RLS session management and audit logging.
  */
 
@@ -22,7 +22,14 @@ export async function setRLSSession(orgId: string, userId?: string) {
 }
 
 // Audit logging
-export async function logAudit(action: string, table: string, recordId: string, orgId: string, userId?: string, details?: any) {
+export async function logAudit(
+  action: string,
+  table: string,
+  recordId: string,
+  orgId: string,
+  userId?: string,
+  details?: any
+) {
   await pool.query(
     'INSERT INTO audit_logs (action, table_name, record_id, organization_id, user_id, details, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
     [action, table, recordId, orgId, userId, JSON.stringify(details)]
@@ -30,7 +37,14 @@ export async function logAudit(action: string, table: string, recordId: string, 
 }
 
 // Query with audit
-export async function queryWithAudit(sql: string, params: any[], action: string, table: string, orgId: string, userId?: string) {
+export async function queryWithAudit(
+  sql: string,
+  params: any[],
+  action: string,
+  table: string,
+  orgId: string,
+  userId?: string
+) {
   const result = await pool.query(sql, params)
   await logAudit(action, table, params[0] || 'unknown', orgId, userId)
   return result

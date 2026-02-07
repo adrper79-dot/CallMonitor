@@ -5,9 +5,8 @@ declare global {
     NEON_PG_CONN: string
     DATABASE_URL: string
 
-    // Authentication
-    NEXTAUTH_SECRET: string
-    NEXTAUTH_URL: string
+    // Authentication (Custom Workers Auth)
+    AUTH_SECRET: string
     GOOGLE_CLIENT_ID?: string
     GOOGLE_CLIENT_SECRET?: string
 
@@ -15,19 +14,10 @@ declare global {
     OPENAI_API_KEY: string
     ASSEMBLYAI_API_KEY: string
 
-    // Voice Services (SignalWire)
-    SIGNALWIRE_PROJECT_ID: string
-    SIGNALWIRE_TOKEN: string
-    SIGNALWIRE_SPACE: string
-    SIGNALWIRE_NUMBER?: string
-    SIGNALWIRE_SIP_USERNAME?: string
-    SIGNALWIRE_SIP_PASSWORD?: string
-    SIGNALWIRE_SIP_DOMAIN?: string
-    SIGNALWIRE_WEBSOCKET_URL?: string
-    SIGNALWIRE_AI_AGENT_ID?: string
-
-    // Alternative Voice Services
-    TELNYX_API_KEY?: string
+    // Voice Services (Telnyx)
+    TELNYX_API_KEY: string
+    TELNYX_PUBLIC_KEY?: string
+    TELNYX_CONNECTION_ID?: string
 
     // Email Services
     RESEND_API_KEY: string
@@ -43,36 +33,17 @@ declare global {
     // Text-to-Speech
     ELEVENLABS_API_KEY?: string
 
-    // CRM Integrations
-    HUBSPOT_CLIENT_ID?: string
-    HUBSPOT_CLIENT_SECRET?: string
-    SALESFORCE_CLIENT_ID?: string
-    SALESFORCE_CLIENT_SECRET?: string
-
-    // Supabase (Legacy)
-    NEXT_PUBLIC_SUPABASE_URL?: string
-    NEXT_PUBLIC_SUPABASE_ANON_KEY?: string
-    SUPABASE_SERVICE_ROLE_KEY?: string
-
     // Security & Admin
     ADMIN_API_KEY?: string
     SERVICE_API_KEY?: string
     CRON_SECRET?: string
 
-    // Monitoring
-    SENTRY_DSN?: string
+    // App URLs
+    NEXT_PUBLIC_API_URL?: string
+    API_BASE_URL?: string
 
     // Feature Flags
-    ENABLE_LIVE_TRANSLATION_PREVIEW?: string
     TRANSLATION_LIVE_ASSIST_PREVIEW?: string
-    ASSEMBLYAI_SKIP_SIGNATURE_VALIDATION?: string
-    SIGNALWIRE_SKIP_SIGNATURE_VALIDATION?: string
-
-    // R2 Storage (S3-compatible API)
-    R2_ENDPOINT?: string
-    R2_ACCESS_KEY_ID?: string
-    R2_SECRET_ACCESS_KEY?: string
-    R2_BUCKET_NAME?: string
   }
 
   interface CloudflareBindings {

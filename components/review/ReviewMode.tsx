@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { ReviewTimeline, TimelineArtifact } from './ReviewTimeline'
@@ -66,10 +66,10 @@ interface ReviewModeProps {
 
 /**
  * ReviewMode - Professional Design System v3.0
- * 
+ *
  * Read-only evidence review interface for dispute resolution.
  * No edit actions - full provenance and authority markers.
- * 
+ *
  * Reference: ARCH_DOCS/01-CORE/ARTIFACT_AUTHORITY_CONTRACT.md
  */
 export default function ReviewMode({ callId, organizationId }: ReviewModeProps) {
@@ -78,17 +78,19 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const { toast } = useToast()
-  
+
   // Fetch call with all artifacts
   useEffect(() => {
     async function fetchCallDetails() {
       if (!callId) return
-      
+
       try {
         setLoading(true)
         setError(null)
-        
-        const data = await apiGet(`/api/calls/${callId}?include=recordings,transcripts,ai_runs,manifests`)
+
+        const data = await apiGet(
+          `/api/calls/${callId}?include=recordings,transcripts,ai_runs,manifests`
+        )
         setCall(data.call)
       } catch (err: any) {
         setError(err.message || 'Failed to load call details')
@@ -96,23 +98,23 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         setLoading(false)
       }
     }
-    
+
     fetchCallDetails()
   }, [callId])
-  
+
   // Export evidence bundle (ZIP format)
   async function handleExport() {
     if (!callId) return
-    
+
     setExporting(true)
-    
+
     try {
       const res = await apiFetch(`/api/calls/${callId}/export?format=zip`)
-      
+
       if (!res.ok) {
         throw new Error('Export failed')
       }
-      
+
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -122,7 +124,7 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      
+
       toast({
         title: 'Export Complete',
         description: 'Evidence bundle downloaded successfully',
@@ -137,31 +139,31 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
       setExporting(false)
     }
   }
-  
+
   // Build timeline artifacts from call data
   function buildTimelineArtifacts(): TimelineArtifact[] {
     if (!call) return []
-    
+
     const artifacts: TimelineArtifact[] = []
-    
+
     // Add recordings
-    call.recordings?.forEach(rec => {
+    call.recordings?.forEach((rec) => {
       artifacts.push({
         id: rec.id,
         type: 'recording',
         created_at: rec.created_at,
         is_authoritative: rec.is_authoritative ?? true,
-        produced_by: rec.source || 'signalwire',
+        produced_by: rec.source || 'telnyx',
         immutability_policy: 'immutable',
         title: 'Source Recording',
-        summary: rec.duration_seconds 
+        summary: rec.duration_seconds
           ? `${Math.floor(rec.duration_seconds / 60)}:${(rec.duration_seconds % 60).toString().padStart(2, '0')} duration`
           : undefined,
       })
     })
-    
+
     // Add transcripts
-    call.transcript_versions?.forEach(tv => {
+    call.transcript_versions?.forEach((tv) => {
       artifacts.push({
         id: tv.id,
         type: 'transcript',
@@ -174,9 +176,9 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         provenance: { hash: tv.transcript_hash },
       })
     })
-    
+
     // Add AI runs
-    call.ai_runs?.forEach(run => {
+    call.ai_runs?.forEach((run) => {
       artifacts.push({
         id: run.id,
         type: 'ai_run',
@@ -187,9 +189,9 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         summary: `Status: ${run.status}`,
       })
     })
-    
+
     // Add evidence manifests
-    call.evidence_manifests?.forEach(em => {
+    call.evidence_manifests?.forEach((em) => {
       artifacts.push({
         id: em.id,
         type: 'manifest',
@@ -198,16 +200,16 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         produced_by: em.produced_by || 'system_cas',
         immutability_policy: 'immutable',
         title: `Evidence Manifest (v${em.version})`,
-        summary: em.cryptographic_hash 
-          ? `Hash: ${em.cryptographic_hash.slice(0, 12)}...` 
+        summary: em.cryptographic_hash
+          ? `Hash: ${em.cryptographic_hash.slice(0, 12)}...`
           : undefined,
         provenance: em.manifest,
       })
     })
-    
+
     return artifacts
   }
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -216,7 +218,7 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
       </div>
     )
   }
-  
+
   if (error) {
     return (
       <div className="p-6 bg-error-light border border-red-200 rounded-md">
@@ -225,7 +227,7 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
       </div>
     )
   }
-  
+
   if (!call) {
     return (
       <div className="p-6 bg-gray-50 border border-gray-200 rounded-md text-center">
@@ -233,9 +235,9 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
       </div>
     )
   }
-  
+
   const artifacts = buildTimelineArtifacts()
-  
+
   return (
     <div className="review-mode">
       {/* Header with Locked View indicator */}
@@ -243,17 +245,17 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center">
-              <svg 
-                className="w-5 h-5 text-white" 
-                fill="none" 
-                viewBox="0 0 24 24" 
+              <svg
+                className="w-5 h-5 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                 />
               </svg>
             </div>
@@ -264,10 +266,12 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
                   LOCKED VIEW
                 </span>
               </div>
-              <p className="text-sm text-primary-700">Immutable record - no modifications allowed</p>
+              <p className="text-sm text-primary-700">
+                Immutable record - no modifications allowed
+              </p>
             </div>
           </div>
-          
+
           <Button
             onClick={handleExport}
             disabled={exporting}
@@ -282,7 +286,12 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 Export Evidence
               </>
@@ -290,31 +299,34 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
           </Button>
         </div>
       </div>
-      
+
       {/* Call Summary */}
       <div className="mb-6 p-4 bg-white border border-gray-200 rounded-md">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-base font-medium text-gray-900">
-              Call {call.id.slice(0, 8)}...
-            </h3>
+            <h3 className="text-base font-medium text-gray-900">Call {call.id.slice(0, 8)}...</h3>
             <div className="mt-1 text-sm text-gray-500 space-y-1">
-              <p>Status: <Badge variant={call.status === 'completed' ? 'success' : 'default'}>{call.status}</Badge></p>
+              <p>
+                Status:{' '}
+                <Badge variant={call.status === 'completed' ? 'success' : 'default'}>
+                  {call.status}
+                </Badge>
+              </p>
               {call.from_number && <p>From: {call.from_number}</p>}
               {call.to_number && <p>To: {call.to_number}</p>}
               {call.duration_seconds && (
-                <p>Duration: {Math.floor(call.duration_seconds / 60)}:{(call.duration_seconds % 60).toString().padStart(2, '0')}</p>
+                <p>
+                  Duration: {Math.floor(call.duration_seconds / 60)}:
+                  {(call.duration_seconds % 60).toString().padStart(2, '0')}
+                </p>
               )}
             </div>
           </div>
-          
-          <AuthorityBadge 
-            isAuthoritative={call.is_authoritative ?? true}
-            producer="server"
-          />
+
+          <AuthorityBadge isAuthoritative={call.is_authoritative ?? true} producer="server" />
         </div>
       </div>
-      
+
       {/* Timeline */}
       <div className="mb-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">
@@ -322,20 +334,14 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         </h3>
         <ReviewTimeline artifacts={artifacts} />
       </div>
-      
+
       {/* Provenance Summary */}
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
         <h4 className="text-sm font-medium text-gray-900 mb-2">Provenance Summary</h4>
         <ul className="text-xs text-gray-600 space-y-1">
-          <li>
-            Authoritative artifacts: {artifacts.filter(a => a.is_authoritative).length}
-          </li>
-          <li>
-            Preview artifacts: {artifacts.filter(a => !a.is_authoritative).length}
-          </li>
-          <li>
-            Producers: {Array.from(new Set(artifacts.map(a => a.produced_by))).join(', ')}
-          </li>
+          <li>Authoritative artifacts: {artifacts.filter((a) => a.is_authoritative).length}</li>
+          <li>Preview artifacts: {artifacts.filter((a) => !a.is_authoritative).length}</li>
+          <li>Producers: {Array.from(new Set(artifacts.map((a) => a.produced_by))).join(', ')}</li>
         </ul>
       </div>
     </div>

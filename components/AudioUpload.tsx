@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from './ui/button'
@@ -26,75 +26,78 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
   const MAX_POLL_ATTEMPTS = 60 // 5 minutes at 5-second intervals
 
   // Poll for transcription status
-  const pollStatus = useCallback(async (transcriptId: string) => {
-    try {
-      const data = await apiGet(`/api/audio/status/${transcriptId}`)
-      
-      if (data.status === 'completed') {
-        // Success! Stop polling
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
-        }
-        setTranscribing(false)
-        setProgress(100)
-        setPollingId(null)
-        setTranscriptResult(data.transcript || null)
-        
-        toast({
-          title: 'Transcription complete!',
-          description: data.transcript 
-            ? `${data.transcript.substring(0, 100)}${data.transcript.length > 100 ? '...' : ''}`
-            : 'Transcript is ready'
-        })
-        
-        if (onUploadComplete) {
-          onUploadComplete(transcriptId, data.transcript)
-        }
-        return
-      }
+  const pollStatus = useCallback(
+    async (transcriptId: string) => {
+      try {
+        const data = await apiGet(`/api/audio/status/${transcriptId}`)
 
-      if (data.status === 'failed') {
-        // Error - stop polling
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
-        }
-        setTranscribing(false)
-        setPollingId(null)
-        
-        toast({
-          title: 'Transcription failed',
-          description: data.error || 'Unknown error occurred',
-          variant: 'destructive'
-        })
-        return
-      }
+        if (data.status === 'completed') {
+          // Success! Stop polling
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setTranscribing(false)
+          setProgress(100)
+          setPollingId(null)
+          setTranscriptResult(data.transcript || null)
 
-      // Still processing - update progress (visual feedback)
-      pollCountRef.current += 1
-      const estimatedProgress = Math.min(50 + (pollCountRef.current * 0.8), 95)
-      setProgress(estimatedProgress)
+          toast({
+            title: 'Transcription complete!',
+            description: data.transcript
+              ? `${data.transcript.substring(0, 100)}${data.transcript.length > 100 ? '...' : ''}`
+              : 'Transcript is ready',
+          })
 
-      // Check timeout
-      if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
+          if (onUploadComplete) {
+            onUploadComplete(transcriptId, data.transcript)
+          }
+          return
         }
-        setTranscribing(false)
-        setPollingId(null)
-        
-        toast({
-          title: 'Transcription timeout',
-          description: 'Transcription is taking longer than expected. Check back later.',
-          variant: 'destructive'
-        })
+
+        if (data.status === 'failed') {
+          // Error - stop polling
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setTranscribing(false)
+          setPollingId(null)
+
+          toast({
+            title: 'Transcription failed',
+            description: data.error || 'Unknown error occurred',
+            variant: 'destructive',
+          })
+          return
+        }
+
+        // Still processing - update progress (visual feedback)
+        pollCountRef.current += 1
+        const estimatedProgress = Math.min(50 + pollCountRef.current * 0.8, 95)
+        setProgress(estimatedProgress)
+
+        // Check timeout
+        if (pollCountRef.current >= MAX_POLL_ATTEMPTS) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setTranscribing(false)
+          setPollingId(null)
+
+          toast({
+            title: 'Transcription timeout',
+            description: 'Transcription is taking longer than expected. Check back later.',
+            variant: 'destructive',
+          })
+        }
+      } catch (err) {
+        logger.error('AudioUpload: poll status failed', err)
       }
-    } catch (err) {
-      logger.error('AudioUpload: poll status failed', err)
-    }
-  }, [onUploadComplete])
+    },
+    [onUploadComplete]
+  )
 
   // Start polling when pollingId is set
   useEffect(() => {
@@ -118,12 +121,19 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
     if (!selectedFile) return
 
     // Validate file type
-    const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/mp4', 'audio/ogg']
-    if (!validTypes.some(type => selectedFile.type.includes(type.split('/')[1]))) {
+    const validTypes = [
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/m4a',
+      'audio/mp4',
+      'audio/ogg',
+    ]
+    if (!validTypes.some((type) => selectedFile.type.includes(type.split('/')[1]))) {
       toast({
         title: 'Invalid file type',
         description: 'Please upload an audio file (MP3, WAV, M4A, OGG)',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -133,7 +143,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       toast({
         title: 'File too large',
         description: 'Maximum file size is 50MB',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -148,7 +158,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
     setProgress(0)
 
     try {
-      // Step 1: Upload to Supabase Storage via Workers API
+      // Step 1: Upload audio via Workers API
       const formData = new FormData()
       formData.append('file', file)
       formData.append('organization_id', organizationId)
@@ -163,7 +173,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       const transcribeData = await apiPost('/api/audio/transcribe', {
         organization_id: organizationId,
         audio_url: uploadData.url,
-        filename: file.name
+        filename: file.name,
       })
       setProgress(50)
 
@@ -172,7 +182,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
 
       toast({
         title: 'Transcription started',
-        description: 'Processing audio... This may take a few minutes.'
+        description: 'Processing audio... This may take a few minutes.',
       })
 
       // Reset file selection (but keep transcribing state for polling)
@@ -184,12 +194,12 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
       // Note: transcribing remains true until polling completes
     } catch (err: any) {
       logger.error('AudioUpload: upload/transcription failed', err, {
-        organizationId
+        organizationId,
       })
       toast({
         title: 'Upload failed',
         description: err.message || 'An error occurred',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       setUploading(false)
       setTranscribing(false)
@@ -206,9 +216,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
   return (
     <div className="p-6 bg-slate-800 rounded-lg border border-slate-700">
       <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-lg font-semibold text-slate-100">
-          Audio Upload & Transcription
-        </h3>
+        <h3 className="text-lg font-semibold text-slate-100">Audio Upload & Transcription</h3>
         <Badge variant="secondary">AssemblyAI</Badge>
       </div>
 
@@ -245,9 +253,7 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
           <div className="p-3 bg-slate-900 rounded border border-slate-700">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-100 truncate">
-                  {file.name}
-                </p>
+                <p className="text-sm font-medium text-slate-100 truncate">{file.name}</p>
                 <p className="text-xs text-slate-400">
                   {formatFileSize(file.size)} • {file.type}
                 </p>
@@ -296,8 +302,8 @@ export default function AudioUpload({ organizationId, onUploadComplete }: AudioU
 
         {/* Help Text */}
         <p className="text-xs text-slate-500">
-          Audio will be uploaded to secure storage and transcribed using AssemblyAI. 
-          Results will appear in your Voice Operations page.
+          Audio will be uploaded to secure storage and transcribed using AssemblyAI. Results will
+          appear in your Voice Operations page.
         </p>
 
         {/* Transcript Result */}

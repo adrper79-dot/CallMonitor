@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -103,7 +103,7 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
   }
 
   function updateConfig(updates: Partial<AIConfig>) {
-    setConfig(prev => ({ ...prev, ...updates }))
+    setConfig((prev) => ({ ...prev, ...updates }))
   }
 
   if (loading) {
@@ -122,7 +122,12 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
       <div className="bg-white rounded-md border border-gray-200 p-6">
         <div className="flex items-center gap-2 text-red-600">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <span className="text-sm">{error}</span>
         </div>
@@ -142,8 +147,18 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          <svg
+            className="w-5 h-5 text-primary-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+            />
           </svg>
           <h3 className="text-lg font-semibold text-gray-900">AI Agent Configuration</h3>
         </div>
@@ -156,7 +171,12 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           {error}
         </div>
@@ -191,8 +211,18 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
               <div className="flex items-center gap-2">
                 <p className="font-medium text-gray-900">Live Translation</p>
                 {!featuresAvailable.live_translation && (
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <svg
+                    className="w-4 h-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
                   </svg>
                 )}
               </div>
@@ -258,11 +288,23 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
               <div className="flex items-center gap-2">
                 <div>
                   <p className="font-medium text-gray-900">Voice Cloning</p>
-                  <p className="text-sm text-gray-500">Clone voices for personalized translations</p>
+                  <p className="text-sm text-gray-500">
+                    Clone voices for personalized translations
+                  </p>
                 </div>
                 {!featuresAvailable.voice_cloning && (
-                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <svg
+                    className="w-4 h-4 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                    />
                   </svg>
                 )}
               </div>
@@ -282,9 +324,7 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
 
           {/* Model Selection */}
           <div className="bg-white rounded-md border border-gray-200 p-4">
-            <label className="block text-sm font-medium text-gray-900 mb-2">
-              AI Model
-            </label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">AI Model</label>
             <select
               value={config.ai_agent_model || 'gpt-4o-mini'}
               onChange={(e) => updateConfig({ ai_agent_model: e.target.value })}
@@ -315,7 +355,8 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
               className="w-full"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Lower values (0-0.5) are more focused and deterministic. Higher values (1-2) are more creative.
+              Lower values (0-0.5) are more focused and deterministic. Higher values (1-2) are more
+              creative.
             </p>
           </div>
 
@@ -330,11 +371,12 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
                 value={config.ai_agent_id || ''}
                 onChange={(e) => updateConfig({ ai_agent_id: e.target.value })}
                 disabled={!canEdit}
-                placeholder="SignalWire AI Agent ID"
+                placeholder="Telnyx AI Agent ID"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-transparent"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Leave blank to use default agent. Enter your SignalWire AI Agent ID for custom configuration.
+                Leave blank to use default agent. Enter your Telnyx AI Agent ID for custom
+                configuration.
               </p>
             </div>
           )}
@@ -379,12 +421,17 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-transparent font-mono text-sm"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Webhook endpoint called after AI agent completes processing. Must be HTTPS. Used for custom integrations and workflow triggers.
+                Webhook endpoint called after AI agent completes processing. Must be HTTPS. Used for
+                custom integrations and workflow triggers.
               </p>
               <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <p className="text-xs text-gray-700">
-                  <strong className="text-gray-900">Webhook Payload:</strong> Receives call metadata, AI model used, processing time, and agent output. See{' '}
-                  <a href="/docs/webhooks/ai-agent" className="text-primary-600 hover:text-primary-700 underline">
+                  <strong className="text-gray-900">Webhook Payload:</strong> Receives call
+                  metadata, AI model used, processing time, and agent output. See{' '}
+                  <a
+                    href="/docs/webhooks/ai-agent"
+                    className="text-primary-600 hover:text-primary-700 underline"
+                  >
                     webhook documentation
                   </a>{' '}
                   for payload schema.
@@ -396,8 +443,18 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
           {/* Configuration Summary */}
           <div className="bg-gradient-to-br from-primary-50 to-blue-50 rounded-md border border-primary-200 p-4">
             <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <svg className="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-4 h-4 text-primary-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
               Current Configuration
             </h4>
@@ -413,18 +470,22 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
                   <div className="flex justify-between">
                     <dt className="text-gray-600">Model:</dt>
                     <dd className="font-medium text-gray-900">
-                      {MODEL_OPTIONS.find(m => m.value === config.ai_agent_model)?.label || 'GPT-4o Mini'}
+                      {MODEL_OPTIONS.find((m) => m.value === config.ai_agent_model)?.label ||
+                        'GPT-4o Mini'}
                     </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-gray-600">Temperature:</dt>
-                    <dd className="font-medium text-gray-900">{config.ai_agent_temperature ?? 0.3}</dd>
+                    <dd className="font-medium text-gray-900">
+                      {config.ai_agent_temperature ?? 0.3}
+                    </dd>
                   </div>
                   {config.live_translate && (
                     <div className="flex justify-between">
                       <dt className="text-gray-600">Live Translation:</dt>
                       <dd className="font-medium text-gray-900">
-                        {config.translate_from?.toUpperCase()} → {config.translate_to?.toUpperCase()}
+                        {config.translate_from?.toUpperCase()} →{' '}
+                        {config.translate_to?.toUpperCase()}
                       </dd>
                     </div>
                   )}
@@ -437,7 +498,10 @@ export function AIAgentConfig({ organizationId, plan, canEdit }: AIAgentConfigPr
                   {config.ai_agent_id && (
                     <div className="flex justify-between">
                       <dt className="text-gray-600">Custom Agent:</dt>
-                      <dd className="font-mono text-xs text-gray-900 truncate max-w-[200px]" title={config.ai_agent_id}>
+                      <dd
+                        className="font-mono text-xs text-gray-900 truncate max-w-[200px]"
+                        title={config.ai_agent_id}
+                      >
                         {config.ai_agent_id}
                       </dd>
                     </div>

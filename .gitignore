@@ -53,6 +53,9 @@ workers/.dev.vars
 workers/dist_dry/
 nul
 
+# Auto-generated Cloudflare type files
+worker-configuration.d.ts
+
 # Database backups (contain production data)
 backups/db/
 workers/dist_test/

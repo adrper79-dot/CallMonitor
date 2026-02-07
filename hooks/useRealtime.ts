@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { apiPost } from '@/lib/apiClient'
@@ -7,7 +7,6 @@ import { apiPost } from '@/lib/apiClient'
  * Real-time Updates Hook
  *
  * Uses polling-based updates for Neon compatibility.
- * The realtime Supabase functionality is disabled since we're using Neon.
  */
 
 interface RealtimeUpdate {
@@ -52,7 +51,7 @@ export function useRealtime(organizationId: string | null) {
   return {
     updates,
     connected,
-    clearUpdates
+    clearUpdates,
   }
 }
 

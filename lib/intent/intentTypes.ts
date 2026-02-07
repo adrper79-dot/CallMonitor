@@ -1,13 +1,13 @@
 /**
  * Intent Action Types
- * 
+ *
  * ARCH_DOCS Compliance: "You initiate intent. We orchestrate execution."
  * (MASTER_ARCHITECTURE.txt)
- * 
+ *
  * Intent actions MUST be captured in audit_logs BEFORE execution begins.
  * The `action` field uses the `intent:` prefix to distinguish intent capture
  * from post-execution auditing.
- * 
+ *
  * AI_ROLE_POLICY.md: AI does NOT "Act as agent of intent" - humans declare
  * intent, systems execute.
  */
@@ -21,7 +21,7 @@ export const INTENT_PREFIX = 'intent:' as const
  * Core intent actions for call lifecycle
  */
 export const CallIntentActions = {
-  /** User initiates a call (before SignalWire execution) */
+  /** User initiates a call (before Telnyx execution) */
   CALL_START: 'intent:call_start',
   /** User requests call termination */
   CALL_END: 'intent:call_end',
@@ -75,10 +75,10 @@ export const CampaignIntentActions = {
  * All intent action types (union)
  */
 export type IntentAction =
-  | typeof CallIntentActions[keyof typeof CallIntentActions]
-  | typeof AIIntentActions[keyof typeof AIIntentActions]
-  | typeof ConfigIntentActions[keyof typeof ConfigIntentActions]
-  | typeof CampaignIntentActions[keyof typeof CampaignIntentActions]
+  | (typeof CallIntentActions)[keyof typeof CallIntentActions]
+  | (typeof AIIntentActions)[keyof typeof AIIntentActions]
+  | (typeof ConfigIntentActions)[keyof typeof ConfigIntentActions]
+  | (typeof CampaignIntentActions)[keyof typeof CampaignIntentActions]
 
 /**
  * Type guard to check if an action is an intent action
