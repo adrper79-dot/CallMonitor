@@ -20,6 +20,7 @@
     "db:reset-test": "psql $NEON_PG_CONN -f migrations/reset_test.sql",
     "db:rls-audit": "psql $NEON_PG_CONN -f scripts/rls-audit.sql",
     "db:rls-enforce": "psql $NEON_PG_CONN -f migrations/2026-02-08-rls-enforcement.sql",
+    "db:evidence-views": "psql $NEON_PG_CONN -f migrations/2026-02-09-evidence-immutable-views.sql",
     "db:backup": "bash scripts/neon-backup.sh",
     "test:smoke": "bash scripts/smoke-test.sh",
     "db:schema-check": "bash scripts/schema-drift-check.sh",

@@ -23796,6 +23796,16 @@ var analyticsExportRateLimit = rateLimit({
   windowSeconds: 15 * 60,
   prefix: "rl:analytics-export"
 });
+var aiTranscriptionRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: "rl:ai-transcription"
+});
+var aiLlmRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: "rl:ai-llm"
+});
 
 // src/routes/calls.ts
 var callsRoutes = new Hono2();
@@ -27943,16 +27953,17 @@ ${contextData.join("\n\n")}
         content: r.content
       }))
     ];
-    const aiResponse = await chatCompletion(
-      c.env.OPENAI_API_KEY,
-      messages,
-      "gpt-4o-mini",
-      1536
-    );
+    const aiResponse = await chatCompletion(c.env.OPENAI_API_KEY, messages, "gpt-4o-mini", 1536);
     await db2.query(
       `INSERT INTO bond_ai_messages (conversation_id, role, content, token_usage, model, latency_ms)
        VALUES ($1, 'assistant', $2, $3, $4, $5)`,
-      [convoId, aiResponse.content, JSON.stringify(aiResponse.usage), aiResponse.model, aiResponse.latencyMs]
+      [
+        convoId,
+        aiResponse.content,
+        JSON.stringify(aiResponse.usage),
+        aiResponse.model,
+        aiResponse.latencyMs
+      ]
     );
     await db2.query(
       `UPDATE bond_ai_conversations 
@@ -28143,7 +28154,15 @@ bondAiRoutes.post("/alert-rules", async (c) => {
     }
     const parsed = await validateBody(c, CreateAlertRuleSchema);
     if (!parsed.success) return parsed.response;
-    const { name, description, rule_type, rule_config, severity, notification_channels, cooldown_minutes } = parsed.data;
+    const {
+      name,
+      description,
+      rule_type,
+      rule_config,
+      severity,
+      notification_channels,
+      cooldown_minutes
+    } = parsed.data;
     const result = await db2.query(
       `INSERT INTO bond_ai_alert_rules 
         (organization_id, name, description, rule_type, rule_config, severity, 
@@ -28181,7 +28200,15 @@ bondAiRoutes.put("/alert-rules/:id", async (c) => {
     const ruleId = c.req.param("id");
     const parsed = await validateBody(c, UpdateAlertRuleSchema);
     if (!parsed.success) return parsed.response;
-    const { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes } = parsed.data;
+    const {
+      name,
+      description,
+      rule_config,
+      severity,
+      is_enabled,
+      notification_channels,
+      cooldown_minutes
+    } = parsed.data;
     await db2.query(
       `UPDATE bond_ai_alert_rules
        SET name = COALESCE($1, name),
@@ -28222,10 +28249,10 @@ bondAiRoutes.delete("/alert-rules/:id", async (c) => {
       return c.json({ error: "Admin role required" }, 403);
     }
     const ruleId = c.req.param("id");
-    await db2.query(
-      `DELETE FROM bond_ai_alert_rules WHERE id = $1 AND organization_id = $2`,
-      [ruleId, session.organization_id]
-    );
+    await db2.query(`DELETE FROM bond_ai_alert_rules WHERE id = $1 AND organization_id = $2`, [
+      ruleId,
+      session.organization_id
+    ]);
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: "Failed to delete alert rule" }, 500);
@@ -28253,8 +28280,10 @@ bondAiRoutes.post("/copilot", async (c) => {
           [scorecard_id, session.organization_id]
         );
         if (sc.rows[0]) {
-          contextParts.push(`Active scorecard: ${sc.rows[0].name}
-Sections: ${JSON.stringify(sc.rows[0].sections)}`);
+          contextParts.push(
+            `Active scorecard: ${sc.rows[0].name}
+Sections: ${JSON.stringify(sc.rows[0].sections)}`
+          );
         }
       } catch {
       }
@@ -28552,10 +28581,7 @@ teamsRoutes.delete("/:id/members/:userId", async (c) => {
     if (teamCheck.rows.length === 0) {
       return c.json({ error: "Team not found" }, 404);
     }
-    await db2.query(
-      `DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`,
-      [teamId, userId]
-    );
+    await db2.query(`DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId]);
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: "Failed to remove team member" }, 500);
@@ -29608,12 +29634,15 @@ billingRoutes.post("/checkout", billingRateLimit, idempotent(), async (c) => {
     const { priceId, planId } = parsed.data;
     const db2 = getDb(c.env);
     try {
-      const orgResult = await db2.query("SELECT stripe_customer_id FROM organizations WHERE id = $1", [
-        session.organization_id
-      ]);
+      const orgResult = await db2.query(
+        "SELECT stripe_customer_id FROM organizations WHERE id = $1",
+        [session.organization_id]
+      );
       let customerId = orgResult.rows?.[0]?.stripe_customer_id;
       if (!customerId) {
-        const userResult = await db2.query("SELECT email FROM users WHERE id = $1", [session.user_id]);
+        const userResult = await db2.query("SELECT email FROM users WHERE id = $1", [
+          session.user_id
+        ]);
         const email4 = userResult.rows?.[0]?.email || "";
         const createRes = await fetch("https://api.stripe.com/v1/customers", {
           method: "POST",
@@ -29684,9 +29713,10 @@ billingRoutes.post("/portal", billingRateLimit, idempotent(), async (c) => {
     }
     const db2 = getDb(c.env);
     try {
-      const orgResult = await db2.query("SELECT stripe_customer_id FROM organizations WHERE id = $1", [
-        session.organization_id
-      ]);
+      const orgResult = await db2.query(
+        "SELECT stripe_customer_id FROM organizations WHERE id = $1",
+        [session.organization_id]
+      );
       const customerId = orgResult.rows?.[0]?.stripe_customer_id;
       if (!customerId) {
         return c.json({ error: "No Stripe customer found. Subscribe to a plan first." }, 400);
@@ -29789,9 +29819,10 @@ billingRoutes.post("/resume", billingRateLimit, idempotent(), async (c) => {
   }
   const db2 = getDb(c.env);
   try {
-    const orgResult = await db2.query("SELECT subscription_id, subscription_status FROM organizations WHERE id = $1", [
-      session.organization_id
-    ]);
+    const orgResult = await db2.query(
+      "SELECT subscription_id, subscription_status FROM organizations WHERE id = $1",
+      [session.organization_id]
+    );
     const subscriptionId = orgResult.rows?.[0]?.subscription_id;
     if (!subscriptionId) {
       return c.json({ error: "No subscription found" }, 400);
@@ -29845,9 +29876,10 @@ billingRoutes.post("/change-plan", billingRateLimit, idempotent(), async (c) => 
   }
   const db2 = getDb(c.env);
   try {
-    const orgResult = await db2.query("SELECT subscription_id, plan_id FROM organizations WHERE id = $1", [
-      session.organization_id
-    ]);
+    const orgResult = await db2.query(
+      "SELECT subscription_id, plan_id FROM organizations WHERE id = $1",
+      [session.organization_id]
+    );
     const subscriptionId = orgResult.rows?.[0]?.subscription_id;
     const oldPlanId = orgResult.rows?.[0]?.plan_id;
     if (!subscriptionId) {
@@ -30444,6 +30476,328 @@ aiConfigRoutes.put("/", async (c) => {
     return c.json({ error: "Failed to update AI config" }, 500);
   } finally {
     await db2.end();
+  }
+});
+
+// src/routes/ai-transcribe.ts
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_performance2();
+var aiTranscribeRoutes = new Hono2();
+var ASSEMBLYAI_BASE = "https://api.assemblyai.com/v2";
+aiTranscribeRoutes.post("/transcribe", aiTranscriptionRateLimit, requirePlan("starter"), async (c) => {
+  const session = c.get("session");
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.ASSEMBLYAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "Transcription service not configured" }, 503);
+  }
+  const db2 = getDb(c.env);
+  try {
+    const body = await c.req.json();
+    if (!body.audio_url) {
+      return c.json({ error: "audio_url is required" }, 400);
+    }
+    const aaiResponse = await fetch(`${ASSEMBLYAI_BASE}/transcript`, {
+      method: "POST",
+      headers: {
+        "Authorization": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        audio_url: body.audio_url,
+        language_code: body.language_code || "en",
+        speaker_labels: body.speaker_labels ?? true,
+        auto_highlights: true,
+        sentiment_analysis: true
+      })
+    });
+    if (!aaiResponse.ok) {
+      const errText = await aaiResponse.text();
+      logger.error("AssemblyAI submission failed", { status: aaiResponse.status, error: errText });
+      return c.json({ error: "Transcription service error" }, 502);
+    }
+    const aaiResult = await aaiResponse.json();
+    await db2.query(
+      `INSERT INTO ai_summaries (org_id, call_id, provider, external_id, status, created_at)
+       VALUES ($1, $2, 'assemblyai', $3, $4, NOW())
+       ON CONFLICT DO NOTHING`,
+      [session.orgId, body.call_id || null, aaiResult.id, aaiResult.status]
+    );
+    writeAuditLog(db2, {
+      userId: session.userId,
+      orgId: session.orgId,
+      action: AuditAction.CALL_RECORDED,
+      resourceType: "transcription",
+      resourceId: aaiResult.id,
+      oldValue: null,
+      newValue: { audio_url: body.audio_url, call_id: body.call_id }
+    }).catch(() => {
+    });
+    return c.json({
+      id: aaiResult.id,
+      status: aaiResult.status
+    }, 201);
+  } catch (err) {
+    logger.error("POST /api/ai/transcribe error", { error: err?.message });
+    return c.json({ error: "Transcription submission failed" }, 500);
+  } finally {
+    await db2.end();
+  }
+});
+aiTranscribeRoutes.get("/status/:id", aiTranscriptionRateLimit, async (c) => {
+  const session = await requireAuth(c);
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.ASSEMBLYAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "Transcription service not configured" }, 503);
+  }
+  const transcriptId = c.req.param("id");
+  try {
+    const aaiResponse = await fetch(`${ASSEMBLYAI_BASE}/transcript/${transcriptId}`, {
+      headers: { "Authorization": apiKey }
+    });
+    if (!aaiResponse.ok) {
+      return c.json({ error: "Transcription not found" }, 404);
+    }
+    const aaiResult = await aaiResponse.json();
+    return c.json({
+      id: aaiResult.id,
+      status: aaiResult.status,
+      error: aaiResult.error || null
+    });
+  } catch (err) {
+    logger.error("GET /api/ai/transcribe/status error", { error: err?.message });
+    return c.json({ error: "Status check failed" }, 500);
+  }
+});
+aiTranscribeRoutes.get("/result/:id", aiTranscriptionRateLimit, async (c) => {
+  const session = await requireAuth(c);
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.ASSEMBLYAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "Transcription service not configured" }, 503);
+  }
+  const transcriptId = c.req.param("id");
+  const db2 = getDb(c.env);
+  try {
+    const aaiResponse = await fetch(`${ASSEMBLYAI_BASE}/transcript/${transcriptId}`, {
+      headers: { "Authorization": apiKey }
+    });
+    if (!aaiResponse.ok) {
+      return c.json({ error: "Transcription not found" }, 404);
+    }
+    const aaiResult = await aaiResponse.json();
+    if (aaiResult.status !== "completed") {
+      return c.json({
+        id: aaiResult.id,
+        status: aaiResult.status,
+        error: aaiResult.error || null
+      });
+    }
+    await db2.query(
+      `UPDATE ai_summaries SET status = 'completed', summary_text = $1, updated_at = NOW()
+       WHERE external_id = $2 AND org_id = $3`,
+      [aaiResult.text?.substring(0, 5e3), transcriptId, session.orgId]
+    );
+    return c.json({
+      id: aaiResult.id,
+      status: aaiResult.status,
+      text: aaiResult.text,
+      utterances: aaiResult.utterances,
+      sentiment: aaiResult.sentiment_analysis_results,
+      highlights: aaiResult.auto_highlights_result
+    });
+  } catch (err) {
+    logger.error("GET /api/ai/transcribe/result error", { error: err?.message });
+    return c.json({ error: "Result fetch failed" }, 500);
+  } finally {
+    await db2.end();
+  }
+});
+
+// src/routes/ai-llm.ts
+init_virtual_unenv_global_polyfill_cloudflare_unenv_preset_node_process();
+init_performance2();
+var aiLlmRoutes = new Hono2();
+var OPENAI_BASE = "https://api.openai.com/v1";
+var DEFAULT_MODEL = "gpt-4o-mini";
+var MAX_TOKENS = 4096;
+aiLlmRoutes.post("/chat", aiLlmRateLimit, requirePlan("pro"), async (c) => {
+  const session = c.get("session");
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "LLM service not configured" }, 503);
+  }
+  try {
+    const body = await c.req.json();
+    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+      return c.json({ error: "messages array is required" }, 400);
+    }
+    if (body.messages.length > 20) {
+      return c.json({ error: "Maximum 20 messages per request" }, 400);
+    }
+    const totalChars = body.messages.reduce((sum, m2) => sum + (m2.content?.length || 0), 0);
+    if (totalChars > 5e4) {
+      return c.json({ error: "Total message content exceeds 50,000 characters" }, 400);
+    }
+    const oaiResponse = await fetch(`${OPENAI_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: body.model || DEFAULT_MODEL,
+        messages: body.messages,
+        max_tokens: Math.min(body.max_tokens || MAX_TOKENS, MAX_TOKENS),
+        temperature: body.temperature ?? 0.3
+      })
+    });
+    if (!oaiResponse.ok) {
+      const errText = await oaiResponse.text();
+      logger.error("OpenAI API error", { status: oaiResponse.status, error: errText });
+      return c.json({ error: "LLM service error" }, 502);
+    }
+    const oaiResult = await oaiResponse.json();
+    logger.info("OpenAI usage", {
+      orgId: session.orgId,
+      model: body.model || DEFAULT_MODEL,
+      promptTokens: oaiResult.usage?.prompt_tokens,
+      completionTokens: oaiResult.usage?.completion_tokens,
+      totalTokens: oaiResult.usage?.total_tokens
+    });
+    return c.json({
+      content: oaiResult.choices?.[0]?.message?.content || "",
+      usage: oaiResult.usage,
+      model: body.model || DEFAULT_MODEL
+    });
+  } catch (err) {
+    logger.error("POST /api/ai/llm/chat error", { error: err?.message });
+    return c.json({ error: "LLM request failed" }, 500);
+  }
+});
+aiLlmRoutes.post("/summarize", aiLlmRateLimit, requirePlan("starter"), async (c) => {
+  const session = c.get("session");
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "LLM service not configured" }, 503);
+  }
+  const db2 = getDb(c.env);
+  try {
+    const body = await c.req.json();
+    if (!body.text || body.text.length < 10) {
+      return c.json({ error: "text is required (min 10 characters)" }, 400);
+    }
+    if (body.text.length > 1e5) {
+      return c.json({ error: "text exceeds 100,000 character limit" }, 400);
+    }
+    const oaiResponse = await fetch(`${OPENAI_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional call center analyst. Summarize the following call transcript concisely, highlighting key points, action items, and any compliance concerns. Be factual and objective."
+          },
+          { role: "user", content: body.text.substring(0, 1e5) }
+        ],
+        max_tokens: Math.min(body.max_length || 1e3, 2e3),
+        temperature: 0.2
+      })
+    });
+    if (!oaiResponse.ok) {
+      const errText = await oaiResponse.text();
+      logger.error("OpenAI summarize error", { status: oaiResponse.status, error: errText });
+      return c.json({ error: "Summarization failed" }, 502);
+    }
+    const oaiResult = await oaiResponse.json();
+    const summary = oaiResult.choices?.[0]?.message?.content || "";
+    if (body.call_id) {
+      await db2.query(
+        `INSERT INTO ai_summaries (org_id, call_id, provider, summary_text, status, created_at)
+         VALUES ($1, $2, 'openai', $3, 'completed', NOW())
+         ON CONFLICT DO NOTHING`,
+        [session.orgId, body.call_id, summary.substring(0, 5e3)]
+      );
+    }
+    return c.json({
+      summary,
+      usage: oaiResult.usage,
+      call_id: body.call_id || null
+    });
+  } catch (err) {
+    logger.error("POST /api/ai/llm/summarize error", { error: err?.message });
+    return c.json({ error: "Summarization failed" }, 500);
+  } finally {
+    await db2.end();
+  }
+});
+aiLlmRoutes.post("/analyze", aiLlmRateLimit, requirePlan("pro"), async (c) => {
+  const session = c.get("session");
+  if (!session) return c.json({ error: "Unauthorized" }, 401);
+  const apiKey = c.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return c.json({ error: "LLM service not configured" }, 503);
+  }
+  try {
+    const body = await c.req.json();
+    if (!body.text || body.text.length < 10) {
+      return c.json({ error: "text is required (min 10 characters)" }, 400);
+    }
+    const analysisPrompts = {
+      compliance: "Analyze this call transcript for regulatory compliance issues. Check for: proper disclosures, consent violations, prohibited language, TCPA/HIPAA/SOC2 concerns. Return a structured assessment with severity levels.",
+      quality: "Analyze this call transcript for quality metrics. Assess: professionalism, issue resolution, customer satisfaction signals, adherence to script, and communication effectiveness. Provide a score out of 100 with breakdown.",
+      sentiment: "Analyze the sentiment of this call transcript. Track sentiment changes throughout the conversation. Identify positive/negative peaks, overall tone, and customer satisfaction level.",
+      full: "Provide a comprehensive analysis of this call transcript covering: 1) Compliance check (disclosures, consent, prohibited language), 2) Quality score with breakdown, 3) Sentiment analysis, 4) Key action items, 5) Risk flags."
+    };
+    const analysisType = body.analysis_type || "full";
+    const oaiResponse = await fetch(`${OPENAI_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: `You are a call center compliance and quality analyst for the Word Is Bond platform. ${analysisPrompts[analysisType]}. Return your analysis in JSON format.`
+          },
+          { role: "user", content: body.text.substring(0, 1e5) }
+        ],
+        max_tokens: MAX_TOKENS,
+        temperature: 0.1,
+        response_format: { type: "json_object" }
+      })
+    });
+    if (!oaiResponse.ok) {
+      const errText = await oaiResponse.text();
+      logger.error("OpenAI analyze error", { status: oaiResponse.status, error: errText });
+      return c.json({ error: "Analysis failed" }, 502);
+    }
+    const oaiResult = await oaiResponse.json();
+    let analysis;
+    try {
+      analysis = JSON.parse(oaiResult.choices?.[0]?.message?.content || "{}");
+    } catch {
+      analysis = { raw: oaiResult.choices?.[0]?.message?.content };
+    }
+    return c.json({
+      analysis,
+      analysis_type: analysisType,
+      usage: oaiResult.usage
+    });
+  } catch (err) {
+    logger.error("POST /api/ai/llm/analyze error", { error: err?.message });
+    return c.json({ error: "Analysis failed" }, 500);
   }
 });
 
@@ -33653,6 +34007,8 @@ app.route("/api/surveys", surveysRoutes);
 app.route("/api/caller-id", callerIdRoutes);
 app.route("/api/capabilities", capabilitiesRoutes);
 app.route("/api/ai-config", aiConfigRoutes);
+app.route("/api/ai/transcribe", aiTranscribeRoutes);
+app.route("/api/ai/llm", aiLlmRoutes);
 app.route("/api/team", teamRoutes);
 app.route("/api/teams", teamsRoutes);
 app.route("/api/bond-ai", bondAiRoutes);

@@ -181,3 +181,17 @@ export const analyticsExportRateLimit = rateLimit({
   windowSeconds: 15 * 60,
   prefix: 'rl:analytics-export',
 })
+
+/** AI transcription: 10 per 5 minutes per IP */
+export const aiTranscriptionRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:ai-transcription',
+})
+
+/** AI LLM (OpenAI): 30 per 5 minutes per IP */
+export const aiLlmRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:ai-llm',
+})

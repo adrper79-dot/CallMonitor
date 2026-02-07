@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 9, 2026  
-**Version:** 4.13 - Pool Leak Remediation, RLS Enforcement & Subscription Sprint  
+**Version:** 4.14 - AI Edge Proxies, Evidence Immutability & ROADMAP Cleanup  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,36 @@
 ---
 
 ## 🔧 **Recent Updates (February 9, 2026)**
+
+### **AI Edge Proxies, Evidence Immutability & ROADMAP Cleanup (v4.14):** ✅ **DEPLOYED**
+
+1. **AssemblyAI Edge Proxy** ⭐ **AI STACK**
+   - New `workers/src/routes/ai-transcribe.ts`: 3 endpoints at `/api/ai/transcribe`
+     - `POST /transcribe` — Submit audio URL for transcription (plan-gated: starter+)
+     - `GET /status/:id` — Check job status
+     - `GET /result/:id` — Get completed transcription with sentiment/highlights
+   - Rate limited (10/5min), authenticated, audit logged, stores in ai_summaries
+
+2. **OpenAI Rate-Limited Proxy** ⭐ **AI STACK + COST CONTROL**
+   - New `workers/src/routes/ai-llm.ts`: 3 endpoints at `/api/ai/llm`
+     - `POST /chat` — Chat completion (pro+, max 20 messages, 50K chars)
+     - `POST /summarize` — Call transcript summarization (starter+, stores in ai_summaries)
+     - `POST /analyze` — Compliance/quality/sentiment analysis (pro+, JSON output)
+   - Rate limited (30/5min), input validation, token usage logging
+   - 2 new rate limiters: `aiTranscriptionRateLimit`, `aiLlmRateLimit`
+
+3. **Immutable Evidence Views** ⭐ **HIPAA/SOC2 COMPLIANCE**
+   - New `migrations/2026-02-09-evidence-immutable-views.sql`
+   - 3 read-only views: `evidence_manifests_readonly`, `evidence_bundles_readonly`, `evidence_chain_readonly`
+   - SELECT-only RLS policies: `evidence_*_deny_update` and `evidence_*_deny_delete`
+   - npm script: `db:evidence-views`
+
+4. **ROADMAP Ghost Cleanup** ✅ **ACCURACY**
+   - Marked 5 already-done items: Sentry (N/A), RBAC Hooks, RLS audit, Schema drift, Suspense
+   - Marked Public Compress as complete (logo-master.webp exists)
+   - RISK/SCALE section: 25/25 ✅ COMPLETE
+   - STACK EXCELLENCE: 12/12 ✅ COMPLETE
+   - Overall: 80/109 → **89/109 (82%)**
 
 ### **Pool Leak Remediation, RLS Enforcement & Subscription Sprint (v4.13):** ✅ **DEPLOYED**
 

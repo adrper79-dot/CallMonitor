@@ -1,6 +1,6 @@
 /**
  * Wordisbond API - Cloudflare Workers
- * 
+ *
  * Edge-native API layer using Hono framework
  * Replaces Next.js API routes for Cloudflare Workers deployment
  */
@@ -34,6 +34,8 @@ import { surveysRoutes } from './routes/surveys'
 import { callerIdRoutes } from './routes/caller-id'
 import { capabilitiesRoutes } from './routes/capabilities'
 import { aiConfigRoutes } from './routes/ai-config'
+import { aiTranscribeRoutes } from './routes/ai-transcribe'
+import { aiLlmRoutes } from './routes/ai-llm'
 import { teamRoutes } from './routes/team'
 import { usageRoutes } from './routes/usage'
 import { shopperRoutes } from './routes/shopper'
@@ -46,7 +48,10 @@ import { reliabilityRoutes } from './routes/reliability'
 import { adminRoutes } from './routes/admin'
 import { complianceRoutes } from './routes/compliance'
 import {
-  buildErrorContext, logError, formatErrorResponse, isAppError,
+  buildErrorContext,
+  logError,
+  formatErrorResponse,
+  isAppError,
   generateCorrelationId,
 } from './lib/errors'
 
@@ -54,17 +59,17 @@ import {
 export interface Env {
   // Hyperdrive (Neon Postgres)
   HYPERDRIVE: Hyperdrive
-  
+
   // KV Namespace
   KV: KVNamespace
-  
+
   // R2 Bucket
   R2: R2Bucket
-  
+
   // Environment variables
   NODE_ENV: string
   CORS_ORIGIN: string
-  
+
   // Secrets
   NEON_PG_CONN: string
   AUTH_SECRET: string
@@ -87,31 +92,34 @@ const app = new Hono<{ Bindings: Env }>()
 // Global middleware
 // Note: Hono logger() removed — it logged all requests to console including auth headers
 app.use('*', secureHeaders())
-app.use('*', cors({
-  origin: (origin, c) => {
-    // Allow configured origin, localhost for dev, and Cloudflare Pages preview URLs
-    const allowed = [
-      c.env.CORS_ORIGIN,
-      'https://wordis-bond.com',
-      'https://www.wordis-bond.com',
-      'https://voxsouth.online',
-      'https://www.voxsouth.online',
-      'https://wordisbond.pages.dev',
-      'http://localhost:3000',
-    ]
-    
-    // Also allow any *.wordisbond.pages.dev preview URLs
-    if (origin && origin.endsWith('.wordisbond.pages.dev')) {
-      return origin
-    }
-    
-    return allowed.includes(origin) ? origin : allowed[0]
-  },
-  credentials: true,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
-  exposeHeaders: ['Idempotent-Replayed'],
-}))
+app.use(
+  '*',
+  cors({
+    origin: (origin, c) => {
+      // Allow configured origin, localhost for dev, and Cloudflare Pages preview URLs
+      const allowed = [
+        c.env.CORS_ORIGIN,
+        'https://wordis-bond.com',
+        'https://www.wordis-bond.com',
+        'https://voxsouth.online',
+        'https://www.voxsouth.online',
+        'https://wordisbond.pages.dev',
+        'http://localhost:3000',
+      ]
+
+      // Also allow any *.wordisbond.pages.dev preview URLs
+      if (origin && origin.endsWith('.wordisbond.pages.dev')) {
+        return origin
+      }
+
+      return allowed.includes(origin) ? origin : allowed[0]
+    },
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
+    exposeHeaders: ['Idempotent-Replayed'],
+  })
+)
 
 // Mount route modules
 app.route('/health', healthRoutes)
@@ -122,11 +130,11 @@ app.route('/api/organizations', organizationsRoutes)
 app.route('/api/bookings', bookingsRoutes)
 app.route('/api/users', usersRoutes)
 app.route('/api/recordings', recordingsRoutes)
-app.route('/api/audit-logs', auditRoutes)  // Mount audit routes at /api/audit-logs
-app.route('/api/audit', auditRoutes)       // Alias: frontend also calls /api/audit
-app.route('/api/webrtc', webrtcRoutes)  // Mount webrtc routes at /api/webrtc
+app.route('/api/audit-logs', auditRoutes) // Mount audit routes at /api/audit-logs
+app.route('/api/audit', auditRoutes) // Alias: frontend also calls /api/audit
+app.route('/api/webrtc', webrtcRoutes) // Mount webrtc routes at /api/webrtc
 app.route('/webhooks', webhooksRoutes)
-app.route('/api/webhooks', webhooksRoutes)  // Also mount at /api/webhooks
+app.route('/api/webhooks', webhooksRoutes) // Also mount at /api/webhooks
 app.route('/api/scorecards', scorecardsRoutes)
 app.route('/api/rbac', rbacRoutes)
 app.route('/api/analytics', analyticsRoutes)
@@ -138,6 +146,8 @@ app.route('/api/surveys', surveysRoutes)
 app.route('/api/caller-id', callerIdRoutes)
 app.route('/api/capabilities', capabilitiesRoutes)
 app.route('/api/ai-config', aiConfigRoutes)
+app.route('/api/ai/transcribe', aiTranscribeRoutes)
+app.route('/api/ai/llm', aiLlmRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/teams', teamsRoutes)
 app.route('/api/bond-ai', bondAiRoutes)
@@ -171,11 +181,14 @@ app.get('/', (c) => {
 
 // 404 handler
 app.notFound((c) => {
-  return c.json({
-    error: 'Not Found',
-    path: c.req.path,
-    method: c.req.method,
-  }, 404)
+  return c.json(
+    {
+      error: 'Not Found',
+      path: c.req.path,
+      method: c.req.method,
+    },
+    404
+  )
 })
 
 // Structured Error Handler — best-practice diagnostics with differential data
@@ -201,7 +214,7 @@ app.onError((err, c) => {
 // Export for Cloudflare Workers
 export default {
   fetch: app.fetch,
-  
+
   // Scheduled handler for cron triggers
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(handleScheduled(event, env))
