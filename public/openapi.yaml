@@ -8,8 +8,9 @@ info:
     campaigns, analytics, and compliance features for enterprise conversation management.
     
     ## Authentication
-    All endpoints require authentication via NextAuth.js session cookies.
-    Include `credentials: 'include'` in all fetch requests.
+    All endpoints require authentication via Bearer token (session cookie).
+    Include `Authorization: Bearer <token>` header or `credentials: 'include'` for cookie-based auth.
+    CSRF tokens are required for mutation endpoints (login, signup, forgot-password).
     
     ## RBAC Roles
     - **owner**: Full access including billing and team management
@@ -2036,11 +2037,16 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
 
   securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Session token from /api/auth/callback/credentials
     cookieAuth:
       type: apiKey
       in: cookie
-      name: next-auth.session-token
-      description: NextAuth.js session cookie
+      name: session
+      description: HttpOnly session cookie
 
 security:
+  - bearerAuth: []
   - cookieAuth: []

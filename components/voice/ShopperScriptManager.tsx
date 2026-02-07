@@ -37,33 +37,33 @@ const PERSONAS = [
   { value: 'frustrated', label: 'Frustrated - Impatient, testing patience' },
   { value: 'elderly', label: 'Elderly - Slower, may need repetition' },
   { value: 'non-native', label: 'Non-native - Accent, simpler vocabulary' },
-  { value: 'detailed', label: 'Detail-oriented - Many questions' }
+  { value: 'detailed', label: 'Detail-oriented - Many questions' },
 ]
 
 const TTS_VOICES = {
-  signalwire: [
+  telnyx: [
     { value: 'rime.spore', label: 'English - Spore (Default)' },
     { value: 'rime.koda', label: 'English - Koda' },
     { value: 'rime.alberto', label: 'Spanish - Alberto' },
     { value: 'rime.viola', label: 'French - Viola' },
-    { value: 'rime.stella', label: 'German - Stella' }
+    { value: 'rime.stella', label: 'German - Stella' },
   ],
   elevenlabs: [
     { value: 'rachel', label: 'Rachel (Female, Professional)' },
     { value: 'adam', label: 'Adam (Male, Conversational)' },
-    { value: 'custom', label: 'Custom Voice ID' }
-  ]
+    { value: 'custom', label: 'Custom Voice ID' },
+  ],
 }
 
 /**
  * ShopperScriptManager - AI Quality Evaluation Scripts
- * 
+ *
  * Per AI Role Policy (ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md):
  * - Repositioned from "Secret Shopper" to "AI Quality Evaluation"
  * - For INTERNAL QA purposes only, NOT customer-facing agreements
  * - Calls include disclosure that this is an AI-assisted evaluation
  * - Cannot be combined with confirmation capture or outcome declaration
- * 
+ *
  * Professional Design System v3.0 - Light theme, no emojis
  */
 export default function ShopperScriptManager({ organizationId }: ShopperScriptManagerProps) {
@@ -78,22 +78,23 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
   const [newOutcome, setNewOutcome] = useState<Partial<ExpectedOutcome>>({
     type: 'keyword',
     value: '',
-    weight: 20
+    weight: 20,
   })
 
   const fetchScripts = async () => {
     if (!organizationId) return
-    
+
     try {
       setLoading(true)
       const data = await apiGet(`/api/shopper/scripts/manage?orgId=${organizationId}`)
-      
+
       if (data.success) {
         setScripts(data.scripts || [])
       } else {
-        const errorMsg = typeof data.error === 'object' && data.error !== null
-          ? (data.error.message || data.error.code || JSON.stringify(data.error))
-          : (data.error || 'Failed to load scripts')
+        const errorMsg =
+          typeof data.error === 'object' && data.error !== null
+            ? data.error.message || data.error.code || JSON.stringify(data.error)
+            : data.error || 'Failed to load scripts'
         setError(errorMsg)
       }
     } catch (err: any) {
@@ -129,15 +130,15 @@ That sounds good. Can you tell me about your pricing?
 
 Thank you for the information. I'll get back to you soon.`,
       persona: 'professional',
-      tts_provider: 'signalwire',
+      tts_provider: 'telnyx',
       tts_voice: 'rime.spore',
       expected_outcomes: [
         { type: 'keyword', value: ['appointment', 'schedule', 'available'], weight: 30 },
         { type: 'sentiment', value: 'positive', weight: 40 },
         { type: 'duration_min', value: 60, weight: 20 },
-        { type: 'response_time', value: 5, weight: 10 }
+        { type: 'response_time', value: 5, weight: 10 },
       ],
-      is_active: true
+      is_active: true,
     })
     setShowEditor(true)
   }
@@ -149,22 +150,23 @@ Thank you for the information. I'll get back to you soon.`,
 
   const handleSaveScript = async () => {
     if (!editingScript || !organizationId) return
-    
+
     try {
       setSaving(true)
       const data = await apiPost('/api/shopper/scripts/manage', {
         ...editingScript,
-        organization_id: organizationId
+        organization_id: organizationId,
       })
-      
+
       if (data.success) {
         setShowEditor(false)
         setEditingScript(null)
         fetchScripts()
       } else {
-        const errorMsg = typeof data.error === 'object' && data.error !== null
-          ? (data.error.message || data.error.code || JSON.stringify(data.error))
-          : (data.error || 'Failed to save script')
+        const errorMsg =
+          typeof data.error === 'object' && data.error !== null
+            ? data.error.message || data.error.code || JSON.stringify(data.error)
+            : data.error || 'Failed to save script'
         setError(errorMsg)
       }
     } catch (err: any) {
@@ -176,43 +178,44 @@ Thank you for the information. I'll get back to you soon.`,
 
   const handleDeleteScript = async (scriptId: string) => {
     if (!confirm('Delete this script?')) return
-    
+
     try {
       await apiDelete(`/api/shopper/scripts/manage?id=${scriptId}&orgId=${organizationId}`)
       fetchScripts()
     } catch (err) {
       logger.error('ShopperScriptManager: failed to delete script', err, {
         organizationId,
-        scriptId
+        scriptId,
       })
     }
   }
 
   const addOutcome = () => {
     if (!editingScript || !newOutcome.type || !newOutcome.value) return
-    
+
     const outcome: ExpectedOutcome = {
       type: newOutcome.type as any,
-      value: newOutcome.type === 'keyword' 
-        ? (newOutcome.value as string).split(',').map(s => s.trim())
-        : newOutcome.value,
-      weight: newOutcome.weight || 20
+      value:
+        newOutcome.type === 'keyword'
+          ? (newOutcome.value as string).split(',').map((s) => s.trim())
+          : newOutcome.value,
+      weight: newOutcome.weight || 20,
     }
-    
+
     setEditingScript({
       ...editingScript,
-      expected_outcomes: [...(editingScript.expected_outcomes || []), outcome]
+      expected_outcomes: [...(editingScript.expected_outcomes || []), outcome],
     })
-    
+
     setNewOutcome({ type: 'keyword', value: '', weight: 20 })
   }
 
   const removeOutcome = (index: number) => {
     if (!editingScript) return
-    
+
     setEditingScript({
       ...editingScript,
-      expected_outcomes: editingScript.expected_outcomes?.filter((_, i) => i !== index)
+      expected_outcomes: editingScript.expected_outcomes?.filter((_, i) => i !== index),
     })
   }
 
@@ -225,14 +228,27 @@ Thank you for the information. I'll get back to you soon.`,
       {/* AI Role Compliance Notice */}
       <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <div>
-            <h4 className="text-sm font-medium text-blue-800">AI Quality Evaluation - Internal QA Only</h4>
+            <h4 className="text-sm font-medium text-blue-800">
+              AI Quality Evaluation - Internal QA Only
+            </h4>
             <p className="text-xs text-blue-700 mt-1">
-              These scripts are for internal quality assurance evaluations only. AI evaluation calls include an 
-              automatic disclosure and cannot be used for capturing customer agreements or confirmations.
+              These scripts are for internal quality assurance evaluations only. AI evaluation calls
+              include an automatic disclosure and cannot be used for capturing customer agreements
+              or confirmations.
             </p>
           </div>
         </div>
@@ -259,16 +275,29 @@ Thank you for the information. I'll get back to you soon.`,
       )}
 
       {/* Loading */}
-      {loading && (
-        <div className="text-center py-8 text-gray-500">Loading scripts...</div>
-      )}
+      {loading && <div className="text-center py-8 text-gray-500">Loading scripts...</div>}
 
       {/* Empty State */}
       {!loading && scripts.length === 0 && !showEditor && (
         <div className="text-center py-12 bg-gray-50 rounded-md border border-gray-200">
-          <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          <svg
+            className="w-12 h-12 mx-auto mb-4 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            />
           </svg>
           <h4 className="text-lg font-medium text-gray-900 mb-2">No Evaluation Scripts Yet</h4>
           <p className="text-gray-500 mb-4">
@@ -306,11 +335,7 @@ Thank you for the information. I'll get back to you soon.`,
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEditScript(script)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleEditScript(script)}>
                     Edit
                   </Button>
                   <Button
@@ -356,7 +381,9 @@ Thank you for the information. I'll get back to you soon.`,
                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 {PERSONAS.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -372,7 +399,8 @@ Thank you for the information. I'll get back to you soon.`,
           {/* Script Text */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Script Text <span className="text-gray-400">(Use [Wait for response] for pauses)</span>
+              Script Text{' '}
+              <span className="text-gray-400">(Use [Wait for response] for pauses)</span>
             </label>
             <textarea
               value={editingScript.script_text || ''}
@@ -388,15 +416,17 @@ Thank you for the information. I'll get back to you soon.`,
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">TTS Provider</label>
               <select
-                value={editingScript.tts_provider || 'signalwire'}
-                onChange={(e) => setEditingScript({ 
-                  ...editingScript, 
-                  tts_provider: e.target.value,
-                  tts_voice: e.target.value === 'signalwire' ? 'rime.spore' : 'rachel'
-                })}
+                value={editingScript.tts_provider || 'telnyx'}
+                onChange={(e) =>
+                  setEditingScript({
+                    ...editingScript,
+                    tts_provider: e.target.value,
+                    tts_voice: e.target.value === 'telnyx' ? 'rime.spore' : 'rachel',
+                  })
+                }
                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
-                <option value="signalwire">SignalWire (Default)</option>
+                <option value="telnyx">Telnyx (Default)</option>
                 <option value="elevenlabs">ElevenLabs (Premium)</option>
               </select>
             </div>
@@ -408,7 +438,9 @@ Thank you for the information. I'll get back to you soon.`,
                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
               >
                 {TTS_VOICES[editingScript.tts_provider as keyof typeof TTS_VOICES]?.map((v) => (
-                  <option key={v.value} value={v.value}>{v.label}</option>
+                  <option key={v.value} value={v.value}>
+                    {v.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -419,14 +451,16 @@ Thank you for the information. I'll get back to you soon.`,
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Expected Outcomes (for scoring)
             </label>
-            
+
             {/* Existing outcomes */}
             <div className="space-y-2 mb-4">
               {editingScript.expected_outcomes?.map((outcome, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md">
                   <Badge variant="default">{outcome.type}</Badge>
                   <span className="text-sm text-gray-700 flex-1">
-                    {Array.isArray(outcome.value) ? outcome.value.join(', ') : String(outcome.value)}
+                    {Array.isArray(outcome.value)
+                      ? outcome.value.join(', ')
+                      : String(outcome.value)}
                   </span>
                   <span className="text-xs text-gray-400">Weight: {outcome.weight}%</span>
                   <Button
@@ -436,7 +470,12 @@ Thank you for the information. I'll get back to you soon.`,
                     className="text-error"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </Button>
                 </div>
@@ -469,7 +508,9 @@ Thank you for the information. I'll get back to you soon.`,
                 <Input
                   type="number"
                   value={newOutcome.weight || 20}
-                  onChange={(e) => setNewOutcome({ ...newOutcome, weight: parseInt(e.target.value) })}
+                  onChange={(e) =>
+                    setNewOutcome({ ...newOutcome, weight: parseInt(e.target.value) })
+                  }
                   placeholder="Weight"
                 />
               </div>
@@ -499,11 +540,21 @@ Thank you for the information. I'll get back to you soon.`,
       <div className="p-4 bg-info-light border border-blue-200 rounded-md">
         <h4 className="text-sm font-medium text-gray-900 mb-2">How Secret Shopper Works</h4>
         <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-          <li><strong>Script:</strong> The synthetic caller follows this conversation script</li>
-          <li><strong>TTS:</strong> Uses SignalWire or ElevenLabs to speak the script naturally</li>
-          <li><strong>Expected Outcomes:</strong> What we check for when scoring the call</li>
-          <li><strong>Sentiment Analysis:</strong> AI analyzes the overall tone of the call</li>
-          <li><strong>Scoring:</strong> Weighted scores based on outcomes (0-100 scale)</li>
+          <li>
+            <strong>Script:</strong> The synthetic caller follows this conversation script
+          </li>
+          <li>
+            <strong>TTS:</strong> Uses Telnyx or ElevenLabs to speak the script naturally
+          </li>
+          <li>
+            <strong>Expected Outcomes:</strong> What we check for when scoring the call
+          </li>
+          <li>
+            <strong>Sentiment Analysis:</strong> AI analyzes the overall tone of the call
+          </li>
+          <li>
+            <strong>Scoring:</strong> Weighted scores based on outcomes (0-100 scale)
+          </li>
         </ul>
       </div>
     </div>

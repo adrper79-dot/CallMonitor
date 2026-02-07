@@ -67,6 +67,11 @@ export const ForgotPasswordSchema = z.object({
   csrfToken: z.string().uuid().optional(),
 })
 
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(1).max(256),
+  password: z.string().min(8).max(128),
+})
+
 // ─── Calls Schemas ───────────────────────────────────────────────────────────
 
 export const StartCallSchema = z.object({

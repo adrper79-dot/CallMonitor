@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -8,14 +8,14 @@ import { apiPostNoAuth } from '@/lib/apiClient'
 
 /**
  * Reset Password Page
- * 
+ *
  * Allows users to set a new password after clicking the reset link.
  * Professional Design System v3.0
  */
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,15 +23,14 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState(false)
 
-  // Check for token in URL (Supabase adds it as hash fragment)
+  // Get token from URL query parameter
+  const token = searchParams.get('token')
+
   useEffect(() => {
-    // Supabase sends tokens as hash params, we need to handle that
-    const hash = window.location.hash
-    if (!hash && !searchParams.get('access_token')) {
-      // No token found - this might be direct navigation
-      // The token will come from Supabase session after redirect
+    if (!token) {
+      setTokenError(true)
     }
-  }, [searchParams])
+  }, [token])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,15 +49,14 @@ function ResetPasswordForm() {
     setLoading(true)
 
     try {
-      await apiPostNoAuth('/api/auth/reset-password', { password })
+      await apiPostNoAuth('/api/auth/reset-password', { token, password })
 
       setSuccess(true)
-      
+
       // Redirect to signin after 3 seconds
       setTimeout(() => {
         router.push('/signin?message=password-reset')
       }, 3000)
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -70,13 +68,21 @@ function ResetPasswordForm() {
     return (
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-          <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="w-8 h-8 text-red-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">
-          Invalid or Expired Link
-        </h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Invalid or Expired Link</h2>
         <p className="text-gray-600 mb-6">
           This password reset link is invalid or has expired. Please request a new one.
         </p>
@@ -94,13 +100,16 @@ function ResetPasswordForm() {
     return (
       <div className="text-center">
         <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-          <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className="w-8 h-8 text-green-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">
-          Password Reset Successfully
-        </h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Password Reset Successfully</h2>
         <p className="text-gray-600 mb-6">
           Your password has been updated. Redirecting to sign in...
         </p>
@@ -175,12 +184,8 @@ export default function ResetPasswordPage() {
           <Link href="/" className="inline-block">
             <Logo size="md" />
           </Link>
-          <h1 className="mt-6 text-2xl font-semibold text-gray-900">
-            Set new password
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Enter your new password below.
-          </p>
+          <h1 className="mt-6 text-2xl font-semibold text-gray-900">Set new password</h1>
+          <p className="mt-2 text-gray-600">Enter your new password below.</p>
         </div>
 
         {/* Card */}

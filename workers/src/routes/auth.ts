@@ -13,9 +13,16 @@ import type { Env } from '../index'
 import { getDb } from '../lib/db'
 import { parseSessionToken, verifySession, computeFingerprint } from '../lib/auth'
 import { validateBody } from '../lib/validate'
-import { ValidateKeySchema, SignupSchema, LoginSchema, ForgotPasswordSchema } from '../lib/schemas'
+import {
+  ValidateKeySchema,
+  SignupSchema,
+  LoginSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from '../lib/schemas'
 import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
 import { logger } from '../lib/logger'
+import { sendEmail, passwordResetEmailHtml } from '../lib/email'
 
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
@@ -434,7 +441,22 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
       })
     }
 
-    // TODO: Implement actual password reset email sending
+    // Generate a crypto-random reset token and store in KV (1-hour TTL)
+    const resetToken = crypto.randomUUID() + '-' + crypto.randomUUID()
+    const userId = userResult.rows[0].id
+    await c.env.KV.put(`reset:${resetToken}`, userId, { expirationTtl: 3600 })
+
+    // Construct reset URL (points to frontend reset-password page)
+    const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`
+
+    // Send password reset email via Resend (fire-and-forget)
+    sendEmail(c.env.RESEND_API_KEY, {
+      to: email.toLowerCase(),
+      subject: 'Reset your Word Is Bond password',
+      html: passwordResetEmailHtml(resetUrl, 60),
+      text: `Reset your password: ${resetUrl}\n\nThis link expires in 60 minutes.`,
+    }).catch((err) => logger.error('Failed to send reset email', { error: err?.message }))
 
     return c.json({
       message: 'If an account with that email exists, a password reset link has been sent.',
@@ -442,6 +464,44 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('Forgot password error', { error: err?.message })
     return c.json({ error: 'Failed to process request' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// Reset password endpoint — validates token from KV, updates password
+authRoutes.post('/reset-password', forgotPasswordRateLimit, async (c) => {
+  const parsed = await validateBody(c, ResetPasswordSchema)
+  if (!parsed.success) return parsed.response
+  const { token, password } = parsed.data
+
+  // Validate reset token from KV
+  const userId = await c.env.KV.get(`reset:${token}`)
+  if (!userId) {
+    return c.json({ error: 'Invalid or expired reset token' }, 400)
+  }
+
+  // Delete token immediately (one-time use)
+  await c.env.KV.delete(`reset:${token}`)
+
+  // Hash new password and update in database
+  const db = getDb(c.env)
+  try {
+    const hashedPassword = await hashPassword(password)
+    const result = await db.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email',
+      [hashedPassword, userId]
+    )
+
+    if (!result.rows || result.rows.length === 0) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    logger.info('Password reset successful', { userId })
+    return c.json({ message: 'Password has been reset successfully' })
+  } catch (err: any) {
+    logger.error('Reset password error', { error: err?.message })
+    return c.json({ error: 'Failed to reset password' }, 500)
   } finally {
     await db.end()
   }

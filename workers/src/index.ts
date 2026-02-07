@@ -91,7 +91,15 @@ const app = new Hono<{ Bindings: Env }>()
 
 // Global middleware
 // Note: Hono logger() removed — it logged all requests to console including auth headers
-app.use('*', secureHeaders())
+app.use(
+  '*',
+  secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  })
+)
 app.use(
   '*',
   cors({

@@ -23,22 +23,24 @@ interface CallerIdManagerProps {
 
 /**
  * CallerIdManager - Professional Design System v3.0
- * 
+ *
  * Manage verified caller ID numbers for outbound call masking.
  * Clean, professional design - no emojis.
  */
 export default function CallerIdManager({ organizationId }: CallerIdManagerProps) {
   const [numbers, setNumbers] = useState<CallerIdNumber[]>([])
   const [currentMask, setCurrentMask] = useState<string | null>(null)
-  const [signalwireNumber, setSignalwireNumber] = useState<string | null>(null)
+  const [telnyxNumber, setTelnyxNumber] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Verification flow
   const [showAddForm, setShowAddForm] = useState(false)
   const [newNumber, setNewNumber] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [verificationStep, setVerificationStep] = useState<'idle' | 'calling' | 'enter_code'>('idle')
+  const [verificationStep, setVerificationStep] = useState<'idle' | 'calling' | 'enter_code'>(
+    'idle'
+  )
   const [verificationCode, setVerificationCode] = useState('')
   const [verifying, setVerifying] = useState(false)
 
@@ -46,11 +48,11 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
     try {
       setLoading(true)
       const data = await apiGet('/api/caller-id/verify')
-      
+
       if (data.success) {
         setNumbers(data.numbers || [])
         setCurrentMask(data.current_mask)
-        setSignalwireNumber(data.signalwire_number)
+        setTelnyxNumber(data.telnyx_number)
       } else {
         setError(typeof data.error === 'object' ? data.error?.message : data.error)
       }
@@ -69,16 +71,16 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
 
   const initiateVerification = async () => {
     if (!newNumber) return
-    
+
     try {
       setVerifying(true)
       setError(null)
-      
+
       const data = await apiPost('/api/caller-id/verify', {
         phone_number: newNumber,
-        display_name: displayName || undefined
+        display_name: displayName || undefined,
       })
-      
+
       if (data.success) {
         setVerificationStep('calling')
         setTimeout(() => {
@@ -99,16 +101,16 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       setError('Please enter the 6-digit code')
       return
     }
-    
+
     try {
       setVerifying(true)
       setError(null)
-      
+
       const data = await apiPut('/api/caller-id/verify', {
         phone_number: newNumber,
-        code: verificationCode
+        code: verificationCode,
       })
-      
+
       if (data.success && data.verified) {
         setShowAddForm(false)
         setNewNumber('')
@@ -133,16 +135,16 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
         orgId: organizationId,
         modulations: {
           caller_id_mask: phoneNumber,
-          caller_id_verified: true
-        }
+          caller_id_verified: true,
+        },
       })
-      
+
       fetchNumbers()
     } catch (err) {
       logger.error('CallerIdManager: failed to set default mask', err, {
         organizationId,
         numberId,
-        phoneNumber
+        phoneNumber,
       })
     }
   }
@@ -160,7 +162,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
             Display a different number when making outbound calls
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => setShowAddForm(!showAddForm)}
           variant={showAddForm ? 'outline' : 'primary'}
           size="sm"
@@ -173,16 +175,21 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
         <div className="text-sm text-gray-500 mb-1">Currently Displayed As:</div>
         <div className="text-base font-mono text-gray-900">
-          {currentMask || signalwireNumber || 'Default SignalWire Number'}
+          {currentMask || telnyxNumber || 'Default Telnyx Number'}
         </div>
-        {currentMask && currentMask !== signalwireNumber && (
-          <Badge variant="success" className="mt-2">Custom Mask Active</Badge>
+        {currentMask && currentMask !== telnyxNumber && (
+          <Badge variant="success" className="mt-2">
+            Custom Mask Active
+          </Badge>
         )}
       </div>
 
       {/* Error */}
       {error && (
-        <div className="p-3 bg-error-light border border-red-200 rounded-md text-error text-sm" role="alert">
+        <div
+          className="p-3 bg-error-light border border-red-200 rounded-md text-error text-sm"
+          role="alert"
+        >
           {error}
         </div>
       )}
@@ -191,7 +198,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
       {showAddForm && (
         <div className="p-4 bg-white rounded-md border border-gray-200 space-y-4">
           <h4 className="font-medium text-gray-900">Verify New Number</h4>
-          
+
           {verificationStep === 'idle' && (
             <>
               <Input
@@ -208,7 +215,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Main Office"
               />
-              <Button 
+              <Button
                 onClick={initiateVerification}
                 disabled={verifying || !newNumber}
                 className="w-full"
@@ -225,8 +232,18 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
           {verificationStep === 'calling' && (
             <div className="text-center py-6">
               <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-primary-100 flex items-center justify-center">
-                <svg className="w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                <svg
+                  className="w-6 h-6 text-primary-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                  />
                 </svg>
               </div>
               <div className="text-gray-900 mb-2">Calling {newNumber}...</div>
@@ -250,8 +267,8 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
                 className="text-center text-xl tracking-widest"
               />
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setVerificationStep('idle')
                     setVerificationCode('')
@@ -260,7 +277,7 @@ export default function CallerIdManager({ organizationId }: CallerIdManagerProps
                 >
                   Try Again
                 </Button>
-                <Button 
+                <Button
                   onClick={confirmVerification}
                   disabled={verifying || verificationCode.length !== 6}
                   className="flex-1"

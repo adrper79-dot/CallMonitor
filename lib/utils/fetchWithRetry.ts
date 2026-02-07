@@ -3,7 +3,7 @@
  *
  * Per ERROR_HANDLING_REVIEW.md recommendations and ARCH_DOCS standards:
  * - Implements exponential backoff for transient failures
- * - Used for SignalWire, AssemblyAI, ElevenLabs API calls
+ * - Used for Telnyx, AssemblyAI, ElevenLabs API calls
  * - Respects architectural principle: graceful degradation
  *
  * @see ERROR_HANDLING_REVIEW.md - Priority 1 Recommendation

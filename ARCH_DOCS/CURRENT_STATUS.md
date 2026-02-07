@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 8, 2026  
-**Version:** 4.16 - CSRF Hardening, SignalWire Cleanup, Supabase Removal & Observability  
+**Version:** 4.17 - Password Reset, CSP Headers, SignalWire Cleanup, Dependency Audit  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,43 @@
 ---
 
 ## 🔧 **Recent Updates (February 8, 2026)**
+
+### **Password Reset, CSP Headers, SignalWire Cleanup, Dependency Audit (v4.17):** ✅ **DEPLOYED**
+
+1. **Password Reset Email via Resend** ⭐ **CRITICAL — WAS A NO-OP**
+   - Created `workers/src/lib/email.ts`: Resend API integration + HTML email templates (password reset, team invite)
+   - `POST /forgot-password` now generates a crypto-random token, stores in KV (1hr TTL), sends reset link via Resend
+   - New `POST /reset-password` route: validates KV token, hashes new password with PBKDF2, updates database
+   - Added `ResetPasswordSchema` to Zod schemas
+   - Fixed frontend `reset-password/page.tsx`: reads `?token=` from URL, sends with POST (replaced legacy Supabase hash handling)
+
+2. **Content-Security-Policy Header** ⭐ **SECURITY**
+   - Configured `secureHeaders()` with CSP: `default-src 'none'; frame-ancestors 'none'`
+   - API returns strict CSP preventing framing and resource loading from API domain
+
+3. **SignalWire → Telnyx Cleanup (Round 2)** ✅ **VENDOR MIGRATION**
+   - ShopperScriptManager: TTS provider `signalwire` → `telnyx`
+   - useVoiceConfig: `signalwireNumber` → `telnyxNumber` state var
+   - TranslationSettings: "SignalWire AI Agent" → "Telnyx AI Agent"
+   - types/calls.ts: `signalwire_project/token` → `telnyx_project/token`
+   - fetchWithRetry comment: SignalWire → Telnyx
+
+4. **OpenAPI Spec Auth Fix** ✅ **DOCUMENTATION**
+   - Updated auth description from "NextAuth.js session cookies" to Bearer token + CSRF pattern
+   - Fixed security scheme from `next-auth.session-token` cookie to `bearerAuth` + `cookieAuth`
+
+5. **Dead Dependency Removal** ✅ **OPTIMIZATION**
+   - Removed 6 unused packages: `bcryptjs`, `openai`, `csv-parse`, `jszip`, `sip.js`, `@elevenlabs/elevenlabs-js`
+   - Net removal: 18 sub-packages
+   - Workers uses PBKDF2 (Web Crypto), `@ai-sdk/openai`, raw `fetch()` for ElevenLabs
+
+6. **ROADMAP Bookkeeping** ✅ **ACCURACY**
+   - Password reset → **Done**
+   - CSP headers → **Done**
+   - SignalWire cleanup (round 2) → **Done**
+   - Progress: 99/109 → **102/109 (94%)**
+
+---
 
 ### **CSRF Hardening, SignalWire Cleanup, Supabase Removal & Observability (v4.16):** ✅ **DEPLOYED**
 

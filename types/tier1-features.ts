@@ -59,7 +59,7 @@ export const CALL_NOTE_TAGS: readonly CallNoteTag[] = [
   'compliance_issue',
   'quality_concern',
   'positive_feedback',
-  'technical_issue'
+  'technical_issue',
 ] as const
 
 export const CALL_NOTE_TAG_LABELS: Record<CallNoteTag, string> = {
@@ -72,7 +72,7 @@ export const CALL_NOTE_TAG_LABELS: Record<CallNoteTag, string> = {
   compliance_issue: 'Compliance Issue',
   quality_concern: 'Quality Concern',
   positive_feedback: 'Positive Feedback',
-  technical_issue: 'Technical Issue'
+  technical_issue: 'Technical Issue',
 }
 
 export interface CallNote {
@@ -110,7 +110,7 @@ export const CONSENT_METHOD_LABELS: Record<ConsentMethod, string> = {
   dtmf_confirm: 'DTMF Key Press Confirmation',
   written: 'Written Consent on File',
   assumed: 'Assumed (One-Party State)',
-  none: 'No Consent Obtained'
+  none: 'No Consent Obtained',
 }
 
 export interface CallConsent {
@@ -174,17 +174,12 @@ export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = [
   'translation.completed',
   'survey.completed',
   'scorecard.completed',
-  'evidence.exported'
+  'evidence.exported',
 ] as const
 
 export type WebhookRetryPolicy = 'none' | 'fixed' | 'exponential'
 
-export type WebhookDeliveryStatus =
-  | 'pending'
-  | 'processing'
-  | 'delivered'
-  | 'failed'
-  | 'retrying'
+export type WebhookDeliveryStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'retrying'
 
 export interface WebhookSubscription {
   id: string
@@ -271,7 +266,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   'webhooks',
   'api_access',
   'bulk_upload',
-  'evidence_export'
+  'evidence_export',
 ] as const
 
 export const FEATURE_FLAG_LABELS: Record<FeatureFlag, string> = {
@@ -287,7 +282,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlag, string> = {
   webhooks: 'Webhooks',
   api_access: 'API Access',
   bulk_upload: 'Bulk Upload',
-  evidence_export: 'Evidence Export'
+  evidence_export: 'Evidence Export',
 }
 
 export interface OrgFeatureFlag {
@@ -343,7 +338,7 @@ export type WebRTCSessionStatus =
  * WebRTCSession - matches production schema (Schema.txt)
  * Production columns: id, organization_id, user_id, session_token, status, created_at
  *
- * NOTE: The migration file includes additional columns (call_id, signalwire_resource_id,
+ * NOTE: The migration file includes additional columns (call_id, telnyx_resource_id,
  * ice_servers, audio_bitrate, etc.) but these are NOT in the production schema.
  */
 export interface WebRTCSession {
@@ -353,16 +348,16 @@ export interface WebRTCSession {
   session_token: string
   status: WebRTCSessionStatus
   created_at: string
-  call_id?: string | null      // FK to calls table per Schema.txt
-  updated_at?: string | null   // Per Schema.txt
+  call_id?: string | null // FK to calls table per Schema.txt
+  updated_at?: string | null // Per Schema.txt
 }
 
 export interface WebRTCCredentials {
   session_id: string
   session_token: string
   ice_servers: RTCIceServer[]
-  signalwire_project: string
-  signalwire_token: string
+  telnyx_project: string
+  telnyx_token: string
 }
 
 export interface WebRTCCallRequest {
@@ -434,7 +429,7 @@ export type TimelineEventType =
   | 'disposition_set'
   | 'evidence_exported'
   | 'consent_captured'
-  | 'disclosure_given'  // AI Role Compliance: Track when disclosure was provided
+  | 'disclosure_given' // AI Role Compliance: Track when disclosure was provided
 
 export interface TimelineEvent {
   id: string

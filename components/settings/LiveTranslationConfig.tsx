@@ -1,15 +1,15 @@
 /**
  * Live Translation Configuration Component
- * 
- * Allows admins to configure SignalWire AI Agent for live translation
+ *
+ * Allows admins to configure Telnyx AI Agent for live translation
  * Manages custom AI agent IDs and translation settings
- * 
+ *
  * Features:
  * - Configure AI Agent ID
  * - Test translation endpoint
  * - View translation settings
  * - Enable/disable live translation
- * 
+ *
  * @module components/settings/LiveTranslationConfig
  */
 
@@ -84,7 +84,9 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
   const fetchConfig = async () => {
     try {
       setLoading(true)
-      const data = await apiGet<{ config: VoiceConfig }>(`/api/voice/config?orgId=${organizationId}`)
+      const data = await apiGet<{ config: VoiceConfig }>(
+        `/api/voice/config?orgId=${organizationId}`
+      )
       setConfig(data.config)
       if (data.config) {
         setFormData({
@@ -113,13 +115,16 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           live_translate: formData.translationEnabled,
           translate_from: 'en', // Source language (English)
           translate_to: formData.defaultLanguage,
-        }
+        },
       })
 
       await fetchConfig()
       setTestResult({ success: true, message: 'Configuration saved successfully' })
     } catch (error: any) {
-      logger.error('Failed to save live translation config', error, { organizationId, aiAgentId: formData.aiAgentId })
+      logger.error('Failed to save live translation config', error, {
+        organizationId,
+        aiAgentId: formData.aiAgentId,
+      })
       setTestResult({ success: false, message: error.message })
     } finally {
       setSaving(false)
@@ -146,7 +151,10 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
         message: 'AI Agent connection successful! Translation is configured correctly.',
       })
     } catch (error: any) {
-      logger.error('Failed to test AI agent connection', error, { organizationId, aiAgentId: formData.aiAgentId })
+      logger.error('Failed to test AI agent connection', error, {
+        organizationId,
+        aiAgentId: formData.aiAgentId,
+      })
       setTestResult({
         success: false,
         message: error.message || 'Failed to connect to AI Agent',
@@ -174,7 +182,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           <div>
             <CardTitle>Live Translation Configuration</CardTitle>
             <CardDescription>
-              Configure SignalWire AI Agent for real-time call translation
+              Configure Telnyx AI Agent for real-time call translation
             </CardDescription>
           </div>
         </div>
@@ -190,23 +198,19 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           </div>
           <Switch
             checked={formData.translationEnabled}
-            onCheckedChange={(checked) =>
-              setFormData({ ...formData, translationEnabled: checked })
-            }
+            onCheckedChange={(checked) => setFormData({ ...formData, translationEnabled: checked })}
           />
         </div>
 
         {/* AI Agent ID */}
         <div className="space-y-2">
-          <Label htmlFor="aiAgentId">SignalWire AI Agent ID</Label>
+          <Label htmlFor="aiAgentId">Telnyx AI Agent ID</Label>
           <div className="flex gap-2">
             <Input
               id="aiAgentId"
               placeholder="e.g., 12345678-1234-1234-1234-123456789012"
               value={formData.aiAgentId}
-              onChange={(e) =>
-                setFormData({ ...formData, aiAgentId: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, aiAgentId: e.target.value })}
             />
             <Button
               variant="outline"
@@ -221,7 +225,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Custom AI Agent ID from your SignalWire account. Leave empty to use default.
+            Custom AI Agent ID from your Telnyx account. Leave empty to use default.
           </p>
         </div>
 
@@ -230,9 +234,7 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
           <Label htmlFor="defaultLanguage">Default Target Language</Label>
           <Select
             value={formData.defaultLanguage}
-            onValueChange={(value) =>
-              setFormData({ ...formData, defaultLanguage: value })
-            }
+            onValueChange={(value) => setFormData({ ...formData, defaultLanguage: value })}
           >
             <SelectTrigger id="defaultLanguage">
               <SelectValue />
@@ -281,16 +283,15 @@ export function LiveTranslationConfig({ organizationId }: LiveTranslationConfigP
             {config.ai_agent_id && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">AI Agent:</span>
-                <code className="text-xs bg-muted px-2 py-1 rounded">
-                  {config.ai_agent_id}
-                </code>
+                <code className="text-xs bg-muted px-2 py-1 rounded">{config.ai_agent_id}</code>
               </div>
             )}
             {config.translate_to && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Default Language:</span>
                 <Badge variant="secondary">
-                  {supportedLanguages.find((l) => l.code === config.translate_to)?.name || config.translate_to}
+                  {supportedLanguages.find((l) => l.code === config.translate_to)?.name ||
+                    config.translate_to}
                 </Badge>
               </div>
             )}
