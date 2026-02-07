@@ -126,25 +126,6 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       return c.json({ success: true, config: existing.rows[0] || {} })
     }
 
-    // Ensure voice_configs table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS voice_configs (
-        id SERIAL PRIMARY KEY,
-        organization_id UUID NOT NULL UNIQUE,
-        record BOOLEAN DEFAULT false,
-        transcribe BOOLEAN DEFAULT false,
-        translate BOOLEAN DEFAULT false,
-        translate_mode TEXT DEFAULT 'post_call',
-        translate_from TEXT,
-        translate_to TEXT,
-        survey BOOLEAN DEFAULT false,
-        synthetic_caller BOOLEAN DEFAULT false,
-        use_voice_cloning BOOLEAN DEFAULT false,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
     // Build dynamic SET clause — only update fields that were explicitly sent
     const setClauses: string[] = []
     const values: any[] = [session.organization_id]

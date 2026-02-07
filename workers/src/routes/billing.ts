@@ -249,6 +249,7 @@ billingRoutes.get('/payment-methods', async (c) => {
 
 // Delete a payment method
 billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -274,21 +275,22 @@ billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
     }
 
     // Audit log: payment method removed
-    const db = getDb(c.env)
     writeAuditLog(db, {
       organizationId: session.organization_id,
       userId: session.user_id,
       resourceType: 'billing',
       resourceId: pmId,
       action: AuditAction.PAYMENT_METHOD_REMOVED,
-      oldValue: null,
-      newValue: { payment_method_id: pmId },
+      before: null,
+      after: { payment_method_id: pmId },
     }).catch(() => {})
 
     return c.json({ success: true, message: 'Payment method removed' })
   } catch (err: any) {
     logger.error('DELETE /api/billing/payment-methods error', { error: err?.message })
     return c.json({ error: 'Failed to remove payment method' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -551,8 +553,8 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         resourceType: 'billing',
         resourceId: subscriptionId,
         action: AuditAction.SUBSCRIPTION_CANCELLED,
-        oldValue: null,
-        newValue: { subscription_id: subscriptionId, cancel_at_period_end: true },
+        before: null,
+        after: { subscription_id: subscriptionId, cancel_at_period_end: true },
       }).catch(() => {})
 
       return c.json({
@@ -618,8 +620,8 @@ billingRoutes.post('/resume', billingRateLimit, idempotent(), async (c) => {
       resourceType: 'billing',
       resourceId: subscriptionId,
       action: AuditAction.SUBSCRIPTION_UPDATED,
-      oldValue: { status: 'cancelling' },
-      newValue: { status: 'active', cancel_at_period_end: false },
+      before: { status: 'cancelling' },
+      after: { status: 'active', cancel_at_period_end: false },
     }).catch(() => {})
 
     return c.json({ success: true, message: 'Subscription resumed' })
@@ -710,8 +712,8 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
       resourceType: 'billing',
       resourceId: subscriptionId,
       action: AuditAction.SUBSCRIPTION_UPDATED,
-      oldValue: { plan_id: oldPlanId },
-      newValue: { plan_id: body.planId, price_id: body.priceId },
+      before: { plan_id: oldPlanId },
+      after: { plan_id: body.planId, price_id: body.priceId },
     }).catch(() => {})
 
     return c.json({ success: true, message: 'Plan changed successfully' })

@@ -1,6 +1,6 @@
 /**
  * Reports Page
- * 
+ *
  * Report generation and management UI
  * Features: Generate reports, view history, export
  * RBAC: All can view, Owner/Admin can generate
@@ -14,13 +14,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { apiGet, apiPost } from '@/lib/apiClient'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -67,14 +61,15 @@ export default function ReportsPage() {
 
   const fetchOrganization = async () => {
     try {
-      const data = await apiGet<{ organization_id?: string }>(
-        `/api/users/${userId}/organization`
-      )
-      setOrganizationId(data.organization_id || 'test-org-id')
+      const data = await apiGet<{ organization_id?: string }>(`/api/users/${userId}/organization`)
+      if (data.organization_id) {
+        setOrganizationId(data.organization_id)
+      } else {
+        setError('Organization not found. Please contact support.')
+      }
     } catch (err) {
       logger.error('Error fetching organization', err, { userId })
-      // Use test-org-id as fallback for testing
-      setOrganizationId('test-org-id')
+      setError('Failed to load organization. Please try again.')
     }
   }
 
@@ -103,11 +98,11 @@ export default function ReportsPage() {
         filters: {
           date_range: {
             start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            end: new Date().toISOString()
-          }
+            end: new Date().toISOString(),
+          },
         },
         metrics: ['total_calls', 'successful_calls', 'avg_duration'],
-        file_format: 'json'
+        file_format: 'json',
       })
 
       await fetchReports()
@@ -151,9 +146,7 @@ export default function ReportsPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Report Builder</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Generate custom reports and analytics
-            </p>
+            <p className="text-sm text-gray-500 mt-1">Generate custom reports and analytics</p>
           </div>
           <Button onClick={handleGenerateReport} disabled={generating}>
             {generating ? (
@@ -180,9 +173,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Generated Reports</CardTitle>
-            <CardDescription>
-              View and download your generated reports
-            </CardDescription>
+            <CardDescription>View and download your generated reports</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -226,10 +217,9 @@ export default function ReportsPage() {
                         <TableCell>{getStatusBadge(report.status)}</TableCell>
                         <TableCell>{formatDate(report.generated_at)}</TableCell>
                         <TableCell>
-                          {report.generation_duration_ms ? 
-                            `${(report.generation_duration_ms / 1000).toFixed(2)}s` : 
-                            '-'
-                          }
+                          {report.generation_duration_ms
+                            ? `${(report.generation_duration_ms / 1000).toFixed(2)}s`
+                            : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           {report.status === 'completed' && (

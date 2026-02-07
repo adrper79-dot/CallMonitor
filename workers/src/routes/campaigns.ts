@@ -69,22 +69,6 @@ campaignsRoutes.post('/', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, description, scenario, status } = parsed.data
 
-    // Ensure table exists
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS campaigns (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        scenario TEXT,
-        status TEXT DEFAULT 'draft',
-        total_targets INT DEFAULT 0,
-        completed_calls INT DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )`
-    )
-
     const result = await db.query(
       `INSERT INTO campaigns (organization_id, name, description, scenario, status)
       VALUES ($1, $2, $3, $4, $5)

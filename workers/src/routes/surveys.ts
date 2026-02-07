@@ -20,23 +20,6 @@ import { logger } from '../lib/logger'
 
 export const surveysRoutes = new Hono<{ Bindings: Env }>()
 
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS surveys (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      questions JSONB DEFAULT '[]'::jsonb,
-      active BOOLEAN DEFAULT true,
-      trigger_type TEXT DEFAULT 'post_call',
-      created_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-}
-
 // GET / — List surveys
 surveysRoutes.get('/', async (c) => {
   const db = getDb(c.env)
@@ -66,8 +49,7 @@ surveysRoutes.get('/', async (c) => {
         )
         surveys = result.rows
       } catch {
-        // Table doesn't exist — create it
-        await ensureTable(db)
+        // Table doesn't exist yet — return empty
         surveys = []
       }
     }
@@ -114,38 +96,9 @@ surveysRoutes.post('/', async (c) => {
         ]
       )
       survey = result.rows[0]
-    } catch {
-      // Columns may not exist — try adding them
-      try {
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS title TEXT`)
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS description TEXT`)
-        await db.query(
-          `ALTER TABLE surveys ADD COLUMN IF NOT EXISTS questions JSONB DEFAULT '[]'::jsonb`
-        )
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`)
-        await db.query(
-          `ALTER TABLE surveys ADD COLUMN IF NOT EXISTS trigger_type TEXT DEFAULT 'post_call'`
-        )
-        await db.query(`ALTER TABLE surveys ADD COLUMN IF NOT EXISTS created_by UUID`)
-        const result = await db.query(
-          `INSERT INTO surveys (organization_id, title, description, questions, active, trigger_type, created_by)
-           VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
-           RETURNING *`,
-          [
-            session.organization_id,
-            title,
-            description || null,
-            JSON.stringify(questions || []),
-            active !== undefined ? active : true,
-            trigger_type || 'post_call',
-            session.user_id,
-          ]
-        )
-        survey = result.rows[0]
-      } catch (addErr: any) {
-        logger.error('POST /api/surveys column-add error', { error: addErr?.message })
-        return c.json({ error: 'Failed to create survey' }, 500)
-      }
+    } catch (insertErr: any) {
+      logger.error('POST /api/surveys insert error', { error: insertErr?.message })
+      return c.json({ error: 'Failed to create survey' }, 500)
     }
 
     return c.json({ success: true, survey })

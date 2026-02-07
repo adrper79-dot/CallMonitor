@@ -149,7 +149,7 @@ recordingsRoutes.get('/:id', async (c) => {
 recordingsRoutes.delete('/:id', async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
+    const session = await requireRole(c, 'manager')
     if (!session) {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }

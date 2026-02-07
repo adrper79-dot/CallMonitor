@@ -267,8 +267,8 @@ async function handleCallInitiated(db: DbClient, payload: any) {
   await db.query(
     `UPDATE calls 
      SET call_sid = $1, status = 'initiated'
-     WHERE call_control_id = $2 OR phone_number = $3`,
-    [call_session_id, call_control_id, to]
+     WHERE call_control_id = $2`,
+    [call_session_id, call_control_id]
   )
 }
 
@@ -383,13 +383,13 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
 
   if (orgId) {
     writeAuditLog(db, {
-      userId: null,
-      orgId,
+      organizationId: orgId,
+      userId: 'system',
       action: AuditAction.SUBSCRIPTION_UPDATED,
       resourceType: 'subscription',
       resourceId: subscription.id,
-      oldValue: null,
-      newValue: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
+      before: null,
+      after: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
     }).catch(() => {})
   }
 }
@@ -409,13 +409,13 @@ async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
 
   if (orgId) {
     writeAuditLog(db, {
-      userId: null,
-      orgId,
+      organizationId: orgId,
+      userId: 'system',
       action: AuditAction.SUBSCRIPTION_CANCELLED,
       resourceType: 'subscription',
       resourceId: subscription.id,
-      oldValue: null,
-      newValue: { status: 'canceled' },
+      before: null,
+      after: { status: 'canceled' },
     }).catch(() => {})
   }
 }
@@ -432,13 +432,13 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
   const orgId = result.rows[0]?.organization_id
   if (orgId) {
     writeAuditLog(db, {
-      userId: null,
-      orgId,
+      organizationId: orgId,
+      userId: 'system',
       action: AuditAction.PAYMENT_RECEIVED,
       resourceType: 'invoice',
       resourceId: invoice.id,
-      oldValue: null,
-      newValue: { amount: invoice.amount_paid, status: 'paid' },
+      before: null,
+      after: { amount: invoice.amount_paid, status: 'paid' },
     }).catch(() => {})
   }
 }
@@ -475,13 +475,13 @@ async function handleInvoiceFailed(db: DbClient, invoice: any) {
 
   if (orgId) {
     writeAuditLog(db, {
-      userId: null,
-      orgId,
+      organizationId: orgId,
+      userId: 'system',
       action: AuditAction.PAYMENT_FAILED,
       resourceType: 'invoice',
       resourceId: invoice.id,
-      oldValue: null,
-      newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
+      before: null,
+      after: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
     }).catch(() => {})
   }
 }
@@ -509,22 +509,6 @@ async function listWebhookSubscriptions(c: any) {
 
   const db = getDb(c.env)
   try {
-    // Ensure table exists
-    await db.query(`
-    CREATE TABLE IF NOT EXISTS webhook_subscriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      url TEXT NOT NULL,
-      events TEXT[] NOT NULL DEFAULT '{}',
-      secret TEXT,
-      is_active BOOLEAN DEFAULT true,
-      description TEXT,
-      created_by UUID,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `)
-
     const result = await db.query(
       `SELECT * FROM webhook_subscriptions
      WHERE organization_id = $1
@@ -658,21 +642,6 @@ async function testWebhookDelivery(c: any, webhookId: string) {
         organization_id: session.organization_id,
       },
     }
-
-    // Ensure delivery log table exists
-    await db.query(`
-    CREATE TABLE IF NOT EXISTS webhook_deliveries (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      webhook_id UUID NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
-      event TEXT NOT NULL,
-      payload JSONB,
-      response_status INT,
-      response_body TEXT,
-      success BOOLEAN DEFAULT false,
-      duration_ms INT,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `)
 
     const startTime = Date.now()
     let responseStatus = 0

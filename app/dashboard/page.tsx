@@ -19,8 +19,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      // Use organization from session if available, otherwise use test organization ID
-      const orgId = session.user.organization_id || 'test-org-id'
+      // Use organization from session
+      const orgId = session.user.organization_id
+      if (!orgId) {
+        setLoading(false)
+        return
+      }
       setOrganizationId(orgId)
 
       // Fetch organization data from API for additional details
@@ -32,7 +36,6 @@ export default function DashboardPage() {
         })
         .catch((err) => {
           logger.error('Failed to fetch organization data', err)
-          // Still allow access with test org ID on error
           setOrganizationId(orgId)
           setLoading(false)
         })

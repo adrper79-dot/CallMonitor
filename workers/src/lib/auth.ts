@@ -151,7 +151,10 @@ export async function requireRole(
   const roleHierarchy: Record<string, number> = {
     viewer: 1,
     agent: 2,
+    analyst: 2,
+    operator: 3,
     manager: 3,
+    compliance: 3,
     admin: 4,
     owner: 5,
   }

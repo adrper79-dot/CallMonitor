@@ -14,6 +14,7 @@ UI Static (Pages CDN) → APIs Workers (Hono/bindings) → Stack (Neon Hyperdriv
 ### Stack Components:
 
 **Cloudflare:**
+
 - **Pages**: Static UI from `out/` directory (Next.js static export)
 - **Workers**: API layer (Hono framework) in `workers/` directory
 - **Hyperdrive**: Neon Postgres connection pooling
@@ -21,15 +22,19 @@ UI Static (Pages CDN) → APIs Workers (Hono/bindings) → Stack (Neon Hyperdriv
 - **KV**: Sessions, feature flags, rate limiting
 
 **Database:**
+
 - **Neon**: PostgreSQL with connection pooling + RLS (Row-Level Security)
 
 **Telephony:**
+
 - **Telnyx**: SIP/VXML telephony with webhooks
 
 **Billing:**
+
 - **Stripe**: Subscription billing + usage metering
 
 **AI Stack:**
+
 - **AssemblyAI**: Transcription + NLP (edge proxy)
 - **OpenAI**: LLM reasoning + translation
 - **ElevenLabs**: Text-to-speech + voice cloning
@@ -74,9 +79,9 @@ id = "YOUR_HYPERDRIVE_ID"
 binding = "ARTIFACTS"
 bucket_name = "wordisbond"
 
-# KV Namespace (Sessions)
+# KV Namespace (sessions, rate limiting, idempotency)
 [[kv_namespaces]]
-binding = "SESSIONS"
+binding = "KV"
 id = "YOUR_KV_NAMESPACE_ID"
 
 # Scheduled handlers (cron jobs)
@@ -91,7 +96,7 @@ module.exports = {
   output: 'export',
   trailingSlash: true,
   images: {
-    unoptimized: true
+    unoptimized: true,
   },
   // NO serverless features
   // NO API routes in app/api/
@@ -130,12 +135,13 @@ wrangler deploy
 
 ### Routing Configuration (Cloudflare Dashboard)
 
-- `wordisbond.com/*` → Pages (Static UI)
-- `api.wordisbond.com/*` → Workers (APIs)
+- `voxsouth.online/*` → Pages (Static UI)
+- `wordisbond-api.adrper79.workers.dev/*` → Workers (APIs)
 
 Or use a single domain with Workers routes:
-- `wordisbond.com/api/*` → Workers
-- `wordisbond.com/*` → Pages (fallback)
+
+- `voxsouth.online/api/*` → Workers
+- `voxsouth.online/*` → Pages (fallback)
 
 ---
 
@@ -178,10 +184,9 @@ callsRoutes.get('/', async (c) => {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
-  const result = await db.query(
-    'SELECT * FROM calls WHERE organization_id = $1',
-    [session.organizationId]
-  )
+  const result = await db.query('SELECT * FROM calls WHERE organization_id = $1', [
+    session.organization_id,
+  ])
 
   return c.json({ calls: result.rows })
 })
@@ -193,15 +198,15 @@ callsRoutes.get('/', async (c) => {
 import { z } from 'zod'
 
 const startCallSchema = z.object({
-  phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/),
-  organizationId: z.string().uuid(),
-  systemId: z.string().uuid().optional()
+  phone_number: z.string().regex(/^\+[1-9]\d{1,14}$/),
+  organization_id: z.string().max(100),
+  system_id: z.string().uuid().optional(),
 })
 
 export async function POST(c: Context) {
   const body = await c.req.json()
   const result = startCallSchema.safeParse(body)
-  
+
   if (!result.success) {
     return c.json({ error: result.error }, 400)
   }
@@ -215,6 +220,7 @@ export async function POST(c: Context) {
 ## Best Practices
 
 ### ✅ DO:
+
 - **Immutable artifacts**: Use RLS for read-only audit data
 - **Edge caching**: Cache static assets at CDN (Pages)
 - **Type safety**: Use Zod for API validation, TypeScript everywhere
@@ -224,6 +230,7 @@ export async function POST(c: Context) {
 - **API calls**: Always call Workers endpoints from client
 
 ### ❌ DON'T:
+
 - **No SSR**: Static export can't use server-side rendering
 - **No API routes in app/api**: Move to `workers/src/routes/`
 - **No server components with data fetching**: Use client-side fetch
@@ -261,21 +268,26 @@ compatibility_flags = ["nodejs_compat"]
 ```typescript
 import { cors } from 'hono/cors'
 
-app.use('*', cors({
-  origin: ['https://wordisbond.pages.dev', 'https://wordisbond.com'],
-  credentials: true
-}))
+app.use(
+  '*',
+  cors({
+    origin: ['https://voxsouth.online'],
+    credentials: true,
+  })
+)
 ```
 
 ### Authentication (Custom Workers Auth)
 
 **Status**: ✅ **WORKING** - Custom session-based auth with CSRF protection
 **Architecture**:
+
 - Frontend: Custom AuthProvider with useSession() hook
 - Backend: Workers API with session tokens
 - Security: CSRF tokens + CORS protection
 
 **API Endpoints:**
+
 ```
 GET  /api/auth/csrf → CSRF token
 POST /api/auth/callback/credentials → Login
@@ -284,6 +296,7 @@ POST /api/auth/signup → User registration
 ```
 
 **Session Flow:**
+
 1. Client fetches CSRF token from Workers
 2. Client sends credentials + CSRF token to Workers
 3. Workers validates CSRF, creates session in DB
@@ -291,6 +304,7 @@ POST /api/auth/signup → User registration
 5. Client stores sessionToken, validates via /api/auth/session
 
 **Security Features:**
+
 - CSRF protection via token validation
 - Session persistence in database
 - CORS-restricted to allowed origins
@@ -323,6 +337,7 @@ POST /api/auth/signup → User registration
 ## Current Status (Feb 7, 2026)
 
 ✅ **Successfully Deployed:**
+
 - Static UI: https://voxsouth.online (production) / https://wordisbond.pages.dev (pages)
 - Workers API: https://wordisbond-api.adrper79.workers.dev
 - Build: 28+ static pages, ~102KB first load JS
@@ -335,12 +350,14 @@ POST /api/auth/signup → User registration
 ## Production Architecture
 
 **Live Deployment:**
+
 ```
 https://voxsouth.online                              → Cloudflare Pages (Static UI)
 https://wordisbond-api.adrper79.workers.dev/api/*     → Cloudflare Workers (API)
 ```
 
 **How It Works:**
+
 1. User visits `voxsouth.online` → Cloudflare serves static HTML from Pages
 2. Client-side JS calls Workers API via `apiClient` with Bearer auth
 3. Workers process API request (auth → validation → DB → response)

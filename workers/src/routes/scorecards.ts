@@ -63,22 +63,6 @@ scorecardsRoutes.post('/', async (c) => {
     if (!parsed.success) return parsed.response
     const { call_id, template_id, scores, notes, overall_score } = parsed.data
 
-    // Ensure table exists
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS scorecards (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        call_id UUID,
-        template_id TEXT,
-        scores JSONB DEFAULT '{}',
-        notes TEXT,
-        overall_score NUMERIC(5,2),
-        created_by UUID,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )`
-    )
-
     const result = await db.query(
       `INSERT INTO scorecards (organization_id, call_id, template_id, scores, notes, overall_score, created_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7)

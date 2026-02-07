@@ -8,11 +8,13 @@
 ## Architecture Overview
 
 **Word Is Bond** uses a **hybrid Cloudflare architecture**:
+
 - **Static UI** deployed to Cloudflare Pages (CDN-delivered HTML/CSS/JS)
 - **API layer** deployed to Cloudflare Workers (edge-native Hono framework)
 - **Clean separation** between presentation and business logic
 
 This aligns with modern edge-first patterns and provides:
+
 - ✅ Global CDN distribution for UI
 - ✅ Edge computing for APIs (low latency)
 - ✅ Immutable deployments (rollback-friendly)
@@ -32,12 +34,14 @@ This aligns with modern edge-first patterns and provides:
 - ❌ **Incorrect**: `session-token`, `user-id`, `organization-name`, `created-at`
 
 **Rationale**:
+
 - PostgreSQL standard (snake_case columns)
 - API consistency (RESTful conventions)
 - TypeScript/JavaScript compatibility
 - Prevents database query failures from case mismatches
 
 **Enforcement**:
+
 - Database migrations: Always use snake_case column names
 - API responses: Always return snake_case keys
 - TypeScript interfaces: Use snake_case for API data types
@@ -102,6 +106,7 @@ flowchart TB
 ## Technology Stack
 
 ### Frontend (Pages)
+
 - **Next.js 15.5.7**: Static export mode (`output: 'export'`)
 - **React 19**: Client-side rendering only
 - **Custom AuthProvider**: Client-side session management (`useSession()`)
@@ -109,6 +114,7 @@ flowchart TB
 - **TypeScript**: Type safety
 
 ### Backend (Workers)
+
 - **Hono 4.7.4**: Web framework (Express-like)
 - **Node.js Compatibility**: `nodejs_compat` flag
 - **Zod 3.22+**: API validation
@@ -116,13 +122,15 @@ flowchart TB
 - **Neon SDK**: PostgreSQL client (single client approach)
 
 ### Infrastructure
+
 - **Cloudflare Pages**: UI hosting
 - **Cloudflare Workers**: API hosting
 - **Cloudflare Hyperdrive**: Database connection pooling
 - **Cloudflare R2**: Object storage (recordings)
-- **Cloudflare KV**: Key-value store (cache only - sessions in DB)
+- **Cloudflare KV**: Key-value store (sessions, rate limiting, idempotency)
 
 ### External Services
+
 - **Neon**: PostgreSQL database (serverless)
 - **Telnyx**: Voice/SMS telephony
 - **Stripe**: Billing/subscriptions
@@ -140,12 +148,14 @@ flowchart TB
 **Decision**: Use Next.js static export instead of server-side rendering.
 
 **Rationale**:
+
 - Simpler deployment (just HTML/CSS/JS files)
 - Better CDN caching (immutable artifacts)
 - Aligns with Cloudflare Pages architecture
 - Avoids Vercel dependency (@cloudflare/next-on-pages complexity)
 
 **Trade-offs**:
+
 - ❌ No `getServerSideProps` or server components with data fetching
 - ❌ No API routes in `app/api/` directory
 - ✅ Faster builds, simpler deploys, better caching
@@ -155,12 +165,14 @@ flowchart TB
 **Decision**: Build all APIs in Cloudflare Workers using Hono framework.
 
 **Rationale**:
+
 - Native Cloudflare (no adapter needed)
 - Edge computing (low latency globally)
 - Auto-scaling (no capacity planning)
 - Clean separation from UI
 
 **Trade-offs**:
+
 - ❌ Different framework than Next.js (learning curve)
 - ✅ Better performance, simpler architecture, native bindings
 
@@ -169,6 +181,7 @@ flowchart TB
 **Decision**: Use custom AuthProvider with session-based authentication instead of NextAuth.
 
 **Rationale**:
+
 - Compatible with static export
 - Full control over auth flow
 - No external dependencies on auth libraries
@@ -176,6 +189,7 @@ flowchart TB
 - CSRF protection for cross-origin requests
 
 **Trade-offs**:
+
 - ❌ More custom code to maintain
 - ✅ No library conflicts, cleaner architecture
 
@@ -248,12 +262,14 @@ export default function Page() {
 Implemented with database persistence:
 
 1. **Client-side** (UI visibility):
+
    ```typescript
    const { data: session } = useSession()
    if (session?.user?.role !== 'admin') return null
    ```
 
 2. **Workers API** (endpoint protection):
+
    ```typescript
    const session = await requireAuth(c)
    if (session.role !== 'admin') {
@@ -278,6 +294,7 @@ Implemented with database persistence:
 ### Password Security
 
 **PBKDF2-SHA256 Implementation**:
+
 - **Algorithm**: PBKDF2 with SHA-256
 - **Iterations**: 120,000 (NIST recommended minimum)
 - **Salt**: 32-byte cryptographically secure random
@@ -285,13 +302,16 @@ Implemented with database persistence:
 - **Backward Compatibility**: Transparent migration from legacy SHA-256 hashes
 
 **Implementation**:
+
 ```typescript
 // workers/src/routes/auth.ts
 const hashPassword = async (password: string): Promise<string> => {
   const salt = crypto.getRandomValues(new Uint8Array(32))
   const key = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
-    await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']),
+    await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, [
+      'deriveBits',
+    ]),
     256
   )
   return `pbkdf2:${btoa(String.fromCharCode(...salt))}:${btoa(String.fromCharCode(...new Uint8Array(key)))}`
@@ -305,18 +325,21 @@ const hashPassword = async (password: string): Promise<string> => {
 ### 3-Tier AI Assistant System
 
 **Tier 1 - Chat Widget**:
+
 - **Purpose**: Conversational AI assistant with access to testing data
 - **Features**: Context-aware responses, conversation history, suggested questions
 - **Data Access**: Organization stats, recent alerts, KPI summaries, test results
 - **UI**: Floating chat widget in AppShell
 
 **Tier 2 - Proactive Alerts**:
+
 - **Purpose**: AI-driven alert system for operational insights
 - **Features**: Auto-generated alerts, severity classification, bulk actions
 - **Data Sources**: Call metrics, performance KPIs, anomaly detection
 - **UI**: Dashboard alerts panel with real-time updates
 
 **Tier 3 - Call Co-Pilot**:
+
 - **Purpose**: Real-time AI assistance during voice calls
 - **Features**: Context-aware suggestions, quick actions, custom questions
 - **Data Access**: Live call context, historical patterns, compliance rules
@@ -336,12 +359,14 @@ const hashPassword = async (password: string): Promise<string> => {
 ### Team Management Architecture
 
 **Multi-Organization Support**:
+
 - **Org Switching**: Users can belong to multiple organizations
 - **Role-Based Access**: viewer → agent → manager/compliance → admin → owner
 - **Team Structure**: Departments with hierarchical team management
 - **RBAC v2**: Database-backed permissions with 58 granular permissions
 
 **Database Schema**:
+
 - `teams`: Team definitions with department grouping
 - `team_members`: User-team associations with roles
 - `rbac_permissions`: Granular permission definitions
@@ -354,12 +379,14 @@ const hashPassword = async (password: string): Promise<string> => {
 ### Current Deployments
 
 **Pages (UI)**:
+
 - Production URL: https://voxsouth.online
 - Pages URL: https://wordisbond.pages.dev
 - Build: `npm run build` → `out/` directory
 - Deploy: `npm run pages:deploy`
 
 **Workers (API)**:
+
 - URL: https://wordisbond-api.adrper79.workers.dev
 - Build: TypeScript → JavaScript in `workers/`
 - Deploy: `npm run api:deploy`

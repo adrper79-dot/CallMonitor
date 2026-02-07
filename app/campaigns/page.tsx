@@ -1,6 +1,6 @@
 /**
  * Campaign Manager Page
- * 
+ *
  * Bulk call campaign management UI
  * Features: List campaigns, create new, view details, execute
  * RBAC: All can view, Owner/Admin can manage
@@ -15,13 +15,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { apiGet } from '@/lib/apiClient'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -70,14 +64,15 @@ export default function CampaignsPage() {
 
   const fetchOrganization = async () => {
     try {
-      const data = await apiGet<{ organization_id?: string }>(
-        `/api/users/${userId}/organization`
-      )
-      setOrganizationId(data.organization_id || 'test-org-id')
+      const data = await apiGet<{ organization_id?: string }>(`/api/users/${userId}/organization`)
+      if (data.organization_id) {
+        setOrganizationId(data.organization_id)
+      } else {
+        setError('Organization not found. Please contact support.')
+      }
     } catch (err) {
       logger.error('Error fetching organization', err, { userId })
-      // Use test-org-id as fallback for testing
-      setOrganizationId('test-org-id')
+      setError('Failed to load organization. Please try again.')
     }
   }
 
@@ -142,9 +137,7 @@ export default function CampaignsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Campaigns</CardTitle>
-            <CardDescription>
-              View and manage your call campaigns
-            </CardDescription>
+            <CardDescription>View and manage your call campaigns</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -206,14 +199,17 @@ export default function CampaignsPage() {
                         <TableCell>
                           <div className="text-sm">
                             <span className="font-medium">{campaign.calls_completed}</span>
-                            <span className="text-muted-foreground"> / {campaign.total_targets}</span>
+                            <span className="text-muted-foreground">
+                              {' '}
+                              / {campaign.total_targets}
+                            </span>
                           </div>
                           {campaign.total_targets > 0 && (
                             <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                               <div
                                 className="bg-primary h-1.5 rounded-full"
                                 style={{
-                                  width: `${(campaign.calls_completed / campaign.total_targets) * 100}%`
+                                  width: `${(campaign.calls_completed / campaign.total_targets) * 100}%`,
                                 }}
                               />
                             </div>
@@ -253,7 +249,7 @@ export default function CampaignsPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-semibold">
-                  {campaigns.filter(c => c.status === 'active').length}
+                  {campaigns.filter((c) => c.status === 'active').length}
                 </div>
                 <div className="text-sm text-muted-foreground">Active</div>
               </CardContent>

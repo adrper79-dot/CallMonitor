@@ -123,6 +123,7 @@ function SettingsPageContent() {
       description: 'Transcription, translation, surveys',
     },
     { id: 'quality', label: 'Quality Assurance', description: 'AI quality evaluation scripts' },
+    { id: 'compliance', label: 'Compliance', description: 'Retention policies, legal holds' },
     { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
     { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations' },
     { id: 'billing', label: 'Billing', description: 'Plan and payment' },

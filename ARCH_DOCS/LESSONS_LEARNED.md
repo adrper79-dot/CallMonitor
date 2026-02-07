@@ -581,6 +581,7 @@ The AI on this platform operates as a **notary/stenographer** — it observes, r
 ### The Problem
 
 The Feb 7, 2026 codebase audit found 5 route files executing DDL on every request: `voice.ts`, `live-translation.ts`, `campaigns.ts`, `surveys.ts`, `scorecards.ts`. This causes:
+
 - ~20-50ms latency penalty per request (DDL check + lock acquisition)
 - Table catalog locks that can block concurrent requests
 - Tables created outside migration tracking — no version control
@@ -602,6 +603,7 @@ The Feb 7, 2026 codebase audit found 5 route files executing DDL on every reques
 ### What Happened
 
 The Feb 7 audit found:
+
 - 4 different version numbers (v4.0, v4.22, v4.24) across 4 "current" docs
 - Wrong production URLs (`wordis-bond.com` → actual is `voxsouth.online`)
 - NextAuth code samples in MASTER_ARCHITECTURE.md (NextAuth removed in v4.22)
@@ -626,7 +628,42 @@ The Feb 7 audit found:
 5. ~~**SWML legacy code**~~ — ✅ Resolved in v4.16 and verified in v4.24 audit. All SignalWire code deleted.
 6. **Workers tests not in vitest** — Workers route tests need wrangler's test runner, currently no CI coverage.
 7. **14 route files missing rate limiting/audit** — Identified in Feb 7 audit. Mutations in bookings, surveys, scorecards, compliance, retention, shopper, caller-id, organizations, reports, ai-config, and analytics routes lack `writeAuditLog()` and/or rate limiting middleware.
-8. **Frontend/backend RBAC role mismatch** — Frontend uses `member`, backend uses `agent`. Needs unification.
+8. ~~**Frontend/backend RBAC role mismatch**~~ — ✅ Fixed in Round 2. Added operator/analyst/compliance to backend roleHierarchy.
+9. **API key client_secret not hashed** — `auth_providers.client_secret_hash` stores literal '**_hashed_**'. Low risk (0 orgs using auth_providers in prod).
+10. **R2 credentials in git history** — deploy-cloudflare.sh deleted but keys persist in git. Must be rotated manually.
+11. **Runtime DDL in 6 lower-traffic routes** — admin.ts, reports.ts, tts.ts, audio.ts, compliance.ts, webhook-failures.ts, caller-id.ts, shopper.ts still have `CREATE TABLE IF NOT EXISTS`. Migration created but DDL not yet removed from these files.
+12. **Migrations not yet executed** — `2026-02-07-audit-remediation.sql` and `2026-02-07-runtime-ddl-consolidation.sql` created but NOT run against production Neon. Must execute before removing remaining runtime DDL from lower-traffic routes.
+
+---
+
+## 🧹 Round 2 Audit Summary (February 7, 2026)
+
+### Security Fixes
+
+- **C-6:** Telnyx webhook — removed `OR phone_number` cross-tenant risk
+- **C-7:** Stripe webhook — fixed all 4 audit log calls (wrong interface properties)
+- **C-8:** Recording DELETE — fixed auth bypass (operator→manager)
+- **H-1:** Billing DELETE — fixed DB connection leak
+- **H-2:** Billing audit — fixed 4 calls (oldValue→before, newValue→after)
+
+### Architecture Fixes
+
+- **H-3:** Unified RBAC — added operator:3, analyst:2, compliance:3 to backend hierarchy
+- **H-4:** Removed runtime DDL from 7 high-traffic route files
+- Created comprehensive migration covering 20 tables
+
+### UI Polish Fixes
+
+- LiveTranslationPanel: auth token key mismatch (auth_token→wb-session-token)
+- Removed hardcoded 'test-org-id' from dashboard, reports, campaigns, analytics
+- Added missing 'compliance' tab to Settings page
+
+### Documentation Fixes
+
+- 00-README.md: corrupted header
+- CLOUDFLARE_DEPLOYMENT.md: wrong KV binding, URLs, session prop, Zod casing
+- MASTER_ARCHITECTURE.md: KV description
+- CURRENT_STATUS.md: broken link to archived file
 
 ---
 

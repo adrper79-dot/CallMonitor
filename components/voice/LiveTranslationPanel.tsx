@@ -70,10 +70,7 @@ export function LiveTranslationPanel({
       return
     }
 
-    const token =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
-        : null
+    const token = typeof window !== 'undefined' ? localStorage.getItem('wb-session-token') : null
 
     // EventSource doesn't support custom headers — use query param for auth
     // The API route uses requireAuth which checks the Authorization header,

@@ -106,13 +106,16 @@ export default function AnalyticsPage() {
         // Get organization
         const data = await apiGet<{ organization?: { id: string } }>('/api/organizations/current')
 
-        const orgId = data.organization?.id || 'test-org-id'
-        setOrganizationId(orgId)
+        const orgId = data.organization?.id
+        if (orgId) {
+          setOrganizationId(orgId)
+        } else {
+          setError('Organization not found')
+        }
         setLoading(false)
       } catch (err) {
-        logger.error('Failed to fetch organization, using test-org-id', err)
-        // Use test-org-id as fallback for testing
-        setOrganizationId('test-org-id')
+        logger.error('Failed to fetch organization', err)
+        setError('Failed to load organization. Please try again.')
         setLoading(false)
       }
     }
