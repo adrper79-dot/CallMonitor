@@ -21,33 +21,22 @@ healthRoutes.get('/', async (c) => {
   const checks: HealthCheck[] = []
   const startTime = Date.now()
 
-  // 1. Database check via Hyperdrive
+  // 1. Database check — uses getDb() which prefers NEON_PG_CONN over HYPERDRIVE
   try {
     const dbStart = Date.now()
+    const db = getDb(c.env)
+    try {
+      const result = await db.query('SELECT version()')
+      const dbTime = Date.now() - dbStart
 
-    // Check if Hyperdrive is available
-    if (!c.env.HYPERDRIVE) {
       checks.push({
         service: 'database',
-        status: 'critical',
-        message: 'Hyperdrive binding not available',
+        status: 'healthy',
+        message: 'Database connection successful',
+        responseTime: dbTime,
       })
-    } else {
-      // Use centralized DB client for health check
-      const db = getDb(c.env)
-      try {
-        const result = await db.query('SELECT version()')
-        const dbTime = Date.now() - dbStart
-
-        checks.push({
-          service: 'database',
-          status: 'healthy',
-          message: 'Database connection successful',
-          responseTime: dbTime,
-        })
-      } finally {
-        await db.end()
-      }
+    } finally {
+      await db.end()
     }
   } catch (err: any) {
     logger.error('Database health check error', { error: err?.message || err })

@@ -84,6 +84,7 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string
   TELNYX_WEBHOOK_SECRET: string
   NEXT_PUBLIC_APP_URL?: string
+  API_BASE_URL?: string
 }
 
 // Create Hono app with typed bindings

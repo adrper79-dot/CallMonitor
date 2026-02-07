@@ -151,20 +151,24 @@ webhooksRoutes.post('/telnyx', async (c) => {
 
     const db = getDb(c.env)
 
-    switch (eventType) {
-      case 'call.initiated':
-        await handleCallInitiated(db, body.data.payload)
-        break
-      case 'call.answered':
-        await handleCallAnswered(db, body.data.payload)
-        break
-      case 'call.hangup':
-        await handleCallHangup(db, body.data.payload)
-        break
-      case 'call.recording.saved':
-        await handleRecordingSaved(c.env, db, body.data.payload)
-        break
-      // Silently ignore other event types
+    try {
+      switch (eventType) {
+        case 'call.initiated':
+          await handleCallInitiated(db, body.data.payload)
+          break
+        case 'call.answered':
+          await handleCallAnswered(db, body.data.payload)
+          break
+        case 'call.hangup':
+          await handleCallHangup(db, body.data.payload)
+          break
+        case 'call.recording.saved':
+          await handleRecordingSaved(c.env, db, body.data.payload)
+          break
+        // Silently ignore other event types
+      }
+    } finally {
+      await db.end()
     }
 
     return c.json({ received: true })
@@ -182,13 +186,16 @@ webhooksRoutes.post('/assemblyai', async (c) => {
 
     if (status === 'completed' && text) {
       const db = getDb(c.env)
-
-      await db.query(
-        `UPDATE calls 
+      try {
+        await db.query(
+          `UPDATE calls 
          SET transcript = $1, transcript_status = 'completed'
          WHERE transcript_id = $2`,
-        [text, transcript_id]
-      )
+          [text, transcript_id]
+        )
+      } finally {
+        await db.end()
+      }
     }
 
     return c.json({ received: true })
@@ -357,10 +364,9 @@ async function handleCheckoutCompleted(db: DbClient, session: any) {
 }
 
 async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
-  const orgResult = await db.query(
-    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
-    [subscription.customer]
-  )
+  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
+    subscription.customer,
+  ])
   const orgId = orgResult.rows[0]?.id
 
   await db.query(
@@ -389,10 +395,9 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
 }
 
 async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
-  const orgResult = await db.query(
-    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
-    [subscription.customer]
-  )
+  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
+    subscription.customer,
+  ])
   const orgId = orgResult.rows[0]?.id
 
   await db.query(
@@ -439,10 +444,9 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
 }
 
 async function handleInvoiceFailed(db: DbClient, invoice: any) {
-  const orgResult = await db.query(
-    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
-    [invoice.customer]
-  )
+  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
+    invoice.customer,
+  ])
   const orgId = orgResult.rows[0]?.id
 
   // Mark subscription as past_due
@@ -504,9 +508,9 @@ async function listWebhookSubscriptions(c: any) {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
-
-  // Ensure table exists
-  await db.query(`
+  try {
+    // Ensure table exists
+    await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_subscriptions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       organization_id UUID NOT NULL,
@@ -521,14 +525,17 @@ async function listWebhookSubscriptions(c: any) {
     )
   `)
 
-  const result = await db.query(
-    `SELECT * FROM webhook_subscriptions
+    const result = await db.query(
+      `SELECT * FROM webhook_subscriptions
      WHERE organization_id = $1
      ORDER BY created_at DESC`,
-    [session.organization_id]
-  )
+      [session.organization_id]
+    )
 
-  return c.json({ success: true, webhooks: result.rows })
+    return c.json({ success: true, webhooks: result.rows })
+  } finally {
+    await db.end()
+  }
 }
 
 /** Shared: create webhook subscription */
@@ -541,18 +548,21 @@ async function createWebhookSubscription(c: any) {
   const { url, events, secret, description } = parsed.data
 
   const db = getDb(c.env)
+  try {
+    // Generate a signing secret if not provided
+    const signingSecret = secret || crypto.randomUUID()
 
-  // Generate a signing secret if not provided
-  const signingSecret = secret || crypto.randomUUID()
-
-  const result = await db.query(
-    `INSERT INTO webhook_subscriptions (organization_id, url, events, secret, description, created_by)
+    const result = await db.query(
+      `INSERT INTO webhook_subscriptions (organization_id, url, events, secret, description, created_by)
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [session.organization_id, url, events, signingSecret, description || '', session.user_id]
-  )
+      [session.organization_id, url, events, signingSecret, description || '', session.user_id]
+    )
 
-  return c.json({ success: true, webhook: result.rows[0] }, 201)
+    return c.json({ success: true, webhook: result.rows[0] }, 201)
+  } finally {
+    await db.end()
+  }
 }
 
 /** Shared: update webhook subscription */
@@ -565,9 +575,9 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
   const { url, events, is_active, description } = parsed.data
 
   const db = getDb(c.env)
-
-  const result = await db.query(
-    `UPDATE webhook_subscriptions
+  try {
+    const result = await db.query(
+      `UPDATE webhook_subscriptions
      SET url = COALESCE($1, url),
          events = COALESCE($2, events),
          is_active = COALESCE($3, is_active),
@@ -575,21 +585,24 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
          updated_at = NOW()
      WHERE id = $5 AND organization_id = $6
      RETURNING *`,
-    [
-      url || null,
-      events || null,
-      is_active ?? null,
-      description || null,
-      webhookId,
-      session.organization_id,
-    ]
-  )
+      [
+        url || null,
+        events || null,
+        is_active ?? null,
+        description || null,
+        webhookId,
+        session.organization_id,
+      ]
+    )
 
-  if (result.rows.length === 0) {
-    return c.json({ error: 'Webhook not found' }, 404)
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Webhook not found' }, 404)
+    }
+
+    return c.json({ success: true, webhook: result.rows[0] })
+  } finally {
+    await db.end()
   }
-
-  return c.json({ success: true, webhook: result.rows[0] })
 }
 
 /** Shared: delete webhook subscription */
@@ -598,19 +611,22 @@ async function deleteWebhookSubscription(c: any, webhookId: string) {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
-
-  const result = await db.query(
-    `DELETE FROM webhook_subscriptions
+  try {
+    const result = await db.query(
+      `DELETE FROM webhook_subscriptions
      WHERE id = $1 AND organization_id = $2
      RETURNING id`,
-    [webhookId, session.organization_id]
-  )
+      [webhookId, session.organization_id]
+    )
 
-  if (result.rows.length === 0) {
-    return c.json({ error: 'Webhook not found' }, 404)
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Webhook not found' }, 404)
+    }
+
+    return c.json({ success: true, message: 'Webhook deleted' })
+  } finally {
+    await db.end()
   }
-
-  return c.json({ success: true, message: 'Webhook deleted' })
 }
 
 /** Shared: send test delivery */
@@ -619,32 +635,32 @@ async function testWebhookDelivery(c: any, webhookId: string) {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
-
-  const webhookResult = await db.query(
-    `SELECT * FROM webhook_subscriptions
+  try {
+    const webhookResult = await db.query(
+      `SELECT * FROM webhook_subscriptions
      WHERE id = $1 AND organization_id = $2`,
-    [webhookId, session.organization_id]
-  )
+      [webhookId, session.organization_id]
+    )
 
-  if (webhookResult.rows.length === 0) {
-    return c.json({ error: 'Webhook not found' }, 404)
-  }
+    if (webhookResult.rows.length === 0) {
+      return c.json({ error: 'Webhook not found' }, 404)
+    }
 
-  const webhook = webhookResult.rows[0]
+    const webhook = webhookResult.rows[0]
 
-  // Send test payload
-  const testPayload = {
-    event: 'test.delivery',
-    timestamp: new Date().toISOString(),
-    data: {
-      message: 'This is a test webhook delivery from WordIsBond',
-      webhook_id: webhookId,
-      organization_id: session.organization_id,
-    },
-  }
+    // Send test payload
+    const testPayload = {
+      event: 'test.delivery',
+      timestamp: new Date().toISOString(),
+      data: {
+        message: 'This is a test webhook delivery from WordIsBond',
+        webhook_id: webhookId,
+        organization_id: session.organization_id,
+      },
+    }
 
-  // Ensure delivery log table exists
-  await db.query(`
+    // Ensure delivery log table exists
+    await db.query(`
     CREATE TABLE IF NOT EXISTS webhook_deliveries (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       webhook_id UUID NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
@@ -658,47 +674,50 @@ async function testWebhookDelivery(c: any, webhookId: string) {
     )
   `)
 
-  const startTime = Date.now()
-  let responseStatus = 0
-  let responseBody = ''
-  let success = false
+    const startTime = Date.now()
+    let responseStatus = 0
+    let responseBody = ''
+    let success = false
 
-  try {
-    const response = await fetch(webhook.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Signature': webhook.secret || '',
-        'X-Webhook-Event': 'test.delivery',
-      },
-      body: JSON.stringify(testPayload),
-    })
+    try {
+      const response = await fetch(webhook.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Webhook-Signature': webhook.secret || '',
+          'X-Webhook-Event': 'test.delivery',
+        },
+        body: JSON.stringify(testPayload),
+      })
 
-    responseStatus = response.status
-    responseBody = (await response.text()).slice(0, 1000) // Cap response body
-    success = response.ok
-  } catch (err: any) {
-    responseBody = err.message || 'Connection failed'
-  }
+      responseStatus = response.status
+      responseBody = (await response.text()).slice(0, 1000) // Cap response body
+      success = response.ok
+    } catch (err: any) {
+      responseBody = err.message || 'Connection failed'
+    }
 
-  const durationMs = Date.now() - startTime
+    const durationMs = Date.now() - startTime
 
-  // Log delivery
-  await db.query(
-    `INSERT INTO webhook_deliveries (webhook_id, event, payload, response_status, response_body, success, duration_ms)
+    // Log delivery
+    await db.query(
+      `INSERT INTO webhook_deliveries (webhook_id, event, payload, response_status, response_body, success, duration_ms)
      VALUES ($1, 'test.delivery', $2, $3, $4, $5, $6)`,
-    [webhookId, JSON.stringify(testPayload), responseStatus, responseBody, success, durationMs]
-  )
+      [webhookId, JSON.stringify(testPayload), responseStatus, responseBody, success, durationMs]
+    )
 
-  return c.json({
-    success: true,
-    delivery: {
-      status: responseStatus,
-      success,
-      duration_ms: durationMs,
-      response_preview: responseBody.slice(0, 200),
-    },
-  })
+    return c.json({
+      success: true,
+      delivery: {
+        status: responseStatus,
+        success,
+        duration_ms: durationMs,
+        response_preview: responseBody.slice(0, 200),
+      },
+    })
+  } finally {
+    await db.end()
+  }
 }
 
 // --- Subscription routes (at /subscriptions sub-path) ---

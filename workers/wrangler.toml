@@ -15,6 +15,7 @@ main = "src/index.ts"
 [vars]
 NODE_ENV = "production"
 CORS_ORIGIN = "https://voxsouth.online"
+API_BASE_URL = "https://wordisbond-api.adrper79.workers.dev"
 
 # Local development database connection (fallback to Hyperdrive in production)
 # Set via: wrangler secret put DATABASE_URL --config workers/wrangler.toml

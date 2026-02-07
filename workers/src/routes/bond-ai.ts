@@ -32,6 +32,7 @@ import {
   fetchTestResults,
 } from '../lib/bond-ai'
 import { requirePlan } from '../lib/plan-gating'
+import { aiLlmRateLimit } from '../lib/rate-limit'
 
 export const bondAiRoutes = new Hono<{ Bindings: Env }>()
 
@@ -99,7 +100,7 @@ bondAiRoutes.post('/conversations', async (c) => {
 })
 
 // Send chat message (the main Tier 1 endpoint)
-bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
+bondAiRoutes.post('/chat', requirePlan('pro'), aiLlmRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -599,7 +600,7 @@ bondAiRoutes.delete('/alert-rules/:id', async (c) => {
 // ════════════════════════════════════════════════════════════
 
 // Real-time co-pilot assistance during a call
-bondAiRoutes.post('/copilot', async (c) => {
+bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

@@ -1,1 +1,0 @@
-column m.member does not exist

@@ -354,7 +354,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
 
 // POST /api/calls/[id]/outcome
 callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
-  const session = await requireRole(c, 'operator')
+  const session = await requireRole(c, 'agent')
   if (!session) {
     return c.json({ success: false, error: 'Unauthorized' }, 401)
   }
@@ -483,7 +483,7 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
 
 // PUT /api/calls/[id]/outcome
 callsRoutes.put('/:id/outcome', async (c) => {
-  const session = await requireRole(c, 'operator')
+  const session = await requireRole(c, 'agent')
   if (!session) {
     return c.json({ success: false, error: 'Unauthorized' }, 401)
   }
@@ -949,7 +949,7 @@ callsRoutes.get('/:id/notes', async (c) => {
 
 // POST /api/calls/:id/notes — add a note
 callsRoutes.post('/:id/notes', async (c) => {
-  const session = await requireRole(c, 'operator')
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
   const callId = c.req.param('id')
@@ -997,7 +997,7 @@ callsRoutes.post('/:id/notes', async (c) => {
 
 // PUT /api/calls/:id/disposition — set call disposition
 callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
-  const session = await requireRole(c, 'operator')
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
   const callId = c.req.param('id')
@@ -1054,7 +1054,7 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
 
 // POST /api/calls/:id/confirmations — record an in-call confirmation event
 callsRoutes.post('/:id/confirmations', async (c) => {
-  const session = await requireRole(c, 'operator')
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
   const callId = c.req.param('id')
@@ -1184,7 +1184,7 @@ callsRoutes.get('/:id/export', async (c) => {
 // POST /api/calls/:id/email — email call artifacts (placeholder)
 callsRoutes.post('/:id/email', async (c) => {
   try {
-    const session = await requireRole(c, 'operator')
+    const session = await requireRole(c, 'agent')
     if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
     const callId = c.req.param('id')

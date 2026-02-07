@@ -1,1 +1,0 @@
-This folder contains the built output assets for the worker "wordisbond-api" generated at 2026-02-06T03:16:00.158Z.

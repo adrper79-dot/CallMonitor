@@ -225,7 +225,6 @@ webrtcRoutes.get('/token', async (c) => {
       {
         error: 'Failed to get WebRTC token',
         details: err?.message || String(err),
-        stack: err?.stack?.substring(0, 500),
       },
       500
     )
@@ -271,7 +270,7 @@ webrtcRoutes.post('/dial', async (c) => {
         connection_id: c.env.TELNYX_CONNECTION_ID,
         to: phone_number,
         from: c.env.TELNYX_NUMBER,
-        webhook_url: `${c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'}/api/webhooks/telnyx?call_id=${callId}&org_id=${session.organization_id}`,
+        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}&org_id=${session.organization_id}`,
         record: 'record-from-answer',
         timeout_secs: 30,
       }),
@@ -280,26 +279,6 @@ webrtcRoutes.post('/dial', async (c) => {
     if (!telnyxResponse.ok) {
       const error = await telnyxResponse.text()
       logger.error('Telnyx call initiation error', { error: (error as any)?.message })
-
-      // For testing: simulate successful call when connection is invalid
-      if (error.includes('invalid connection') || error.includes('connection')) {
-        logger.info('Using mock call initiation for testing')
-
-        // Update call record with mock call SID
-        await db.query('UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3', [
-          'mock-call-' + callId,
-          'ringing',
-          callId,
-        ])
-
-        return c.json({
-          success: true,
-          call_id: callId,
-          call_sid: 'mock-call-' + callId,
-          status: 'ringing',
-          note: 'Mock call initiated for testing - Telnyx connection not configured',
-        })
-      }
 
       // Update call status to failed
       await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])

@@ -11,15 +11,8 @@
  */
 
 const nextConfig = {
-  // Use standalone output for Cloudflare deployment, static export for local
-  ...(process.env.CLOUDFLARE_ENV
-    ? { output: 'standalone' }
-    : process.env.NODE_ENV === 'production'
-      ? { output: 'export' }
-      : {}),
-
-  // Fix workspace root detection
-  outputFileTracingRoot: __dirname,
+  // Static export for Cloudflare Pages — all server logic in Workers
+  output: 'export',
 
   images: {
     // Static export uses unoptimized images, but we configure

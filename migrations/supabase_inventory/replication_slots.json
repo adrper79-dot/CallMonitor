@@ -1,4 +1,0 @@
-{
-  "query": "select * from pg_replication_slots",
-  "rows": []
-}
