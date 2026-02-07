@@ -25,7 +25,11 @@ import { z } from 'zod'
 // ─── Shared Primitives ──────────────────────────────────────────────────────
 
 const uuid = z.string().uuid()
-const email = z.string().email().max(254).transform((v) => v.toLowerCase())
+const email = z
+  .string()
+  .email()
+  .max(254)
+  .transform((v) => v.toLowerCase())
 const e164Phone = z.string().regex(/^\+[1-9]\d{1,14}$/, 'Must be E.164 format (e.g. +15551234567)')
 const nonEmptyString = z.string().min(1).max(10_000)
 
@@ -40,22 +44,27 @@ export const SignupSchema = z.object({
   password: z.string().min(8).max(128),
   name: z.string().max(100).optional(),
   organizationName: z.string().max(200).optional(),
-})
-
-export const LoginSchema = z.object({
-  // Accept both username and email for backwards compat
-  username: z.string().max(254).optional(),
-  email: z.string().max(254).optional(),
-  password: z.string().min(1).max(128),
   csrf_token: z.string().uuid().optional(),
   csrfToken: z.string().uuid().optional(),
-}).refine(
-  (data) => data.username || data.email,
-  { message: 'Either username or email is required' }
-)
+})
+
+export const LoginSchema = z
+  .object({
+    // Accept both username and email for backwards compat
+    username: z.string().max(254).optional(),
+    email: z.string().max(254).optional(),
+    password: z.string().min(1).max(128),
+    csrf_token: z.string().uuid().optional(),
+    csrfToken: z.string().uuid().optional(),
+  })
+  .refine((data) => data.username || data.email, {
+    message: 'Either username or email is required',
+  })
 
 export const ForgotPasswordSchema = z.object({
   email,
+  csrf_token: z.string().uuid().optional(),
+  csrfToken: z.string().uuid().optional(),
 })
 
 // ─── Calls Schemas ───────────────────────────────────────────────────────────
@@ -67,7 +76,12 @@ export const StartCallSchema = z.object({
 })
 
 const OUTCOME_STATUSES = [
-  'agreed', 'declined', 'partial', 'inconclusive', 'follow_up_required', 'cancelled',
+  'agreed',
+  'declined',
+  'partial',
+  'inconclusive',
+  'follow_up_required',
+  'cancelled',
 ] as const
 
 const CONFIDENCE_LEVELS = ['high', 'medium', 'low', 'uncertain'] as const
@@ -116,16 +130,18 @@ export const EmailCallSchema = z.object({
 
 export const VoiceConfigSchema = z.object({
   orgId: uuid.optional(),
-  modulations: z.object({
-    record: z.boolean().optional(),
-    transcribe: z.boolean().optional(),
-    translate: z.boolean().optional(),
-    translate_from: z.string().max(10).optional(),
-    translate_to: z.string().max(10).optional(),
-    survey: z.boolean().optional(),
-    synthetic_caller: z.boolean().optional(),
-    use_voice_cloning: z.boolean().optional(),
-  }).optional(),
+  modulations: z
+    .object({
+      record: z.boolean().optional(),
+      transcribe: z.boolean().optional(),
+      translate: z.boolean().optional(),
+      translate_from: z.string().max(10).optional(),
+      translate_to: z.string().max(10).optional(),
+      survey: z.boolean().optional(),
+      synthetic_caller: z.boolean().optional(),
+      use_voice_cloning: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 export const CreateCallSchema = z.object({
@@ -206,13 +222,15 @@ export const UpdateBookingSchema = z.object({
 
 // ─── Surveys Schemas ─────────────────────────────────────────────────────────
 
-const SurveyQuestionSchema = z.object({
-  id: z.string().max(100).optional(),
-  type: z.enum(['text', 'rating', 'multiple_choice', 'boolean', 'scale']).default('text'),
-  question: z.string().max(2000),
-  options: z.array(z.string().max(500)).optional(),
-  required: z.boolean().optional(),
-}).passthrough()
+const SurveyQuestionSchema = z
+  .object({
+    id: z.string().max(100).optional(),
+    type: z.enum(['text', 'rating', 'multiple_choice', 'boolean', 'scale']).default('text'),
+    question: z.string().max(2000),
+    options: z.array(z.string().max(500)).optional(),
+    required: z.boolean().optional(),
+  })
+  .passthrough()
 
 export const CreateSurveySchema = z.object({
   title: nonEmptyString,
@@ -339,15 +357,16 @@ export const UpdateAlertRuleSchema = z.object({
   cooldown_minutes: z.number().int().min(1).max(10080).optional(),
 })
 
-export const CopilotSchema = z.object({
-  call_id: z.string().max(200).optional(),
-  transcript_segment: z.string().max(50_000).optional(),
-  agent_question: z.string().max(5000).optional(),
-  scorecard_id: z.string().max(200).optional(),
-}).refine(
-  (d) => d.agent_question?.trim() || d.transcript_segment?.trim(),
-  { message: 'Either agent_question or transcript_segment is required' }
-)
+export const CopilotSchema = z
+  .object({
+    call_id: z.string().max(200).optional(),
+    transcript_segment: z.string().max(50_000).optional(),
+    agent_question: z.string().max(5000).optional(),
+    scorecard_id: z.string().max(200).optional(),
+  })
+  .refine((d) => d.agent_question?.trim() || d.transcript_segment?.trim(), {
+    message: 'Either agent_question or transcript_segment is required',
+  })
 
 // ─── Reports Schemas ─────────────────────────────────────────────────────────
 
@@ -451,14 +470,15 @@ export const TTSGenerateSchema = z.object({
 
 // ─── Audio Schemas ───────────────────────────────────────────────────────────
 
-export const TranscribeSchema = z.object({
-  audio_file_id: z.string().uuid().optional().nullable(),
-  file_key: z.string().max(500).optional().nullable(),
-  language: z.string().max(10).optional(),
-}).refine(
-  (d) => d.audio_file_id || d.file_key,
-  { message: 'Either audio_file_id or file_key is required' }
-)
+export const TranscribeSchema = z
+  .object({
+    audio_file_id: z.string().uuid().optional().nullable(),
+    file_key: z.string().max(500).optional().nullable(),
+    language: z.string().max(10).optional(),
+  })
+  .refine((d) => d.audio_file_id || d.file_key, {
+    message: 'Either audio_file_id or file_key is required',
+  })
 
 // ─── Compliance Schemas ──────────────────────────────────────────────────────
 

@@ -117,7 +117,7 @@ app.use(
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
-    exposeHeaders: ['Idempotent-Replayed'],
+    exposeHeaders: ['Idempotent-Replayed', 'X-Correlation-ID'],
   })
 )
 
@@ -125,7 +125,10 @@ app.use(
 // Must be BEFORE route modules so handlers can access requestStart/correlationId
 app.use('*', async (c, next) => {
   c.set('requestStart' as any, Date.now())
-  c.set('correlationId' as any, generateCorrelationId())
+  const correlationId = generateCorrelationId()
+  c.set('correlationId' as any, correlationId)
+  // Expose correlation ID on every response for client-side log correlation
+  c.header('X-Correlation-ID', correlationId)
   await next()
 })
 

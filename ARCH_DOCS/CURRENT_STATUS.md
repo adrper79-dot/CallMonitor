@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 7, 2026  
-**Version:** 4.15 - Critical Bug Fixes, TTS Caching, Dead Code Cleanup & Middleware Ordering  
+**Last Updated:** February 8, 2026  
+**Version:** 4.16 - CSRF Hardening, SignalWire Cleanup, Supabase Removal & Observability  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,47 @@
 
 ---
 
-## 🔧 **Recent Updates (February 7, 2026)**
+## 🔧 **Recent Updates (February 8, 2026)**
+
+### **CSRF Hardening, SignalWire Cleanup, Supabase Removal & Observability (v4.16):** ✅ **DEPLOYED**
+
+1. **X-Correlation-ID Response Header** ⭐ **OBSERVABILITY**
+   - Every API response now includes `X-Correlation-ID` header for client-side log correlation
+   - Added to CORS `exposeHeaders` so browsers can read it
+   - File: `workers/src/index.ts`
+
+2. **CSRF Token Validation on Signup + Forgot-Password** ⭐ **SECURITY**
+   - Both `/api/auth/signup` and `/api/auth/forgot-password` now require KV-backed CSRF tokens (matching login pattern)
+   - One-time-use tokens: fetched from `/api/auth/csrf`, validated via KV, deleted after use
+   - Frontend forms updated to fetch + send CSRF tokens before submission
+   - Files: `workers/src/routes/auth.ts`, `workers/src/lib/schemas.ts`, `app/signup/page.tsx`, `app/forgot-password/page.tsx`
+
+3. **SignalWire → Telnyx Complete Cleanup** ⭐ **VENDOR MIGRATION**
+   - `.env.example`: Replaced 10 `SIGNALWIRE_*` vars with 3 `TELNYX_*` vars
+   - Landing page: "SignalWire Executes the Call" → "Telnyx Executes the Call"
+   - Trust page: "SignalWire" → "Telnyx", "SignalWire AI" → "Telnyx AI"
+   - Evidence manifest: Fallback source `'signalwire'` → `'telnyx'` (3 occurrences)
+   - Circuit breaker: Renamed `signalWireBreaker` → `telnyxBreaker`, removed duplicate
+   - Fetch retry: `fetchSignalWireWithRetry` → `fetchTelnyxWithRetry`, hostname detection updated
+   - Call placer JSDoc: Removed "Mirrors SignalWire" / "Diff from SignalWire" references
+   - Manual tests: Rebranded WebRTC test from SignalWire to Telnyx
+   - Deleted dead code: `lib/webhookSecurity.ts` (206 lines), `app/services/recordingStorage.ts` (107 lines)
+
+4. **@supabase/ssr Removal** ✅ **DEPENDENCY CLEANUP**
+   - Uninstalled `@supabase/ssr` package (last Supabase dependency)
+   - Rewrote `CampaignProgress.tsx` from Supabase Realtime subscription to 5-second API polling
+   - Auto-stops polling when campaign completes (no pending/calling)
+
+5. **ROADMAP Bookkeeping** ✅ **ACCURACY**
+   - SWML → Telnyx migration → **Done** (all active code, config, tests cleaned)
+   - X-Correlation-ID → **Done**
+   - CSRF hardening → **Done**
+   - @supabase/ssr removal → **Done**
+   - Progress: 95/109 → **99/109 (91%)**
+
+---
+
+## 🔧 **Previous Updates (February 7, 2026)**
 
 ### **Critical Bug Fixes, TTS Caching, Dead Code Cleanup & Middleware Ordering (v4.15):** ✅ **DEPLOYED**
 

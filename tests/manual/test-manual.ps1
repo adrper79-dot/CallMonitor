@@ -112,16 +112,16 @@ if ($AllTests) {
     }
 }
 
-# 6. WebRTC Test (SignalWire connectivity)
+# 6. WebRTC Test (Telnyx connectivity)
 Write-Host "`n=== 📞 WebRTC Connectivity Test ===" -ForegroundColor Cyan
 try {
-    # Test if we can reach SignalWire's STUN/TURN servers
-    $signalwireHealth = Invoke-RestMethod -Uri "https://relay.signalwire.com/health" -TimeoutSec 5
-    Write-Host "✅ SignalWire connectivity OK" -ForegroundColor Green
+    # Test if we can reach Telnyx WebRTC endpoint
+    $telnyxHealth = Invoke-RestMethod -Uri "https://wss.telnyx.com" -TimeoutSec 5
+    Write-Host "✅ Telnyx connectivity OK" -ForegroundColor Green
     $testResults["webrtc"] = $true
 }
 catch {
-    Write-Host "❌ SignalWire connectivity failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "❌ Telnyx connectivity failed: $($_.Exception.Message)" -ForegroundColor Red
     $testResults["webrtc"] = $false
 }
 

@@ -3,7 +3,7 @@
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 95/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Progress**: 99/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -56,6 +56,9 @@
 - [x] **Billing 500 Fix** (`workers/src/routes/billing.ts`): Column fallback for missing `plan` column. ✅
 - [x] **Audit Logs** (`workers/src/lib/audit.ts`): Centralized writeAuditLog utility + wired to calls, billing, recordings. ✅
 - [x] **CORS Idempotency Fix** (`workers/src/index.ts`): Added `Idempotency-Key` to allowHeaders + `Idempotent-Replayed` to exposeHeaders. ✅
+- [x] **X-Correlation-ID** (`workers/src/index.ts`): Response header + CORS `exposeHeaders` for client-side log correlation. ✅
+- [x] **CSRF Hardening** (`workers/src/routes/auth.ts`): CSRF token validation on signup + forgot-password (matching login pattern). Frontend forms updated. ✅
+- [x] **Supabase Removal** (`package.json`): Removed `@supabase/ssr`; `CampaignProgress` rewritten from Realtime to API polling. ✅
 - [x] **RLS Audit** (`scripts/rls-audit.sql`): Diagnostic script — table RLS status, active policies, org-scoped gaps, fix SQL. ✅
 - [x] **Schema Drift** (`scripts/schema-drift-check.sh`): CI-ready diff check — live vs snapshot, `db:schema-check` / `db:schema-snapshot` scripts. ✅
 
@@ -128,8 +131,8 @@
 
 ### 🚨 Design Violations (Architecture)
 
-- [ ] **SWML → Telnyx** (`app/api/calls/*`, `lib/signalwire*`, `tests/call*`): Migrate to Telnyx VXML. **4hr**
-  > ⚠️ **Note**: Workers API already uses Telnyx Call Control directly. Only legacy `lib/signalwire/` client code remained — deleted in v4.15. Remaining: delete any orphan test references.
+- [x] **SWML → Telnyx** (`app/api/calls/*`, `lib/signalwire*`, `tests/call*`): Migrate to Telnyx VXML. ✅
+  > Fully complete: All SignalWire code/config/references removed in v4.16. `lib/webhookSecurity.ts` + `app/services/recordingStorage.ts` deleted. `.env.example`, landing page, trust page, evidence manifest, circuit breaker, fetchWithRetry, callPlacer JSDoc all updated. `@supabase/ssr` removed.
 - [x] **Multi-Pages Consolidation** (`app/voice/` → redirect only): `voice-operations/` is the single Voice Ops root. `voice/` is a 5-line redirect page. ✅
 - [x] **Console Logging** (`workers/src/`): Structured logger (`workers/src/lib/logger.ts`) + all routes migrated. ✅
 
@@ -265,8 +268,8 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 95/109 (87%).
-**Last Updated**: Feb 7, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 99/109 (91%).
+**Last Updated**: Feb 8, 2026 by GitHub Copilot
 
 ---
 

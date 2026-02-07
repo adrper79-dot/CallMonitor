@@ -103,7 +103,19 @@ async function hashApiKey(key: string): Promise<string> {
 authRoutes.post('/signup', signupRateLimit, async (c) => {
   const parsed = await validateBody(c, SignupSchema)
   if (!parsed.success) return parsed.response
-  const { email, password, name, organizationName } = parsed.data
+  const { email, password, name, organizationName, csrf_token, csrfToken } = parsed.data
+
+  // Validate CSRF token — same pattern as login
+  const csrfTokenValue = csrf_token || csrfToken
+  if (!csrfTokenValue) {
+    return c.json({ error: 'CSRF token required' }, 401)
+  }
+  const storedCsrf = await c.env.KV.get(`csrf:${csrfTokenValue}`)
+  if (!storedCsrf) {
+    return c.json({ error: 'Invalid or expired CSRF token' }, 403)
+  }
+  // Delete CSRF token after use (one-time use)
+  await c.env.KV.delete(`csrf:${csrfTokenValue}`)
 
   const db = getDb(c.env)
   try {
@@ -395,7 +407,18 @@ authRoutes.post('/signout', async (c) => {
 authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
   const parsed = await validateBody(c, ForgotPasswordSchema)
   if (!parsed.success) return parsed.response
-  const { email } = parsed.data
+  const { email, csrf_token, csrfToken } = parsed.data
+
+  // Validate CSRF token — same pattern as login/signup
+  const csrfTokenValue = csrf_token || csrfToken
+  if (!csrfTokenValue) {
+    return c.json({ error: 'CSRF token required' }, 401)
+  }
+  const storedCsrf = await c.env.KV.get(`csrf:${csrfTokenValue}`)
+  if (!storedCsrf) {
+    return c.json({ error: 'Invalid or expired CSRF token' }, 403)
+  }
+  await c.env.KV.delete(`csrf:${csrfTokenValue}`)
 
   // Check if user exists
   const db = getDb(c.env)

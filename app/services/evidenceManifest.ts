@@ -8,7 +8,7 @@ import type { ArtifactReference } from '@/app/services/evidenceTypes'
 
 /**
  * Evidence Manifest Service - Generates IMMUTABLE evidence manifests for call artifacts
- * 
+ *
  * SYSTEM OF RECORD COMPLIANCE:
  * - Manifests are APPEND-ONLY (database trigger prevents updates)
  * - New versions create new rows with parent_manifest_id reference
@@ -37,7 +37,7 @@ export interface EvidenceManifestData {
 
 /**
  * Generate an IMMUTABLE evidence manifest for a call's artifacts
- * 
+ *
  * SYSTEM OF RECORD COMPLIANCE:
  * - Creates new manifest (never updates existing)
  * - If manifest exists, returns existing ID (idempotent)
@@ -60,7 +60,10 @@ export async function generateEvidenceManifest(
 
     // If manifest exists and no new scorecard, return existing
     if (existing?.[0] && !scorecardId) {
-      logger.debug('evidenceManifest: manifest already exists', { manifestId: existing[0].id, recordingId })
+      logger.debug('evidenceManifest: manifest already exists', {
+        manifestId: existing[0].id,
+        recordingId,
+      })
       return existing[0].id
     }
 
@@ -83,17 +86,17 @@ export async function generateEvidenceManifest(
         uri: recording.recording_url,
         sha256: recording.media_hash || undefined,
         produced_by: 'system',
-        produced_by_model: recording.source || 'signalwire',
+        produced_by_model: recording.source || 'telnyx',
         produced_at: recording.created_at,
         input_refs: [],
         version: 1,
         metadata: {
           duration_seconds: recording.duration_seconds,
           status: recording.status,
-          source: recording.source || 'signalwire'
-        }
+          source: recording.source || 'telnyx',
+        },
       })
-      provenance.recording_source = recording.source || 'signalwire'
+      provenance.recording_source = recording.source || 'telnyx'
     }
 
     // Get transcript from transcript_versions (preferred) or recordings.transcript_json (fallback)
@@ -118,8 +121,8 @@ export async function generateEvidenceManifest(
         version: tv.version,
         metadata: {
           text: tv.transcript_json?.text,
-          confidence: tv.transcript_json?.confidence
-        }
+          confidence: tv.transcript_json?.confidence,
+        },
       })
       provenance.transcription_model = tv.produced_by_model || 'assemblyai-v1'
     } else {
@@ -131,7 +134,8 @@ export async function generateEvidenceManifest(
 
       if (transcriptRows?.[0]?.transcript_json) {
         const transcript = transcriptRows[0].transcript_json
-        const transcriptHash = crypto.createHash('sha256')
+        const transcriptHash = crypto
+          .createHash('sha256')
           .update(JSON.stringify(transcript))
           .digest('hex')
 
@@ -147,8 +151,8 @@ export async function generateEvidenceManifest(
           metadata: {
             text: transcript.text,
             confidence: transcript.confidence,
-            transcript_id: transcript.transcript_id
-          }
+            transcript_id: transcript.transcript_id,
+          },
         })
         provenance.transcription_model = 'assemblyai-v1'
       }
@@ -175,8 +179,8 @@ export async function generateEvidenceManifest(
         version: 1,
         metadata: {
           from_language: translation.output?.from_language,
-          to_language: translation.output?.to_language
-        }
+          to_language: translation.output?.to_language,
+        },
       })
       provenance.translation_model = translation.model || 'assemblyai-translation'
     }
@@ -202,7 +206,7 @@ export async function generateEvidenceManifest(
         produced_at: survey.completed_at || now,
         input_refs: [{ type: 'transcript', id: `${recordingId}-transcript` }],
         version: 1,
-        metadata: { responses: survey.output?.responses }
+        metadata: { responses: survey.output?.responses },
       })
       provenance.survey_processor = 'assemblyai-nlp'
     }
@@ -227,14 +231,14 @@ export async function generateEvidenceManifest(
           produced_at: score.created_at,
           input_refs: [
             { type: 'transcript', id: `${recordingId}-transcript` },
-            { type: 'recording', id: recordingId }
+            { type: 'recording', id: recordingId },
           ],
           version: 1,
           metadata: {
             total_score: score.total_score,
             scorecard_id: scorecardId,
-            has_manual_overrides: !!score.manual_overrides_json
-          }
+            has_manual_overrides: !!score.manual_overrides_json,
+          },
         })
         provenance.scoring_engine = 'qise-v1'
       }
@@ -256,7 +260,7 @@ export async function generateEvidenceManifest(
       producer: 'call_monitor_v1',
       version: newVersion,
       parent_manifest_id: parentManifestId || undefined,
-      provenance
+      provenance,
     }
 
     // Generate cryptographic hash of manifest using canonical serialization
@@ -277,7 +281,7 @@ export async function generateEvidenceManifest(
         JSON.stringify(manifestData),
         now,
         newVersion,
-        parentManifestId
+        parentManifestId,
       ]
     )
 
@@ -290,7 +294,7 @@ export async function generateEvidenceManifest(
       recordingId,
       artifacts,
       version: newVersion,
-      parentManifestId: parentManifestId || null
+      parentManifestId: parentManifestId || null,
     })
 
     // Mark previous manifest as superseded (if exists)
@@ -305,7 +309,9 @@ export async function generateEvidenceManifest(
         )
       } catch {
         // If trigger blocks this, it's okay - the new manifest is still valid
-        logger.warn('evidenceManifest: could not mark parent as superseded (trigger may prevent)', { parentManifestId })
+        logger.warn('evidenceManifest: could not mark parent as superseded (trigger may prevent)', {
+          parentManifestId,
+        })
       }
     }
 
@@ -313,9 +319,9 @@ export async function generateEvidenceManifest(
     await recordArtifactProvenance(organizationId, 'evidence_manifest', manifestId, {
       produced_by: 'system',
       produced_by_system_id: null,
-      input_refs: artifacts.map(a => ({ type: a.type, id: a.id, hash: a.sha256 })),
+      input_refs: artifacts.map((a) => ({ type: a.type, id: a.id, hash: a.sha256 })),
       version: newVersion,
-      metadata: { artifact_count: artifacts.length }
+      metadata: { artifact_count: artifacts.length },
     })
 
     // Record bundle provenance (links manifest + artifact hashes)
@@ -324,21 +330,23 @@ export async function generateEvidenceManifest(
       produced_by_system_id: null,
       input_refs: [
         { type: 'evidence_manifest', id: manifestId, hash: manifestData.manifest_hash },
-        ...artifacts.map(a => ({ type: a.type, id: a.id, hash: a.sha256 }))
+        ...artifacts.map((a) => ({ type: a.type, id: a.id, hash: a.sha256 })),
       ],
       version: newVersion,
-      metadata: { artifact_count: artifacts.length }
+      metadata: { artifact_count: artifacts.length },
     })
 
     // Mark evidence completeness on call and recording (best-effort)
     try {
-      await query(`UPDATE recordings SET evidence_completeness = 'complete' WHERE id = $1`, [recordingId])
+      await query(`UPDATE recordings SET evidence_completeness = 'complete' WHERE id = $1`, [
+        recordingId,
+      ])
       await query(`UPDATE calls SET evidence_completeness = 'complete' WHERE id = $1`, [callId])
     } catch (err) {
       logger.warn('evidenceManifest: could not update evidence completeness', {
         callId,
         recordingId,
-        error: err instanceof Error ? err.message : String(err)
+        error: err instanceof Error ? err.message : String(err),
       })
     }
 
@@ -347,7 +355,7 @@ export async function generateEvidenceManifest(
       callId,
       recordingId,
       artifactCount: artifacts.length,
-      version: newVersion
+      version: newVersion,
     })
 
     return manifestId
@@ -361,7 +369,9 @@ export async function generateEvidenceManifest(
  * Check if conditions are met and generate manifest
  */
 export async function checkAndGenerateManifest(
-  callId: string, recordingId: string, organizationId: string
+  callId: string,
+  recordingId: string,
+  organizationId: string
 ): Promise<string | null> {
   try {
     const { rows: recRows } = await query(
@@ -389,14 +399,21 @@ export async function checkAndGenerateManifest(
 
 /**
  * Record artifact provenance for chain of custody tracking
- * 
+ *
  * SYSTEM OF RECORD COMPLIANCE:
  * - Records who/what/when/how for every artifact
  * - Immutable (database trigger prevents updates)
  */
 export async function recordArtifactProvenance(
   organizationId: string,
-  artifactType: 'recording' | 'transcript' | 'translation' | 'survey' | 'score' | 'evidence_manifest' | 'evidence_bundle',
+  artifactType:
+    | 'recording'
+    | 'transcript'
+    | 'translation'
+    | 'survey'
+    | 'score'
+    | 'evidence_manifest'
+    | 'evidence_bundle',
   artifactId: string,
   options: {
     produced_by: 'system' | 'human' | 'model'
@@ -432,20 +449,23 @@ export async function recordArtifactProvenance(
         options.produced_by_system_id || null,
         JSON.stringify(options.input_refs || []),
         options.version || 1,
-        JSON.stringify(options.metadata || {})
+        JSON.stringify(options.metadata || {}),
       ]
     )
 
     return provenanceId
   } catch (err: any) {
-    logger.warn('evidenceManifest: provenance recording error', { error: err?.message || String(err), artifactId })
+    logger.warn('evidenceManifest: provenance recording error', {
+      error: err?.message || String(err),
+      artifactId,
+    })
     return null
   }
 }
 
 /**
  * Create a new transcript version (immutable)
- * 
+ *
  * SYSTEM OF RECORD COMPLIANCE:
  * - Each transcript is a new versioned row
  * - Never updates existing transcripts
@@ -472,7 +492,8 @@ export async function createTranscriptVersion(
     )
 
     const newVersion = (existing?.[0]?.version || 0) + 1
-    const transcriptHash = crypto.createHash('sha256')
+    const transcriptHash = crypto
+      .createHash('sha256')
       .update(JSON.stringify(transcriptJson))
       .digest('hex')
 
@@ -493,7 +514,7 @@ export async function createTranscriptVersion(
         options.produced_by,
         options.produced_by_model || null,
         options.produced_by_user_id || null,
-        JSON.stringify(options.input_refs || [])
+        JSON.stringify(options.input_refs || []),
       ]
     )
 
@@ -505,10 +526,14 @@ export async function createTranscriptVersion(
       parent_artifact_id: recordingId,
       parent_artifact_type: 'recording',
       input_refs: options.input_refs,
-      version: newVersion
+      version: newVersion,
     })
 
-    logger.info('evidenceManifest: created transcript version', { versionId, recordingId, version: newVersion })
+    logger.info('evidenceManifest: created transcript version', {
+      versionId,
+      recordingId,
+      version: newVersion,
+    })
 
     return { id: versionId, version: newVersion }
   } catch (err: any) {

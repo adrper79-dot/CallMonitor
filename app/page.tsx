@@ -3,13 +3,13 @@ import { Logo } from '@/components/Logo'
 
 /**
  * WORDIS BOND LANDING PAGE - System of Record Positioning
- * 
+ *
  * Design Philosophy:
  * - Professional, trustworthy, competent
  * - Clean, light theme with navy blue primary
  * - Evidence-first messaging
  * - "1960s Playboy confidence voice" - authoritative, not clever
- * 
+ *
  * Positioning: "The System of Record for Business Conversations"
  */
 
@@ -30,32 +30,40 @@ export default function HomePage() {
 
           {/* Headline */}
           <h1 className="text-4xl md:text-6xl font-semibold text-gray-900 mb-6 leading-tight">
-            What Was Said.<br />
+            What Was Said.
+            <br />
             <span className="text-primary-600">Is What Matters.</span>
           </h1>
 
           {/* Subhead */}
           <p className="text-xl md:text-2xl text-gray-600 mb-6 max-w-3xl mx-auto">
-            In business, conversations decide outcomes.<br className="hidden md:inline" />
-            Wordis Bond captures, verifies, and preserves spoken words —<br className="hidden md:inline" />
+            In business, conversations decide outcomes.
+            <br className="hidden md:inline" />
+            Wordis Bond captures, verifies, and preserves spoken words —
+            <br className="hidden md:inline" />
             so intent, truth, and accountability never disappear.
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-10">
-            <Link 
+            <Link
               href="/signup"
               className="inline-flex items-center justify-center px-8 py-4 text-base font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600"
             >
               Get Started Free
             </Link>
-            <Link 
+            <Link
               href="#how-it-works"
               className="inline-flex items-center justify-center px-8 py-4 text-base font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600"
             >
               See How It Works
               <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </Link>
           </div>
@@ -68,12 +76,11 @@ export default function HomePage() {
       <section className="py-16 px-6 bg-gray-50">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-lg text-gray-600 mb-6">
-            Most platforms move calls.<br />
+            Most platforms move calls.
+            <br />
             Some analyze them.
           </p>
-          <p className="text-2xl font-semibold text-gray-900 mb-8">
-            Wordis Bond remembers them.
-          </p>
+          <p className="text-2xl font-semibold text-gray-900 mb-8">Wordis Bond remembers them.</p>
           <div className="grid md:grid-cols-3 gap-6 text-left">
             <div className="p-4">
               <p className="text-gray-700 font-medium">Every call becomes evidence.</p>
@@ -85,9 +92,7 @@ export default function HomePage() {
               <p className="text-gray-700 font-medium">Every artifact is provable.</p>
             </div>
           </div>
-          <p className="text-gray-500 mt-6 italic">
-            No opinions. No guesswork. Just the record.
-          </p>
+          <p className="text-gray-500 mt-6 italic">No opinions. No guesswork. Just the record.</p>
         </div>
       </section>
 
@@ -106,7 +111,9 @@ export default function HomePage() {
             <QualificationItem text="Need proof, not promises" />
           </div>
           <p className="text-center text-gray-600 mt-10 text-lg">
-            <strong className="text-gray-900">Sales. Compliance. Operations. Investigations. Quality. Trust.</strong>
+            <strong className="text-gray-900">
+              Sales. Compliance. Operations. Investigations. Quality. Trust.
+            </strong>
           </p>
           <p className="text-center text-gray-500 mt-4">
             If words carry weight where you work — this is your platform.
@@ -129,7 +136,9 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 gap-8">
             <div>
-              <h3 className="text-lg font-semibold text-gray-400 mb-4 uppercase tracking-wide">They</h3>
+              <h3 className="text-lg font-semibold text-gray-400 mb-4 uppercase tracking-wide">
+                They
+              </h3>
               <ul className="space-y-3 text-gray-400">
                 <li className="flex items-start gap-3">
                   <span className="text-gray-600 mt-0.5">—</span>
@@ -186,7 +195,7 @@ export default function HomePage() {
           <blockquote className="text-2xl md:text-3xl text-gray-900 font-medium leading-relaxed mb-10">
             "Every conversation becomes a verifiable artifact."
           </blockquote>
-          
+
           <div className="grid md:grid-cols-5 gap-4 text-sm">
             <PromiseItem title="Canonical audio" />
             <PromiseItem title="Authoritative transcripts" />
@@ -195,9 +204,7 @@ export default function HomePage() {
             <PromiseItem title="Full audit trail" />
           </div>
 
-          <p className="text-gray-600 mt-10 text-lg">
-            If it was said — you can prove it.
-          </p>
+          <p className="text-gray-600 mt-10 text-lg">If it was said — you can prove it.</p>
         </div>
       </section>
 
@@ -206,32 +213,30 @@ export default function HomePage() {
       ═══════════════════════════════════════════════════════════════════════ */}
       <section id="how-it-works" className="py-20 px-6 bg-gray-50">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-semibold text-center text-gray-900 mb-12">
-            How It Works
-          </h2>
+          <h2 className="text-3xl font-semibold text-center text-gray-900 mb-12">How It Works</h2>
 
           <div className="space-y-8">
-            <HowItWorksStep 
+            <HowItWorksStep
               number={1}
               title="Calls Are Server-Controlled"
               description="You initiate intent. We orchestrate execution. No spoofing. No client-side lies."
             />
-            <HowItWorksStep 
+            <HowItWorksStep
               number={2}
-              title="SignalWire Executes the Call"
+              title="Telnyx Executes the Call"
               description="Calls, recording, media flow — handled by a dedicated voice plane. Reliable. Observable. Accountable."
             />
-            <HowItWorksStep 
+            <HowItWorksStep
               number={3}
               title="AssemblyAI Produces Canonical Truth"
               description="Transcripts and translations are generated post-call. They are authoritative. Versioned. Immutable."
             />
-            <HowItWorksStep 
+            <HowItWorksStep
               number={4}
               title="Evidence Is Assembled"
               description="Every artifact is stitched into a single record: audio, text, translations, surveys, scores. Cryptographically hashed. Time-ordered. Unalterable."
             />
-            <HowItWorksStep 
+            <HowItWorksStep
               number={5}
               title="The Record Lives Forever"
               description="Export it. Audit it. Present it. Your word — preserved."
@@ -295,9 +300,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-semibold text-center text-gray-900 mb-4">
             Security & Trust
           </h2>
-          <p className="text-center text-gray-600 mb-10">
-            Trust is not claimed. It's constructed.
-          </p>
+          <p className="text-center text-gray-600 mb-10">Trust is not claimed. It's constructed.</p>
 
           <div className="grid md:grid-cols-2 gap-4">
             <TrustItem text="Server-side orchestration only" />
@@ -309,13 +312,20 @@ export default function HomePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Link 
-              href="/trust"
-              className="text-primary-600 hover:text-primary-700 font-medium"
-            >
+            <Link href="/trust" className="text-primary-600 hover:text-primary-700 font-medium">
               View Trust Pack
-              <svg className="inline-block ml-1 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="inline-block ml-1 w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </Link>
           </div>
@@ -327,9 +337,7 @@ export default function HomePage() {
       ═══════════════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            You Don't Need:
-          </h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">You Don't Need:</h2>
           <ul className="space-y-3 text-gray-600 mb-10">
             <li>a softphone</li>
             <li>a call recorder</li>
@@ -338,7 +346,8 @@ export default function HomePage() {
             <li>a compliance workaround</li>
           </ul>
           <p className="text-xl text-gray-900 font-medium">
-            You need <strong className="text-primary-600">one system that remembers correctly</strong>.
+            You need{' '}
+            <strong className="text-primary-600">one system that remembers correctly</strong>.
           </p>
         </div>
       </section>
@@ -352,21 +361,34 @@ export default function HomePage() {
             Solutions by Industry
           </h2>
           <p className="text-center text-gray-600 mb-10 max-w-2xl mx-auto">
-            Evidence-grade documentation tailored to your industry's compliance and documentation needs.
+            Evidence-grade documentation tailored to your industry's compliance and documentation
+            needs.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Link 
+            <Link
               href="/verticals/healthcare"
               className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  <svg
+                    className="w-6 h-6 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Healthcare</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                    Healthcare
+                  </h3>
                   <p className="text-sm text-gray-500">HIPAA compliance</p>
                 </div>
               </div>
@@ -374,19 +396,31 @@ export default function HomePage() {
                 Patient consent, intake verification, and malpractice defense documentation.
               </p>
             </Link>
-            
-            <Link 
+
+            <Link
               href="/verticals/legal"
               className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                  <svg
+                    className="w-6 h-6 text-purple-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Legal</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                    Legal
+                  </h3>
                   <p className="text-sm text-gray-500">Bar compliance</p>
                 </div>
               </div>
@@ -395,18 +429,30 @@ export default function HomePage() {
               </p>
             </Link>
 
-            <Link 
+            <Link
               href="/verticals/property-management"
               className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  <svg
+                    className="w-6 h-6 text-green-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Property</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                    Property
+                  </h3>
                   <p className="text-sm text-gray-500">Dispute resolution</p>
                 </div>
               </div>
@@ -415,18 +461,30 @@ export default function HomePage() {
               </p>
             </Link>
 
-            <Link 
+            <Link
               href="/verticals/government"
               className="group p-6 bg-white rounded-md border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  <svg
+                    className="w-6 h-6 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">Government</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                    Government
+                  </h3>
                   <p className="text-sm text-gray-500">FOIA compliance</p>
                 </div>
               </div>
@@ -437,13 +495,18 @@ export default function HomePage() {
           </div>
 
           <div className="mt-10 text-center">
-            <Link 
+            <Link
               href="/case-studies"
               className="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
             >
               See Customer Results & ROI Examples
               <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </Link>
           </div>
@@ -455,13 +518,12 @@ export default function HomePage() {
       ═══════════════════════════════════════════════════════════════════════ */}
       <section className="py-16 px-6 bg-white">
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-            Not Sure What You Need?
-          </h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Not Sure What You Need?</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Compare traditional call recording, AI insights platforms, and Word Is Bond's System of Record approach.
+            Compare traditional call recording, AI insights platforms, and Word Is Bond's System of
+            Record approach.
           </p>
-          <Link 
+          <Link
             href="/compare"
             className="inline-flex items-center justify-center px-8 py-4 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 transition-colors"
           >
@@ -479,13 +541,12 @@ export default function HomePage() {
       <section className="py-20 px-6 bg-primary-600">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xl text-primary-100 mb-4">
-            The difference between a conversation and a commitment<br />
+            The difference between a conversation and a commitment
+            <br />
             is the record.
           </p>
-          <h2 className="text-3xl font-semibold text-white mb-8">
-            Wordis Bond
-          </h2>
-          <Link 
+          <h2 className="text-3xl font-semibold text-white mb-8">Wordis Bond</h2>
+          <Link
             href="/signup"
             className="inline-flex items-center justify-center px-10 py-4 text-lg font-medium text-primary-600 bg-white hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
           >
@@ -507,11 +568,21 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex gap-6 text-sm text-gray-500">
-            <Link href="/trust" className="hover:text-gray-700">Trust Pack</Link>
-            <Link href="/compare" className="hover:text-gray-700">Compare</Link>
-            <Link href="/case-studies" className="hover:text-gray-700">Case Studies</Link>
-            <Link href="/pricing" className="hover:text-gray-700">Pricing</Link>
-            <Link href="/signin" className="hover:text-gray-700">Sign In</Link>
+            <Link href="/trust" className="hover:text-gray-700">
+              Trust Pack
+            </Link>
+            <Link href="/compare" className="hover:text-gray-700">
+              Compare
+            </Link>
+            <Link href="/case-studies" className="hover:text-gray-700">
+              Case Studies
+            </Link>
+            <Link href="/pricing" className="hover:text-gray-700">
+              Pricing
+            </Link>
+            <Link href="/signin" className="hover:text-gray-700">
+              Sign In
+            </Link>
           </div>
           <p className="text-sm text-gray-500">
             © {new Date().getFullYear()} Latimer + Woods Tech LLC
@@ -528,7 +599,12 @@ export default function HomePage() {
 function QualificationItem({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-md">
-      <svg className="w-5 h-5 text-primary-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg
+        className="w-5 h-5 text-primary-600 flex-shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
       </svg>
       <span className="text-gray-700">{text}</span>
@@ -550,11 +626,11 @@ function PromiseItem({ title }: { title: string }) {
 /**
  * How It Works Step Component
  */
-function HowItWorksStep({ 
-  number, 
-  title, 
-  description 
-}: { 
+function HowItWorksStep({
+  number,
+  title,
+  description,
+}: {
   number: number
   title: string
   description: string
@@ -575,26 +651,26 @@ function HowItWorksStep({
 /**
  * Feature Card Component
  */
-function FeatureCard({ 
-  title, 
+function FeatureCard({
+  title,
   description,
-  badge
-}: { 
+  badge,
+}: {
   title: string
   description: string
   badge: 'Authoritative' | 'Preview'
 }) {
   const isAuthoritative = badge === 'Authoritative'
-  
+
   return (
     <div className="p-5 bg-white rounded-md border border-gray-200">
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-          isAuthoritative 
-            ? 'bg-green-100 text-green-700' 
-            : 'bg-amber-100 text-amber-700'
-        }`}>
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+            isAuthoritative ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+          }`}
+        >
           {badge}
         </span>
       </div>
@@ -609,8 +685,18 @@ function FeatureCard({
 function TrustItem({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-3 p-3 bg-white rounded-md border border-gray-200">
-      <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      <svg
+        className="w-5 h-5 text-green-600 flex-shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+        />
       </svg>
       <span className="text-gray-700 text-sm">{text}</span>
     </div>

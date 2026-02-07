@@ -1,22 +1,21 @@
 /**
  * Real-time Campaign Progress Component
- * 
- * Uses Supabase Realtime to show live campaign execution progress
- * Subscribes to campaign_calls table changes
- * 
+ *
+ * Uses polling via API to show live campaign execution progress
+ * Fetches campaign_calls stats periodically
+ *
  * Features:
- * - Real-time progress updates
+ * - Polling-based progress updates (5s interval while active)
  * - Live call status changes
  * - Progress bar animation
  * - Status breakdown (pending, calling, completed, failed)
- * 
+ *
  * @module components/campaigns/CampaignProgress
  */
 
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { useEffect, useState, useRef } from 'react'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,55 +49,44 @@ export function CampaignProgress({ campaignId, initialStats }: CampaignProgressP
     }
   )
   const [isLive, setIsLive] = useState(false)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    // Fetch current stats
+    // Initial fetch
     fetchStats()
 
-    // Subscribe to campaign_calls changes for this campaign
-    const channel = supabase
-      .channel(`campaign_calls:${campaignId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'campaign_calls',
-          filter: `campaign_id=eq.${campaignId}`,
-        },
-        (payload) => {
-          logger.debug('Campaign call updated', { campaignId, payload })
-          setIsLive(true)
-          fetchStats()
-        }
-      )
-      .subscribe()
+    // Poll every 5 seconds while campaign is active
+    intervalRef.current = setInterval(() => {
+      fetchStats()
+    }, 5000)
 
     return () => {
-      supabase.removeChannel(channel)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
     }
-  }, [campaignId, supabase])
+  }, [campaignId])
 
   const fetchStats = async () => {
     try {
       const data = await apiGet(`/api/campaigns/${campaignId}/stats`)
       setStats(data.stats)
+      // Show live indicator when calls are in progress
+      setIsLive(data.stats.calling > 0)
+      // Stop polling when campaign is complete (no pending or calling)
+      if (data.stats.pending === 0 && data.stats.calling === 0 && intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     } catch (error) {
       logger.error('Failed to fetch campaign stats', error, { campaignId })
     }
   }
 
-  const progressPercentage = stats.total > 0 
-    ? Math.round((stats.completed / stats.total) * 100) 
-    : 0
+  const progressPercentage = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
 
-  const successRate = stats.completed > 0
-    ? Math.round((stats.successful / stats.completed) * 100)
-    : 0
+  const successRate =
+    stats.completed > 0 ? Math.round((stats.successful / stats.completed) * 100) : 0
 
   return (
     <Card>
@@ -126,9 +114,7 @@ export function CampaignProgress({ campaignId, initialStats }: CampaignProgressP
             </span>
           </div>
           <Progress value={progressPercentage} className="h-2" />
-          <p className="text-xs text-muted-foreground text-right">
-            {progressPercentage}% complete
-          </p>
+          <p className="text-xs text-muted-foreground text-right">{progressPercentage}% complete</p>
         </div>
 
         {/* Status Breakdown */}
@@ -171,9 +157,7 @@ export function CampaignProgress({ campaignId, initialStats }: CampaignProgressP
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Success Rate</span>
-              <span className="text-lg font-bold text-green-600">
-                {successRate}%
-              </span>
+              <span className="text-lg font-bold text-green-600">{successRate}%</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Based on {stats.completed} completed calls
