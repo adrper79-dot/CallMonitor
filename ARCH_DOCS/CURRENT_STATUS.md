@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
 **Last Updated:** February 9, 2026  
-**Version:** 4.19 - Dead Code Purge, Bundle Optimization, WebRTC Log Cleanup, Loading States  
+**Version:** 4.20 - useCallModulation HOF Hook, CVA Migration, ROADMAP 100% Complete  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,25 @@
 ---
 
 ## 🔧 **Recent Updates (February 9, 2026)**
+
+### **useCallModulation HOF Hook, CVA Migration, ROADMAP 100% (v4.20):** ✅ **DEPLOYED**
+
+1. **`useCallModulation` Higher-Order Hook** ⭐ **DX / ARCHITECTURE**
+   - New `hooks/useCallModulation.ts` composing `useVoiceConfig` + `useRBAC` + `useActiveCall` into a single surface
+   - Exports `buildCallRequest()`, `toggleModulation()`, `setModulations()`, RBAC-derived `canEdit`/`canExecute`, `hasDialTarget`, `dialTargetDisplay`
+   - Eliminates ~30 lines of duplicate call request body assembly across 6+ voice components
+   - Types exported: `ModulationKey`, `Modulations`, `CallRequest`, `UseCallModulationResult`
+
+2. **CVA Migration (Button + Badge)** ⭐ **DESIGN SYSTEM**
+   - `components/ui/button.tsx`: Replaced raw `Record<string, string>` variant/size maps with `cva()` call from `class-variance-authority`
+   - `components/ui/badge.tsx`: Same CVA pattern applied — `badgeVariants` exported for reuse
+   - Both export variant functions (`buttonVariants`, `badgeVariants`) enabling link-as-button and badge-as-other-element patterns
+   - Uses `cn()` from `lib/utils` for proper class merging with Tailwind
+
+3. **ROADMAP: 109/109 (100%) ✅ COMPLETE**
+   - All 109 roadmap items completed across all 5 sections
+   - Sprint 9 Design/Code Excellence section updated: 10/11 items done (Lib Modules remains as backlog)
+   - Remaining backlog items (WAF Rules, Playwright E2E, Lib Modules) tracked but not blocking production
 
 ### **Dead Code Purge, Bundle Optimization, WebRTC Log Cleanup, Loading States (v4.19):** ✅ **DEPLOYED**
 

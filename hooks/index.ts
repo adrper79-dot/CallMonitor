@@ -1,6 +1,6 @@
 /**
  * Hooks Index
- * 
+ *
  * Re-exports all hooks for cleaner imports.
  * Usage: import { useWebRTC, useRealtime, useVoiceConfig } from '@/hooks'
  */
@@ -13,8 +13,7 @@ export type {
   WebRTCSession,
   CallQuality,
   UseWebRTCResult,
-
-  CurrentCall
+  CurrentCall,
 } from './useWebRTC'
 
 // WebRTC Provider
@@ -32,3 +31,12 @@ export { useCallDetails } from './useCallDetails'
 
 // RBAC
 export { useRBAC } from './useRBAC'
+
+// Call Modulation (Higher-Order Hook)
+export { useCallModulation } from './useCallModulation'
+export type {
+  ModulationKey,
+  Modulations,
+  CallRequest,
+  UseCallModulationResult,
+} from './useCallModulation'
