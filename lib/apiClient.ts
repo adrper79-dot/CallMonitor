@@ -1,6 +1,6 @@
 /**
  * Centralized API Client
- * 
+ *
  * All client-side API calls should use this utility to ensure:
  * - Credentials (cookies) are always sent
  * - Authorization header with Bearer token for cross-origin
@@ -29,7 +29,7 @@ function getStoredToken(): string | null {
 function getAuthHeaders(): HeadersInit {
   const token = getStoredToken()
   if (token) {
-    return { 'Authorization': `Bearer ${token}` }
+    return { Authorization: `Bearer ${token}` }
   }
   return {}
 }
@@ -57,25 +57,22 @@ export interface ApiClientOptions extends Omit<RequestInit, 'credentials'> {
 /**
  * Make a GET request to an API endpoint
  */
-export async function apiGet<T = any>(
-  url: string,
-  options: ApiClientOptions = {}
-): Promise<T> {
+export async function apiGet<T = any>(url: string, options: ApiClientOptions = {}): Promise<T> {
   const res = await fetch(resolveApiUrl(url), {
     ...options,
     method: 'GET',
     credentials: 'include', // CRITICAL: Always send cookies
     headers: {
-      ...getAuthHeaders(),  // Include Bearer token for cross-origin auth
+      ...getAuthHeaders(), // Include Bearer token for cross-origin auth
       ...options.headers,
     },
   })
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error: any = await res.json().catch(() => ({ message: res.statusText }))
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
-  
+
   return res.json()
 }
 
@@ -89,10 +86,10 @@ export async function apiPost<T = any>(
 ): Promise<T> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    ...getAuthHeaders(),  // Include Bearer token for cross-origin auth
+    ...getAuthHeaders(), // Include Bearer token for cross-origin auth
     ...options.headers,
   }
-  
+
   const res = await fetch(resolveApiUrl(url), {
     ...options,
     method: 'POST',
@@ -100,12 +97,12 @@ export async function apiPost<T = any>(
     headers,
     body: body ? JSON.stringify(body) : undefined,
   })
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error: any = await res.json().catch(() => ({ message: res.statusText }))
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
-  
+
   return res.json()
 }
 
@@ -122,7 +119,7 @@ export async function apiPatch<T = any>(
     ...getAuthHeaders(),
     ...options.headers,
   }
-  
+
   const res = await fetch(resolveApiUrl(url), {
     ...options,
     method: 'PATCH',
@@ -130,12 +127,12 @@ export async function apiPatch<T = any>(
     headers,
     body: body ? JSON.stringify(body) : undefined,
   })
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error: any = await res.json().catch(() => ({ message: res.statusText }))
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
-  
+
   return res.json()
 }
 
@@ -152,7 +149,7 @@ export async function apiPut<T = any>(
     ...getAuthHeaders(),
     ...options.headers,
   }
-  
+
   const res = await fetch(resolveApiUrl(url), {
     ...options,
     method: 'PUT',
@@ -160,54 +157,48 @@ export async function apiPut<T = any>(
     headers,
     body: body ? JSON.stringify(body) : undefined,
   })
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error: any = await res.json().catch(() => ({ message: res.statusText }))
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
-  
+
   return res.json()
 }
 
 /**
  * Make a DELETE request to an API endpoint
  */
-export async function apiDelete<T = any>(
-  url: string,
-  options: ApiClientOptions = {}
-): Promise<T> {
+export async function apiDelete<T = any>(url: string, options: ApiClientOptions = {}): Promise<T> {
   const headers: HeadersInit = {
     ...getAuthHeaders(),
     ...options.headers,
   }
-  
+
   const res = await fetch(resolveApiUrl(url), {
     ...options,
     method: 'DELETE',
     credentials: 'include', // CRITICAL: Always send cookies
     headers,
   })
-  
+
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error: any = await res.json().catch(() => ({ message: res.statusText }))
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
-  
+
   return res.json()
 }
 
 /**
  * Generic fetch wrapper that always includes credentials
  */
-export async function apiFetch(
-  url: string,
-  options: ApiClientOptions = {}
-): Promise<Response> {
+export async function apiFetch(url: string, options: ApiClientOptions = {}): Promise<Response> {
   const headers: HeadersInit = {
     ...getAuthHeaders(),
     ...options.headers,
   }
-  
+
   return fetch(resolveApiUrl(url), {
     ...options,
     credentials: 'include', // CRITICAL: Always send cookies
@@ -222,10 +213,7 @@ export { resolveApiUrl, API_BASE }
  * Raw fetch with auth — returns the Response object directly with error checking.
  * Use for blob downloads, streaming, or non-JSON responses.
  */
-export async function apiFetchRaw(
-  url: string,
-  options: ApiClientOptions = {}
-): Promise<Response> {
+export async function apiFetchRaw(url: string, options: ApiClientOptions = {}): Promise<Response> {
   const headers: HeadersInit = {
     ...getAuthHeaders(),
     ...options.headers,
@@ -238,7 +226,7 @@ export async function apiFetchRaw(
   })
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    const errBody: any = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
     throw new ApiError(res.status, errBody.error || `HTTP ${res.status}`)
   }
 
@@ -249,10 +237,7 @@ export async function apiFetchRaw(
  * POST FormData with auth — browser sets Content-Type with boundary automatically.
  * Use for file uploads (do NOT set Content-Type manually).
  */
-export async function apiPostFormData<T = any>(
-  url: string,
-  formData: FormData
-): Promise<T> {
+export async function apiPostFormData<T = any>(url: string, formData: FormData): Promise<T> {
   const headers: Record<string, string> = {}
   const token = getStoredToken()
   if (token) {
@@ -266,7 +251,7 @@ export async function apiPostFormData<T = any>(
     body: formData,
   })
 
-  const data = await res.json()
+  const data: any = await res.json()
   if (!res.ok) {
     throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
   }
@@ -277,10 +262,7 @@ export async function apiPostFormData<T = any>(
  * Unauthenticated POST — for pre-auth flows (forgot-password, reset-password, CSRF).
  * No Bearer token is attached.
  */
-export async function apiPostNoAuth<T = any>(
-  url: string,
-  body?: any
-): Promise<T> {
+export async function apiPostNoAuth<T = any>(url: string, body?: any): Promise<T> {
   const res = await fetch(resolveApiUrl(url), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -288,7 +270,7 @@ export async function apiPostNoAuth<T = any>(
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  const data = await res.json()
+  const data: any = await res.json()
   if (!res.ok) {
     throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
   }
@@ -299,15 +281,13 @@ export async function apiPostNoAuth<T = any>(
  * Unauthenticated GET — for pre-auth flows (health checks, CSRF).
  * No Bearer token is attached.
  */
-export async function apiGetNoAuth<T = any>(
-  url: string
-): Promise<T> {
+export async function apiGetNoAuth<T = any>(url: string): Promise<T> {
   const res = await fetch(resolveApiUrl(url), {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
   })
 
-  const data = await res.json()
+  const data: any = await res.json()
   if (!res.ok) {
     throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
   }
