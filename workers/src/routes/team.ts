@@ -16,6 +16,7 @@ export const teamRoutes = new Hono<{ Bindings: Env }>()
 
 // Get team members
 teamRoutes.get('/members', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -26,7 +27,6 @@ teamRoutes.get('/members', async (c) => {
       return c.json({ success: true, members: [], total: 0 })
     }
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT om.id, om.role, om.created_at,
               u.id as user_id, u.email, u.name
@@ -45,6 +45,8 @@ teamRoutes.get('/members', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/team/members error', { error: err?.message })
     return c.json({ error: 'Failed to get team members' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -52,6 +54,7 @@ teamRoutes.get('/members', async (c) => {
 
 // Get pending invites for organization
 teamRoutes.get('/invites', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -62,7 +65,6 @@ teamRoutes.get('/invites', async (c) => {
       return c.json({ success: true, invites: [] })
     }
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT ti.id, ti.email, ti.role, ti.status, ti.created_at, ti.expires_at,
               u.name as invited_by_name, u.email as invited_by_email
@@ -77,11 +79,14 @@ teamRoutes.get('/invites', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/team/invites error', { error: err?.message })
     return c.json({ error: 'Failed to get invites' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Create invite
 teamRoutes.post('/invites', teamRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -100,8 +105,6 @@ teamRoutes.post('/invites', teamRateLimit, async (c) => {
     const parsed = await validateBody(c, InviteMemberSchema)
     if (!parsed.success) return parsed.response
     const { email, role } = parsed.data
-
-    const db = getDb(c.env)
 
     // Check if user already exists and is member
     const existingMember = await db.query(
@@ -172,15 +175,17 @@ teamRoutes.post('/invites', teamRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/team/invites error', { error: err?.message })
     return c.json({ error: 'Failed to create invite' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Validate invite token (public - used during signup)
 teamRoutes.get('/invites/validate/:token', async (c) => {
+  const db = getDb(c.env)
   try {
     const token = c.req.param('token')
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT ti.id, ti.email, ti.role, ti.expires_at,
               o.id as organization_id, o.name as organization_name
@@ -208,11 +213,14 @@ teamRoutes.get('/invites/validate/:token', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/team/invites/validate/:token error', { error: err?.message })
     return c.json({ valid: false, error: 'Validation failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Accept invite (called after signup or by existing user)
 teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -220,7 +228,6 @@ teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
     }
 
     const token = c.req.param('token')
-    const db = getDb(c.env)
 
     // Get and validate invite
     const inviteResult = await db.query(
@@ -288,6 +295,8 @@ teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/team/invites/accept/:token error', { error: err?.message })
     return c.json({ error: 'Failed to accept invite' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -325,6 +334,8 @@ teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/team/invites/:id error', { error: err?.message })
     return c.json({ error: 'Failed to cancel invite' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -391,5 +402,7 @@ teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/team/members/:id error', { error: err?.message })
     return c.json({ error: 'Failed to remove team member' }, 500)
+  } finally {
+    await db.end()
   }
 })

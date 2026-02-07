@@ -45,11 +45,11 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 
 // GET / — Get AI configuration
 aiConfigRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTable(db)
 
     const result = await db.query(
@@ -72,16 +72,18 @@ aiConfigRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/ai-config error', { error: err?.message })
     return c.json({ error: 'Failed to get AI config' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PUT / — Update AI configuration
 aiConfigRoutes.put('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTable(db)
 
     const parsed = await validateBody(c, UpdateAIConfigSchema)
@@ -107,5 +109,7 @@ aiConfigRoutes.put('/', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/ai-config error', { error: err?.message })
     return c.json({ error: 'Failed to update AI config' }, 500)
+  } finally {
+    await db.end()
   }
 })

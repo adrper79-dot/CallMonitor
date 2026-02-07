@@ -36,6 +36,7 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 
 // POST /generate — Generate TTS audio
 ttsRoutes.post('/generate', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -93,7 +94,6 @@ ttsRoutes.post('/generate', async (c) => {
       })
 
       // Store record in DB
-      const db = getDb(c.env)
       await ensureTable(db)
 
       await db.query(
@@ -124,5 +124,7 @@ ttsRoutes.post('/generate', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/tts/generate error', { error: err?.message })
     return c.json({ error: 'Failed to generate TTS' }, 500)
+  } finally {
+    await db.end()
   }
 })

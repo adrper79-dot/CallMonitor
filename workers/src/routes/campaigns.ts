@@ -22,6 +22,7 @@ export const campaignsRoutes = new Hono<{ Bindings: Env }>()
 
 // Get campaigns for organization
 campaignsRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -29,8 +30,6 @@ campaignsRoutes.get('/', async (c) => {
     if (!session.organization_id) {
       return c.json({ success: true, campaigns: [] })
     }
-
-    const db = getDb(c.env)
 
     const tableCheck = await db.query(
       `SELECT EXISTS (
@@ -54,11 +53,14 @@ campaignsRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/campaigns error', { error: err?.message })
     return c.json({ error: 'Failed to get campaigns' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Create campaign
 campaignsRoutes.post('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -66,8 +68,6 @@ campaignsRoutes.post('/', async (c) => {
     const parsed = await validateBody(c, CreateCampaignSchema)
     if (!parsed.success) return parsed.response
     const { name, description, scenario, status } = parsed.data
-
-    const db = getDb(c.env)
 
     // Ensure table exists
     await db.query(
@@ -96,11 +96,14 @@ campaignsRoutes.post('/', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/campaigns error', { error: err?.message })
     return c.json({ error: 'Failed to create campaign' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get single campaign
 campaignsRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -111,8 +114,6 @@ campaignsRoutes.get('/:id', async (c) => {
     if (campaignId === 'stats') {
       return c.json({ error: 'Not found' }, 404)
     }
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT * FROM campaigns
@@ -128,17 +129,19 @@ campaignsRoutes.get('/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get campaign' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get campaign stats
 campaignsRoutes.get('/:id/stats', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const campaignId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT * FROM campaigns
@@ -190,11 +193,14 @@ campaignsRoutes.get('/:id/stats', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/campaigns/:id/stats error', { error: err?.message })
     return c.json({ error: 'Failed to get campaign stats' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Update campaign
 campaignsRoutes.put('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -203,8 +209,6 @@ campaignsRoutes.put('/:id', async (c) => {
     const parsed = await validateBody(c, UpdateCampaignSchema)
     if (!parsed.success) return parsed.response
     const { name, description, scenario, status } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE campaigns
@@ -233,17 +237,19 @@ campaignsRoutes.put('/:id', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update campaign' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Delete campaign
 campaignsRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const campaignId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM campaigns
@@ -260,5 +266,7 @@ campaignsRoutes.delete('/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete campaign' }, 500)
+  } finally {
+    await db.end()
   }
 })

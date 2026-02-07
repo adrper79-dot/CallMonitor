@@ -1,6 +1,6 @@
 /**
  * Teams Routes — Department/squad management within an organization
- * 
+ *
  * Manages teams (departments), team membership, and org-switching
  * for multi-org users. Extends the existing team.ts invite system.
  */
@@ -27,6 +27,7 @@ export const teamsRoutes = new Hono<{ Bindings: Env }>()
 
 // List teams in org
 teamsRoutes.get('/', requirePlan('pro'), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -35,7 +36,6 @@ teamsRoutes.get('/', requirePlan('pro'), async (c) => {
       return c.json({ success: true, teams: [] })
     }
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT t.id, t.name, t.description, t.team_type, t.parent_team_id,
               t.manager_user_id, t.is_active, t.created_at,
@@ -51,11 +51,14 @@ teamsRoutes.get('/', requirePlan('pro'), async (c) => {
     return c.json({ success: true, teams: result.rows })
   } catch (err: any) {
     return c.json({ error: 'Failed to list teams' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Create team (manager+ role)
 teamsRoutes.post('/', requirePlan('pro'), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -69,7 +72,6 @@ teamsRoutes.post('/', requirePlan('pro'), async (c) => {
     if (!parsed.success) return parsed.response
     const { name, description, team_type, parent_team_id, manager_user_id } = parsed.data
 
-    const db = getDb(c.env)
     const result = await db.query(
       `INSERT INTO teams (organization_id, name, description, team_type, parent_team_id, manager_user_id, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -91,11 +93,14 @@ teamsRoutes.post('/', requirePlan('pro'), async (c) => {
       return c.json({ error: 'A team with that name already exists in this organization' }, 409)
     }
     return c.json({ error: 'Failed to create team' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Update team
 teamsRoutes.put('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -110,7 +115,6 @@ teamsRoutes.put('/:id', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, description, team_type, parent_team_id, manager_user_id, is_active } = parsed.data
 
-    const db = getDb(c.env)
     await db.query(
       `UPDATE teams SET
         name = COALESCE($1, name),
@@ -122,20 +126,28 @@ teamsRoutes.put('/:id', async (c) => {
         updated_at = NOW()
        WHERE id = $7 AND organization_id = $8`,
       [
-        name || null, description, team_type || null,
-        parent_team_id || null, manager_user_id || null,
-        is_active ?? null, teamId, session.organization_id,
+        name || null,
+        description,
+        team_type || null,
+        parent_team_id || null,
+        manager_user_id || null,
+        is_active ?? null,
+        teamId,
+        session.organization_id,
       ]
     )
 
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to update team' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Delete team (admin+ role)
 teamsRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -146,7 +158,6 @@ teamsRoutes.delete('/:id', async (c) => {
     }
 
     const teamId = c.req.param('id')
-    const db = getDb(c.env)
 
     // Soft-delete: deactivate instead of removing
     await db.query(
@@ -158,6 +169,8 @@ teamsRoutes.delete('/:id', async (c) => {
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to delete team' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -167,12 +180,12 @@ teamsRoutes.delete('/:id', async (c) => {
 
 // Get members of a team
 teamsRoutes.get('/:id/members', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const teamId = c.req.param('id')
-    const db = getDb(c.env)
 
     // Verify team belongs to org
     const teamCheck = await db.query(
@@ -198,11 +211,14 @@ teamsRoutes.get('/:id/members', async (c) => {
     return c.json({ success: true, members: result.rows })
   } catch (err: any) {
     return c.json({ error: 'Failed to list team members' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Add member to team
 teamsRoutes.post('/:id/members', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -216,8 +232,6 @@ teamsRoutes.post('/:id/members', async (c) => {
     const parsed = await validateBody(c, AddTeamMemberSchema)
     if (!parsed.success) return parsed.response
     const { user_id, team_role } = parsed.data
-
-    const db = getDb(c.env)
 
     // Verify team belongs to org
     const teamCheck = await db.query(
@@ -248,11 +262,14 @@ teamsRoutes.post('/:id/members', async (c) => {
     return c.json({ success: true, membership: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to add team member' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Remove member from team
 teamsRoutes.delete('/:id/members/:userId', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -264,7 +281,6 @@ teamsRoutes.delete('/:id/members/:userId', async (c) => {
 
     const teamId = c.req.param('id')
     const userId = c.req.param('userId')
-    const db = getDb(c.env)
 
     // Verify team belongs to org
     const teamCheck = await db.query(
@@ -275,14 +291,13 @@ teamsRoutes.delete('/:id/members/:userId', async (c) => {
       return c.json({ error: 'Team not found' }, 404)
     }
 
-    await db.query(
-      `DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`,
-      [teamId, userId]
-    )
+    await db.query(`DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId])
 
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to remove team member' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -292,11 +307,11 @@ teamsRoutes.delete('/:id/members/:userId', async (c) => {
 
 // List all organizations user belongs to
 teamsRoutes.get('/my-orgs', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT o.id, o.name, o.plan, o.plan_status,
               om.role, om.created_at as joined_at,
@@ -315,11 +330,14 @@ teamsRoutes.get('/my-orgs', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to list organizations' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Switch active org (updates session)
 teamsRoutes.post('/switch-org', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -327,8 +345,6 @@ teamsRoutes.post('/switch-org', async (c) => {
     const parsed = await validateBody(c, SwitchOrgSchema)
     if (!parsed.success) return parsed.response
     const { organization_id } = parsed.data
-
-    const db = getDb(c.env)
 
     // Verify user is a member of the target org
     const membership = await db.query(
@@ -359,6 +375,8 @@ teamsRoutes.post('/switch-org', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to switch organization' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -368,12 +386,18 @@ teamsRoutes.post('/switch-org', async (c) => {
 
 // Update member role
 teamsRoutes.patch('/members/:userId/role', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel: Record<string, number> = {
-      viewer: 1, agent: 2, manager: 3, compliance: 3, admin: 4, owner: 5
+      viewer: 1,
+      agent: 2,
+      manager: 3,
+      compliance: 3,
+      admin: 4,
+      owner: 5,
     }
 
     if ((roleLevel[session.role] || 0) < 4) {
@@ -395,7 +419,6 @@ teamsRoutes.patch('/members/:userId/role', async (c) => {
       return c.json({ error: 'Cannot change your own role' }, 400)
     }
 
-    const db = getDb(c.env)
     await db.query(
       `UPDATE org_members SET role = $1
        WHERE user_id = $2 AND organization_id = $3`,
@@ -405,5 +428,7 @@ teamsRoutes.patch('/members/:userId/role', async (c) => {
     return c.json({ success: true, user_id: userId, new_role: role })
   } catch (err: any) {
     return c.json({ error: 'Failed to update role' }, 500)
+  } finally {
+    await db.end()
   }
 })

@@ -20,11 +20,10 @@ export const scorecardsRoutes = new Hono<{ Bindings: Env }>()
 
 // GET / — list scorecards
 scorecardsRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
 
     const tableCheck = await db.query(
       `SELECT EXISTS (
@@ -48,11 +47,14 @@ scorecardsRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/scorecards error', { error: err?.message })
     return c.json({ error: 'Failed to get scorecards' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST / — create scorecard
 scorecardsRoutes.post('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -60,8 +62,6 @@ scorecardsRoutes.post('/', async (c) => {
     const parsed = await validateBody(c, CreateScorecardSchema)
     if (!parsed.success) return parsed.response
     const { call_id, template_id, scores, notes, overall_score } = parsed.data
-
-    const db = getDb(c.env)
 
     // Ensure table exists
     await db.query(
@@ -98,16 +98,17 @@ scorecardsRoutes.post('/', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/scorecards error', { error: err?.message })
     return c.json({ error: 'Failed to create scorecard' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /alerts — scorecard alerts/notifications
 scorecardsRoutes.get('/alerts', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
 
     // Check if alerts table exists
     const tableCheck = await db.query(
@@ -133,17 +134,19 @@ scorecardsRoutes.get('/alerts', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/scorecards/alerts error', { error: err?.message })
     return c.json({ alerts: [] })
+  } finally {
+    await db.end()
   }
 })
 
 // GET /:id — single scorecard
 scorecardsRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scorecardId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT * FROM scorecards
@@ -159,5 +162,7 @@ scorecardsRoutes.get('/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/scorecards/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get scorecard' }, 500)
+  } finally {
+    await db.end()
   }
 })

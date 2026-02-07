@@ -234,23 +234,22 @@ webrtcRoutes.get('/token', async (c) => {
 
 // Initiate outbound call via Telnyx Call Control API
 webrtcRoutes.post('/dial', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const parsed = await validateBody(c, WebRTCDialSchema)
+  if (!parsed.success) return parsed.response
+  const { phone_number } = parsed.data
+
+  if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_CONNECTION_ID || !c.env.TELNYX_NUMBER) {
+    return c.json({ error: 'Telnyx configuration incomplete' }, 500)
+  }
+
+  // Use centralized DB client to create call record
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const parsed = await validateBody(c, WebRTCDialSchema)
-    if (!parsed.success) return parsed.response
-    const { phone_number } = parsed.data
-
-    if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_CONNECTION_ID || !c.env.TELNYX_NUMBER) {
-      return c.json({ error: 'Telnyx configuration incomplete' }, 500)
-    }
-
-    // Use centralized DB client to create call record
-    const db = getDb(c.env)
-
     // Create call record - using actual schema columns
     const callResult = await db.query(
       `INSERT INTO calls (id, organization_id, status, started_at, created_by, phone_number, from_number, direction, flow_type, user_id)
@@ -327,5 +326,7 @@ webrtcRoutes.post('/dial', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/webrtc/dial error', { error: err?.message })
     return c.json({ error: 'Failed to initiate call' }, 500)
+  } finally {
+    await db.end()
   }
 })

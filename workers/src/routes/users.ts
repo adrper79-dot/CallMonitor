@@ -16,13 +16,12 @@ export const userRoutes = new Hono<{ Bindings: Env }>()
 
 // Get current authenticated user profile
 userRoutes.get('/me', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT u.id, u.email, u.name, u.created_at,
@@ -58,11 +57,14 @@ userRoutes.get('/me', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/users/me error', { error: err?.message })
     return c.json({ error: 'Failed to get user profile' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get user's organization info
 userRoutes.get('/:id/organization', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -75,9 +77,6 @@ userRoutes.get('/:id/organization', async (c) => {
     if (session.user_id !== userId) {
       return c.json({ error: 'Forbidden' }, 403)
     }
-
-    // Use centralized DB client
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT o.id, o.name, o.plan, om.role
@@ -107,5 +106,7 @@ userRoutes.get('/:id/organization', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/users/:id/organization error', { error: err?.message })
     return c.json({ error: 'Failed to get organization info' }, 500)
+  } finally {
+    await db.end()
   }
 })

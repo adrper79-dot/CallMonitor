@@ -52,13 +52,12 @@ authRoutes.get('/session', async (c) => {
 
 // Validate API key (for external integrations)
 authRoutes.post('/validate-key', async (c) => {
+  const parsed = await validateBody(c, ValidateKeySchema)
+  if (!parsed.success) return parsed.response
+  const { apiKey } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const parsed = await validateBody(c, ValidateKeySchema)
-    if (!parsed.success) return parsed.response
-    const { apiKey } = parsed.data
-
-    const db = getDb(c.env)
-
     // Check API keys table
     const result = await db.query(
       `SELECT ak.*, o.name as organization_name
@@ -86,6 +85,8 @@ authRoutes.post('/validate-key', async (c) => {
   } catch (err: any) {
     logger.error('API key validation error', { error: err?.message })
     return c.json({ valid: false, error: 'Validation failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -100,13 +101,12 @@ async function hashApiKey(key: string): Promise<string> {
 
 // Signup endpoint
 authRoutes.post('/signup', signupRateLimit, async (c) => {
+  const parsed = await validateBody(c, SignupSchema)
+  if (!parsed.success) return parsed.response
+  const { email, password, name, organizationName } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const parsed = await validateBody(c, SignupSchema)
-    if (!parsed.success) return parsed.response
-    const { email, password, name, organizationName } = parsed.data
-
-    const db = getDb(c.env)
-
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()])
 
     if (existing.rows && existing.rows.length > 0) {
@@ -178,6 +178,8 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('Signup error', { error: err?.message })
     return c.json({ error: 'Signup failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -211,37 +213,36 @@ authRoutes.get('/providers', async (c) => {
 
 // Login endpoint
 authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
+  const parsed = await validateBody(c, LoginSchema)
+  if (!parsed.success) return parsed.response
+  const { username, email, password, csrf_token, csrfToken } = parsed.data
+
+  // Use snake_case version if available, otherwise fall back to camelCase
+  const csrfTokenValue = csrf_token || csrfToken
+
+  // Use email if username not provided
+  const loginIdentifier = username || email
+
+  if (!loginIdentifier || !password) {
+    return c.json({ error: 'Credentials required' }, 401)
+  }
+
+  // Validate CSRF token — must match a token we issued (stored in KV)
+  if (!csrfTokenValue) {
+    return c.json({ error: 'CSRF token required' }, 401)
+  }
+
+  const storedCsrf = await c.env.KV.get(`csrf:${csrfTokenValue}`)
+  if (!storedCsrf) {
+    return c.json({ error: 'Invalid or expired CSRF token' }, 403)
+  }
+
+  // Delete CSRF token after use (one-time use)
+  await c.env.KV.delete(`csrf:${csrfTokenValue}`)
+
+  // Find user by email
+  const db = getDb(c.env)
   try {
-    const parsed = await validateBody(c, LoginSchema)
-    if (!parsed.success) return parsed.response
-    const { username, email, password, csrf_token, csrfToken } = parsed.data
-
-    // Use snake_case version if available, otherwise fall back to camelCase
-    const csrfTokenValue = csrf_token || csrfToken
-
-    // Use email if username not provided
-    const loginIdentifier = username || email
-
-    if (!loginIdentifier || !password) {
-      return c.json({ error: 'Credentials required' }, 401)
-    }
-
-    // Validate CSRF token — must match a token we issued (stored in KV)
-    if (!csrfTokenValue) {
-      return c.json({ error: 'CSRF token required' }, 401)
-    }
-
-    const storedCsrf = await c.env.KV.get(`csrf:${csrfTokenValue}`)
-    if (!storedCsrf) {
-      return c.json({ error: 'Invalid or expired CSRF token' }, 403)
-    }
-
-    // Delete CSRF token after use (one-time use)
-    await c.env.KV.delete(`csrf:${csrfTokenValue}`)
-
-    // Find user by email
-    const db = getDb(c.env)
-
     const userResult = await db.query(
       'SELECT id, email, name, password_hash FROM users WHERE email = $1',
       [loginIdentifier.toLowerCase()]
@@ -338,6 +339,8 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('Authentication error', { error: err?.message })
     return c.json({ error: 'Authentication failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -349,20 +352,27 @@ authRoutes.post('/_log', async (c) => {
 
 // Signout endpoint - invalidate session
 authRoutes.post('/signout', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+
+  if (!token) {
+    // No token — just clear cookie and return
+    c.header(
+      'Set-Cookie',
+      'session-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure; HttpOnly'
+    )
+    return c.json({ success: true })
+  }
+
+  const db = getDb(c.env)
   try {
-    const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    // Delete session from database
+    await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
 
-    if (token) {
-      // Delete session from database
-      const db = getDb(c.env)
-      await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
-
-      // H2 hardening: clean up fingerprint from KV
-      try {
-        await c.env.KV.delete(`fp:${token}`)
-      } catch {
-        // Non-fatal — KV cleanup best-effort
-      }
+    // H2 hardening: clean up fingerprint from KV
+    try {
+      await c.env.KV.delete(`fp:${token}`)
+    } catch {
+      // Non-fatal — KV cleanup best-effort
     }
 
     // Clear session cookie
@@ -376,19 +386,20 @@ authRoutes.post('/signout', async (c) => {
     logger.error('Signout error', { error: err?.message })
     // Still return success - client should clear local state regardless
     return c.json({ success: true })
+  } finally {
+    await db.end()
   }
 })
 
 // Forgot password endpoint
 authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
+  const parsed = await validateBody(c, ForgotPasswordSchema)
+  if (!parsed.success) return parsed.response
+  const { email } = parsed.data
+
+  // Check if user exists
+  const db = getDb(c.env)
   try {
-    const parsed = await validateBody(c, ForgotPasswordSchema)
-    if (!parsed.success) return parsed.response
-    const { email } = parsed.data
-
-    // Check if user exists
-    const db = getDb(c.env)
-
     const userResult = await db.query('SELECT id FROM users WHERE email = $1', [
       email.toLowerCase(),
     ])
@@ -408,6 +419,8 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('Forgot password error', { error: err?.message })
     return c.json({ error: 'Failed to process request' }, 500)
+  } finally {
+    await db.end()
   }
 })
 

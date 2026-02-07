@@ -81,6 +81,7 @@ const PLAN_CAPABILITIES: Record<string, any> = {
 
 // GET / — capabilities for the caller's organization plan
 callCapabilitiesRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -90,8 +91,6 @@ callCapabilitiesRoutes.get('/', async (c) => {
     let plan = 'free'
 
     if (session.organization_id) {
-      const db = getDb(c.env)
-
       const result = await db.query('SELECT plan FROM organizations WHERE id = $1', [
         session.organization_id,
       ])
@@ -111,5 +110,7 @@ callCapabilitiesRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/call-capabilities error', { error: err?.message })
     return c.json({ error: 'Failed to get call capabilities' }, 500)
+  } finally {
+    await db.end()
   }
 })

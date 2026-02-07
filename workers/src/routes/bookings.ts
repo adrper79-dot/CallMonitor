@@ -23,6 +23,7 @@ export const bookingsRoutes = new Hono<{ Bindings: Env }>()
 
 // GET / — list bookings
 bookingsRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -31,8 +32,6 @@ bookingsRoutes.get('/', async (c) => {
 
     const limit = c.req.query('limit') || '10'
     const status = c.req.query('status') || null
-
-    const db = getDb(c.env)
 
     let query = `
       SELECT * FROM booking_events 
@@ -56,11 +55,14 @@ bookingsRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/bookings error', { error: err?.message })
     return c.json({ error: 'Failed to list bookings' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST / — create a booking
 bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -70,8 +72,6 @@ bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
     const parsed = await validateBody(c, CreateBookingSchema)
     if (!parsed.success) return parsed.response
     const { call_id, title, description, scheduled_at, attendees, status } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `INSERT INTO booking_events (
@@ -105,11 +105,14 @@ bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
   } catch (err: any) {
     logger.error('POST /api/bookings error', { error: err?.message })
     return c.json({ error: 'Failed to create booking' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PATCH /:id — update booking (cancel, reschedule, etc.)
 bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -120,8 +123,6 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
     const parsed = await validateBody(c, UpdateBookingSchema)
     if (!parsed.success) return parsed.response
     const { status, title, description, scheduled_at } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE booking_events
@@ -151,11 +152,14 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('PATCH /api/bookings/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update booking' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /:id — delete a booking
 bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -163,7 +167,6 @@ bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
     }
 
     const bookingId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM booking_events WHERE id = $1 AND organization_id = $2 RETURNING id`,
@@ -186,5 +189,7 @@ bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/bookings/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete booking' }, 500)
+  } finally {
+    await db.end()
   }
 })

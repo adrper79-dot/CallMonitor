@@ -1,10 +1,10 @@
 /**
  * Bond AI Routes — 3-Tier AI Assistant
- * 
+ *
  * Tier 1: POST /chat — Conversational AI with org context
  * Tier 2: GET/POST /alerts — Proactive alert management
  * Tier 3: POST /copilot — Real-time call co-pilot
- * 
+ *
  * All endpoints are org-scoped and rate-aware.
  */
 
@@ -14,8 +14,13 @@ import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import {
-  AnalyzeCallSchema, ChatSchema, UpdateInsightSchema,
-  BulkInsightSchema, CreateAlertRuleSchema, UpdateAlertRuleSchema, CopilotSchema,
+  AnalyzeCallSchema,
+  ChatSchema,
+  UpdateInsightSchema,
+  BulkInsightSchema,
+  CreateAlertRuleSchema,
+  UpdateAlertRuleSchema,
+  CopilotSchema,
 } from '../lib/schemas'
 import {
   buildSystemPrompt,
@@ -36,11 +41,11 @@ export const bondAiRoutes = new Hono<{ Bindings: Env }>()
 
 // List conversations
 bondAiRoutes.get('/conversations', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT id, title, context_type, context_id, model, status, message_count, 
               last_message_at, created_at
@@ -54,11 +59,14 @@ bondAiRoutes.get('/conversations', async (c) => {
     return c.json({ success: true, conversations: result.rows })
   } catch (err: any) {
     return c.json({ error: 'Failed to list conversations' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Create conversation
 bondAiRoutes.post('/conversations', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -67,7 +75,6 @@ bondAiRoutes.post('/conversations', async (c) => {
     if (!parsed.success) return parsed.response
     const { title, context_type, context_id, model } = parsed.data
 
-    const db = getDb(c.env)
     const result = await db.query(
       `INSERT INTO bond_ai_conversations 
         (organization_id, user_id, title, context_type, context_id, model)
@@ -86,11 +93,14 @@ bondAiRoutes.post('/conversations', async (c) => {
     return c.json({ success: true, conversation: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to create conversation' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Send chat message (the main Tier 1 endpoint)
 bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -102,8 +112,6 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
     const parsed = await validateBody(c, ChatSchema)
     if (!parsed.success) return parsed.response
     const { message, conversation_id, context_type, context_id } = parsed.data
-
-    const db = getDb(c.env)
     let convoId = conversation_id
 
     // Auto-create conversation if none provided
@@ -148,14 +156,18 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
     try {
       const stats = await fetchOrgStats(c.env, session.organization_id)
       contextData.push(`Organization stats: ${JSON.stringify(stats)}`)
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
 
     // Include call-specific context if viewing a call
     if (context_type === 'call' && context_id) {
       try {
         const callCtx = await fetchCallContext(c.env, session.organization_id, context_id)
         contextData.push(`Current call context: ${JSON.stringify(callCtx)}`)
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
 
     // Include test results if asking about testing
@@ -163,7 +175,9 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
       try {
         const tests = await fetchTestResults(c.env, session.organization_id, 10)
         contextData.push(`Recent test results: ${JSON.stringify(tests)}`)
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
 
     // Include KPI data if asking about performance
@@ -171,7 +185,9 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
       try {
         const kpis = await fetchKpiSummary(c.env, session.organization_id)
         contextData.push(`KPI data: ${JSON.stringify(kpis)}`)
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
 
     // Include recent alerts if asking about alerts
@@ -179,7 +195,9 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
       try {
         const alerts = await fetchRecentAlerts(c.env, session.organization_id, 5)
         contextData.push(`Recent alerts: ${JSON.stringify(alerts)}`)
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
 
     // Get conversation history (last 20 messages for context)
@@ -193,9 +211,10 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
 
     // Build messages array for OpenAI
     const systemPrompt = buildSystemPrompt(session, context_type || undefined)
-    const contextBlock = contextData.length > 0
-      ? `\n\n--- Available Data ---\n${contextData.join('\n\n')}\n--- End Data ---`
-      : ''
+    const contextBlock =
+      contextData.length > 0
+        ? `\n\n--- Available Data ---\n${contextData.join('\n\n')}\n--- End Data ---`
+        : ''
 
     const messages = [
       { role: 'system' as const, content: systemPrompt + contextBlock },
@@ -206,18 +225,19 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
     ]
 
     // Call OpenAI
-    const aiResponse = await chatCompletion(
-      c.env.OPENAI_API_KEY,
-      messages,
-      'gpt-4o-mini',
-      1536,
-    )
+    const aiResponse = await chatCompletion(c.env.OPENAI_API_KEY, messages, 'gpt-4o-mini', 1536)
 
     // Save assistant message
     await db.query(
       `INSERT INTO bond_ai_messages (conversation_id, role, content, token_usage, model, latency_ms)
        VALUES ($1, 'assistant', $2, $3, $4, $5)`,
-      [convoId, aiResponse.content, JSON.stringify(aiResponse.usage), aiResponse.model, aiResponse.latencyMs]
+      [
+        convoId,
+        aiResponse.content,
+        JSON.stringify(aiResponse.usage),
+        aiResponse.model,
+        aiResponse.latencyMs,
+      ]
     )
 
     // Update conversation metadata
@@ -239,17 +259,19 @@ bondAiRoutes.post('/chat', requirePlan('pro'), async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'AI chat failed: ' + (err.message || 'Unknown error') }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get conversation messages
 bondAiRoutes.get('/conversations/:id/messages', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const conversationId = c.req.param('id')
-    const db = getDb(c.env)
 
     // Verify ownership
     const convo = await db.query(
@@ -278,17 +300,19 @@ bondAiRoutes.get('/conversations/:id/messages', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to get messages' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Delete/archive conversation
 bondAiRoutes.delete('/conversations/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const conversationId = c.req.param('id')
-    const db = getDb(c.env)
 
     await db.query(
       `UPDATE bond_ai_conversations SET status = 'deleted', updated_at = NOW()
@@ -299,6 +323,8 @@ bondAiRoutes.delete('/conversations/:id', async (c) => {
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to delete conversation' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -308,6 +334,7 @@ bondAiRoutes.delete('/conversations/:id', async (c) => {
 
 // Get alerts feed
 bondAiRoutes.get('/alerts', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -315,8 +342,6 @@ bondAiRoutes.get('/alerts', async (c) => {
     const status = c.req.query('status') || 'unread'
     const severity = c.req.query('severity')
     const limit = Math.min(parseInt(c.req.query('limit') || '25'), 100)
-
-    const db = getDb(c.env)
     let query = `SELECT a.id, a.alert_type, a.severity, a.title, a.message, 
                         a.context_data, a.status, a.created_at,
                         ar.name as rule_name
@@ -355,11 +380,14 @@ bondAiRoutes.get('/alerts', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to get alerts' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Acknowledge/dismiss alert
 bondAiRoutes.patch('/alerts/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -369,7 +397,6 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
     if (!parsed.success) return parsed.response
     const { status } = parsed.data
 
-    const db = getDb(c.env)
     await db.query(
       `UPDATE bond_ai_alerts SET status = $1, acknowledged_by = $2, acknowledged_at = NOW()
        WHERE id = $3 AND organization_id = $4`,
@@ -379,11 +406,14 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to update alert' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Bulk acknowledge alerts
 bondAiRoutes.post('/alerts/bulk-action', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -392,7 +422,6 @@ bondAiRoutes.post('/alerts/bulk-action', async (c) => {
     if (!parsed.success) return parsed.response
     const { alert_ids, action } = parsed.data
 
-    const db = getDb(c.env)
     // Build parameterized IN clause
     const placeholders = alert_ids.map((_, i) => `$${i + 3}`).join(',')
     await db.query(
@@ -404,16 +433,18 @@ bondAiRoutes.post('/alerts/bulk-action', async (c) => {
     return c.json({ success: true, updated: alert_ids.length })
   } catch (err: any) {
     return c.json({ error: 'Failed to bulk update alerts' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // CRUD for alert rules (admin/manager only)
 bondAiRoutes.get('/alert-rules', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT id, name, description, rule_type, rule_config, severity,
               notification_channels, is_enabled, cooldown_minutes,
@@ -427,10 +458,13 @@ bondAiRoutes.get('/alert-rules', async (c) => {
     return c.json({ success: true, rules: result.rows })
   } catch (err: any) {
     return c.json({ error: 'Failed to get alert rules' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 bondAiRoutes.post('/alert-rules', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -443,9 +477,15 @@ bondAiRoutes.post('/alert-rules', async (c) => {
 
     const parsed = await validateBody(c, CreateAlertRuleSchema)
     if (!parsed.success) return parsed.response
-    const { name, description, rule_type, rule_config, severity, notification_channels, cooldown_minutes } = parsed.data
-
-    const db = getDb(c.env)
+    const {
+      name,
+      description,
+      rule_type,
+      rule_config,
+      severity,
+      notification_channels,
+      cooldown_minutes,
+    } = parsed.data
     const result = await db.query(
       `INSERT INTO bond_ai_alert_rules 
         (organization_id, name, description, rule_type, rule_config, severity, 
@@ -453,8 +493,11 @@ bondAiRoutes.post('/alert-rules', async (c) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
-        session.organization_id, name, description || null,
-        rule_type, JSON.stringify(rule_config || {}),
+        session.organization_id,
+        name,
+        description || null,
+        rule_type,
+        JSON.stringify(rule_config || {}),
         severity || 'info',
         JSON.stringify(notification_channels || ['in_app']),
         cooldown_minutes || 60,
@@ -465,10 +508,13 @@ bondAiRoutes.post('/alert-rules', async (c) => {
     return c.json({ success: true, rule: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to create alert rule' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 bondAiRoutes.put('/alert-rules/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -481,9 +527,15 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
     const ruleId = c.req.param('id')
     const parsed = await validateBody(c, UpdateAlertRuleSchema)
     if (!parsed.success) return parsed.response
-    const { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes } = parsed.data
-
-    const db = getDb(c.env)
+    const {
+      name,
+      description,
+      rule_config,
+      severity,
+      is_enabled,
+      notification_channels,
+      cooldown_minutes,
+    } = parsed.data
     await db.query(
       `UPDATE bond_ai_alert_rules
        SET name = COALESCE($1, name),
@@ -496,20 +548,28 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
            updated_at = NOW()
        WHERE id = $8 AND organization_id = $9`,
       [
-        name || null, description, rule_config ? JSON.stringify(rule_config) : null,
-        severity || null, is_enabled ?? null,
+        name || null,
+        description,
+        rule_config ? JSON.stringify(rule_config) : null,
+        severity || null,
+        is_enabled ?? null,
         notification_channels ? JSON.stringify(notification_channels) : null,
-        cooldown_minutes || null, ruleId, session.organization_id,
+        cooldown_minutes || null,
+        ruleId,
+        session.organization_id,
       ]
     )
 
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to update alert rule' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 bondAiRoutes.delete('/alert-rules/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -520,16 +580,17 @@ bondAiRoutes.delete('/alert-rules/:id', async (c) => {
     }
 
     const ruleId = c.req.param('id')
-    const db = getDb(c.env)
 
-    await db.query(
-      `DELETE FROM bond_ai_alert_rules WHERE id = $1 AND organization_id = $2`,
-      [ruleId, session.organization_id]
-    )
+    await db.query(`DELETE FROM bond_ai_alert_rules WHERE id = $1 AND organization_id = $2`, [
+      ruleId,
+      session.organization_id,
+    ])
 
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to delete alert rule' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -539,6 +600,7 @@ bondAiRoutes.delete('/alert-rules/:id', async (c) => {
 
 // Real-time co-pilot assistance during a call
 bondAiRoutes.post('/copilot', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -554,8 +616,6 @@ bondAiRoutes.post('/copilot', async (c) => {
     // Build co-pilot context
     const contextParts: string[] = []
 
-    const db = getDb(c.env)
-
     // If there's a scorecard, include the scoring criteria
     if (scorecard_id) {
       try {
@@ -565,9 +625,13 @@ bondAiRoutes.post('/copilot', async (c) => {
           [scorecard_id, session.organization_id]
         )
         if (sc.rows[0]) {
-          contextParts.push(`Active scorecard: ${sc.rows[0].name}\nSections: ${JSON.stringify(sc.rows[0].sections)}`)
+          contextParts.push(
+            `Active scorecard: ${sc.rows[0].name}\nSections: ${JSON.stringify(sc.rows[0].sections)}`
+          )
         }
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
 
     if (transcript_segment) {
@@ -579,9 +643,10 @@ bondAiRoutes.post('/copilot', async (c) => {
       : `Analyze this transcript segment and provide guidance:\n"${transcript_segment}"`
 
     const systemPrompt = buildSystemPrompt(session, 'copilot')
-    const contextBlock = contextParts.length > 0
-      ? `\n\n--- Context ---\n${contextParts.join('\n\n')}\n--- End ---`
-      : ''
+    const contextBlock =
+      contextParts.length > 0
+        ? `\n\n--- Context ---\n${contextParts.join('\n\n')}\n--- End ---`
+        : ''
 
     const aiResponse = await chatCompletion(
       c.env.OPENAI_API_KEY,
@@ -590,7 +655,7 @@ bondAiRoutes.post('/copilot', async (c) => {
         { role: 'user', content: userMessage },
       ],
       'gpt-4o-mini',
-      256, // Short responses for real-time use
+      256 // Short responses for real-time use
     )
 
     // Log co-pilot usage for audit
@@ -611,6 +676,8 @@ bondAiRoutes.post('/copilot', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Co-pilot failed: ' + (err.message || 'Unknown error') }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -619,11 +686,10 @@ bondAiRoutes.post('/copilot', async (c) => {
 // ════════════════════════════════════════════════════════════
 
 bondAiRoutes.get('/insights', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
 
     const [stats, alerts, kpis] = await Promise.all([
       fetchOrgStats(c.env, session.organization_id),
@@ -632,9 +698,11 @@ bondAiRoutes.get('/insights', async (c) => {
     ])
 
     // KPI breach detection
-    const kpiBreaches = kpis.filter((k: any) =>
-      k.latest_value !== null && k.warning_threshold !== null &&
-      parseFloat(k.latest_value) < parseFloat(k.warning_threshold)
+    const kpiBreaches = kpis.filter(
+      (k: any) =>
+        k.latest_value !== null &&
+        k.warning_threshold !== null &&
+        parseFloat(k.latest_value) < parseFloat(k.warning_threshold)
     )
 
     return c.json({
@@ -651,5 +719,7 @@ bondAiRoutes.get('/insights', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to get insights' }, 500)
+  } finally {
+    await db.end()
   }
 })

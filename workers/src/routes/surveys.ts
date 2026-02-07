@@ -39,11 +39,10 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 
 // GET / — List surveys
 surveysRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
 
     // Try full schema first, fall back to minimal
     let surveys: any[] = []
@@ -81,16 +80,18 @@ surveysRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/surveys error', { error: err?.message })
     return c.json({ error: 'Failed to get surveys' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST / — Create survey
 surveysRoutes.post('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const parsed = await validateBody(c, CreateSurveySchema)
     if (!parsed.success) return parsed.response
     const { title, description, questions, active, trigger_type } = parsed.data
@@ -151,16 +152,18 @@ surveysRoutes.post('/', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/surveys error', { error: err?.message })
     return c.json({ error: 'Failed to create survey' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /:id — Delete survey
 surveysRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const id = c.req.param('id')
 
     const result = await db.query(
@@ -176,5 +179,7 @@ surveysRoutes.delete('/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/surveys/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete survey' }, 500)
+  } finally {
+    await db.end()
   }
 })

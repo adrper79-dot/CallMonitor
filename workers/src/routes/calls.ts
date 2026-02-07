@@ -27,39 +27,38 @@ export const callsRoutes = new Hono<{ Bindings: Env }>()
 
 // List calls for organization
 callsRoutes.get('/', async (c) => {
+  // Authenticate
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const { organization_id, user_id } = session
+
+  // Handle case where user has no organization
+  if (!organization_id) {
+    logger.info('User has no organization')
+    return c.json({
+      success: true,
+      calls: [],
+      pagination: {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 0,
+      },
+    })
+  }
+
+  // Parse query params
+  const url = new URL(c.req.url)
+  const status = url.searchParams.get('status')
+  const page = parseInt(url.searchParams.get('page') || '1')
+  const limit = parseInt(url.searchParams.get('limit') || '50')
+  const offset = (page - 1) * limit
+
+  const db = getDb(c.env)
   try {
-    // Authenticate
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const { organization_id, user_id } = session
-
-    // Handle case where user has no organization
-    if (!organization_id) {
-      logger.info('User has no organization')
-      return c.json({
-        success: true,
-        calls: [],
-        pagination: {
-          page: 1,
-          limit: 50,
-          total: 0,
-          totalPages: 0,
-        },
-      })
-    }
-
-    // Parse query params
-    const url = new URL(c.req.url)
-    const status = url.searchParams.get('status')
-    const page = parseInt(url.searchParams.get('page') || '1')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
-    const offset = (page - 1) * limit
-
-    const db = getDb(c.env)
-
     // Build query
     let sql = `
       SELECT 
@@ -104,20 +103,21 @@ callsRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/calls error', { error: err?.message })
     return c.json({ error: 'Failed to fetch calls' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get single call
 callsRoutes.get('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const db = getDb(c.env)
-
     const result = await db.query(`SELECT * FROM calls WHERE id = $1 AND organization_id = $2`, [
       callId,
       session.organization_id,
@@ -131,23 +131,24 @@ callsRoutes.get('/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/calls/:id error', { error: err?.message })
     return c.json({ error: 'Failed to fetch call' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Start a new call
 callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const parsed = await validateBody(c, StartCallSchema)
+  if (!parsed.success) return parsed.response
+  const { phone_number, caller_id, system_id } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const parsed = await validateBody(c, StartCallSchema)
-    if (!parsed.success) return parsed.response
-    const { phone_number, caller_id, system_id } = parsed.data
-
-    const db = getDb(c.env)
-
     // Create call record - matching actual schema columns
     // Schema has: id, organization_id, system_id, status, started_at, created_by, call_sid, caller_id_used
     const result = await db.query(
@@ -176,20 +177,21 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
   } catch (err: any) {
     logger.error('POST /api/calls/start error', { error: err?.message })
     return c.json({ error: 'Failed to start call' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // End a call
 callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const db = getDb(c.env)
-
     const result = await db.query(
       `UPDATE calls 
        SET status = 'completed', ended_at = NOW()
@@ -220,6 +222,8 @@ callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/calls/:id/end error', { error: err?.message })
     return c.json({ error: 'Failed to end call' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -239,28 +243,24 @@ const VALID_SUMMARY_SOURCES = ['human', 'ai_generated', 'ai_confirmed'] as const
 
 // GET /api/calls/[id]/outcome
 callsRoutes.get('/:id/outcome', async (c) => {
+  const session = await requireRole(c, 'viewer')
+  if (!session) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const { organization_id } = session
+
+  // Validate UUID format
+  if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
+    return c.json(
+      { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+      400
+    )
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'viewer')
-    if (!session) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const { organization_id } = session
-
-    // Validate UUID format
-    if (
-      !callId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
-    ) {
-      return c.json(
-        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
-        400
-      )
-    }
-
-    const db = getDb(c.env)
-
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -346,33 +346,31 @@ callsRoutes.get('/:id/outcome', async (c) => {
       },
       500
     )
+  } finally {
+    await db.end()
   }
 })
 
 // POST /api/calls/[id]/outcome
 callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
+  const session = await requireRole(c, 'operator')
+  if (!session) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const { organization_id, user_id } = session
+
+  // Validate UUID format
+  if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
+    return c.json(
+      { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+      400
+    )
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
-    if (!session) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const { organization_id, user_id } = session
-
-    // Validate UUID format
-    if (
-      !callId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
-    ) {
-      return c.json(
-        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
-        400
-      )
-    }
-
-    const db = getDb(c.env)
-
     // Parse + validate request body
     const parsed = await validateBody(c, CallOutcomeSchema)
     if (!parsed.success) return parsed.response
@@ -477,33 +475,31 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
       },
       500
     )
+  } finally {
+    await db.end()
   }
 })
 
 // PUT /api/calls/[id]/outcome
 callsRoutes.put('/:id/outcome', async (c) => {
+  const session = await requireRole(c, 'operator')
+  if (!session) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const { organization_id, user_id } = session
+
+  // Validate UUID format
+  if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
+    return c.json(
+      { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+      400
+    )
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
-    if (!session) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const { organization_id, user_id } = session
-
-    // Validate UUID format
-    if (
-      !callId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
-    ) {
-      return c.json(
-        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
-        400
-      )
-    }
-
-    const db = getDb(c.env)
-
     // Parse + validate request body
     const parsed = await validateBody(c, CallOutcomeUpdateSchema)
     if (!parsed.success) return parsed.response
@@ -615,33 +611,31 @@ callsRoutes.put('/:id/outcome', async (c) => {
       },
       500
     )
+  } finally {
+    await db.end()
   }
 })
 
 // POST /api/calls/[id]/summary
 callsRoutes.post('/:id/summary', async (c) => {
+  const session = await requireRole(c, 'viewer')
+  if (!session) {
+    return c.json({ success: false, error: 'Unauthorized' }, 401)
+  }
+
+  const callId = c.req.param('id')
+  const { organization_id, user_id } = session
+
+  // Validate UUID format
+  if (!callId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)) {
+    return c.json(
+      { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
+      400
+    )
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'viewer')
-    if (!session) {
-      return c.json({ success: false, error: 'Unauthorized' }, 401)
-    }
-
-    const callId = c.req.param('id')
-    const { organization_id, user_id } = session
-
-    // Validate UUID format
-    if (
-      !callId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(callId)
-    ) {
-      return c.json(
-        { success: false, error: { code: 'INVALID_CALL_ID', message: 'Invalid call ID format' } },
-        400
-      )
-    }
-
-    const db = getDb(c.env)
-
     // Parse + validate request body
     const parsed = await validateBody(c, GenerateSummarySchema)
     if (!parsed.success) return parsed.response
@@ -867,22 +861,23 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
       500
     )
+  } finally {
+    await db.end()
   }
 })
 
 // GET /api/calls/:id/timeline — call timeline events
 callsRoutes.get('/:id/timeline', async (c) => {
+  const session = await requireRole(c, 'viewer')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'viewer')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const db = getDb(c.env)
-
     // Verify call belongs to org
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -906,22 +901,23 @@ callsRoutes.get('/:id/timeline', async (c) => {
     }
     logger.error('GET timeline error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /api/calls/:id/notes — call notes
 callsRoutes.get('/:id/notes', async (c) => {
+  const session = await requireRole(c, 'viewer')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'viewer')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const db = getDb(c.env)
-
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
       [callId, session.organization_id]
@@ -945,26 +941,27 @@ callsRoutes.get('/:id/notes', async (c) => {
     }
     logger.error('GET notes error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /api/calls/:id/notes — add a note
 callsRoutes.post('/:id/notes', async (c) => {
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const parsed = await validateBody(c, CallNoteSchema)
+  if (!parsed.success) return parsed.response
+  const { content } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const parsed = await validateBody(c, CallNoteSchema)
-    if (!parsed.success) return parsed.response
-    const { content } = parsed.data
-
-    const db = getDb(c.env)
-
     // Verify call belongs to org
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -992,26 +989,27 @@ callsRoutes.post('/:id/notes', async (c) => {
   } catch (error: any) {
     logger.error('POST notes error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PUT /api/calls/:id/disposition — set call disposition
 callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const parsed = await validateBody(c, DispositionSchema)
+  if (!parsed.success) return parsed.response
+  const { disposition, disposition_notes } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const parsed = await validateBody(c, DispositionSchema)
-    if (!parsed.success) return parsed.response
-    const { disposition, disposition_notes } = parsed.data
-
-    const db = getDb(c.env)
-
     const { rows: updated } = await db.query(
       `UPDATE calls 
        SET disposition = $3, disposition_notes = $4
@@ -1039,7 +1037,6 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
     // If disposition column doesn't exist, add it dynamically
     if (error.code === '42703') {
       try {
-        const db = getDb(c.env)
         await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition TEXT`)
         await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition_notes TEXT`)
         return c.json({ success: false, error: 'Schema updated. Please retry.' }, 503)
@@ -1049,26 +1046,27 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
     }
     logger.error('PUT disposition error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /api/calls/:id/confirmations — record an in-call confirmation event
 callsRoutes.post('/:id/confirmations', async (c) => {
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const parsed = await validateBody(c, ConfirmationSchema)
+  if (!parsed.success) return parsed.response
+  const { confirmation_type, details, confirmed_by } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'operator')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const parsed = await validateBody(c, ConfirmationSchema)
-    if (!parsed.success) return parsed.response
-    const { confirmation_type, details, confirmed_by } = parsed.data
-
-    const db = getDb(c.env)
-
     // Verify call belongs to org
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -1098,22 +1096,23 @@ callsRoutes.post('/:id/confirmations', async (c) => {
   } catch (error: any) {
     logger.error('POST confirmations error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /api/calls/:id/export — export call data as JSON
 callsRoutes.get('/:id/export', async (c) => {
+  const session = await requireRole(c, 'viewer')
+  if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  if (!isValidUUID(callId)) {
+    return c.json({ success: false, error: 'Invalid call ID' }, 400)
+  }
+
+  const db = getDb(c.env)
   try {
-    const session = await requireRole(c, 'viewer')
-    if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
-
-    const callId = c.req.param('id')
-    if (!isValidUUID(callId)) {
-      return c.json({ success: false, error: 'Invalid call ID' }, 400)
-    }
-
-    const db = getDb(c.env)
-
     // Get call with all related data
     const { rows: calls } = await db.query(
       `SELECT * FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -1176,6 +1175,8 @@ callsRoutes.get('/:id/export', async (c) => {
   } catch (error: any) {
     logger.error('GET export error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 

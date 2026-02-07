@@ -28,27 +28,30 @@ async function listCallerIds(c: any) {
   }
 
   const db = getDb(c.env)
+  try {
+    // Check if table exists
+    const tableCheck = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'caller_ids'
+      ) as exists
+    `)
 
-  // Check if table exists
-  const tableCheck = await db.query(`
-    SELECT EXISTS (
-      SELECT FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = 'caller_ids'
-    ) as exists
-  `)
+    if (!tableCheck.rows[0].exists) {
+      return c.json({ success: true, callerIds: [] })
+    }
 
-  if (!tableCheck.rows[0].exists) {
-    return c.json({ success: true, callerIds: [] })
+    const result = await db.query(
+      `SELECT * FROM caller_ids
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [session.organization_id]
+    )
+
+    return c.json({ success: true, callerIds: result.rows })
+  } finally {
+    await db.end()
   }
-
-  const result = await db.query(
-    `SELECT * FROM caller_ids
-     WHERE organization_id = $1
-     ORDER BY created_at DESC`,
-    [session.organization_id]
-  )
-
-  return c.json({ success: true, callerIds: result.rows })
 }
 
 /** Shared: initiate verification */
@@ -63,62 +66,65 @@ async function initiateVerification(c: any) {
   const { phone_number, label } = parsed.data
 
   const db = getDb(c.env)
+  try {
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS caller_ids (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        phone_number TEXT NOT NULL,
+        label TEXT,
+        status TEXT DEFAULT 'pending',
+        verification_code TEXT,
+        verified_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `)
 
-  // Ensure table exists
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS caller_ids (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      phone_number TEXT NOT NULL,
-      label TEXT,
-      status TEXT DEFAULT 'pending',
-      verification_code TEXT,
-      verified_at TIMESTAMP WITH TIME ZONE,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    // Check for duplicate
+    const existing = await db.query(
+      `SELECT id, status FROM caller_ids
+       WHERE organization_id = $1 AND phone_number = $2`,
+      [session.organization_id, phone_number]
     )
-  `)
 
-  // Check for duplicate
-  const existing = await db.query(
-    `SELECT id, status FROM caller_ids
-     WHERE organization_id = $1 AND phone_number = $2`,
-    [session.organization_id, phone_number]
-  )
+    if (existing.rows.length > 0 && existing.rows[0].status === 'verified') {
+      return c.json({ error: 'This number is already verified' }, 409)
+    }
 
-  if (existing.rows.length > 0 && existing.rows[0].status === 'verified') {
-    return c.json({ error: 'This number is already verified' }, 409)
+    // Generate a 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+
+    if (existing.rows.length > 0) {
+      // Update existing pending record
+      await db.query(
+        `UPDATE caller_ids
+         SET verification_code = $1, status = 'pending', updated_at = NOW()
+         WHERE id = $2`,
+        [verificationCode, existing.rows[0].id]
+      )
+    } else {
+      // Insert new
+      await db.query(
+        `INSERT INTO caller_ids (organization_id, phone_number, label, status, verification_code)
+         VALUES ($1, $2, $3, 'pending', $4)`,
+        [session.organization_id, phone_number, label || '', verificationCode]
+      )
+    }
+
+    // In production, send the code via SMS/call using Telnyx
+    // For now, log it (would be replaced with actual Telnyx verify API)
+    // Verification code generated (do NOT log the code itself)
+
+    return c.json({
+      success: true,
+      message: 'Verification initiated. Check your phone for the code.',
+      phone_number,
+    })
+  } finally {
+    await db.end()
   }
-
-  // Generate a 6-digit verification code
-  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
-
-  if (existing.rows.length > 0) {
-    // Update existing pending record
-    await db.query(
-      `UPDATE caller_ids
-       SET verification_code = $1, status = 'pending', updated_at = NOW()
-       WHERE id = $2`,
-      [verificationCode, existing.rows[0].id]
-    )
-  } else {
-    // Insert new
-    await db.query(
-      `INSERT INTO caller_ids (organization_id, phone_number, label, status, verification_code)
-       VALUES ($1, $2, $3, 'pending', $4)`,
-      [session.organization_id, phone_number, label || '', verificationCode]
-    )
-  }
-
-  // In production, send the code via SMS/call using Telnyx
-  // For now, log it (would be replaced with actual Telnyx verify API)
-  // Verification code generated (do NOT log the code itself)
-
-  return c.json({
-    success: true,
-    message: 'Verification initiated. Check your phone for the code.',
-    phone_number,
-  })
 }
 
 // GET /
@@ -163,18 +169,17 @@ callerIdRoutes.post('/verify', async (c) => {
 
 // PUT /verify — confirm verification with code
 callerIdRoutes.put('/verify', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const parsed = await validateBody(c, VerifyCallerIdSchema)
+  if (!parsed.success) return parsed.response
+  const { phone_number, code } = parsed.data
+
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const parsed = await validateBody(c, VerifyCallerIdSchema)
-    if (!parsed.success) return parsed.response
-    const { phone_number, code } = parsed.data
-
-    const db = getDb(c.env)
-
     const result = await db.query(
       `SELECT id, verification_code FROM caller_ids
        WHERE organization_id = $1
@@ -207,21 +212,22 @@ callerIdRoutes.put('/verify', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/caller-id/verify error', { error: err?.message })
     return c.json({ error: 'Failed to verify caller ID' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /:id — remove caller ID
 callerIdRoutes.delete('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const callerId = c.req.param('id')
+
+  const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
-    const callerId = c.req.param('id')
-
-    const db = getDb(c.env)
-
     const result = await db.query(
       `DELETE FROM caller_ids
        WHERE id = $1 AND organization_id = $2
@@ -237,5 +243,7 @@ callerIdRoutes.delete('/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/caller-id/:id error', { error: err?.message })
     return c.json({ error: 'Failed to remove caller ID' }, 500)
+  } finally {
+    await db.end()
   }
 })

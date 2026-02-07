@@ -38,12 +38,12 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 
 // GET /auth-providers — List auth providers & diagnostic info
 adminRoutes.get('/auth-providers', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
 
-    const db = getDb(c.env)
     await ensureTable(db)
 
     const result = await db.query(
@@ -73,11 +73,14 @@ adminRoutes.get('/auth-providers', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/_admin/auth-providers error', { error: err?.message })
     return c.json({ error: 'Failed to fetch auth providers' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /auth-providers — Toggle / update a provider
 adminRoutes.post('/auth-providers', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -87,7 +90,6 @@ adminRoutes.post('/auth-providers', async (c) => {
     if (!parsed.success) return parsed.response
     const { provider, enabled, client_id, client_secret, config } = parsed.data
 
-    const db = getDb(c.env)
     await ensureTable(db)
 
     const result = await db.query(
@@ -121,5 +123,7 @@ adminRoutes.post('/auth-providers', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/_admin/auth-providers error', { error: err?.message })
     return c.json({ error: 'Failed to update auth provider' }, 500)
+  } finally {
+    await db.end()
   }
 })

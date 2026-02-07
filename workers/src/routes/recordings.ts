@@ -19,13 +19,13 @@ export const recordingsRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /api/recordings — list recordings for organization
 recordingsRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireRole(c, 'viewer')
     if (!session) {
       return c.json({ success: false, error: 'Unauthorized' }, 401)
     }
 
-    const db = getDb(c.env)
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
@@ -65,11 +65,14 @@ recordingsRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/recordings error', { error: err?.message })
     return c.json({ success: false, error: 'Failed to list recordings' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /api/recordings/[id]
 recordingsRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireRole(c, 'viewer')
     const recordingId = c.req.param('id')
@@ -82,8 +85,6 @@ recordingsRoutes.get('/:id', async (c) => {
     if (!isValidUUID(recordingId)) {
       return c.json({ success: false, error: 'Invalid recording ID format' }, 400)
     }
-
-    const db = getDb(c.env)
 
     // Query by ID AND organization_id for tenant isolation
     const res = await db.query(
@@ -139,11 +140,14 @@ recordingsRoutes.get('/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/recordings/:id error', { error: (err as Error)?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /api/recordings/:id — delete a recording
 recordingsRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireRole(c, 'operator')
     if (!session) {
@@ -155,8 +159,6 @@ recordingsRoutes.delete('/:id', async (c) => {
     if (!isValidUUID(recordingId)) {
       return c.json({ success: false, error: 'Invalid recording ID format' }, 400)
     }
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM recordings WHERE id = $1 AND organization_id = $2 RETURNING id`,
@@ -181,5 +183,7 @@ recordingsRoutes.delete('/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/recordings/:id error', { error: err?.message })
     return c.json({ success: false, error: 'Failed to delete recording' }, 500)
+  } finally {
+    await db.end()
   }
 })

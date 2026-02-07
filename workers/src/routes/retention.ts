@@ -56,11 +56,11 @@ async function ensureLegalHoldsTable(db: ReturnType<typeof getDb>) {
 
 // GET / — Get retention policy
 retentionRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureRetentionTable(db)
 
     const result = await db.query(
@@ -82,11 +82,14 @@ retentionRoutes.get('/', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/retention error', { error: err?.message })
     return c.json({ error: 'Failed to get retention policy' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PUT / — Update retention policy
 retentionRoutes.put('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -101,7 +104,6 @@ retentionRoutes.put('/', async (c) => {
       gdpr_mode,
     } = parsed.data
 
-    const db = getDb(c.env)
     await ensureRetentionTable(db)
 
     const result = await db.query(
@@ -132,16 +134,18 @@ retentionRoutes.put('/', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/retention error', { error: err?.message })
     return c.json({ error: 'Failed to update retention policy' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /legal-holds — List legal holds
 retentionRoutes.get('/legal-holds', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureLegalHoldsTable(db)
 
     const result = await db.query(
@@ -155,11 +159,14 @@ retentionRoutes.get('/legal-holds', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/retention/legal-holds error', { error: err?.message })
     return c.json({ error: 'Failed to list legal holds' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /legal-holds — Create legal hold
 retentionRoutes.post('/legal-holds', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -168,7 +175,6 @@ retentionRoutes.post('/legal-holds', async (c) => {
     if (!parsed.success) return parsed.response
     const { name, matter_reference, applies_to_all } = parsed.data
 
-    const db = getDb(c.env)
     await ensureLegalHoldsTable(db)
 
     const result = await db.query(
@@ -188,17 +194,19 @@ retentionRoutes.post('/legal-holds', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/retention/legal-holds error', { error: err?.message })
     return c.json({ error: 'Failed to create legal hold' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /legal-holds/:id — Release legal hold
 retentionRoutes.delete('/legal-holds/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const holdId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE legal_holds
@@ -214,5 +222,7 @@ retentionRoutes.delete('/legal-holds/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/retention/legal-holds/:id error', { error: err?.message })
     return c.json({ error: 'Failed to release legal hold' }, 500)
+  } finally {
+    await db.end()
   }
 })

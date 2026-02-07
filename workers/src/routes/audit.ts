@@ -12,6 +12,7 @@ export const auditRoutes = new Hono<{ Bindings: Env }>()
 
 // Get audit logs for organization
 auditRoutes.get('/', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -28,8 +29,6 @@ auditRoutes.get('/', async (c) => {
         offset: 0,
       })
     }
-
-    const db = getDb(c.env)
 
     const limit = parseInt(c.req.query('limit') || '12')
     const offset = parseInt(c.req.query('offset') || '0')
@@ -65,5 +64,7 @@ auditRoutes.get('/', async (c) => {
       offset: parseInt(c.req.query('offset') || '0'),
       error: 'Query failed',
     })
+  } finally {
+    await db.end()
   }
 })

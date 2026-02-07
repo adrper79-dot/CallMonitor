@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 8, 2026  
-**Version:** 4.12 - Compliance Hardening, Plan Gating & Capabilities Sprint  
+**Last Updated:** February 9, 2026  
+**Version:** 4.13 - Pool Leak Remediation, RLS Enforcement & Subscription Sprint  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,49 +12,48 @@
 
 ---
 
-## 🔧 **Recent Updates (February 8, 2026)**
+## 🔧 **Recent Updates (February 9, 2026)**
 
-### **Compliance Hardening, Plan Gating & Capabilities Sprint (v4.12):** ✅ **DEPLOYED**
+### **Pool Leak Remediation, RLS Enforcement & Subscription Sprint (v4.13):** ✅ **DEPLOYED**
 
-1. **Pool Leak Remediation** ⭐ **CRITICAL FIX**
-   - Fixed `db.end()` never called in 8 analytics endpoints, 3 health check endpoints, and Stripe webhook handler
+1. **Complete Pool Leak Remediation** ⭐ **CRITICAL — SYSTEM-WIDE**
+   - Fixed `db.end()` never called in **ALL 34 route files** — 147+ endpoint handlers now properly close connections
    - Pattern: moved `getDb(c.env)` before try block, added `finally { await db.end() }` to every handler
-   - Impact: Prevented connection pool exhaustion under sustained load (12 endpoints fixed)
+   - Special fixes: consolidated duplicate `getDb()` in calls.ts catch block, added try/catch to scorecards.ts handler
+   - Impact: Zero connection pool leaks under any load — prevents Neon connection exhaustion
 
-2. **Analytics Rate Limiting** ⭐ **SECURITY**
-   - Added 2 new pre-configured limiters: `analyticsRateLimit` (60 req/5min), `analyticsExportRateLimit` (5 req/15min)
-   - Applied to all 8 analytics read endpoints + 1 CSV export endpoint
-   - Total rate-limited mutation/read endpoints now: **31** (was 22)
+2. **RLS Enforcement Migration** ⭐ **SECURITY/COMPLIANCE**
+   - Created `migrations/2026-02-08-rls-enforcement.sql` — idempotent RLS policies for 30 org-scoped tables
+   - Pattern: `current_setting('app.current_organization_id', true)::uuid` for row-level org isolation
+   - Tables: audit*logs, call_outcomes, call_notes, campaigns, voice_configs, billing_events, stripe*_, usage*records, team_invites, scorecards, compliance*_, legal*holds, retention_policies, webhook*_, integrations, ai*summaries, evidence*_, webrtc*sessions, reports, caller_id*\*
+   - npm script: `db:rls-enforce`
 
-3. **Stripe Webhook Audit Logging** ⭐ **COMPLIANCE**
-   - Added `writeAuditLog()` to 4 Stripe event handlers: `subscription.updated`, `subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
-   - 3 new `AuditAction` constants: `SUBSCRIPTION_UPDATED`, `PAYMENT_RECEIVED`, `PAYMENT_FAILED`
-   - Each handler now resolves `org_id` via `stripe_customer_id` lookup before logging
-   - Total audit actions: **24** (was 21)
+3. **Subscription Management** ✅ **BILLING**
+   - New `POST /resume` endpoint — undo cancel_at_period_end via Stripe
+   - New `POST /change-plan` endpoint — upgrade/downgrade with Stripe proration
+   - Fixed 7 pool leaks in billing.ts, corrected audit log field names (`after:` → `oldValue:/newValue:`)
+   - Added `.catch(() => {})` to fire-and-forget audit calls
 
-4. **Plan Gating Middleware** ✅ **BILLING**
-   - New `workers/src/lib/plan-gating.ts` (331 lines): KV-cached plan lookup middleware
-   - `requirePlan('pro')` pattern — guards routes by plan tier (free → starter → pro → enterprise)
-   - `PLAN_HIERARCHY`, `FEATURE_PLAN_REQUIREMENTS`, `PLAN_LIMITS` all defined
-   - Applied to: bond-ai, reports, teams routes
+4. **Usage Metering Enhancement** ✅ **BILLING**
+   - Added transcription counting from `ai_summaries` table
+   - Added `transcriptionsPerMonth` to plan limits (free: 50, starter: 250, pro: 1000, enterprise: 5000)
+   - Applied `analyticsRateLimit` middleware to usage endpoints
+   - Fixed pool leak in usage.ts
 
-5. **Capabilities API** ✅ **FEATURE TOGGLES**
-   - New `workers/src/lib/capabilities.ts` (198 lines): Batch capability checker for UI feature toggles
-   - New `workers/src/routes/capabilities.ts`: 3 HTTP endpoints at `/api/capabilities`
-     - `GET /` — all capabilities for current org plan
-     - `POST /check` — batch check up to 50 capabilities
-     - `GET /plan` — plan details with limits
-   - Rate limited + auth required on all endpoints
+5. **Backup Policy** ✅ **OPERATIONS**
+   - Created `scripts/neon-backup.sh` — pg_dump → gzip, 30-day retention
+   - npm script: `db:backup`, outputs to `backups/db/`
 
-6. **ADR Documentation** ✅ **GOVERNANCE**
-   - ADR-000: Decision process template
-   - ADR-001: Telnyx voice vendor selection
-   - ADR-002: Custom auth over NextAuth rationale
+6. **Smoke Test Automation** ✅ **DX**
+   - Created `scripts/smoke-test.sh` — curl-based smoke tests replacing manual testing
+   - 5 sections: public endpoints, auth boundary (401s), auth flow, authenticated endpoints, rate limit headers
+   - npm script: `test:smoke`
 
 7. **ROADMAP Progress** ✅ **TRACKING**
-   - RISK/SCALE: 20/25 → 22/25 (Analytics rate limiting + Webhook audit logging)
-   - STACK EXCELLENCE: 5/12 → 7/12 (Plan gating + Capabilities API)
-   - Overall: 69/109 → **73/109 (67%)**
+   - RISK/SCALE: 22/25 → 25/25 ✅ COMPLETE (pool leaks + RLS + backup)
+   - STACK EXCELLENCE: 7/12 → 10/12 (subscriptions + usage metering + RLS audit)
+   - DX/CI: 18/20 → 19/20 (smoke tests)
+   - Overall: 73/109 → **80/109 (73%)**
 
 ### **Full Audit Coverage & Operational Tooling Sprint (v4.10):** ✅ **DEPLOYED**
 

@@ -52,3 +52,6 @@ workers/.dev.vars
 .dev.vars
 workers/dist_dry/
 nul
+
+# Database backups (contain production data)
+backups/db/

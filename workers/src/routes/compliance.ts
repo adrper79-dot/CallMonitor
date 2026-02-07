@@ -24,6 +24,7 @@ export const complianceRoutes = new Hono<{ Bindings: Env }>()
 // POST /violations — Log a compliance violation
 // Called by frontend's logComplianceViolation() in complianceUtils.ts
 complianceRoutes.post('/violations', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -31,8 +32,6 @@ complianceRoutes.post('/violations', async (c) => {
     const parsed = await validateBody(c, LogComplianceViolationSchema)
     if (!parsed.success) return parsed.response
     const { call_id, restriction_code, violation_type, context } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `INSERT INTO compliance_violations
@@ -59,11 +58,14 @@ complianceRoutes.post('/violations', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/compliance/violations error', { error: err?.message })
     return c.json({ error: 'Failed to log violation' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /violations — List violations for organization
 complianceRoutes.get('/violations', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -71,8 +73,6 @@ complianceRoutes.get('/violations', async (c) => {
     if (!session.organization_id) {
       return c.json({ success: true, violations: [], total: 0 })
     }
-
-    const db = getDb(c.env)
 
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100)
     const offset = parseInt(c.req.query('offset') || '0')
@@ -114,17 +114,19 @@ complianceRoutes.get('/violations', async (c) => {
     logger.error('GET /api/compliance/violations error', { error: err?.message })
     // Return empty on error (table may not exist yet)
     return c.json({ success: true, violations: [], total: 0 })
+  } finally {
+    await db.end()
   }
 })
 
 // GET /violations/:id — Get single violation
 complianceRoutes.get('/violations/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const violationId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `SELECT cv.*, u.email as user_email, u.name as user_name,
@@ -144,11 +146,14 @@ complianceRoutes.get('/violations/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/compliance/violations/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get violation' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PATCH /violations/:id — Update violation resolution
 complianceRoutes.patch('/violations/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -157,8 +162,6 @@ complianceRoutes.patch('/violations/:id', async (c) => {
     const parsed = await validateBody(c, ResolveComplianceViolationSchema)
     if (!parsed.success) return parsed.response
     const { resolution_status, resolution_notes } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE compliance_violations
@@ -185,5 +188,7 @@ complianceRoutes.patch('/violations/:id', async (c) => {
   } catch (err: any) {
     logger.error('PATCH /api/compliance/violations/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update violation' }, 500)
+  } finally {
+    await db.end()
   }
 })

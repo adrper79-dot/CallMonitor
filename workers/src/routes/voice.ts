@@ -16,14 +16,12 @@ export const voiceRoutes = new Hono<{ Bindings: Env }>()
 
 // Get voice targets
 voiceRoutes.get('/targets', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-
-    // Use centralized DB client
-    const db = getDb(c.env)
 
     // Check if voice_targets table exists
     const tableCheck = await db.query(`
@@ -57,19 +55,19 @@ voiceRoutes.get('/targets', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/voice/targets error', { error: err?.message })
     return c.json({ error: 'Failed to get voice targets' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Get voice configuration
 voiceRoutes.get('/config', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
       return c.json({ error: 'Unauthorized' }, 401)
     }
-
-    // Use centralized DB client
-    const db = getDb(c.env)
 
     // Get voice config from database
     const result = await db.query(
@@ -95,11 +93,14 @@ voiceRoutes.get('/config', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/voice/config error', { error: err?.message })
     return c.json({ error: 'Failed to get voice config' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Update voice configuration
 voiceRoutes.put('/config', voiceRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -115,9 +116,6 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
     if (!effectiveOrgId || (orgId && orgId !== session.organization_id)) {
       return c.json({ error: 'Invalid organization' }, 400)
     }
-
-    // Use centralized DB client
-    const db = getDb(c.env)
 
     // Ensure voice_configs table exists
     await db.query(`
@@ -190,11 +188,14 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/voice/config error', { error: err?.message })
     return c.json({ error: 'Failed to update voice config' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Place a voice call via Telnyx Call Control API
 voiceRoutes.post('/call', voiceRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -220,7 +221,6 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     // Resolve the target number
     let destinationNumber = to_number
     if (!destinationNumber && target_id) {
-      const db = getDb(c.env)
       const targets = await db.query(
         'SELECT phone_number FROM voice_targets WHERE id = $1 AND organization_id = $2',
         [target_id, session.organization_id]
@@ -300,10 +300,8 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     const telnyxCallId = callData.data?.call_control_id || callData.data?.id
 
     // Insert call record into database
-    const dbForInsert = getDb(c.env)
-
     // Check if calls table exists, create basic record
-    const callRecord = await dbForInsert.query(
+    const callRecord = await db.query(
       `INSERT INTO calls (
         organization_id, 
         created_by, 
@@ -322,7 +320,7 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
 
     logger.info('Call created', { callId, telnyxCallId })
 
-    writeAuditLog(dbForInsert, {
+    writeAuditLog(db, {
       organizationId: session.organization_id,
       userId: session.user_id,
       resourceType: 'calls',
@@ -346,11 +344,14 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/voice/call error', { error: err?.message })
     return c.json({ error: err.message || 'Failed to place call' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Create voice target
 voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -365,9 +366,6 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
     if (organization_id && organization_id !== session.organization_id) {
       return c.json({ error: 'Invalid organization' }, 400)
     }
-
-    // Use centralized DB client
-    const db = getDb(c.env)
 
     // Check if voice_targets table exists
     const tableCheck = await db.query(`
@@ -408,11 +406,14 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/voice/targets error', { error: err?.message })
     return c.json({ error: 'Failed to create voice target' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Delete voice target
 voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -420,8 +421,6 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
     }
 
     const targetId = c.req.param('id')
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM voice_targets
@@ -438,5 +437,7 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/voice/targets/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete voice target' }, 500)
+  } finally {
+    await db.end()
   }
 })

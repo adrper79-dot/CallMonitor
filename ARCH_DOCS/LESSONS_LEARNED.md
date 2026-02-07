@@ -2,7 +2,7 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Applicable Versions:** v4.8 – v4.11+
+**Applicable Versions:** v4.8 – v4.13+
 
 ---
 
@@ -40,6 +40,63 @@
   grep -r "HYPERDRIVE.*connectionString.*||.*NEON" workers/src/
   ```
 - See: `ARCH_DOCS/DATABASE_CONNECTION_STANDARD.md`
+
+---
+
+## 🔴 CRITICAL — Pool Leak Prevention (v4.13 — 147+ Endpoints Fixed)
+
+**The second most expensive systemic bug — every route file leaked DB connections.**
+
+### The Rule
+
+```typescript
+// ✅ CORRECT — getDb BEFORE try, db.end() in finally
+const db = getDb(c.env)
+try {
+  // all DB work
+  return c.json({ data }, 200)
+} catch (err: any) {
+  return c.json({ error: 'Internal error' }, 500)
+} finally {
+  await db.end()
+}
+
+// ❌ WRONG — getDb inside try, no finally block
+try {
+  const db = getDb(c.env) // leak if error thrown after this
+  // DB work
+  return c.json({ data }, 200)
+} catch (err: any) {
+  return c.json({ error: 'Internal error' }, 500)
+}
+// db.end() never called — connection leaks!
+```
+
+### Why It Matters
+
+- Neon serverless uses connection pooling with max=5 connections per request handler
+- Without `db.end()`, connections are never returned to the pool
+- Under sustained load, ALL 5 pool slots fill up → new requests hang → HTTP 524 timeouts
+- The leak is invisible during low traffic — only surfaces under real production load
+- Unlike traditional servers, Cloudflare Workers are ephemeral but Neon pools persist
+
+### Discovery & Impact
+
+- **v4.12 audit** found 12 endpoints leaking across 4 files (analytics, health, webhooks)
+- **v4.13 comprehensive audit** found **147+ endpoints** leaking across ALL 34 route files
+- Only 4 route files were clean before v4.13 remediation
+- Fix was mechanical: move `getDb()` before try, add `finally { await db.end() }`
+
+### Prevention
+
+- Every new route handler MUST follow the try/catch/finally pattern above
+- Code review checklist: every `getDb()` must have a matching `db.end()`
+- Grep verification:
+  ```bash
+  # Count getDb vs db.end — numbers should match:
+  grep -c "getDb" workers/src/routes/*.ts
+  grep -c "db.end" workers/src/routes/*.ts
+  ```
 
 ---
 

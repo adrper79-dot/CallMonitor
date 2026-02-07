@@ -29,31 +29,34 @@ async function listScripts(c: any) {
   }
 
   const db = getDb(c.env)
+  try {
+    // Check if table exists
+    const tableCheck = await db.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'shopper_scripts'
+      ) as exists
+    `)
 
-  // Check if table exists
-  const tableCheck = await db.query(`
-    SELECT EXISTS (
-      SELECT FROM information_schema.tables 
-      WHERE table_schema = 'public' AND table_name = 'shopper_scripts'
-    ) as exists
-  `)
+    if (!tableCheck.rows[0].exists) {
+      return c.json({ success: true, scripts: [], total: 0 })
+    }
 
-  if (!tableCheck.rows[0].exists) {
-    return c.json({ success: true, scripts: [], total: 0 })
+    const result = await db.query(
+      `SELECT * FROM shopper_scripts
+       WHERE organization_id = $1
+       ORDER BY created_at DESC`,
+      [session.organization_id]
+    )
+
+    return c.json({
+      success: true,
+      scripts: result.rows,
+      total: result.rows.length,
+    })
+  } finally {
+    await db.end()
   }
-
-  const result = await db.query(
-    `SELECT * FROM shopper_scripts
-     WHERE organization_id = $1
-     ORDER BY created_at DESC`,
-    [session.organization_id]
-  )
-
-  return c.json({
-    success: true,
-    scripts: result.rows,
-    total: result.rows.length,
-  })
 }
 
 /** Shared handler: create or update script */
@@ -68,49 +71,52 @@ async function upsertScript(c: any) {
   const { id, name, content, scenario, is_active } = parsed.data
 
   const db = getDb(c.env)
+  try {
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS shopper_scripts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        name TEXT NOT NULL,
+        content TEXT,
+        scenario TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `)
 
-  // Ensure table exists
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS shopper_scripts (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      name TEXT NOT NULL,
-      content TEXT,
-      scenario TEXT,
-      is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    )
-  `)
-
-  if (id) {
-    // Update existing
-    const result = await db.query(
-      `UPDATE shopper_scripts
-       SET name = $1,
-           content = $2,
-           scenario = $3,
-           is_active = $4,
-           updated_at = NOW()
-       WHERE id = $5 AND organization_id = $6
-       RETURNING *`,
-      [name, content || '', scenario || '', is_active ?? true, id, session.organization_id]
-    )
-    if (result.rows.length === 0) {
-      return c.json({ error: 'Script not found' }, 404)
+    if (id) {
+      // Update existing
+      const result = await db.query(
+        `UPDATE shopper_scripts
+         SET name = $1,
+             content = $2,
+             scenario = $3,
+             is_active = $4,
+             updated_at = NOW()
+         WHERE id = $5 AND organization_id = $6
+         RETURNING *`,
+        [name, content || '', scenario || '', is_active ?? true, id, session.organization_id]
+      )
+      if (result.rows.length === 0) {
+        return c.json({ error: 'Script not found' }, 404)
+      }
+      return c.json({ success: true, script: result.rows[0] })
     }
-    return c.json({ success: true, script: result.rows[0] })
+
+    // Create new
+    const result = await db.query(
+      `INSERT INTO shopper_scripts (organization_id, name, content, scenario, is_active)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [session.organization_id, name, content || '', scenario || '', is_active ?? true]
+    )
+
+    return c.json({ success: true, script: result.rows[0] }, 201)
+  } finally {
+    await db.end()
   }
-
-  // Create new
-  const result = await db.query(
-    `INSERT INTO shopper_scripts (organization_id, name, content, scenario, is_active)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [session.organization_id, name, content || '', scenario || '', is_active ?? true]
-  )
-
-  return c.json({ success: true, script: result.rows[0] }, 201)
 }
 
 // GET /scripts
@@ -155,6 +161,7 @@ shopperRoutes.post('/scripts/manage', async (c) => {
 
 // PUT /scripts/:id — update script
 shopperRoutes.put('/scripts/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -165,8 +172,6 @@ shopperRoutes.put('/scripts/:id', async (c) => {
     const parsed = await validateBody(c, UpdateShopperSchema)
     if (!parsed.success) return parsed.response
     const { name, content, scenario, is_active } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE shopper_scripts
@@ -195,11 +200,14 @@ shopperRoutes.put('/scripts/:id', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/shopper/scripts/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update script' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /scripts/:id — delete script
 shopperRoutes.delete('/scripts/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -207,8 +215,6 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
     }
 
     const scriptId = c.req.param('id')
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM shopper_scripts
@@ -225,11 +231,14 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/shopper/scripts/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete script' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /scripts/manage — frontend compat (id in body or query)
 shopperRoutes.delete('/scripts/manage', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -251,8 +260,6 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
       return c.json({ error: 'Script ID required' }, 400)
     }
 
-    const db = getDb(c.env)
-
     const result = await db.query(
       `DELETE FROM shopper_scripts
        WHERE id = $1 AND organization_id = $2
@@ -268,5 +275,7 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/shopper/scripts/manage error', { error: err?.message })
     return c.json({ error: 'Failed to delete script' }, 500)
+  } finally {
+    await db.end()
   }
 })

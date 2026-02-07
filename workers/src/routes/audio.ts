@@ -56,11 +56,11 @@ async function ensureTables(db: ReturnType<typeof getDb>) {
 
 // POST /upload — Upload audio file
 audioRoutes.post('/upload', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTables(db)
 
     const formData = await c.req.formData()
@@ -94,16 +94,18 @@ audioRoutes.post('/upload', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/audio/upload error', { error: err?.message })
     return c.json({ error: 'Upload failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /transcribe — Start transcription job
 audioRoutes.post('/transcribe', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTables(db)
 
     const parsed = await validateBody(c, TranscribeSchema)
@@ -149,16 +151,18 @@ audioRoutes.post('/transcribe', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/audio/transcribe error', { error: err?.message })
     return c.json({ error: 'Transcription failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /transcriptions/:id — Get transcription status & result
 audioRoutes.get('/transcriptions/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTables(db)
 
     const id = c.req.param('id')
@@ -178,5 +182,7 @@ audioRoutes.get('/transcriptions/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/audio/transcriptions/:id error', { error: err?.message })
     return c.json({ error: 'Failed to get transcription' }, 500)
+  } finally {
+    await db.end()
   }
 })

@@ -133,8 +133,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
     },
     'session-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(
           `SELECT COUNT(*) as count FROM public.sessions WHERE expires > NOW()`
         )
@@ -154,12 +154,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'user-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM public.users`)
         const count = parseInt(result.rows[0]?.count || '0')
         return pass(
@@ -171,12 +173,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         )
       } catch (err: any) {
         return serviceDown('user-table', 'Users Table', 'auth', err.message, Date.now() - start)
+      } finally {
+        await db.end()
       }
     },
     'password-security': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT 
             COUNT(*) as total,
@@ -213,6 +217,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
   },
@@ -245,8 +251,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   bond_ai: {
     'conversations-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM bond_ai_conversations`)
         return pass(
           'conversations-table',
@@ -263,12 +269,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'messages-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM bond_ai_messages`)
         return pass(
           'messages-table',
@@ -285,12 +293,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'alerts-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as total,
                  COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
@@ -313,12 +323,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'alert-rules-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(
           `SELECT COUNT(*) as count FROM bond_ai_alert_rules WHERE is_enabled = true`
         )
@@ -337,6 +349,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'openai-chat': async (env) => {
@@ -399,8 +413,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   teams: {
     'teams-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM teams WHERE is_active = true`)
         return pass(
           'teams-table',
@@ -411,12 +425,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         )
       } catch (err: any) {
         return serviceDown('teams-table', 'Teams Table', 'teams', err.message, Date.now() - start)
+      } finally {
+        await db.end()
       }
     },
     'team-members-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM team_members`)
         return pass(
           'team-members-table',
@@ -433,12 +449,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'rbac-permissions': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT role, COUNT(*) as perm_count 
           FROM rbac_permissions 
@@ -461,12 +479,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'org-members': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT role, COUNT(*) as count 
           FROM org_members 
@@ -488,6 +508,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
   },
@@ -498,8 +520,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   voice: {
     'calls-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT 
             COUNT(*) as total,
@@ -517,12 +539,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         )
       } catch (err: any) {
         return serviceDown('calls-table', 'Calls Table', 'voice', err.message, Date.now() - start)
+      } finally {
+        await db.end()
       }
     },
     'voice-configs': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as total,
                  COUNT(CASE WHEN record = true THEN 1 END) as recording_enabled,
@@ -545,12 +569,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'recordings-table': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM recordings`)
         return pass(
           'recordings-table',
@@ -567,6 +593,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'telnyx-connection': async (env) => {
@@ -630,8 +658,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   analytics: {
     'audit-logs': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as total,
                  COUNT(CASE WHEN created_at > NOW() - interval '24 hours' THEN 1 END) as last_24h
@@ -647,12 +675,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
         )
       } catch (err: any) {
         return serviceDown('audit-logs', 'Audit Logs', 'analytics', err.message, Date.now() - start)
+      } finally {
+        await db.end()
       }
     },
     organizations: async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as count, 
                  COUNT(CASE WHEN plan = 'enterprise' THEN 1 END) as enterprise
@@ -674,12 +704,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     scorecards: async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`SELECT COUNT(*) as count FROM scorecards`)
         return pass(
           'scorecards',
@@ -706,6 +738,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
   },
@@ -716,8 +750,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
   integrity: {
     'fk-constraints': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as count 
           FROM information_schema.table_constraints 
@@ -739,12 +773,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'rls-policies': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT tablename, policyname 
           FROM pg_policies 
@@ -775,12 +811,14 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
     'orphaned-sessions': async (env) => {
       const start = Date.now()
+      const db = getDb(env)
       try {
-        const db = getDb(env)
         const result = await db.query(`
           SELECT COUNT(*) as count FROM public.sessions WHERE expires < NOW()
         `)
@@ -809,6 +847,8 @@ const TEST_REGISTRY: Record<string, Record<string, TestFunction>> = {
           err.message,
           Date.now() - start
         )
+      } finally {
+        await db.end()
       }
     },
   },

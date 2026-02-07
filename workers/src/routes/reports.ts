@@ -24,11 +24,10 @@ export const reportsRoutes = new Hono<{ Bindings: Env }>()
 
 // GET / — List reports
 reportsRoutes.get('/', requirePlan('business'), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
@@ -67,11 +66,14 @@ reportsRoutes.get('/', requirePlan('business'), async (c) => {
   } catch (err: any) {
     logger.error('GET /api/reports error', { error: err?.message })
     return c.json({ error: 'Failed to list reports' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST / — Generate a new report
 reportsRoutes.post('/', requirePlan('business'), async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -79,8 +81,6 @@ reportsRoutes.post('/', requirePlan('business'), async (c) => {
     const parsed = await validateBody(c, GenerateReportSchema)
     if (!parsed.success) return parsed.response
     const { name, type, filters, metrics, format } = parsed.data
-
-    const db = getDb(c.env)
 
     await db.query(
       `CREATE TABLE IF NOT EXISTS reports (
@@ -118,17 +118,19 @@ reportsRoutes.post('/', requirePlan('business'), async (c) => {
   } catch (err: any) {
     logger.error('POST /api/reports error', { error: err?.message })
     return c.json({ error: 'Failed to generate report' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /:id/export — Export/download report
 reportsRoutes.get('/:id/export', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const reportId = c.req.param('id')
-    const db = getDb(c.env)
 
     const rowsResult = await db.query(
       `SELECT * FROM reports
@@ -160,16 +162,17 @@ reportsRoutes.get('/:id/export', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/reports/:id/export error', { error: err?.message })
     return c.json({ error: 'Failed to export report' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // GET /schedules — List report schedules
 reportsRoutes.get('/schedules', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    const db = getDb(c.env)
 
     await db.query(
       `CREATE TABLE IF NOT EXISTS report_schedules (
@@ -199,11 +202,14 @@ reportsRoutes.get('/schedules', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/reports/schedules error', { error: err?.message })
     return c.json({ error: 'Failed to list schedules' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // POST /schedules — Create report schedule
 reportsRoutes.post('/schedules', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -211,8 +217,6 @@ reportsRoutes.post('/schedules', async (c) => {
     const parsed = await validateBody(c, ScheduleReportSchema)
     if (!parsed.success) return parsed.response
     const { name, report_type, cron_pattern, delivery_emails, filters, format } = parsed.data
-
-    const db = getDb(c.env)
 
     await db.query(
       `CREATE TABLE IF NOT EXISTS report_schedules (
@@ -251,11 +255,14 @@ reportsRoutes.post('/schedules', async (c) => {
   } catch (err: any) {
     logger.error('POST /api/reports/schedules error', { error: err?.message })
     return c.json({ error: 'Failed to create schedule' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PATCH /schedules/:id — Update report schedule (toggle active, etc.)
 reportsRoutes.patch('/schedules/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -264,8 +271,6 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
     const parsed = await validateBody(c, UpdateScheduleSchema)
     if (!parsed.success) return parsed.response
     const { is_active, name, cron_pattern, delivery_emails } = parsed.data
-
-    const db = getDb(c.env)
 
     const result = await db.query(
       `UPDATE report_schedules
@@ -285,17 +290,19 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
   } catch (err: any) {
     logger.error('PATCH /api/reports/schedules/:id error', { error: err?.message })
     return c.json({ error: 'Failed to update schedule' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // DELETE /schedules/:id — Delete report schedule
 reportsRoutes.delete('/schedules/:id', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scheduleId = c.req.param('id')
-    const db = getDb(c.env)
 
     const result = await db.query(
       `DELETE FROM report_schedules
@@ -310,5 +317,7 @@ reportsRoutes.delete('/schedules/:id', async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/reports/schedules/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete schedule' }, 500)
+  } finally {
+    await db.end()
   }
 })

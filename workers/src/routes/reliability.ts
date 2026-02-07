@@ -42,11 +42,11 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 
 // GET /webhooks — List webhook failures and metrics
 reliabilityRoutes.get('/webhooks', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     const status = c.req.query('status') || 'all'
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200)
     const offset = parseInt(c.req.query('offset') || '0')
@@ -100,16 +100,18 @@ reliabilityRoutes.get('/webhooks', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/reliability/webhooks error', { error: err?.message })
     return c.json({ error: 'Failed to fetch webhook failures' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // PUT /webhooks — Take action on a webhook failure
 reliabilityRoutes.put('/webhooks', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const db = getDb(c.env)
     await ensureTable(db)
 
     const parsed = await validateBody(c, WebhookActionSchema)
@@ -202,5 +204,7 @@ reliabilityRoutes.put('/webhooks', async (c) => {
   } catch (err: any) {
     logger.error('PUT /api/reliability/webhooks error', { error: err?.message })
     return c.json({ error: 'Failed to process webhook action' }, 500)
+  } finally {
+    await db.end()
   }
 })

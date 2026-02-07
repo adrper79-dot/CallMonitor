@@ -1,6 +1,6 @@
 /**
  * RBAC Routes — Real permission-based access control
- * 
+ *
  * Replaces the stub with actual DB-backed permission lookups.
  * Uses rbac_permissions table + role hierarchy for inheritance.
  */
@@ -34,6 +34,7 @@ const ROLE_INHERITANCE: Record<string, string[]> = {
 
 // Get permissions context for current user
 rbacRoutes.get('/context', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -43,8 +44,6 @@ rbacRoutes.get('/context', async (c) => {
 
     // Get inherited roles
     const inheritedRoles = ROLE_INHERITANCE[userRole] || ['viewer']
-
-    const db = getDb(c.env)
 
     // Fetch all permissions for the user's role chain
     const placeholders = inheritedRoles.map((_, i) => `$${i + 1}`).join(',')
@@ -84,11 +83,14 @@ rbacRoutes.get('/context', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to get RBAC context' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // Check if user has a specific permission
 rbacRoutes.get('/check', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -103,7 +105,6 @@ rbacRoutes.get('/check', async (c) => {
     const userRole = session.role || 'viewer'
     const inheritedRoles = ROLE_INHERITANCE[userRole] || ['viewer']
 
-    const db = getDb(c.env)
     const placeholders = inheritedRoles.map((_, i) => `$${i + 3}`).join(',')
     const result = await db.query(
       `SELECT id FROM rbac_permissions
@@ -120,11 +121,14 @@ rbacRoutes.get('/check', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to check permission' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
 // List all available roles and their permissions (admin+)
 rbacRoutes.get('/roles', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -134,7 +138,6 @@ rbacRoutes.get('/roles', async (c) => {
       return c.json({ error: 'Admin role required' }, 403)
     }
 
-    const db = getDb(c.env)
     const result = await db.query(
       `SELECT role, resource, action FROM rbac_permissions ORDER BY role, resource, action`,
       []
@@ -158,5 +161,7 @@ rbacRoutes.get('/roles', async (c) => {
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to list roles' }, 500)
+  } finally {
+    await db.end()
   }
 })
