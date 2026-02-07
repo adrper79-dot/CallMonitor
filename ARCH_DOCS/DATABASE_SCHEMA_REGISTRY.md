@@ -22,16 +22,17 @@ Per [MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md), the mandatory standard is:
 
 ### ✅ All Tables Compliant
 
-| Table | Status | Notes |
-|-------|--------|-------|
-| `sessions` | ✅ MIGRATED | Columns renamed from camelCase to snake_case on 2026-02-04 |
-| All others (112) | ✅ COMPLIANT | Already using snake_case |
+| Table            | Status       | Notes                                                      |
+| ---------------- | ------------ | ---------------------------------------------------------- |
+| `sessions`       | ✅ MIGRATED  | Columns renamed from camelCase to snake_case on 2026-02-04 |
+| All others (112) | ✅ COMPLIANT | Already using snake_case                                   |
 
 **Total Violations**: 0 columns (was 2, now fixed)
 
 ### ✅ Tables Already Compliant (113 total)
 
 All other tables (112) use snake_case column naming. Examples:
+
 - `users`: `id`, `name`, `email`, `email_verified`, `password_hash`, `organization_id`
 - `organizations`: `id`, `name`, `plan`, `stripe_customer_id`, `created_at`
 - `accounts`: `user_id`, `provider_account_id`, `access_token`, `refresh_token`
@@ -44,99 +45,105 @@ All other tables (112) use snake_case column naming. Examples:
 ### Authentication Tables
 
 #### `users`
+
 Primary user identity table.
 
-| Column | Type | Nullable | Default | FK |
-|--------|------|----------|---------|---|
-| `id` | TEXT | NO | - | PK |
-| `name` | TEXT | YES | - | - |
-| `email` | TEXT | YES | - | UNIQUE |
-| `email_verified` | TIMESTAMPTZ | YES | - | - |
-| `image` | TEXT | YES | - | - |
-| `password_hash` | TEXT | YES | - | - |
-| `organization_id` | UUID | YES | - | - |
-| `role` | TEXT | YES | 'user' | - |
-| `is_admin` | BOOLEAN | YES | false | - |
-| `created_at` | TIMESTAMPTZ | YES | now() | - |
-| `updated_at` | TIMESTAMPTZ | YES | now() | - |
-| `normalized_email` | TEXT | YES | - | - |
-| `id_uuid` | UUID | YES | - | - |
+| Column             | Type        | Nullable | Default | FK     |
+| ------------------ | ----------- | -------- | ------- | ------ |
+| `id`               | TEXT        | NO       | -       | PK     |
+| `name`             | TEXT        | YES      | -       | -      |
+| `email`            | TEXT        | YES      | -       | UNIQUE |
+| `email_verified`   | TIMESTAMPTZ | YES      | -       | -      |
+| `image`            | TEXT        | YES      | -       | -      |
+| `password_hash`    | TEXT        | YES      | -       | -      |
+| `organization_id`  | UUID        | YES      | -       | -      |
+| `role`             | TEXT        | YES      | 'user'  | -      |
+| `is_admin`         | BOOLEAN     | YES      | false   | -      |
+| `created_at`       | TIMESTAMPTZ | YES      | now()   | -      |
+| `updated_at`       | TIMESTAMPTZ | YES      | now()   | -      |
+| `normalized_email` | TEXT        | YES      | -       | -      |
+| `id_uuid`          | UUID        | YES      | -       | -      |
 
 **Referenced By**: accounts, ai_summaries, call_outcomes, calls, org_members, organizations, recordings, scorecards, test_configs, test_results, tool_access_archived, tool_team_members
 
 #### `sessions` ✅ MIGRATED
+
 Session storage for authentication.
 
-| Column | Type | Nullable | Default | FK | Status |
-|--------|------|----------|---------|---|--------|
-| `id` | UUID | NO | gen_random_uuid() | PK | ✅ |
-| `session_token` | VARCHAR(255) | NO | - | UNIQUE | ✅ (was sessionToken) |
-| `user_id` | UUID | NO | - | - | ✅ (was userId) |
-| `expires` | TIMESTAMPTZ | NO | - | - | ✅ |
-| `created_at` | TIMESTAMPTZ | YES | now() | - | ✅ |
-| `updated_at` | TIMESTAMPTZ | YES | now() | - | ✅ |
+| Column          | Type         | Nullable | Default           | FK     | Status                |
+| --------------- | ------------ | -------- | ----------------- | ------ | --------------------- |
+| `id`            | UUID         | NO       | gen_random_uuid() | PK     | ✅                    |
+| `session_token` | VARCHAR(255) | NO       | -                 | UNIQUE | ✅ (was sessionToken) |
+| `user_id`       | UUID         | NO       | -                 | -      | ✅ (was userId)       |
+| `expires`       | TIMESTAMPTZ  | NO       | -                 | -      | ✅                    |
+| `created_at`    | TIMESTAMPTZ  | YES      | now()             | -      | ✅                    |
+| `updated_at`    | TIMESTAMPTZ  | YES      | now()             | -      | ✅                    |
 
 **Indexes**:
+
 - `sessions_pkey`: PRIMARY KEY (id)
 - `sessions_session_token_key`: UNIQUE (session_token)
 - `idx_sessions_user_id`: INDEX (user_id)
 - `idx_sessions_expires`: INDEX (expires)
 
 #### `accounts`
+
 OAuth provider accounts linked to users.
 
-| Column | Type | Nullable | Default | FK |
-|--------|------|----------|---------|---|
-| `id` | TEXT | NO | - | PK |
-| `user_id` | TEXT | NO | - | FK → users(id) |
-| `type` | TEXT | NO | - | - |
-| `provider` | TEXT | NO | - | - |
-| `provider_account_id` | TEXT | NO | - | UNIQUE w/provider |
-| `refresh_token` | TEXT | YES | - | - |
-| `access_token` | TEXT | YES | - | - |
-| `expires_at` | INTEGER | YES | - | - |
-| `token_type` | TEXT | YES | - | - |
-| `scope` | TEXT | YES | - | - |
-| `id_token` | TEXT | YES | - | - |
-| `session_state` | TEXT | YES | - | - |
-| `oauth_token_secret` | TEXT | YES | - | - |
-| `oauth_token` | TEXT | YES | - | - |
-| `created_at` | TIMESTAMPTZ | YES | now() | - |
-| `updated_at` | TIMESTAMPTZ | YES | now() | - |
+| Column                | Type        | Nullable | Default | FK                |
+| --------------------- | ----------- | -------- | ------- | ----------------- |
+| `id`                  | TEXT        | NO       | -       | PK                |
+| `user_id`             | TEXT        | NO       | -       | FK → users(id)    |
+| `type`                | TEXT        | NO       | -       | -                 |
+| `provider`            | TEXT        | NO       | -       | -                 |
+| `provider_account_id` | TEXT        | NO       | -       | UNIQUE w/provider |
+| `refresh_token`       | TEXT        | YES      | -       | -                 |
+| `access_token`        | TEXT        | YES      | -       | -                 |
+| `expires_at`          | INTEGER     | YES      | -       | -                 |
+| `token_type`          | TEXT        | YES      | -       | -                 |
+| `scope`               | TEXT        | YES      | -       | -                 |
+| `id_token`            | TEXT        | YES      | -       | -                 |
+| `session_state`       | TEXT        | YES      | -       | -                 |
+| `oauth_token_secret`  | TEXT        | YES      | -       | -                 |
+| `oauth_token`         | TEXT        | YES      | -       | -                 |
+| `created_at`          | TIMESTAMPTZ | YES      | now()   | -                 |
+| `updated_at`          | TIMESTAMPTZ | YES      | now()   | -                 |
 
 ### Organization Tables
 
 #### `organizations`
+
 Multi-tenant organization container.
 
-| Column | Type | Nullable | Default | FK |
-|--------|------|----------|---------|---|
-| `id` | UUID | NO | uuid_generate_v4() | PK |
-| `name` | TEXT | NO | - | - |
-| `plan` | TEXT | YES | - | - |
-| `plan_status` | TEXT | YES | 'active' | CHECK |
-| `stripe_customer_id` | TEXT | YES | - | UNIQUE |
-| `stripe_subscription_id` | TEXT | YES | - | - |
-| `created_by` | TEXT | YES | - | FK → users(id) |
-| `slug` | TEXT | YES | - | UNIQUE |
-| `tool_id` | UUID | YES | - | - |
-| `created_at` | TIMESTAMPTZ | YES | now() | - |
-| `updated_at` | TIMESTAMPTZ | YES | now() | - |
+| Column                   | Type        | Nullable | Default            | FK             |
+| ------------------------ | ----------- | -------- | ------------------ | -------------- |
+| `id`                     | UUID        | NO       | uuid_generate_v4() | PK             |
+| `name`                   | TEXT        | NO       | -                  | -              |
+| `plan`                   | TEXT        | YES      | -                  | -              |
+| `plan_status`            | TEXT        | YES      | 'active'           | CHECK          |
+| `stripe_customer_id`     | TEXT        | YES      | -                  | UNIQUE         |
+| `stripe_subscription_id` | TEXT        | YES      | -                  | -              |
+| `created_by`             | TEXT        | YES      | -                  | FK → users(id) |
+| `slug`                   | TEXT        | YES      | -                  | UNIQUE         |
+| `tool_id`                | UUID        | YES      | -                  | -              |
+| `created_at`             | TIMESTAMPTZ | YES      | now()              | -              |
+| `updated_at`             | TIMESTAMPTZ | YES      | now()              | -              |
 
 **Referenced By**: 70+ tables with `organization_id` foreign key
 
 #### `org_members`
+
 Organization membership and roles.
 
-| Column | Type | Nullable | Default | FK |
-|--------|------|----------|---------|---|
-| `id` | UUID | NO | uuid_generate_v4() | PK |
-| `organization_id` | UUID | NO | - | FK → organizations(id) |
-| `user_id` | TEXT | NO | - | FK → users(id) |
-| `role` | TEXT | YES | 'member' | - |
-| `created_at` | TIMESTAMPTZ | YES | now() | - |
-| `updated_at` | TIMESTAMPTZ | YES | now() | - |
-| `user_id_uuid` | UUID | YES | - | - |
+| Column            | Type        | Nullable | Default            | FK                     |
+| ----------------- | ----------- | -------- | ------------------ | ---------------------- |
+| `id`              | UUID        | NO       | uuid_generate_v4() | PK                     |
+| `organization_id` | UUID        | NO       | -                  | FK → organizations(id) |
+| `user_id`         | TEXT        | NO       | -                  | FK → users(id)         |
+| `role`            | TEXT        | YES      | 'member'           | -                      |
+| `created_at`      | TIMESTAMPTZ | YES      | now()              | -                      |
+| `updated_at`      | TIMESTAMPTZ | YES      | now()              | -                      |
+| `user_id_uuid`    | UUID        | YES      | -                  | -                      |
 
 ---
 
@@ -258,19 +265,19 @@ erDiagram
 
 All code now uses snake_case column names per standard:
 
-| Code File | DB Column Reference | Status |
-|-----------|---------------------|--------|
-| `workers/src/routes/auth.ts:351` | `session_token` | ✅ |
-| `workers/src/routes/auth.ts:352` | `user_id` | ✅ |
-| `workers/src/routes/auth.ts:414` | `session_token` | ✅ |
-| `workers/src/lib/auth.ts:50-55` | `session_token`, `user_id` | ✅ |
+| Code File                        | DB Column Reference        | Status |
+| -------------------------------- | -------------------------- | ------ |
+| `workers/src/routes/auth.ts:351` | `session_token`            | ✅     |
+| `workers/src/routes/auth.ts:352` | `user_id`                  | ✅     |
+| `workers/src/routes/auth.ts:414` | `session_token`            | ✅     |
+| `workers/src/lib/auth.ts:50-55`  | `session_token`, `user_id` | ✅     |
 
 ### Frontend Type Mapping
 
-| Frontend Type | Property | API Response | Database Column |
-|---------------|----------|--------------|-----------------|
-| `Session.user` | `id` | `user.id` | `users.id` |
-| `Session.user` | `email` | `user.email` | `users.email` |
+| Frontend Type  | Property          | API Response           | Database Column               |
+| -------------- | ----------------- | ---------------------- | ----------------------------- |
+| `Session.user` | `id`              | `user.id`              | `users.id`                    |
+| `Session.user` | `email`           | `user.email`           | `users.email`                 |
 | `Session.user` | `organization_id` | `user.organization_id` | `org_members.organization_id` |
 
 ---
@@ -303,7 +310,7 @@ DROP INDEX IF EXISTS "sessions_sessionToken_key";
 COMMIT;
 
 -- Verification query:
--- SELECT column_name FROM information_schema.columns 
+-- SELECT column_name FROM information_schema.columns
 -- WHERE table_name = 'sessions' AND table_schema = 'public';
 ```
 
@@ -326,9 +333,9 @@ After database migration, update these files:
 
 ```sql
 -- Verify no camelCase columns remain
-SELECT table_name, column_name 
-FROM information_schema.columns 
-WHERE table_schema = 'public' 
+SELECT table_name, column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
   AND column_name ~ '[A-Z]'
 ORDER BY table_name, column_name;
 
@@ -339,18 +346,19 @@ ORDER BY table_name, column_name;
 
 ## Migration Log
 
-| Date | Migration | Status | Notes |
-|------|-----------|--------|-------|
-| 2026-02-03 | Initial audit | ✅ Complete | Found 2 camelCase columns in sessions |
+| Date       | Migration          | Status      | Notes                                              |
+| ---------- | ------------------ | ----------- | -------------------------------------------------- |
+| 2026-02-03 | Initial audit      | ✅ Complete | Found 2 camelCase columns in sessions              |
 | 2026-02-04 | sessions migration | ✅ Complete | Renamed sessionToken→session_token, userId→user_id |
-| 2026-02-04 | Code update | ✅ Complete | Updated Workers auth.ts and lib/auth.ts |
-| 2026-02-04 | Verification | ✅ Complete | Tested login flow, confirmed DB+code cohesion |
+| 2026-02-04 | Code update        | ✅ Complete | Updated Workers auth.ts and lib/auth.ts            |
+| 2026-02-04 | Verification       | ✅ Complete | Tested login flow, confirmed DB+code cohesion      |
 
 ---
 
 ## Best Practices
 
 ### Naming Conventions
+
 1. **Tables**: Plural nouns in snake_case (`users`, `org_members`, `call_outcomes`)
 2. **Columns**: Descriptive snake_case (`organization_id`, `created_at`, `session_token`)
 3. **Indexes**: `idx_{table}_{columns}` or `{table}_{column}_key`
@@ -358,6 +366,7 @@ ORDER BY table_name, column_name;
 5. **Constraints**: `{table}_{column}_check` or `{table}_{constraint_name}`
 
 ### Migration Safety Rules
+
 1. Always wrap migrations in `BEGIN;` / `COMMIT;`
 2. Test migrations on a branch database first (Neon supports branching)
 3. Have rollback SQL ready for each migration

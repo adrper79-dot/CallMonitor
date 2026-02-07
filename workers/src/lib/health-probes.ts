@@ -1,13 +1,13 @@
 /**
  * Service Health Probe Library
- * 
+ *
  * Tests actual reachability of every service the platform depends on.
  * Each probe returns a typed result with:
  *  - status: healthy | degraded | down | error
  *  - latency_ms: response time
  *  - details: diagnostic information
  *  - error: raw error if failed
- * 
+ *
  * Used by both the /api/test/run endpoint and the /api/health endpoint.
  */
 
@@ -86,21 +86,37 @@ export async function probeDatabaseTables(env: Env): Promise<ProbeResult> {
 
     // Core tables that MUST exist
     const required = [
-      'users', 'organizations', 'org_members', 'sessions', 'calls',
-      'voice_configs', 'recordings', 'audit_logs', 'teams',
-      'team_members', 'bond_ai_conversations', 'bond_ai_messages',
-      'bond_ai_alerts', 'bond_ai_alert_rules', 'rbac_permissions',
+      'users',
+      'organizations',
+      'org_members',
+      'sessions',
+      'calls',
+      'voice_configs',
+      'recordings',
+      'audit_logs',
+      'teams',
+      'team_members',
+      'bond_ai_conversations',
+      'bond_ai_messages',
+      'bond_ai_alerts',
+      'bond_ai_alert_rules',
+      'rbac_permissions',
     ]
-    const missing = required.filter(t => !tableNames.includes(t))
+    const missing = required.filter((t) => !tableNames.includes(t))
 
     return {
       service: 'database_schema',
       status: missing.length > 0 ? 'error' : 'healthy',
       latency_ms: ms,
-      details: missing.length > 0
-        ? `Missing ${missing.length} required tables: ${missing.join(', ')}`
-        : `All ${required.length} required tables present (${tableNames.length} total)`,
-      metadata: { total_tables: tableNames.length, missing_tables: missing, all_tables: tableNames },
+      details:
+        missing.length > 0
+          ? `Missing ${missing.length} required tables: ${missing.join(', ')}`
+          : `All ${required.length} required tables present (${tableNames.length} total)`,
+      metadata: {
+        total_tables: tableNames.length,
+        missing_tables: missing,
+        all_tables: tableNames,
+      },
     }
   } catch (err: any) {
     return {
@@ -164,7 +180,12 @@ export async function probeR2(env: Env): Promise<ProbeResult> {
 export async function probeTelnyx(env: Env): Promise<ProbeResult> {
   const start = Date.now()
   if (!env.TELNYX_API_KEY) {
-    return { service: 'telnyx', status: 'error', latency_ms: 0, details: 'TELNYX_API_KEY not configured' }
+    return {
+      service: 'telnyx',
+      status: 'error',
+      latency_ms: 0,
+      details: 'TELNYX_API_KEY not configured',
+    }
   }
   try {
     const resp = await fetch('https://api.telnyx.com/v2/phone_numbers?page[size]=1', {
@@ -203,7 +224,12 @@ export async function probeTelnyx(env: Env): Promise<ProbeResult> {
 export async function probeOpenAI(env: Env): Promise<ProbeResult> {
   const start = Date.now()
   if (!env.OPENAI_API_KEY) {
-    return { service: 'openai', status: 'error', latency_ms: 0, details: 'OPENAI_API_KEY not configured' }
+    return {
+      service: 'openai',
+      status: 'error',
+      latency_ms: 0,
+      details: 'OPENAI_API_KEY not configured',
+    }
   }
   try {
     const resp = await fetch('https://api.openai.com/v1/models', {
@@ -239,7 +265,12 @@ export async function probeOpenAI(env: Env): Promise<ProbeResult> {
 export async function probeStripe(env: Env): Promise<ProbeResult> {
   const start = Date.now()
   if (!env.STRIPE_SECRET_KEY) {
-    return { service: 'stripe', status: 'error', latency_ms: 0, details: 'STRIPE_SECRET_KEY not configured' }
+    return {
+      service: 'stripe',
+      status: 'error',
+      latency_ms: 0,
+      details: 'STRIPE_SECRET_KEY not configured',
+    }
   }
   try {
     const resp = await fetch('https://api.stripe.com/v1/balance', {
@@ -267,7 +298,12 @@ export async function probeStripe(env: Env): Promise<ProbeResult> {
 export async function probeAssemblyAI(env: Env): Promise<ProbeResult> {
   const start = Date.now()
   if (!env.ASSEMBLYAI_API_KEY) {
-    return { service: 'assemblyai', status: 'error', latency_ms: 0, details: 'ASSEMBLYAI_API_KEY not configured' }
+    return {
+      service: 'assemblyai',
+      status: 'error',
+      latency_ms: 0,
+      details: 'ASSEMBLYAI_API_KEY not configured',
+    }
   }
   try {
     // Use a lightweight endpoint to test connectivity
@@ -279,7 +315,8 @@ export async function probeAssemblyAI(env: Env): Promise<ProbeResult> {
       service: 'assemblyai',
       status: resp.status === 200 ? statusFromLatency('assemblyai', ms) : 'error',
       latency_ms: ms,
-      details: resp.status === 200 ? 'AssemblyAI API connected' : `AssemblyAI returned ${resp.status}`,
+      details:
+        resp.status === 200 ? 'AssemblyAI API connected' : `AssemblyAI returned ${resp.status}`,
       error: resp.status !== 200 ? `HTTP ${resp.status}` : undefined,
     }
   } catch (err: any) {
@@ -299,24 +336,14 @@ export async function probeAssemblyAI(env: Env): Promise<ProbeResult> {
  * Run all infrastructure probes (database, KV, R2).
  */
 export async function probeInfrastructure(env: Env): Promise<ProbeResult[]> {
-  return Promise.all([
-    probeDatabase(env),
-    probeDatabaseTables(env),
-    probeKV(env),
-    probeR2(env),
-  ])
+  return Promise.all([probeDatabase(env), probeDatabaseTables(env), probeKV(env), probeR2(env)])
 }
 
 /**
  * Run all external service probes (Telnyx, OpenAI, Stripe, AssemblyAI).
  */
 export async function probeExternalServices(env: Env): Promise<ProbeResult[]> {
-  return Promise.all([
-    probeTelnyx(env),
-    probeOpenAI(env),
-    probeStripe(env),
-    probeAssemblyAI(env),
-  ])
+  return Promise.all([probeTelnyx(env), probeOpenAI(env), probeStripe(env), probeAssemblyAI(env)])
 }
 
 /**
@@ -331,15 +358,15 @@ export async function probeAll(env: Env): Promise<{
 }> {
   const start = Date.now()
   const results = await Promise.all([
-    ...await probeInfrastructure(env),
-    ...await probeExternalServices(env),
+    ...(await probeInfrastructure(env)),
+    ...(await probeExternalServices(env)),
   ])
 
   const summary = {
-    healthy: results.filter(r => r.status === 'healthy').length,
-    degraded: results.filter(r => r.status === 'degraded').length,
-    down: results.filter(r => r.status === 'down').length,
-    error: results.filter(r => r.status === 'error').length,
+    healthy: results.filter((r) => r.status === 'healthy').length,
+    degraded: results.filter((r) => r.status === 'degraded').length,
+    down: results.filter((r) => r.status === 'down').length,
+    error: results.filter((r) => r.status === 'error').length,
   }
 
   let overall: ServiceStatus = 'healthy'

@@ -134,12 +134,13 @@ export const EmailCallSchema = z.object({
 // ─── Voice Schemas ───────────────────────────────────────────────────────────
 
 export const VoiceConfigSchema = z.object({
-  orgId: uuid.optional(),
+  orgId: z.string().max(100).optional(),
   modulations: z
     .object({
       record: z.boolean().optional(),
       transcribe: z.boolean().optional(),
       translate: z.boolean().optional(),
+      translate_mode: z.enum(['post_call', 'live']).optional(),
       translate_from: z.string().max(10).optional(),
       translate_to: z.string().max(10).optional(),
       survey: z.boolean().optional(),

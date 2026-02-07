@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState } from 'react'
 import { useSession } from '@/components/AuthProvider'
@@ -30,7 +30,7 @@ export default function OrganizationCreatePage() {
 
     try {
       const data = await apiPost('/api/organizations', { name: organizationName.trim() })
-      
+
       if (!data) {
         throw new Error('Failed to create organization')
       }

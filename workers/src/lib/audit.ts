@@ -124,6 +124,10 @@ export const AuditAction = {
   VOICE_CONFIG_UPDATED: 'config:voice_updated',
   AI_CONFIG_UPDATED: 'config:ai_updated',
 
+  // Live Translation
+  LIVE_TRANSLATION_STARTED: 'translation:live_started',
+  LIVE_TRANSLATION_COMPLETED: 'translation:live_completed',
+
   // Auth
   SESSION_CREATED: 'auth:login',
   SESSION_REVOKED: 'auth:logout',

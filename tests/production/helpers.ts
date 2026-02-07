@@ -1,6 +1,6 @@
 /**
  * Production Integration Test Helpers — LIVE SYSTEMS ONLY
- * 
+ *
  * Provides helpers that hit REAL APIs and databases.
  * Every function detects and reports service-down conditions.
  */
@@ -87,7 +87,13 @@ export async function apiCall(
       data = await response.text()
     }
 
-    return { status: response.status, data, headers: response.headers, latency_ms, service_reachable: true }
+    return {
+      status: response.status,
+      data,
+      headers: response.headers,
+      latency_ms,
+      service_reachable: true,
+    }
   } catch (err: any) {
     return {
       status: 0,
@@ -113,11 +119,28 @@ export async function checkApiReachable(): Promise<ServiceCheckResult> {
     })
     const ms = Date.now() - start
     if (resp.ok) {
-      return { service: 'workers_api', status: ms > 2000 ? 'degraded' : 'healthy', latency_ms: ms, details: 'API is reachable' }
+      return {
+        service: 'workers_api',
+        status: ms > 2000 ? 'degraded' : 'healthy',
+        latency_ms: ms,
+        details: 'API is reachable',
+      }
     }
-    return { service: 'workers_api', status: 'error', latency_ms: ms, details: `Health returned ${resp.status}`, error: `HTTP ${resp.status}` }
+    return {
+      service: 'workers_api',
+      status: 'error',
+      latency_ms: ms,
+      details: `Health returned ${resp.status}`,
+      error: `HTTP ${resp.status}`,
+    }
   } catch (err: any) {
-    return { service: 'workers_api', status: 'down', latency_ms: Date.now() - start, details: 'API unreachable', error: err.message }
+    return {
+      service: 'workers_api',
+      status: 'down',
+      latency_ms: Date.now() - start,
+      details: 'API unreachable',
+      error: err.message,
+    }
   }
 }
 
@@ -144,7 +167,10 @@ export async function getDbPool() {
   }
 }
 
-export async function dbQuery<T = any>(sql: string, params?: any[]): Promise<{ rows: T[]; service_reachable: boolean; error?: string }> {
+export async function dbQuery<T = any>(
+  sql: string,
+  params?: any[]
+): Promise<{ rows: T[]; service_reachable: boolean; error?: string }> {
   const pool = await getDbPool()
   if (!pool) {
     return { rows: [], service_reachable: false, error: 'DATABASE_URL not configured' }
@@ -154,7 +180,10 @@ export async function dbQuery<T = any>(sql: string, params?: any[]): Promise<{ r
     const result = await pool.query(sql, params)
     return { rows: result.rows, service_reachable: true }
   } catch (err: any) {
-    const isDown = err.message?.includes('ECONNREFUSED') || err.message?.includes('timeout') || err.message?.includes('getaddrinfo')
+    const isDown =
+      err.message?.includes('ECONNREFUSED') ||
+      err.message?.includes('timeout') ||
+      err.message?.includes('getaddrinfo')
     return {
       rows: [],
       service_reachable: !isDown,

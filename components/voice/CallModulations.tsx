@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
@@ -25,7 +25,7 @@ export interface CallModulationsProps {
  * Feature toggles with authority classification
  * Reference: ARCH_DOCS/01-CORE/ARTIFACT_AUTHORITY_CONTRACT.md
  */
-const TOGGLES: { 
+const TOGGLES: {
   key: ModKey
   label: string
   desc: string
@@ -33,46 +33,46 @@ const TOGGLES: {
   plan: string
   badge: 'Authoritative' | 'Preview'
 }[] = [
-  { 
-    key: 'record', 
-    label: 'Source Recording', 
-    desc: 'Immutable call audio (never modified)', 
-    feature: 'recording', 
+  {
+    key: 'record',
+    label: 'Source Recording',
+    desc: 'Immutable call audio (never modified)',
+    feature: 'recording',
     plan: 'Pro+',
-    badge: 'Authoritative'
+    badge: 'Authoritative',
   },
-  { 
-    key: 'transcribe', 
-    label: 'Canonical Transcript', 
-    desc: 'AssemblyAI authoritative transcript (evidence-grade)', 
-    feature: 'transcription', 
+  {
+    key: 'transcribe',
+    label: 'Canonical Transcript',
+    desc: 'AssemblyAI authoritative transcript (evidence-grade)',
+    feature: 'transcription',
     plan: 'Pro+',
-    badge: 'Authoritative'
+    badge: 'Authoritative',
   },
-  { 
-    key: 'translate', 
-    label: 'Post-Call Translation', 
-    desc: 'Authoritative translation from canonical transcript', 
-    feature: 'translation', 
-    plan: 'Global+',
-    badge: 'Authoritative'
+  {
+    key: 'translate',
+    label: 'Translation',
+    desc: 'Translate conversations between languages',
+    feature: 'translation',
+    plan: 'Pro+',
+    badge: 'Authoritative',
   },
-  { 
-    key: 'survey', 
-    label: 'After-Call Survey', 
-    desc: 'Automated survey with AI Survey Bot', 
-    feature: 'survey', 
+  {
+    key: 'survey',
+    label: 'After-Call Survey',
+    desc: 'Automated survey with AI Survey Bot',
+    feature: 'survey',
     plan: 'Insights+',
-    badge: 'Authoritative'
+    badge: 'Authoritative',
   },
-  { 
-    key: 'synthetic_caller', 
-    label: 'Secret Shopper', 
-    desc: 'AI caller with scoring', 
-    feature: 'secret_shopper', 
+  {
+    key: 'synthetic_caller',
+    label: 'Secret Shopper',
+    desc: 'AI caller with scoring',
+    feature: 'secret_shopper',
     plan: 'Insights+',
-    badge: 'Authoritative'
-  }
+    badge: 'Authoritative',
+  },
 ]
 
 const SURVEY_QUESTION_TYPE_OPTIONS: Array<{ value: SurveyQuestionType; label: string }> = [
@@ -80,13 +80,13 @@ const SURVEY_QUESTION_TYPE_OPTIONS: Array<{ value: SurveyQuestionType; label: st
   { value: 'scale_1_10', label: 'Scale 1-10' },
   { value: 'yes_no', label: 'Yes/No' },
   { value: 'multiple_choice', label: 'Multiple Choice' },
-  { value: 'open_ended', label: 'Open-ended' }
+  { value: 'open_ended', label: 'Open-ended' },
 ]
 
 const SURVEY_PROMPT_LOCALES = [
   { code: 'en', label: 'English' },
   { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' }
+  { code: 'fr', label: 'French' },
 ]
 
 function useCallCapabilities(organizationId: string | null) {
@@ -119,7 +119,9 @@ function useCallCapabilities(organizationId: string | null) {
         setLoading(false)
       })
 
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [organizationId])
 
   return { capabilities, loading }
@@ -127,34 +129,49 @@ function useCallCapabilities(organizationId: string | null) {
 
 /**
  * CallModulations - Professional Design System v3.0
- * 
+ *
  * Clean toggle switches for call options.
  * Subtle, no emojis, clear hierarchy.
  */
-export default function CallModulations({ callId, organizationId, initialModulations, onChange }: CallModulationsProps) {
+export default function CallModulations({
+  callId,
+  organizationId,
+  initialModulations,
+  onChange,
+}: CallModulationsProps) {
   const { role, plan, loading: rbacLoading } = useRBAC(organizationId)
   const { config, updateConfig, loading: configLoading } = useVoiceConfig(organizationId)
   const { capabilities } = useCallCapabilities(organizationId)
   const surveyPrompts = config?.survey_prompts || []
-  const surveyPromptLocales = typeof config?.survey_prompts_locales === 'object' && config?.survey_prompts_locales
-    ? config.survey_prompts_locales
-    : {}
+  const surveyPromptLocales =
+    typeof config?.survey_prompts_locales === 'object' && config?.survey_prompts_locales
+      ? config.survey_prompts_locales
+      : {}
   const defaultLocale = 'en'
   const defaultSurveyPrompts = surveyPromptLocales[defaultLocale] || surveyPrompts
   const surveyQuestionTypes: SurveyQuestionConfig[] = Array.isArray(config?.survey_question_types)
     ? config?.survey_question_types
     : []
-  
-  const effectiveMods = config && !configLoading ? {
-    record: config.record ?? false,
-    transcribe: config.transcribe ?? false,
-    translate: config.translate ?? false,
-    survey: config.survey ?? false,
-    synthetic_caller: config.synthetic_caller ?? false,
-  } : initialModulations
-  
+
+  const effectiveMods =
+    config && !configLoading
+      ? {
+          record: config.record ?? false,
+          transcribe: config.transcribe ?? false,
+          translate: config.translate ?? false,
+          survey: config.survey ?? false,
+          synthetic_caller: config.synthetic_caller ?? false,
+        }
+      : initialModulations
+
   const [mods, setMods] = useState<Record<ModKey, boolean>>(() => ({ ...effectiveMods }))
-  const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({ record: false, transcribe: false, translate: false, survey: false, synthetic_caller: false }))
+  const [pending, setPending] = useState<Record<ModKey, boolean>>(() => ({
+    record: false,
+    transcribe: false,
+    translate: false,
+    survey: false,
+    synthetic_caller: false,
+  }))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -182,10 +199,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
     setError(null)
     const prev = { ...mods }
     const next = { ...mods, [key]: !mods[key] }
-    
+
     setMods(next)
-    setPending(p => ({ ...p, [key]: true }))
-    
+    setPending((p) => ({ ...p, [key]: true }))
+
     try {
       await updateConfig({ [key]: next[key] })
       await onChange(next)
@@ -193,7 +210,7 @@ export default function CallModulations({ callId, organizationId, initialModulat
       setMods(prev)
       setError(e?.message ?? 'Update failed')
     } finally {
-      setPending(p => ({ ...p, [key]: false }))
+      setPending((p) => ({ ...p, [key]: false }))
     }
   }
 
@@ -201,7 +218,10 @@ export default function CallModulations({ callId, organizationId, initialModulat
     if (rbacLoading) return { disabled: true, reason: 'Loading...' }
     if (!plan) return { disabled: true, reason: 'Plan not available' }
     if (!planSupportsFeature(plan, feature)) {
-      return { disabled: true, reason: `Requires ${TOGGLES.find(t => t.key === key)?.plan || 'upgrade'}` }
+      return {
+        disabled: true,
+        reason: `Requires ${TOGGLES.find((t) => t.key === key)?.plan || 'upgrade'}`,
+      }
     }
     if (!canEdit && key !== 'record' && key !== 'transcribe') {
       return { disabled: true, reason: 'Owner/Admin only' }
@@ -230,7 +250,7 @@ export default function CallModulations({ callId, organizationId, initialModulat
     }
 
     const updates: Record<string, any> = {
-      survey_prompts_locales: nextLocales
+      survey_prompts_locales: nextLocales,
     }
 
     if (locale === defaultLocale) {
@@ -249,33 +269,27 @@ export default function CallModulations({ callId, organizationId, initialModulat
 
   return (
     <div className="space-y-3">
-      {TOGGLES.map(t => {
+      {TOGGLES.map((t) => {
         const { disabled, reason } = getToggleDisabled(t.key, t.feature)
         const checked = mods[t.key]
-        const hasLiveTranslation = t.key === 'translate' && capabilities.real_time_translation_preview === true
-        const displayLabel = hasLiveTranslation ? 'Live Translation' : t.label
-        const displayDesc = hasLiveTranslation 
-          ? 'Real-time assist (preview only, not recorded)'
-          : t.desc
-        const displayBadge = hasLiveTranslation ? 'Preview' : t.badge
-        
+        const translateMode = t.key === 'translate' ? config?.translate_mode || 'post_call' : null
+        const isLiveMode = translateMode === 'live'
+        const displayLabel = isLiveMode ? 'Live Translation' : t.label
+        const displayDesc = isLiveMode ? 'Real-time translation during active calls' : t.desc
+        const displayBadge = isLiveMode ? 'Preview' : t.badge
+
         return (
           <div key={t.key} className="p-3 bg-gray-50 rounded-md border border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Label 
-                    htmlFor={`mod-${t.key}`} 
-                    className="text-sm font-medium text-gray-900"
-                  >
+                  <Label htmlFor={`mod-${t.key}`} className="text-sm font-medium text-gray-900">
                     {displayLabel}
                   </Label>
                   <Badge variant={displayBadge === 'Authoritative' ? 'success' : 'warning'}>
                     {displayBadge}
                   </Badge>
-                  {disabled && reason && (
-                    <span className="text-xs text-gray-400">{reason}</span>
-                  )}
+                  {disabled && reason && <span className="text-xs text-gray-400">{reason}</span>}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">{displayDesc}</p>
               </div>
@@ -288,19 +302,59 @@ export default function CallModulations({ callId, organizationId, initialModulat
                   disabled={disabled || pending[t.key]}
                   aria-label={t.label}
                 />
-                <span className={`text-xs w-10 text-right tabular-nums ${
-                  pending[t.key] ? 'text-gray-400' :
-                  checked ? 'text-success font-medium' : 'text-gray-400'
-                }`}>
+                <span
+                  className={`text-xs w-10 text-right tabular-nums ${
+                    pending[t.key]
+                      ? 'text-gray-400'
+                      : checked
+                        ? 'text-success font-medium'
+                        : 'text-gray-400'
+                  }`}
+                >
                   {pending[t.key] ? '...' : checked ? 'On' : 'Off'}
                 </span>
               </div>
             </div>
-            
+
             {/* Translation config - ALWAYS show language selectors when translate toggle is visible */}
             {/* This fixes the UX bug where users couldn't enable translation without first setting languages */}
             {t.key === 'translate' && (
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                {/* Translation Mode Selector */}
+                <div className="flex items-center gap-3 p-2 bg-white rounded border border-gray-200">
+                  <span className="text-xs font-medium text-gray-700 min-w-[80px]">Mode</span>
+                  <div className="flex gap-2 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => canEdit && updateConfig({ translate_mode: 'live' })}
+                      disabled={!canEdit}
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                        (config?.translate_mode || 'post_call') === 'live'
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      Live
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => canEdit && updateConfig({ translate_mode: 'post_call' })}
+                      disabled={!canEdit}
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors ${
+                        (config?.translate_mode || 'post_call') === 'post_call'
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      Post-Call
+                    </button>
+                  </div>
+                </div>
+                {(config?.translate_mode || 'post_call') === 'live' && (
+                  <p className="text-xs text-primary-600 bg-primary-50 rounded p-2">
+                    Live translation streams in real-time during the call. Requires Business plan.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <Select
                     label="From Language"
@@ -365,7 +419,7 @@ export default function CallModulations({ callId, organizationId, initialModulat
                 )}
               </div>
             )}
-            
+
             {/* Expanded config for survey */}
             {checked && t.key === 'survey' && (
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
@@ -399,13 +453,18 @@ export default function CallModulations({ callId, organizationId, initialModulat
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-gray-700">Question Types</div>
                     {defaultSurveyPrompts.map((prompt, idx) => (
-                      <div key={`${idx}-${prompt.slice(0, 16)}`} className="flex items-center justify-between gap-3">
+                      <div
+                        key={`${idx}-${prompt.slice(0, 16)}`}
+                        className="flex items-center justify-between gap-3"
+                      >
                         <div className="text-xs text-gray-600 truncate">
                           Q{idx + 1}: {prompt}
                         </div>
                         <select
                           value={getSurveyQuestionType(idx)}
-                          onChange={(e) => updateSurveyQuestionType(idx, e.target.value as SurveyQuestionType)}
+                          onChange={(e) =>
+                            updateSurveyQuestionType(idx, e.target.value as SurveyQuestionType)
+                          }
                           disabled={!canEdit}
                           className="text-xs bg-white border border-gray-300 rounded px-2 py-1"
                         >
@@ -427,14 +486,16 @@ export default function CallModulations({ callId, organizationId, initialModulat
                     type="email"
                     placeholder="results@company.com"
                     value={config?.survey_webhook_email || ''}
-                    onChange={(e) => updateConfig({ survey_webhook_email: e.target.value || undefined })}
+                    onChange={(e) =>
+                      updateConfig({ survey_webhook_email: e.target.value || undefined })
+                    }
                     disabled={!canEdit}
                     className="w-full text-sm p-2 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-600 focus:border-primary-600"
                   />
                 </div>
               </div>
             )}
-            
+
             {/* Expanded config for secret shopper */}
             {checked && t.key === 'synthetic_caller' && (
               <div className="mt-3 pt-3 border-t border-gray-200">

@@ -1,13 +1,13 @@
 /**
  * LIVE Database Integration Tests — NO MOCKS
- * 
+ *
  * Tests the Neon PostgreSQL database directly:
  *   - Table existence and schema correctness
  *   - Column types and constraints
  *   - Foreign key relationships
  *   - Row-Level Security policies
  *   - Required data integrity
- * 
+ *
  * Run: npm run test:prod:db
  */
 
@@ -38,25 +38,29 @@ afterAll(async () => {
 async function tableExists(tableName: string): Promise<boolean> {
   const r = await dbQuery(
     `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1) AS exists`,
-    [tableName],
+    [tableName]
   )
   return r.rows[0]?.exists === true
 }
 
 // Helper to get columns for a table
-async function getColumns(tableName: string): Promise<Array<{ column_name: string; data_type: string; is_nullable: string }>> {
+async function getColumns(
+  tableName: string
+): Promise<Array<{ column_name: string; data_type: string; is_nullable: string }>> {
   const r = await dbQuery(
     `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`,
-    [tableName],
+    [tableName]
   )
   return r.rows
 }
 
 // Helper to check constraints
-async function getConstraints(tableName: string): Promise<Array<{ constraint_name: string; constraint_type: string }>> {
+async function getConstraints(
+  tableName: string
+): Promise<Array<{ constraint_name: string; constraint_type: string }>> {
   const r = await dbQuery(
     `SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_schema = 'public' AND table_name = $1`,
-    [tableName],
+    [tableName]
   )
   return r.rows
 }
@@ -64,16 +68,14 @@ async function getConstraints(tableName: string): Promise<Array<{ constraint_nam
 // ─── CORE TABLES ────────────────────────────────────────────────────────────
 
 describe('Core Tables', () => {
-  const requiredCoreTables = [
-    'users',
-    'sessions',
-    'organizations',
-    'organization_members',
-  ]
+  const requiredCoreTables = ['users', 'sessions', 'organizations', 'organization_members']
 
   for (const table of requiredCoreTables) {
     test(`Table "${table}" exists`, async () => {
-      if (!dbReachable) { console.log('⛔ DB DOWN'); return }
+      if (!dbReachable) {
+        console.log('⛔ DB DOWN')
+        return
+      }
       expect(await tableExists(table), `Missing required table: ${table}`).toBe(true)
     })
   }
@@ -81,7 +83,7 @@ describe('Core Tables', () => {
   test('Users table has required columns', async () => {
     if (!dbReachable) return
     const cols = await getColumns('users')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'email', 'password_hash', 'name']
     for (const col of required) {
       expect(colNames, `users table missing column: ${col}`).toContain(col)
@@ -91,18 +93,20 @@ describe('Core Tables', () => {
   test('Users table password_hash supports PBKDF2 length', async () => {
     if (!dbReachable) return
     const cols = await getColumns('users')
-    const pwCol = cols.find(c => c.column_name === 'password_hash')
+    const pwCol = cols.find((c) => c.column_name === 'password_hash')
     expect(pwCol, 'password_hash column missing').toBeDefined()
     // PBKDF2-SHA256 output is ~120 chars in our format
     // Should be text or varchar(255+)
-    expect(['text', 'character varying'].includes(pwCol!.data_type),
-      `password_hash should be text or varchar, got: ${pwCol!.data_type}`).toBe(true)
+    expect(
+      ['text', 'character varying'].includes(pwCol!.data_type),
+      `password_hash should be text or varchar, got: ${pwCol!.data_type}`
+    ).toBe(true)
   })
 
   test('Sessions table has required columns', async () => {
     if (!dbReachable) return
     const cols = await getColumns('sessions')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'user_id', 'token', 'expires_at']
     for (const col of required) {
       expect(colNames, `sessions table missing column: ${col}`).toContain(col)
@@ -113,11 +117,7 @@ describe('Core Tables', () => {
 // ─── VOICE / CALLS TABLES ───────────────────────────────────────────────────
 
 describe('Voice & Calls Tables', () => {
-  const voiceTables = [
-    'calls',
-    'voice_configs',
-    'call_recordings',
-  ]
+  const voiceTables = ['calls', 'voice_configs', 'call_recordings']
 
   for (const table of voiceTables) {
     test(`Table "${table}" exists`, async () => {
@@ -128,9 +128,12 @@ describe('Voice & Calls Tables', () => {
 
   test('Calls table has required columns', async () => {
     if (!dbReachable) return
-    if (!(await tableExists('calls'))) { console.warn('⚠️ calls table does not exist'); return }
+    if (!(await tableExists('calls'))) {
+      console.warn('⚠️ calls table does not exist')
+      return
+    }
     const cols = await getColumns('calls')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'organization_id', 'direction', 'status']
     for (const col of required) {
       expect(colNames, `calls missing column: ${col}`).toContain(col)
@@ -139,9 +142,12 @@ describe('Voice & Calls Tables', () => {
 
   test('Voice configs table has required columns', async () => {
     if (!dbReachable) return
-    if (!(await tableExists('voice_configs'))) { console.warn('⚠️ voice_configs table does not exist'); return }
+    if (!(await tableExists('voice_configs'))) {
+      console.warn('⚠️ voice_configs table does not exist')
+      return
+    }
     const cols = await getColumns('voice_configs')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'organization_id']
     for (const col of required) {
       expect(colNames, `voice_configs missing column: ${col}`).toContain(col)
@@ -170,7 +176,7 @@ describe('Bond AI Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('bond_ai_conversations'))) return
     const cols = await getColumns('bond_ai_conversations')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'user_id', 'organization_id', 'title']
     for (const col of required) {
       expect(colNames, `bond_ai_conversations missing: ${col}`).toContain(col)
@@ -181,7 +187,7 @@ describe('Bond AI Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('bond_ai_messages'))) return
     const cols = await getColumns('bond_ai_messages')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'conversation_id', 'role', 'content']
     for (const col of required) {
       expect(colNames, `bond_ai_messages missing: ${col}`).toContain(col)
@@ -192,7 +198,7 @@ describe('Bond AI Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('bond_ai_alerts'))) return
     const cols = await getColumns('bond_ai_alerts')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'organization_id', 'severity', 'status']
     for (const col of required) {
       expect(colNames, `bond_ai_alerts missing: ${col}`).toContain(col)
@@ -203,7 +209,7 @@ describe('Bond AI Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('bond_ai_alert_rules'))) return
     const cols = await getColumns('bond_ai_alert_rules')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'organization_id', 'name', 'enabled']
     for (const col of required) {
       expect(colNames, `bond_ai_alert_rules missing: ${col}`).toContain(col)
@@ -214,11 +220,7 @@ describe('Bond AI Tables', () => {
 // ─── TEAMS TABLES ───────────────────────────────────────────────────────────
 
 describe('Teams & RBAC Tables', () => {
-  const teamsTables = [
-    'teams',
-    'team_members',
-    'organization_members',
-  ]
+  const teamsTables = ['teams', 'team_members', 'organization_members']
 
   for (const table of teamsTables) {
     test(`Table "${table}" exists`, async () => {
@@ -231,7 +233,7 @@ describe('Teams & RBAC Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('teams'))) return
     const cols = await getColumns('teams')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'name', 'organization_id']
     for (const col of required) {
       expect(colNames, `teams missing: ${col}`).toContain(col)
@@ -242,7 +244,7 @@ describe('Teams & RBAC Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('team_members'))) return
     const cols = await getColumns('team_members')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'team_id', 'user_id', 'role']
     for (const col of required) {
       expect(colNames, `team_members missing: ${col}`).toContain(col)
@@ -253,7 +255,7 @@ describe('Teams & RBAC Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('organization_members'))) return
     const cols = await getColumns('organization_members')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     expect(colNames, 'org members missing role column for RBAC').toContain('role')
   })
 })
@@ -261,10 +263,7 @@ describe('Teams & RBAC Tables', () => {
 // ─── ANALYTICS TABLES ───────────────────────────────────────────────────────
 
 describe('Analytics & Audit Tables', () => {
-  const analyticsTables = [
-    'audit_logs',
-    'scorecards',
-  ]
+  const analyticsTables = ['audit_logs', 'scorecards']
 
   for (const table of analyticsTables) {
     test(`Table "${table}" exists`, async () => {
@@ -277,7 +276,7 @@ describe('Analytics & Audit Tables', () => {
     if (!dbReachable) return
     if (!(await tableExists('audit_logs'))) return
     const cols = await getColumns('audit_logs')
-    const colNames = cols.map(c => c.column_name)
+    const colNames = cols.map((c) => c.column_name)
     const required = ['id', 'action', 'user_id']
     for (const col of required) {
       expect(colNames, `audit_logs missing: ${col}`).toContain(col)
@@ -357,13 +356,18 @@ describe('Row-Level Security', () => {
   test('RLS is enabled on sensitive tables', async () => {
     if (!dbReachable) return
     const sensitiveTables = ['users', 'sessions', 'calls', 'organizations']
-    const r = await dbQuery(`
+    const r = await dbQuery(
+      `
       SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)
-    `, [sensitiveTables])
+    `,
+      [sensitiveTables]
+    )
 
     for (const table of r.rows) {
       const status = (table as any).rowsecurity ? '✅' : '⚠️'
-      console.log(`   ${status} RLS on ${(table as any).tablename}: ${(table as any).rowsecurity ? 'enabled' : 'disabled'}`)
+      console.log(
+        `   ${status} RLS on ${(table as any).tablename}: ${(table as any).rowsecurity ? 'enabled' : 'disabled'}`
+      )
     }
   })
 
@@ -440,7 +444,9 @@ describe('Database Health', () => {
 
   test('Table count matches expectations', async () => {
     if (!dbReachable) return
-    const r = await dbQuery(`SELECT count(*) AS cnt FROM information_schema.tables WHERE table_schema = 'public'`)
+    const r = await dbQuery(
+      `SELECT count(*) AS cnt FROM information_schema.tables WHERE table_schema = 'public'`
+    )
     const count = parseInt((r.rows[0] as any)?.cnt || '0', 10)
     console.log(`   📊 Public tables: ${count}`)
     expect(count, 'Expected at least 10 public tables').toBeGreaterThanOrEqual(10)

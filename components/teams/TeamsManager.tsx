@@ -48,15 +48,20 @@ export default function TeamsManager() {
     try {
       const data = await apiGet('/api/teams')
       setTeams(data.teams || [])
-    } catch { /* ignore */ }
-    finally { setLoading(false) }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   const loadOrgMembers = useCallback(async () => {
     try {
       const data = await apiGet('/api/team/members')
       setOrgMembers(data.members || [])
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   useEffect(() => {
@@ -145,7 +150,7 @@ export default function TeamsManager() {
       <div className="p-6 animate-pulse space-y-4">
         <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => (
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-32 bg-gray-200 dark:bg-gray-700 rounded-xl" />
           ))}
         </div>
@@ -153,24 +158,33 @@ export default function TeamsManager() {
     )
   }
 
-  const selectedTeamData = teams.find(t => t.id === selectedTeam)
-  const existingMemberIds = teamMembers.map(m => m.user_id)
-  const availableMembers = orgMembers.filter(m => !existingMemberIds.includes(m.user_id))
+  const selectedTeamData = teams.find((t) => t.id === selectedTeam)
+  const existingMemberIds = teamMembers.map((m) => m.user_id)
+  const availableMembers = orgMembers.filter((m) => !existingMemberIds.includes(m.user_id))
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Teams & Departments</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Organize your team into departments and squads</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Teams & Departments
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Organize your team into departments and squads
+          </p>
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
           className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.5v15m7.5-7.5h-15" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4.5v15m7.5-7.5h-15"
+            />
           </svg>
           Create Team
         </button>
@@ -183,19 +197,19 @@ export default function TeamsManager() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input
               value={newTeam.name}
-              onChange={e => setNewTeam(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setNewTeam((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="Team name"
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
             />
             <input
               value={newTeam.description}
-              onChange={e => setNewTeam(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => setNewTeam((prev) => ({ ...prev, description: e.target.value }))}
               placeholder="Description (optional)"
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
             />
             <select
               value={newTeam.team_type}
-              onChange={e => setNewTeam(prev => ({ ...prev, team_type: e.target.value }))}
+              onChange={(e) => setNewTeam((prev) => ({ ...prev, team_type: e.target.value }))}
               className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
             >
               <option value="department">Department</option>
@@ -224,7 +238,7 @@ export default function TeamsManager() {
 
       {/* Teams grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teams.map(team => (
+        {teams.map((team) => (
           <button
             key={team.id}
             onClick={() => loadTeamMembers(team.id)}
@@ -241,37 +255,60 @@ export default function TeamsManager() {
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">{team.name}</h3>
                 {team.description && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{team.description}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                    {team.description}
+                  </p>
                 )}
               </div>
               <button
-                onClick={e => { e.stopPropagation(); deleteTeam(team.id) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  deleteTeam(team.id)
+                }}
                 className="text-gray-400 hover:text-red-500 transition-colors p-1"
                 title="Deactivate team"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
               </button>
             </div>
             <div className="flex items-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+                  />
                 </svg>
                 {team.member_count} members
               </span>
-              {team.manager_name && (
-                <span>Mgr: {team.manager_name}</span>
-              )}
+              {team.manager_name && <span>Mgr: {team.manager_name}</span>}
             </div>
           </button>
         ))}
 
         {teams.length === 0 && (
           <div className="col-span-full text-center py-12 text-gray-400 dark:text-gray-500">
-            <svg className="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+            <svg
+              className="w-12 h-12 mx-auto mb-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+              />
             </svg>
             <p className="text-sm">No teams created yet</p>
             <p className="text-xs mt-1">Create your first team to organize your members</p>
@@ -302,17 +339,21 @@ export default function TeamsManager() {
                 {availableMembers.length === 0 ? (
                   <p className="text-xs text-gray-400">All org members are already in this team</p>
                 ) : (
-                  availableMembers.map(m => (
+                  availableMembers.map((m) => (
                     <button
                       key={m.user_id}
                       onClick={() => addMemberToTeam(m.user_id)}
                       className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm flex items-center justify-between transition-colors"
                     >
                       <div>
-                        <span className="text-gray-900 dark:text-gray-100">{m.name || m.email}</span>
+                        <span className="text-gray-900 dark:text-gray-100">
+                          {m.name || m.email}
+                        </span>
                         {m.name && <span className="text-gray-400 ml-2 text-xs">{m.email}</span>}
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[m.role] || ROLE_COLORS.viewer}`}>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[m.role] || ROLE_COLORS.viewer}`}
+                      >
                         {m.role}
                       </span>
                     </button>
@@ -335,7 +376,7 @@ export default function TeamsManager() {
                 <p className="text-sm">No members yet</p>
               </div>
             ) : (
-              teamMembers.map(member => (
+              teamMembers.map((member) => (
                 <div
                   key={member.id}
                   className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -352,10 +393,14 @@ export default function TeamsManager() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[member.team_role] || ROLE_COLORS.member}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[member.team_role] || ROLE_COLORS.member}`}
+                    >
                       {member.team_role}
                     </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[member.org_role] || ROLE_COLORS.viewer}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[member.org_role] || ROLE_COLORS.viewer}`}
+                    >
                       {member.org_role}
                     </span>
                     <button
@@ -363,8 +408,18 @@ export default function TeamsManager() {
                       className="text-gray-400 hover:text-red-500 transition-colors p-1"
                       title="Remove from team"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </div>

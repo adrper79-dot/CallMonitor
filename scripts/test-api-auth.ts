@@ -1,9 +1,9 @@
 /**
  * API Authentication Test Script
- * 
+ *
  * Tests the Workers API authentication flow to diagnose 401 errors.
  * Run with: npx ts-node scripts/test-api-auth.ts
- * 
+ *
  * Tests:
  * 1. Verify API is reachable
  * 2. Test without auth token (should get 401)
@@ -66,7 +66,7 @@ async function testEndpoint(
 
     const status = response.status
     let data: any = null
-    
+
     try {
       const text = await response.text()
       data = text ? JSON.parse(text) : null
@@ -97,44 +97,40 @@ async function runTests() {
   const results: TestResult[] = []
 
   // Test 1: Health check (no auth required)
-  results.push(await testEndpoint(
-    '1. Health Check (no auth)',
-    '/health',
-    {},
-    200
-  ))
+  results.push(await testEndpoint('1. Health Check (no auth)', '/health', {}, 200))
 
   // Test 2: Calls endpoint without auth (should return 401)
-  results.push(await testEndpoint(
-    '2. GET /api/calls WITHOUT auth',
-    '/api/calls',
-    {},
-    401
-  ))
+  results.push(await testEndpoint('2. GET /api/calls WITHOUT auth', '/api/calls', {}, 401))
 
   // Test 3: Organizations/current without auth (should return 401)
-  results.push(await testEndpoint(
-    '3. GET /api/organizations/current WITHOUT auth',
-    '/api/organizations/current',
-    {},
-    401
-  ))
+  results.push(
+    await testEndpoint(
+      '3. GET /api/organizations/current WITHOUT auth',
+      '/api/organizations/current',
+      {},
+      401
+    )
+  )
 
   // Test 4: Users endpoint without auth (should return 401)
-  results.push(await testEndpoint(
-    '4. GET /api/users/{userId}/organization WITHOUT auth',
-    '/api/users/test-user-id/organization',
-    {},
-    401
-  ))
+  results.push(
+    await testEndpoint(
+      '4. GET /api/users/{userId}/organization WITHOUT auth',
+      '/api/users/test-user-id/organization',
+      {},
+      401
+    )
+  )
 
   // Test 5: Verify CORS preflight works
-  results.push(await testEndpoint(
-    '5. OPTIONS /api/calls (CORS preflight)',
-    '/api/calls',
-    { method: 'OPTIONS' },
-    204 // No Content for OPTIONS
-  ))
+  results.push(
+    await testEndpoint(
+      '5. OPTIONS /api/calls (CORS preflight)',
+      '/api/calls',
+      { method: 'OPTIONS' },
+      204 // No Content for OPTIONS
+    )
+  )
 
   // Interactive test: Test with real token
   console.log('\n' + '-'.repeat(60))
@@ -151,24 +147,28 @@ async function runTests() {
   if (token) {
     console.log('\n' + '-'.repeat(60))
     log('info', 'Testing with provided SESSION_TOKEN...')
-    
-    const authHeaders = { 'Authorization': `Bearer ${token}` }
+
+    const authHeaders = { Authorization: `Bearer ${token}` }
 
     // Test 6: Calls with auth
-    results.push(await testEndpoint(
-      '6. GET /api/calls WITH Bearer token',
-      '/api/calls',
-      { headers: authHeaders },
-      200
-    ))
+    results.push(
+      await testEndpoint(
+        '6. GET /api/calls WITH Bearer token',
+        '/api/calls',
+        { headers: authHeaders },
+        200
+      )
+    )
 
     // Test 7: Organizations with auth
-    results.push(await testEndpoint(
-      '7. GET /api/organizations/current WITH Bearer token',
-      '/api/organizations/current',
-      { headers: authHeaders },
-      200
-    ))
+    results.push(
+      await testEndpoint(
+        '7. GET /api/organizations/current WITH Bearer token',
+        '/api/organizations/current',
+        { headers: authHeaders },
+        200
+      )
+    )
   }
 
   // Summary
@@ -176,10 +176,10 @@ async function runTests() {
   log('info', 'Test Summary')
   console.log('='.repeat(60))
 
-  const passed = results.filter(r => r.passed).length
-  const failed = results.filter(r => !r.passed).length
+  const passed = results.filter((r) => r.passed).length
+  const failed = results.filter((r) => !r.passed).length
 
-  results.forEach(r => {
+  results.forEach((r) => {
     const icon = r.passed ? '✓' : '✗'
     const color = r.passed ? colors.green : colors.red
     console.log(`${color}${icon}${colors.reset} ${r.name}: ${r.status || 'ERROR'}`)
@@ -188,20 +188,22 @@ async function runTests() {
     }
   })
 
-  console.log(`\n${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`)
+  console.log(
+    `\n${colors.green}Passed: ${passed}${colors.reset} | ${colors.red}Failed: ${failed}${colors.reset}`
+  )
 
   // Diagnose issues
   console.log('\n' + '-'.repeat(60))
   log('info', 'Diagnosis:')
-  
-  const healthFailed = results.find(r => r.name.includes('Health Check') && !r.passed)
-  const authFailed = results.find(r => r.name.includes('WITH Bearer token') && !r.passed)
-  const noAuthWrong = results.find(r => r.name.includes('WITHOUT auth') && r.status !== 401)
+
+  const healthFailed = results.find((r) => r.name.includes('Health Check') && !r.passed)
+  const authFailed = results.find((r) => r.name.includes('WITH Bearer token') && !r.passed)
+  const noAuthWrong = results.find((r) => r.name.includes('WITHOUT auth') && r.status !== 401)
 
   if (healthFailed) {
     log('error', '• API is not reachable - check Workers deployment')
   }
-  
+
   if (noAuthWrong) {
     log('error', '• Auth middleware not returning 401 for unauthenticated requests')
     log('error', '  → Check workers/src/lib/auth.ts requireAuth function')

@@ -1,6 +1,13 @@
-"use client"
+'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react'
 import type { SurveyQuestionConfig } from '@/types/tier1-features'
 import { apiGet, apiPut } from '@/lib/apiClient'
 
@@ -9,6 +16,7 @@ export interface VoiceConfig {
   record?: boolean
   transcribe?: boolean
   translate?: boolean
+  translate_mode?: 'post_call' | 'live'
   translate_from?: string
   translate_to?: string
   survey?: boolean
@@ -29,8 +37,8 @@ export interface VoiceConfig {
   survey_webhook_email?: string
   survey_inbound_number?: string
   // Quick dial - transient fields (not persisted to DB, session-only)
-  quick_dial_number?: string | null  // Target number to call
-  from_number?: string | null         // Agent's phone number for bridge calls
+  quick_dial_number?: string | null // Target number to call
+  from_number?: string | null // Agent's phone number for bridge calls
 }
 
 // Map frontend-friendly names to database column names
@@ -97,69 +105,76 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
     fetchConfig()
   }, [organizationId])
 
-  const updateConfig = useCallback(async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
-    if (!organizationId) {
-      throw new Error('Organization ID required')
-    }
+  const updateConfig = useCallback(
+    async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
+      if (!organizationId) {
+        throw new Error('Organization ID required')
+      }
 
-    try {
-      setError(null)
-      
-      // Transient fields are stored locally only, not sent to server
-      // NOTE: target_id and campaign_id are transient because they don't exist in the DB schema
-      const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } = updates
-      
-      // Build transient updates object
-      const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'> = {}
-      if ('quick_dial_number' in updates) {
-        transientUpdates.quick_dial_number = quick_dial_number
-      }
-      if ('from_number' in updates) {
-        transientUpdates.from_number = from_number
-      }
-      if ('target_id' in updates) {
-        transientUpdates.target_id = target_id
-      }
-      if ('campaign_id' in updates) {
-        transientUpdates.campaign_id = campaign_id
-      }
-      
-      // Update local state immediately for transient fields (synchronous update)
-      if (Object.keys(transientUpdates).length > 0) {
-        setConfig(prev => {
-          const newConfig = { ...(prev || {}), ...transientUpdates }
-          return newConfig
+      try {
+        setError(null)
+
+        // Transient fields are stored locally only, not sent to server
+        // NOTE: target_id and campaign_id are transient because they don't exist in the DB schema
+        const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } =
+          updates
+
+        // Build transient updates object
+        const transientUpdates: Pick<
+          VoiceConfig,
+          'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'
+        > = {}
+        if ('quick_dial_number' in updates) {
+          transientUpdates.quick_dial_number = quick_dial_number
+        }
+        if ('from_number' in updates) {
+          transientUpdates.from_number = from_number
+        }
+        if ('target_id' in updates) {
+          transientUpdates.target_id = target_id
+        }
+        if ('campaign_id' in updates) {
+          transientUpdates.campaign_id = campaign_id
+        }
+
+        // Update local state immediately for transient fields (synchronous update)
+        if (Object.keys(transientUpdates).length > 0) {
+          setConfig((prev) => {
+            const newConfig = { ...(prev || {}), ...transientUpdates }
+            return newConfig
+          })
+        }
+
+        // If only transient fields changed, return immediately
+        if (Object.keys(persistentUpdates).length === 0) {
+          // Return current config with transient updates
+          return { ...(config || {}), ...transientUpdates }
+        }
+
+        // Map frontend field names to database column names
+        const mappedUpdates = mapFieldsToDb(persistentUpdates)
+
+        const data = await apiPut('/api/voice/config', {
+          orgId: organizationId,
+          modulations: mappedUpdates,
         })
+        // Preserve transient fields when updating from server response
+        const newConfig = {
+          ...(data.config || {}),
+          quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
+          from_number: transientUpdates.from_number ?? config?.from_number,
+          target_id: transientUpdates.target_id ?? config?.target_id,
+          campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
+        }
+        setConfig(newConfig)
+        return newConfig
+      } catch (err: any) {
+        setError(err?.message || 'Failed to update config')
+        throw err
       }
-      
-      // If only transient fields changed, return immediately
-      if (Object.keys(persistentUpdates).length === 0) {
-        // Return current config with transient updates
-        return { ...(config || {}), ...transientUpdates }
-      }
-      
-      // Map frontend field names to database column names
-      const mappedUpdates = mapFieldsToDb(persistentUpdates)
-      
-      const data = await apiPut('/api/voice/config', {
-        orgId: organizationId,
-        modulations: mappedUpdates,
-      })
-      // Preserve transient fields when updating from server response
-      const newConfig = { 
-        ...(data.config || {}), 
-        quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
-        from_number: transientUpdates.from_number ?? config?.from_number,
-        target_id: transientUpdates.target_id ?? config?.target_id,
-        campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
-      }
-      setConfig(newConfig)
-      return newConfig
-    } catch (err: any) {
-      setError(err?.message || 'Failed to update config')
-      throw err
-    }
-  }, [organizationId, config])
+    },
+    [organizationId, config]
+  )
 
   return (
     <VoiceConfigContext.Provider value={{ config, loading, error, updateConfig }}>
@@ -170,19 +185,19 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
 
 export function useVoiceConfig(organizationId?: string | null) {
   const context = useContext(VoiceConfigContext)
-  
+
   // Fallback state for components not wrapped in provider (backward compatibility)
   const [config, setConfig] = useState<VoiceConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // If used within provider, return context (hooks already called above)
   const hasContext = context !== null
-  
+
   useEffect(() => {
     // Skip fallback fetch if using context
     if (hasContext) return
-    
+
     if (!organizationId) {
       setConfig(null)
       setLoading(false)
@@ -207,57 +222,64 @@ export function useVoiceConfig(organizationId?: string | null) {
     fetchConfig()
   }, [organizationId, hasContext])
 
-  const updateConfig = useCallback(async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
-    // If using context, delegate to context's updateConfig
-    if (hasContext && context) {
-      return context.updateConfig(updates)
-    }
-    
-    if (!organizationId) {
-      throw new Error('Organization ID required')
-    }
+  const updateConfig = useCallback(
+    async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
+      // If using context, delegate to context's updateConfig
+      if (hasContext && context) {
+        return context.updateConfig(updates)
+      }
 
-    // Transient fields - not persisted to database
-    const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } = updates
-    
-    const transientUpdates: Pick<VoiceConfig, 'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'> = {}
-    if ('quick_dial_number' in updates) {
-      transientUpdates.quick_dial_number = quick_dial_number
-    }
-    if ('from_number' in updates) {
-      transientUpdates.from_number = from_number
-    }
-    if ('target_id' in updates) {
-      transientUpdates.target_id = target_id
-    }
-    if ('campaign_id' in updates) {
-      transientUpdates.campaign_id = campaign_id
-    }
-    
-    if (Object.keys(transientUpdates).length > 0) {
-      setConfig(prev => ({ ...(prev || {}), ...transientUpdates }))
-    }
-    
-    if (Object.keys(persistentUpdates).length === 0) {
-      return { ...(config || {}), ...transientUpdates }
-    }
-    
-    const mappedUpdates = mapFieldsToDb(persistentUpdates)
-    
-    const data = await apiPut('/api/voice/config', {
-      orgId: organizationId,
-      modulations: mappedUpdates,
-    })
-    const newConfig = { 
-      ...(data.config || {}), 
-      quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
-      from_number: transientUpdates.from_number ?? config?.from_number,
-      target_id: transientUpdates.target_id ?? config?.target_id,
-      campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
-    }
-    setConfig(newConfig)
-    return newConfig
-  }, [organizationId, config, hasContext, context])
+      if (!organizationId) {
+        throw new Error('Organization ID required')
+      }
+
+      // Transient fields - not persisted to database
+      const { quick_dial_number, from_number, target_id, campaign_id, ...persistentUpdates } =
+        updates
+
+      const transientUpdates: Pick<
+        VoiceConfig,
+        'quick_dial_number' | 'from_number' | 'target_id' | 'campaign_id'
+      > = {}
+      if ('quick_dial_number' in updates) {
+        transientUpdates.quick_dial_number = quick_dial_number
+      }
+      if ('from_number' in updates) {
+        transientUpdates.from_number = from_number
+      }
+      if ('target_id' in updates) {
+        transientUpdates.target_id = target_id
+      }
+      if ('campaign_id' in updates) {
+        transientUpdates.campaign_id = campaign_id
+      }
+
+      if (Object.keys(transientUpdates).length > 0) {
+        setConfig((prev) => ({ ...(prev || {}), ...transientUpdates }))
+      }
+
+      if (Object.keys(persistentUpdates).length === 0) {
+        return { ...(config || {}), ...transientUpdates }
+      }
+
+      const mappedUpdates = mapFieldsToDb(persistentUpdates)
+
+      const data = await apiPut('/api/voice/config', {
+        orgId: organizationId,
+        modulations: mappedUpdates,
+      })
+      const newConfig = {
+        ...(data.config || {}),
+        quick_dial_number: transientUpdates.quick_dial_number ?? config?.quick_dial_number,
+        from_number: transientUpdates.from_number ?? config?.from_number,
+        target_id: transientUpdates.target_id ?? config?.target_id,
+        campaign_id: transientUpdates.campaign_id ?? config?.campaign_id,
+      }
+      setConfig(newConfig)
+      return newConfig
+    },
+    [organizationId, config, hasContext, context]
+  )
 
   // If using context, return context values
   if (hasContext && context) {

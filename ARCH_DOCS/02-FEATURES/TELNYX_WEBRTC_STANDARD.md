@@ -11,22 +11,26 @@
 ```typescript
 // ✅ CORRECT - Enumerate and select real microphone
 const devices = await navigator.mediaDevices.enumerateDevices()
-const audioInputs = devices.filter(d => d.kind === 'audioinput')
+const audioInputs = devices.filter((d) => d.kind === 'audioinput')
 const virtualKeywords = ['steam', 'virtual', 'vb-audio', 'voicemeeter', 'cable']
-const realMic = audioInputs.find(d => !virtualKeywords.some(kw => d.label.toLowerCase().includes(kw)))
+const realMic = audioInputs.find(
+  (d) => !virtualKeywords.some((kw) => d.label.toLowerCase().includes(kw))
+)
 
-const audioConstraint = realMic ? {
-  deviceId: { exact: realMic.deviceId },
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true
-} : true
+const audioConstraint = realMic
+  ? {
+      deviceId: { exact: realMic.deviceId },
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    }
+  : true
 
 // Use in TelnyxRTC.newCall()
 const call = await client.newCall({
   destinationNumber: phoneNumber,
   callerNumber: callerId,
-  audio: audioConstraint
+  audio: audioConstraint,
 })
 ```
 
@@ -38,22 +42,22 @@ const call = await client.newCall({
 
 **Connection Method**: JWT-based authentication via `/api/webrtc/token` endpoint
 
-| Component | Purpose | Implementation |
-|-----------|---------|----------------|
-| `TelnyxRTC` client | WebRTC connection management | `hooks/useWebRTC.ts` |
-| Token endpoint | JWT generation | `workers/src/routes/webrtc.ts` |
-| Call state events | Real-time updates | `telnyx.notification` events |
+| Component              | Purpose                       | Implementation                 |
+| ---------------------- | ----------------------------- | ------------------------------ |
+| `TelnyxRTC` client     | WebRTC connection management  | `hooks/useWebRTC.ts`           |
+| Token endpoint         | JWT generation                | `workers/src/routes/webrtc.ts` |
+| Call state events      | Real-time updates             | `telnyx.notification` events   |
 | Audio device selection | Hardware microphone detection | Device enumeration + filtering |
 
 ### Key Differences from SignalWire
 
-| Aspect | SignalWire (Old) | TelnyxRTC (Current) |
-|--------|------------------|---------------------|
-| **Authentication** | SIP username/password | JWT token |
-| **Calling Method** | Server-side dial + SIP bridge | Client-side `newCall()` |
-| **Event Handling** | SIP INVITE/BYE | `telnyx.notification` with `callUpdate` |
-| **SDK** | SIP.js | @telnyx/webrtc v2.25.17 |
-| **Connection** | SIP registration | JWT connection |
+| Aspect             | SignalWire (Old)              | TelnyxRTC (Current)                     |
+| ------------------ | ----------------------------- | --------------------------------------- |
+| **Authentication** | SIP username/password         | JWT token                               |
+| **Calling Method** | Server-side dial + SIP bridge | Client-side `newCall()`                 |
+| **Event Handling** | SIP INVITE/BYE                | `telnyx.notification` with `callUpdate` |
+| **SDK**            | SIP.js                        | @telnyx/webrtc v2.25.17                 |
+| **Connection**     | SIP registration              | JWT connection                          |
 
 ---
 
@@ -66,6 +70,7 @@ const call = await client.newCall({
 **Request**: Empty body (credentials from environment)
 
 **Response**:
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
@@ -74,10 +79,11 @@ const call = await client.newCall({
 ```
 
 **Implementation**:
+
 ```typescript
 // workers/src/routes/webrtc.ts
 const token = await telnyxClient.token.create({
-  connection_id: c.env.TELNYX_CONNECTION_ID
+  connection_id: c.env.TELNYX_CONNECTION_ID,
 })
 return { token: token.token, caller_id: c.env.TELNYX_NUMBER }
 ```
@@ -93,7 +99,7 @@ return { token: token.token, caller_id: c.env.TELNYX_NUMBER }
 const call = await client.newCall({
   destinationNumber: phoneNumber,
   callerNumber: callerId,
-  audio: audioConstraint
+  audio: audioConstraint,
 })
 ```
 
@@ -105,6 +111,7 @@ const call = await client.newCall({
 **Event Type**: `telnyx.notification`
 
 **Event Structure**:
+
 ```typescript
 {
   type: 'callUpdate',
@@ -116,11 +123,13 @@ const call = await client.newCall({
 ```
 
 **State Flow**:
+
 ```
 new → requesting → trying → early → active → hangup → destroy
 ```
 
 **Implementation**:
+
 ```typescript
 client.on('telnyx.notification', (notification) => {
   if (notification.type === 'callUpdate') {
@@ -137,6 +146,7 @@ client.on('telnyx.notification', (notification) => {
 **Solution**: Enumerate devices and filter out virtual ones
 
 **Virtual Device Keywords**:
+
 - `steam`
 - `virtual`
 - `vb-audio`
@@ -144,22 +154,23 @@ client.on('telnyx.notification', (notification) => {
 - `cable`
 
 **Implementation**:
+
 ```typescript
 // Enumerate on component mount
 useEffect(() => {
-  navigator.mediaDevices.enumerateDevices().then(devices => {
-    const audioInputs = devices.filter(d => d.kind === 'audioinput')
+  navigator.mediaDevices.enumerateDevices().then((devices) => {
+    const audioInputs = devices.filter((d) => d.kind === 'audioinput')
     console.log('[Telnyx] === AVAILABLE AUDIO INPUT DEVICES ===', audioInputs)
   })
 }, [])
 
 // Select real microphone in makeCall()
 const devices = await navigator.mediaDevices.enumerateDevices()
-const audioInputs = devices.filter(d => d.kind === 'audioinput')
+const audioInputs = devices.filter((d) => d.kind === 'audioinput')
 const virtualKeywords = ['steam', 'virtual', 'vb-audio', 'voicemeeter', 'cable']
-const realMic = audioInputs.find(d => {
+const realMic = audioInputs.find((d) => {
   const label = d.label.toLowerCase()
-  return !virtualKeywords.some(kw => label.includes(kw))
+  return !virtualKeywords.some((kw) => label.includes(kw))
 })
 
 let audioConstraint: boolean | MediaTrackConstraints = true
@@ -168,7 +179,7 @@ if (realMic && realMic.deviceId) {
     deviceId: { exact: realMic.deviceId },
     echoCancellation: true,
     noiseSuppression: true,
-    autoGainControl: true
+    autoGainControl: true,
   }
   console.log('[Telnyx] Using real microphone:', realMic.label)
 }
@@ -178,11 +189,11 @@ if (realMic && realMic.deviceId) {
 
 ## Environment Variables
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `TELNYX_API_KEY` | API authentication | `KEY...` |
+| Variable               | Purpose                  | Example               |
+| ---------------------- | ------------------------ | --------------------- |
+| `TELNYX_API_KEY`       | API authentication       | `KEY...`              |
 | `TELNYX_CONNECTION_ID` | Credential connection ID | `2887319279378629637` |
-| `TELNYX_NUMBER` | Outbound caller ID | `+13048534096` |
+| `TELNYX_NUMBER`        | Outbound caller ID       | `+13048534096`        |
 
 ---
 
@@ -200,8 +211,8 @@ export function useWebRTC() {
 
   // Device enumeration on mount
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices().then(devices => {
-      const audioInputs = devices.filter(d => d.kind === 'audioinput')
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      const audioInputs = devices.filter((d) => d.kind === 'audioinput')
       console.log('[Telnyx] === AVAILABLE AUDIO INPUT DEVICES ===', audioInputs)
     })
   }, [])
@@ -226,11 +237,11 @@ export function useWebRTC() {
 
     // Find real microphone
     const devices = await navigator.mediaDevices.enumerateDevices()
-    const audioInputs = devices.filter(d => d.kind === 'audioinput')
+    const audioInputs = devices.filter((d) => d.kind === 'audioinput')
     const virtualKeywords = ['steam', 'virtual', 'vb-audio', 'voicemeeter', 'cable']
-    const realMic = audioInputs.find(d => {
+    const realMic = audioInputs.find((d) => {
       const label = d.label.toLowerCase()
-      return !virtualKeywords.some(kw => label.includes(kw))
+      return !virtualKeywords.some((kw) => label.includes(kw))
     })
 
     let audioConstraint: boolean | MediaTrackConstraints = true
@@ -239,7 +250,7 @@ export function useWebRTC() {
         deviceId: { exact: realMic.deviceId },
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true
+        autoGainControl: true,
       }
       console.log('[Telnyx] Using real microphone:', realMic.label)
     }
@@ -248,7 +259,7 @@ export function useWebRTC() {
       const call = await client.newCall({
         destinationNumber: phoneNumber,
         callerNumber: caller_id, // from token response
-        audio: audioConstraint
+        audio: audioConstraint,
       })
       currentCallRef.current = call
       return call
@@ -286,12 +297,12 @@ export async function POST(c: Context) {
 
   try {
     const token = await telnyxClient.token.create({
-      connection_id: c.env.TELNYX_CONNECTION_ID
+      connection_id: c.env.TELNYX_CONNECTION_ID,
     })
 
     return c.json({
       token: token.token, // Plain JWT string
-      caller_id: c.env.TELNYX_NUMBER
+      caller_id: c.env.TELNYX_NUMBER,
     })
   } catch (error) {
     return c.json({ error: 'Token generation failed' }, 500)
@@ -304,12 +315,14 @@ export async function POST(c: Context) {
 ## Testing Checklist
 
 ### Pre-Flight
+
 - [ ] `TELNYX_CONNECTION_ID` is valid (2887319279378629637)
 - [ ] `TELNYX_NUMBER` is verified caller ID (+13048534096)
 - [ ] Token endpoint returns valid JWT + caller_id
 - [ ] Browser has microphone permissions
 
 ### Test Flow
+
 1. [ ] Load page → Click "Connect" → Console shows "telnyx.ready"
 2. [ ] Check console for audio device enumeration logs
 3. [ ] Enter phone number → Click "Call"
@@ -320,6 +333,7 @@ export async function POST(c: Context) {
 8. [ ] Hang up → state goes to hangup → destroy
 
 ### Audio Debugging
+
 - [ ] Check console for `[Telnyx] === LOCAL AUDIO DEBUG ===`
 - [ ] Verify `enabled=true`, `muted=false`, `readyState=live`
 - [ ] Confirm device label shows real hardware (not virtual)
@@ -342,6 +356,7 @@ export async function POST(c: Context) {
 **Cause**: Invalid JWT token or connection ID
 
 **Fix**:
+
 - Verify `TELNYX_CONNECTION_ID` is correct
 - Check token endpoint returns valid JWT
 - Ensure `TELNYX_API_KEY` has proper permissions
@@ -351,6 +366,7 @@ export async function POST(c: Context) {
 **Cause**: No microphone permissions or hardware issues
 
 **Fix**:
+
 - Check browser microphone permissions
 - Verify audio devices are connected
 - Test with different browser
@@ -371,17 +387,18 @@ export async function POST(c: Context) {
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `hooks/useWebRTC.ts` | TelnyxRTC client hook with device selection |
-| `workers/src/routes/webrtc.ts` | JWT token generation endpoint |
-| `ARCH_DOCS/02-FEATURES/TELNYX_WEBRTC_STANDARD.md` | This document |
+| File                                              | Purpose                                     |
+| ------------------------------------------------- | ------------------------------------------- |
+| `hooks/useWebRTC.ts`                              | TelnyxRTC client hook with device selection |
+| `workers/src/routes/webrtc.ts`                    | JWT token generation endpoint               |
+| `ARCH_DOCS/02-FEATURES/TELNYX_WEBRTC_STANDARD.md` | This document                               |
 
 ---
 
 ## Migration Notes
 
 **From SignalWire to TelnyxRTC**:
+
 - Replace SIP.js with @telnyx/webrtc
 - Change authentication from SIP credentials to JWT
 - Switch from server-side dial to client-side newCall()
@@ -389,8 +406,9 @@ export async function POST(c: Context) {
 - Add microphone device enumeration (critical for audio)
 
 **Breaking Changes**:
+
 - No more SIP registration flow
 - Different event structure
 - Client-side calling only
 - JWT authentication required</content>
-<parameter name="filePath">c:\Users\Ultimate Warrior\My project\gemini-project\ARCH_DOCS\02-FEATURES\TELNYX_WEBRTC_STANDARD.md
+  <parameter name="filePath">c:\Users\Ultimate Warrior\My project\gemini-project\ARCH_DOCS\02-FEATURES\TELNYX_WEBRTC_STANDARD.md

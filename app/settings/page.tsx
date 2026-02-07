@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect, Suspense } from 'react'
 import { useSession } from '@/components/AuthProvider'
@@ -28,7 +28,14 @@ import { AppShell } from '@/components/layout/AppShell'
 import { logger } from '@/lib/logger'
 import { ProductTour, SETTINGS_TOUR } from '@/components/tour'
 
-type TabId = 'call-config' | 'ai-control' | 'quality' | 'compliance' | 'team' | 'webhooks' | 'billing'
+type TabId =
+  | 'call-config'
+  | 'ai-control'
+  | 'quality'
+  | 'compliance'
+  | 'team'
+  | 'webhooks'
+  | 'billing'
 
 function SettingsPageContent() {
   const { data: session } = useSession()
@@ -54,14 +61,13 @@ function SettingsPageContent() {
         const data = await apiGet<{ organization_id?: string; organization_name?: string }>(
           `/api/users/${userId}/organization`
         )
-        const orgId = data.organization_id || 'test-org-id'
+        const orgId = data.organization_id || ''
         setOrganizationId(orgId)
-        setOrganizationName(data.organization_name || 'Test Organization')
+        setOrganizationName(data.organization_name || null)
       } catch (e) {
-        logger.error('Failed to fetch organization, using test-org-id', e, { userId })
-        // Use test-org-id as fallback for testing
-        setOrganizationId('test-org-id')
-        setOrganizationName('Test Organization')
+        logger.error('Failed to fetch organization', e, { userId })
+        setOrganizationId('')
+        setOrganizationName(null)
       } finally {
         setLoading(false)
       }
@@ -71,7 +77,6 @@ function SettingsPageContent() {
   }, [userId])
 
   const { role, plan } = useRBAC(organizationId)
-
 
   if (loading) {
     return (
@@ -100,7 +105,9 @@ function SettingsPageContent() {
           </a>
           <p className="mt-4 text-sm text-gray-500">
             Don't have an account?{' '}
-            <a href="/signup" className="text-primary-600 hover:text-primary-700">Create one</a>
+            <a href="/signup" className="text-primary-600 hover:text-primary-700">
+              Create one
+            </a>
           </p>
         </div>
       </main>
@@ -110,7 +117,11 @@ function SettingsPageContent() {
   // Organized tabs by job-to-be-done
   const tabs: { id: TabId; label: string; description: string }[] = [
     { id: 'call-config', label: 'Call Configuration', description: 'Targets, Caller ID, defaults' },
-    { id: 'ai-control', label: 'AI & Intelligence', description: 'Transcription, translation, surveys' },
+    {
+      id: 'ai-control',
+      label: 'AI & Intelligence',
+      description: 'Transcription, translation, surveys',
+    },
     { id: 'quality', label: 'Quality Assurance', description: 'AI quality evaluation scripts' },
     { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
     { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations' },
@@ -139,15 +150,16 @@ function SettingsPageContent() {
       <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Tab Navigation - Improved hierarchy */}
         <nav className="flex flex-wrap gap-2 mb-8" data-tour="settings-tabs">
-          {tabs.map(tab => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               data-tour={`tab-${tab.id}`}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.id
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-primary-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
             >
               {tab.label}
             </button>
@@ -172,7 +184,9 @@ function SettingsPageContent() {
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Caller ID Management</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                      Caller ID Management
+                    </h2>
                     <p className="text-sm text-gray-500">
                       Verify and manage phone numbers that appear as your caller ID.
                     </p>
@@ -186,12 +200,17 @@ function SettingsPageContent() {
           {/* AI Control & Intelligence - AI settings + Surveys */}
           {activeTab === 'ai-control' && (
             <div className="space-y-8">
-              <AIControlSection organizationId={organizationId ?? ''} canEdit={role === 'owner' || role === 'admin'} />
+              <AIControlSection
+                organizationId={organizationId ?? ''}
+                canEdit={role === 'owner' || role === 'admin'}
+              />
 
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-1">AI Agent Configuration</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                      AI Agent Configuration
+                    </h2>
                     <p className="text-sm text-gray-500">
                       Configure live translation, voice cloning, and AI model settings.
                     </p>
@@ -222,9 +241,12 @@ function SettingsPageContent() {
           {activeTab === 'quality' && (
             <section className="space-y-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">AI Quality Evaluation Scripts</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                  AI Quality Evaluation Scripts
+                </h2>
                 <p className="text-sm text-gray-500">
-                  Create and manage scripts for AI-powered quality evaluations. For internal QA purposes only.
+                  Create and manage scripts for AI-powered quality evaluations. For internal QA
+                  purposes only.
                 </p>
               </div>
               <ShopperScriptManager organizationId={organizationId} />
@@ -252,16 +274,16 @@ function SettingsPageContent() {
           )}
 
           {/* Team Management */}
-          {activeTab === 'team' && (
-            <TeamManagement organizationId={organizationId} />
-          )}
+          {activeTab === 'team' && <TeamManagement organizationId={organizationId} />}
 
           {/* Webhooks - Integrations & Event Subscriptions */}
           {activeTab === 'webhooks' && (
             <div className="space-y-8">
               <section className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-1">Webhook Subscriptions</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                    Webhook Subscriptions
+                  </h2>
                   <p className="text-sm text-gray-500">
                     Receive real-time notifications when events occur in your organization.
                   </p>
@@ -275,7 +297,9 @@ function SettingsPageContent() {
               <div className="border-t border-gray-200 pt-8">
                 <section className="space-y-6">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Developer Documentation</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                      Developer Documentation
+                    </h2>
                     <p className="text-sm text-gray-500">
                       Learn how to verify webhook signatures and implement webhook handlers.
                     </p>
@@ -300,26 +324,17 @@ function SettingsPageContent() {
               <UsageDisplay organizationId={organizationId} plan={plan || 'free'} />
 
               {/* Subscription Manager - New Component */}
-              <SubscriptionManager
-                organizationId={organizationId}
-                role={role || 'viewer'}
-              />
+              <SubscriptionManager organizationId={organizationId} role={role || 'viewer'} />
 
               {/* Payment Methods - New Component */}
-              <PaymentMethodManager
-                organizationId={organizationId}
-                role={role || 'viewer'}
-              />
+              <PaymentMethodManager organizationId={organizationId} role={role || 'viewer'} />
 
               {/* Invoice History - New Component */}
-              <InvoiceHistory
-                organizationId={organizationId}
-                role={role || 'viewer'}
-              />
+              <InvoiceHistory organizationId={organizationId} role={role || 'viewer'} />
 
               {/* Plan Comparison - New Component */}
               <PlanComparisonTable
-                currentPlan={plan as 'free' | 'pro' | 'enterprise' || 'free'}
+                currentPlan={(plan as 'free' | 'pro' | 'enterprise') || 'free'}
                 organizationId={organizationId}
                 role={role || 'viewer'}
               />
@@ -328,18 +343,33 @@ function SettingsPageContent() {
                 <h3 className="font-medium text-gray-900 mb-4">Upgrade Drivers</h3>
                 <div className="grid md:grid-cols-3 gap-4">
                   {[
-                    { title: 'Audit‑Ready Evidence', detail: 'Custody‑grade bundles with canonical hashing.' },
-                    { title: 'Export + Debug Bundle', detail: 'Deterministic exports with manifests + provenance.' },
-                    { title: 'Verification Ready', detail: 'Verify bundles and manifests independently.' },
+                    {
+                      title: 'Audit‑Ready Evidence',
+                      detail: 'Custody‑grade bundles with canonical hashing.',
+                    },
+                    {
+                      title: 'Export + Debug Bundle',
+                      detail: 'Deterministic exports with manifests + provenance.',
+                    },
+                    {
+                      title: 'Verification Ready',
+                      detail: 'Verify bundles and manifests independently.',
+                    },
                   ].map((item) => (
-                    <div key={item.title} className="bg-gray-50 rounded-md p-4 border border-gray-200">
+                    <div
+                      key={item.title}
+                      className="bg-gray-50 rounded-md p-4 border border-gray-200"
+                    >
                       <p className="text-sm font-semibold text-gray-900">{item.title}</p>
                       <p className="text-xs text-gray-600 mt-1">{item.detail}</p>
                     </div>
                   ))}
                 </div>
                 <div className="mt-4">
-                  <a href="/pricing" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                  <a
+                    href="/pricing"
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
                     View pricing and plan details
                   </a>
                 </div>
@@ -351,7 +381,7 @@ function SettingsPageContent() {
           {role && (
             <div className="text-sm text-gray-500 border-t border-gray-200 pt-4">
               Your role: <span className="text-gray-900 font-medium">{role}</span>
-              {(role === 'owner' || role === 'admin') ? (
+              {role === 'owner' || role === 'admin' ? (
                 <span className="text-success ml-2">Full settings access</span>
               ) : (
                 <span className="text-warning ml-2">Limited access</span>
@@ -373,12 +403,20 @@ function SettingsPageContent() {
  */
 function AIControlSection({
   organizationId,
-  canEdit
+  canEdit,
 }: {
   organizationId: string
   canEdit: boolean
 }) {
   const { config, updateConfig, loading } = useVoiceConfig(organizationId)
+
+  if (!organizationId) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <p>Organization not available. Please try signing in again.</p>
+      </div>
+    )
+  }
 
   const features = [
     {
@@ -387,7 +425,12 @@ function AIControlSection({
       description: 'Disable: Source recordings remain. Manual review only.',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
         </svg>
       ),
     },
@@ -397,7 +440,12 @@ function AIControlSection({
       description: 'Disable: Canonical transcripts remain. Translation off.',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.5}
+            d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+          />
         </svg>
       ),
     },
@@ -416,34 +464,42 @@ function AIControlSection({
     <section className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">AI Control & Independence</h2>
-        <p className="text-sm text-gray-500">
-          You own your data. We make that real.
-        </p>
+        <p className="text-sm text-gray-500">You own your data. We make that real.</p>
       </div>
 
       <div className="bg-white rounded-md border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-md bg-success-light flex items-center justify-center">
-            <svg className="w-5 h-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            <svg
+              className="w-5 h-5 text-success"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
             </svg>
           </div>
           <div>
             <h3 className="text-base font-semibold text-gray-900">Evidence Independence</h3>
-            <p className="text-sm text-gray-500">Disable any AI feature without losing your source evidence</p>
+            <p className="text-sm text-gray-500">
+              Disable any AI feature without losing your source evidence
+            </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          {features.map(feature => (
+          {features.map((feature) => (
             <div
               key={feature.key}
               className="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-200"
             >
               <div className="flex items-center gap-3">
-                <div className="text-gray-400">
-                  {feature.icon}
-                </div>
+                <div className="text-gray-400">{feature.icon}</div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">{feature.label}</p>
                   <p className="text-xs text-gray-500">{feature.description}</p>
@@ -461,10 +517,10 @@ function AIControlSection({
 
         <div className="mt-6 p-4 bg-info-light rounded-md border border-blue-200">
           <p className="text-sm text-gray-700">
-            <strong className="text-gray-900">Why this matters:</strong> Your call
-            evidence must be defensible in disputes, audits, and legal proceedings.
-            AI assists — but never replaces — the source of truth. Source recordings
-            and canonical transcripts are always preserved, regardless of AI settings.
+            <strong className="text-gray-900">Why this matters:</strong> Your call evidence must be
+            defensible in disputes, audits, and legal proceedings. AI assists — but never replaces —
+            the source of truth. Source recordings and canonical transcripts are always preserved,
+            regardless of AI settings.
           </p>
         </div>
       </div>
@@ -474,28 +530,80 @@ function AIControlSection({
         <h3 className="text-base font-semibold text-gray-900 mb-4">Evidence Guarantee</h3>
         <ul className="space-y-3 text-sm text-gray-600">
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Source recordings</strong> are never modified after capture</span>
+            <span>
+              <strong className="text-gray-900">Source recordings</strong> are never modified after
+              capture
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Canonical transcripts</strong> are versioned and cryptographically hashed</span>
+            <span>
+              <strong className="text-gray-900">Canonical transcripts</strong> are versioned and
+              cryptographically hashed
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Evidence manifests</strong> provide full provenance chain</span>
+            <span>
+              <strong className="text-gray-900">Evidence manifests</strong> provide full provenance
+              chain
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-success mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-success mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Export bundles</strong> are self-contained and vendor-independent</span>
+            <span>
+              <strong className="text-gray-900">Export bundles</strong> are self-contained and
+              vendor-independent
+            </span>
           </li>
         </ul>
       </div>
@@ -505,14 +613,16 @@ function AIControlSection({
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-5xl mx-auto flex items-center justify-center h-64">
-          <div className="loading-spinner" />
-          <span className="ml-3 text-gray-500">Loading...</span>
-        </div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-gray-50 p-8">
+          <div className="max-w-5xl mx-auto flex items-center justify-center h-64">
+            <div className="loading-spinner" />
+            <span className="ml-3 text-gray-500">Loading...</span>
+          </div>
+        </main>
+      }
+    >
       <SettingsPageContent />
     </Suspense>
   )

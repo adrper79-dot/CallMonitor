@@ -28,6 +28,7 @@ import { bondAiRoutes } from './routes/bond-ai'
 import { teamsRoutes } from './routes/teams'
 import { campaignsRoutes } from './routes/campaigns'
 import { voiceRoutes } from './routes/voice'
+import { liveTranslationRoutes } from './routes/live-translation'
 import { callCapabilitiesRoutes } from './routes/call-capabilities'
 import { billingRoutes } from './routes/billing'
 import { surveysRoutes } from './routes/surveys'
@@ -166,6 +167,7 @@ app.route('/api/rbac', rbacRoutes)
 app.route('/api/analytics', analyticsRoutes)
 app.route('/api/campaigns', campaignsRoutes)
 app.route('/api/voice', voiceRoutes)
+app.route('/api/voice/translate', liveTranslationRoutes)
 app.route('/api/call-capabilities', callCapabilitiesRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/surveys', surveysRoutes)

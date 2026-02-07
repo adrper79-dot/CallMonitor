@@ -22,18 +22,20 @@ const connectionString = c.env.HYPERDRIVE?.connectionString || c.env.NEON_PG_CON
 
 ### Hyperdrive vs @neondatabase/serverless Are Incompatible
 
-| Technology | Connection Method | Protocol |
-|------------|-------------------|----------|
-| Cloudflare Hyperdrive | TCP proxy | PostgreSQL wire protocol |
-| @neondatabase/serverless | WebSocket | WebSocket to Neon endpoint |
+| Technology               | Connection Method | Protocol                   |
+| ------------------------ | ----------------- | -------------------------- |
+| Cloudflare Hyperdrive    | TCP proxy         | PostgreSQL wire protocol   |
+| @neondatabase/serverless | WebSocket         | WebSocket to Neon endpoint |
 
 **Hyperdrive** is Cloudflare's database connection pooler/accelerator. It:
+
 - Proxies connections to your database
 - Uses standard PostgreSQL wire protocol over TCP
 - Provides connection pooling and caching
 - Works with standard `pg` library
 
 **@neondatabase/serverless** is Neon's edge-compatible driver. It:
+
 - Uses WebSocket connections (not TCP)
 - Connects directly to Neon's serverless WebSocket endpoint
 - Is designed for edge runtimes that don't support TCP
@@ -54,10 +56,10 @@ When you pass `HYPERDRIVE.connectionString` to the Neon serverless driver:
 
 ### Environment Variables
 
-| Variable | Purpose | Use With |
-|----------|---------|----------|
+| Variable       | Purpose                           | Use With                                |
+| -------------- | --------------------------------- | --------------------------------------- |
 | `NEON_PG_CONN` | Direct Neon serverless connection | `@neondatabase/serverless` (neon, Pool) |
-| `HYPERDRIVE` | Cloudflare connection pooler | Standard `pg` library only |
+| `HYPERDRIVE`   | Cloudflare connection pooler      | Standard `pg` library only              |
 
 ### Connection String Priority
 
@@ -128,7 +130,7 @@ This bug is hard to catch because:
 Before deploying any database-related changes, verify:
 
 - [ ] All `getDb()` calls use `NEON_PG_CONN` first
-- [ ] All `neon()` imports use `NEON_PG_CONN` first  
+- [ ] All `neon()` imports use `NEON_PG_CONN` first
 - [ ] All `Pool` instantiations use `NEON_PG_CONN` first
 - [ ] No route directly accesses `HYPERDRIVE.connectionString` without fallback
 
@@ -149,6 +151,7 @@ grep -r "NEON_PG_CONN.*||.*HYPERDRIVE" workers/src/
 ### When to Use Hyperdrive
 
 Hyperdrive CAN be used if:
+
 1. You switch from `@neondatabase/serverless` to standard `pg` library
 2. You need connection pooling at the Cloudflare edge level
 3. You're connecting to a non-Neon Postgres database
@@ -156,6 +159,7 @@ Hyperdrive CAN be used if:
 ### Migration Path
 
 If we ever need Hyperdrive's features:
+
 1. Replace `@neondatabase/serverless` with `pg` library
 2. Update all database code to use `HYPERDRIVE.connectionString`
 3. Remove `NEON_PG_CONN` from secrets
@@ -174,8 +178,8 @@ But for now, **Neon serverless driver with direct connection is our standard**.
 
 ## Incident History
 
-| Date | Issue | Root Cause | Hours Lost |
-|------|-------|------------|------------|
-| 2026-02-05 | Auth sessions not verifying | `verifySession` used HYPERDRIVE first | 4+ |
-| 2026-02-05 | /api/calls returning WebSocket error | `getDb()` used HYPERDRIVE first | 2+ |
-| 2026-02-05 | Login working but session invalid | Inconsistent connection string order | 2+ |
+| Date       | Issue                                | Root Cause                            | Hours Lost |
+| ---------- | ------------------------------------ | ------------------------------------- | ---------- |
+| 2026-02-05 | Auth sessions not verifying          | `verifySession` used HYPERDRIVE first | 4+         |
+| 2026-02-05 | /api/calls returning WebSocket error | `getDb()` used HYPERDRIVE first       | 2+         |
+| 2026-02-05 | Login working but session invalid    | Inconsistent connection string order  | 2+         |

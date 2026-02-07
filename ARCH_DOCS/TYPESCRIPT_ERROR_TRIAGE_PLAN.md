@@ -1,22 +1,25 @@
 # TypeScript Error Triage Plan
+
 **Generated:** 2026-02-04  
 **Total Errors:** 748 across 213 files  
-**Priority:** HIGH - Fix before general availability  
+**Priority:** HIGH - Fix before general availability
 
 ## Error Categories & Resolution Strategy
 
 ### 1. API Response Type Issues (High Priority - 50+ errors)
+
 **Files:** `lib/apiClient.ts`, `hooks/useCallDetails.ts`, `hooks/useVoiceConfig.tsx`, `workers/src/routes/webrtc.ts`
 
 **Problem:** `fetch()` responses typed as `unknown`, causing property access errors
 **Solution:**
+
 ```typescript
 // Before
 const data = await res.json() // unknown
 return data.user // Error: property doesn't exist
 
 // After
-const data = await res.json() as { user: User } // Type assertion
+const data = (await res.json()) as { user: User } // Type assertion
 return data.user
 ```
 
@@ -25,6 +28,7 @@ return data.user
 ---
 
 ### 2. Missing Module Imports (High Priority - 151 errors)
+
 **File:** `dist_deploy/types/validator.ts`
 
 **Problem:** Type validator references non-existent API route files
@@ -33,10 +37,12 @@ return data.user
 ---
 
 ### 3. Undefined Variables (Medium Priority - 25+ errors)
+
 **Files:** `lib/services/callerIdService.ts`, `workers/src/routes/calls.ts`
 
 **Problem:** Variables referenced before declaration or out of scope
 **Examples:**
+
 - `userId` vs `user_id` naming inconsistency
 - `query` function undefined in service classes
 
@@ -45,6 +51,7 @@ return data.user
 ---
 
 ### 4. CRM Provider Type Issues (Medium Priority - 33 errors)
+
 **Files:** `lib/services/crmProviders/hubspot.ts`, `lib/services/crmProviders/salesforce.ts`
 
 **Problem:** API responses from external services typed as `unknown`
@@ -53,6 +60,7 @@ return data.user
 ---
 
 ### 5. Database Query Result Types (Low Priority - 10+ errors)
+
 **Files:** `tools/verify_evidence_bundle.ts`, `lib/pgClient.ts`
 
 **Problem:** Query results typed incorrectly (expecting `.rows` property)
@@ -63,16 +71,19 @@ return data.user
 ## Implementation Plan
 
 ### Phase 1: Critical API Types (Week 1)
+
 1. Define response interfaces for all API endpoints
 2. Add type guards for external API responses
 3. Fix undefined variable references
 
 ### Phase 2: Service Layer Types (Week 2)
+
 1. Add proper types for CRM provider integrations
 2. Fix database query result handling
 3. Update service class imports
 
 ### Phase 3: Validation & Testing (Week 3)
+
 1. Update type validator to match current API structure
 2. Run full TypeScript compilation after each phase
 3. Add type tests for critical paths
@@ -97,5 +108,5 @@ return data.user
 
 ---
 
-*Generated from TypeScript compilation analysis*</content>
+_Generated from TypeScript compilation analysis_</content>
 <parameter name="filePath">c:\Users\Ultimate Warrior\My project\gemini-project\ARCH_DOCS\TYPESCRIPT_ERROR_TRIAGE_PLAN.md

@@ -1,6 +1,6 @@
 /**
  * Structured Error Framework for Cloudflare Workers
- * 
+ *
  * Best practices:
  * - Every error gets a unique correlation ID for tracing
  * - Differential data: captures request context, environment state, timing
@@ -16,13 +16,13 @@ import type { Env } from '../index'
 
 export type ErrorSeverity = 'debug' | 'info' | 'warn' | 'error' | 'critical'
 export type ErrorCategory =
-  | 'auth'           // Authentication/authorization failures
-  | 'database'       // DB connection, query, constraint errors
-  | 'external_api'   // Telnyx, OpenAI, Stripe, AssemblyAI, etc.
-  | 'validation'     // Input validation failures
+  | 'auth' // Authentication/authorization failures
+  | 'database' // DB connection, query, constraint errors
+  | 'external_api' // Telnyx, OpenAI, Stripe, AssemblyAI, etc.
+  | 'validation' // Input validation failures
   | 'business_logic' // Domain logic violations
   | 'infrastructure' // Workers runtime, KV, R2, Hyperdrive
-  | 'unknown'        // Uncategorized errors
+  | 'unknown' // Uncategorized errors
 
 export interface ErrorContext {
   correlation_id: string
@@ -262,23 +262,25 @@ export function logError(ctx: ErrorContext): void {
         : console.log
 
   // Structured JSON log line — parseable by any log aggregator
-  logFn(JSON.stringify({
-    level: ctx.severity.toUpperCase(),
-    correlation_id: ctx.correlation_id,
-    category: ctx.category,
-    service: ctx.service,
-    method: ctx.request.method,
-    path: ctx.request.path,
-    status: isAppError(ctx.error as any) ? (ctx.error as any).status : 500,
-    error: ctx.error.message,
-    error_code: ctx.error.code,
-    user_id: ctx.user?.user_id,
-    org_id: ctx.user?.organization_id,
-    duration_ms: ctx.timing?.duration_ms,
-    cf_ray: ctx.request.cf_ray,
-    region: ctx.environment.region,
-    differential: ctx.differential,
-  }))
+  logFn(
+    JSON.stringify({
+      level: ctx.severity.toUpperCase(),
+      correlation_id: ctx.correlation_id,
+      category: ctx.category,
+      service: ctx.service,
+      method: ctx.request.method,
+      path: ctx.request.path,
+      status: isAppError(ctx.error as any) ? (ctx.error as any).status : 500,
+      error: ctx.error.message,
+      error_code: ctx.error.code,
+      user_id: ctx.user?.user_id,
+      org_id: ctx.user?.organization_id,
+      duration_ms: ctx.timing?.duration_ms,
+      cf_ray: ctx.request.cf_ray,
+      region: ctx.environment.region,
+      differential: ctx.differential,
+    })
+  )
 }
 
 /**

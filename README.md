@@ -11,17 +11,17 @@
 
 ## Architecture
 
-| Layer | Technology | URL |
-|-------|-----------|-----|
-| **UI** | Next.js 15 · React 19 · Tailwind 4 | `https://voxsouth.online` |
-| **API** | Hono 4.7 on Cloudflare Workers | `https://wordisbond-api.adrper79.workers.dev` |
-| **Database** | Neon PostgreSQL 17 (serverless) | Hyperdrive-pooled |
-| **Storage** | Cloudflare R2 | Recordings, evidence bundles |
-| **Cache / KV** | Cloudflare KV | Rate limiting, idempotency |
-| **Auth** | Custom session + bcrypt | Cookie-based, fingerprint-bound |
-| **Payments** | Stripe | Checkout, subscriptions, portal |
-| **Voice** | Telnyx WebRTC + SIP | Two-way browser calling |
-| **AI** | OpenAI, ElevenLabs, AssemblyAI | Summaries, TTS, transcription |
+| Layer          | Technology                         | URL                                           |
+| -------------- | ---------------------------------- | --------------------------------------------- |
+| **UI**         | Next.js 15 · React 19 · Tailwind 4 | `https://voxsouth.online`                     |
+| **API**        | Hono 4.7 on Cloudflare Workers     | `https://wordisbond-api.adrper79.workers.dev` |
+| **Database**   | Neon PostgreSQL 17 (serverless)    | Hyperdrive-pooled                             |
+| **Storage**    | Cloudflare R2                      | Recordings, evidence bundles                  |
+| **Cache / KV** | Cloudflare KV                      | Rate limiting, idempotency                    |
+| **Auth**       | Custom session + bcrypt            | Cookie-based, fingerprint-bound               |
+| **Payments**   | Stripe                             | Checkout, subscriptions, portal               |
+| **Voice**      | Telnyx WebRTC + SIP                | Two-way browser calling                       |
+| **AI**         | OpenAI, ElevenLabs, AssemblyAI     | Summaries, TTS, transcription                 |
 
 Static UI is exported via `next build` → deployed to Cloudflare Pages.  
 All dynamic logic lives in `workers/src/` → deployed as a single Cloudflare Worker.
@@ -54,53 +54,59 @@ npm run test:live    # Production smoke tests
 ## npm Scripts
 
 ### Development
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Next.js dev server (port 3000) |
-| `npm run api:dev` | Wrangler Workers dev server (port 8787) |
-| `npm run build` | Next.js production build (static export) |
+
+| Script            | Description                              |
+| ----------------- | ---------------------------------------- |
+| `npm run dev`     | Next.js dev server (port 3000)           |
+| `npm run api:dev` | Wrangler Workers dev server (port 8787)  |
+| `npm run build`   | Next.js production build (static export) |
 
 ### Deployment
-| Script | Description |
-|--------|-------------|
-| `npm run deploy:all` | **Full deploy** — env verify → build → Pages → Workers |
-| `npm run pages:deploy` | Deploy UI to Cloudflare Pages |
-| `npm run api:deploy` | Deploy API to Cloudflare Workers |
-| `npm run env:verify` | Validate all required env vars |
+
+| Script                 | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `npm run deploy:all`   | **Full deploy** — env verify → build → Pages → Workers |
+| `npm run pages:deploy` | Deploy UI to Cloudflare Pages                          |
+| `npm run api:deploy`   | Deploy API to Cloudflare Workers                       |
+| `npm run env:verify`   | Validate all required env vars                         |
 
 ### Testing
-| Script | Description |
-|--------|-------------|
-| `npm test` | Run vitest in watch mode |
-| `npm run test:run` | Single vitest run |
-| `npm run test:live` | Production smoke tests (all) |
-| `npm run test:live:api` | API endpoint smoke tests |
-| `npm run test:live:db` | Database connectivity tests |
-| `npm run test:live:voice` | Voice/Telnyx tests |
-| `npm run test:coverage` | Coverage report |
+
+| Script                    | Description                  |
+| ------------------------- | ---------------------------- |
+| `npm test`                | Run vitest in watch mode     |
+| `npm run test:run`        | Single vitest run            |
+| `npm run test:live`       | Production smoke tests (all) |
+| `npm run test:live:api`   | API endpoint smoke tests     |
+| `npm run test:live:db`    | Database connectivity tests  |
+| `npm run test:live:voice` | Voice/Telnyx tests           |
+| `npm run test:coverage`   | Coverage report              |
 
 ### Database
-| Script | Description |
-|--------|-------------|
-| `npm run db:migrate` | Run schema migrations |
+
+| Script                  | Description            |
+| ----------------------- | ---------------------- |
+| `npm run db:migrate`    | Run schema migrations  |
 | `npm run db:reset-test` | Reset + seed test data |
 
 ### Code Quality
-| Script | Description |
-|--------|-------------|
-| `npm run lint` | ESLint check |
-| `npm run lint:fix` | ESLint auto-fix |
-| `npm run format` | Prettier format all |
-| `npm run format:check` | Prettier check |
-| `npm run typecheck` | TypeScript type check |
-| `npm run cf:typegen` | Generate Cloudflare env types |
+
+| Script                 | Description                   |
+| ---------------------- | ----------------------------- |
+| `npm run lint`         | ESLint check                  |
+| `npm run lint:fix`     | ESLint auto-fix               |
+| `npm run format`       | Prettier format all           |
+| `npm run format:check` | Prettier check                |
+| `npm run typecheck`    | TypeScript type check         |
+| `npm run cf:typegen`   | Generate Cloudflare env types |
 
 ### Observability
-| Script | Description |
-|--------|-------------|
+
+| Script                 | Description                 |
+| ---------------------- | --------------------------- |
 | `npm run health-check` | Curl the `/health` endpoint |
-| `npm run api:tail` | Live-tail Workers logs |
-| `npm run cf:logs` | Pretty-print Workers logs |
+| `npm run api:tail`     | Live-tail Workers logs      |
+| `npm run cf:logs`      | Pretty-print Workers logs   |
 
 ---
 
@@ -157,22 +163,24 @@ npm run test:live    # Production smoke tests
 ## Environment Variables
 
 ### Workers (`.dev.vars`)
-| Variable | Description |
-|----------|-------------|
-| `NEON_PG_CONN` | Neon PostgreSQL connection string |
-| `SESSION_SECRET` | HMAC session signing key |
-| `STRIPE_SECRET_KEY` | Stripe API key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `TELNYX_API_KEY` | Telnyx voice API key |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `RESEND_API_KEY` | Resend email API key |
-| `ELEVENLABS_API_KEY` | ElevenLabs TTS key |
-| `ASSEMBLYAI_API_KEY` | AssemblyAI transcription key |
+
+| Variable                | Description                       |
+| ----------------------- | --------------------------------- |
+| `NEON_PG_CONN`          | Neon PostgreSQL connection string |
+| `SESSION_SECRET`        | HMAC session signing key          |
+| `STRIPE_SECRET_KEY`     | Stripe API key                    |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret     |
+| `TELNYX_API_KEY`        | Telnyx voice API key              |
+| `OPENAI_API_KEY`        | OpenAI API key                    |
+| `RESEND_API_KEY`        | Resend email API key              |
+| `ELEVENLABS_API_KEY`    | ElevenLabs TTS key                |
+| `ASSEMBLYAI_API_KEY`    | AssemblyAI transcription key      |
 
 ### Pages (`.env.local`)
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Workers API URL |
+
+| Variable                   | Description         |
+| -------------------------- | ------------------- |
+| `NEXT_PUBLIC_API_URL`      | Workers API URL     |
 | `NEXT_PUBLIC_TELNYX_TOKEN` | Telnyx WebRTC token |
 
 Run `npm run env:verify` to validate all required variables are set.
@@ -182,11 +190,13 @@ Run `npm run env:verify` to validate all required variables are set.
 ## Deployment
 
 ### Full Deploy (recommended)
+
 ```bash
 npm run deploy:all
 ```
 
 ### Manual Steps
+
 ```bash
 # 1. Verify environment
 npm run env:verify

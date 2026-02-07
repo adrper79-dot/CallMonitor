@@ -1,7 +1,7 @@
 /**
  * Bond AI — Core intelligence layer
  * System prompt builder + tool definitions for the 3-tier AI assistant
- * 
+ *
  * Tier 1: Chat widget (contextual help, data queries)
  * Tier 2: Proactive alerts (KPI monitoring, anomaly detection)
  * Tier 3: Call co-pilot (real-time guidance during calls)
@@ -160,7 +160,7 @@ export async function chatCompletion(
   apiKey: string,
   messages: ChatMessage[],
   model = 'gpt-4o-mini',
-  maxTokens = 1024,
+  maxTokens = 1024
 ): Promise<{ content: string; usage: any; model: string; latencyMs: number }> {
   const start = Date.now()
 
@@ -183,7 +183,7 @@ export async function chatCompletion(
     throw new Error(`OpenAI API error ${response.status}: ${err}`)
   }
 
-  const data = await response.json() as any
+  const data = (await response.json()) as any
   const latencyMs = Date.now() - start
 
   return {

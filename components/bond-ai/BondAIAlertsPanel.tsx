@@ -58,8 +58,11 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
       const data = await apiGet(`/api/bond-ai/alerts?${params.toString()}`)
       setAlerts(data.alerts || [])
       setUnreadCount(data.unread_count || 0)
-    } catch { /* ignore */ }
-    finally { setLoading(false) }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false)
+    }
   }, [filter, severityFilter, compact])
 
   useEffect(() => {
@@ -72,13 +75,15 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
   const acknowledgeAlert = async (id: string, action: 'read' | 'acknowledged' | 'dismissed') => {
     try {
       await apiPost(`/api/bond-ai/alerts/${id}`, { status: action }, { method: 'PATCH' } as any)
-      setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: action } : a))
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch { /* ignore */ }
+      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status: action } : a)))
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    } catch {
+      /* ignore */
+    }
   }
 
   const dismissAll = async () => {
-    const unreadIds = alerts.filter(a => a.status === 'unread').map(a => a.id)
+    const unreadIds = alerts.filter((a) => a.status === 'unread').map((a) => a.id)
     if (unreadIds.length === 0) return
 
     try {
@@ -86,9 +91,13 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
         alert_ids: unreadIds,
         action: 'read',
       })
-      setAlerts(prev => prev.map(a => unreadIds.includes(a.id) ? { ...a, status: 'read' } : a))
+      setAlerts((prev) =>
+        prev.map((a) => (unreadIds.includes(a.id) ? { ...a, status: 'read' } : a))
+      )
       setUnreadCount(0)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   const timeAgo = (dateStr: string) => {
@@ -116,9 +125,7 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Bond AI Alerts
-          </h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bond AI Alerts</h3>
           {unreadCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
               {unreadCount}
@@ -129,7 +136,7 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
           <div className="flex items-center gap-2">
             <select
               value={filter}
-              onChange={e => setFilter(e.target.value as 'all' | 'unread')}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'unread')}
               className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
             >
               <option value="unread">Unread</option>
@@ -137,7 +144,7 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
             </select>
             <select
               value={severityFilter}
-              onChange={e => setSeverityFilter(e.target.value)}
+              onChange={(e) => setSeverityFilter(e.target.value)}
               className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
             >
               <option value="">All severities</option>
@@ -160,14 +167,24 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
       {/* Alert list */}
       {alerts.length === 0 ? (
         <div className="text-center py-8 text-gray-400 dark:text-gray-500">
-          <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-8 h-8 mx-auto mb-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           <p className="text-sm">No alerts right now</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {alerts.map(alert => {
+          {alerts.map((alert) => {
             const styles = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.info
             return (
               <div

@@ -1,13 +1,13 @@
 /**
  * Comprehensive Debug & Setup Script
- * 
+ *
  * This script:
  * 1. Verifies database connectivity
  * 2. Creates test accounts with CORRECT password hashing (SHA-256, matching auth.ts)
  * 3. Makes test accounts owners
  * 4. Tests the authentication flow
  * 5. Diagnoses any issues
- * 
+ *
  * Run with: npx ts-node scripts/debug-and-setup.ts
  */
 
@@ -47,22 +47,22 @@ function log(level: 'info' | 'success' | 'error' | 'warn', message: string, data
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16)
   const saltHex = salt.toString('hex')
-  
+
   const data = Buffer.from(saltHex + password, 'utf8')
   const hashBuffer = crypto.createHash('sha256').update(data).digest()
   const hash = hashBuffer.toString('hex')
-  
+
   return `${saltHex}:${hash}`
 }
 
 // Match auth.ts verifyPassword function
 function verifyPassword(password: string, hash: string): boolean {
   if (!hash || !hash.includes(':')) return false
-  
+
   const [saltHex, storedHash] = hash.split(':')
   const data = Buffer.from(saltHex + password, 'utf8')
   const computedHash = crypto.createHash('sha256').update(data).digest('hex')
-  
+
   return computedHash === storedHash
 }
 
@@ -104,13 +104,13 @@ async function main() {
        AND table_name IN ('users', 'organizations', 'org_members', 'sessions')`
     )
 
-    const tableNames = tables.rows.map(r => r.table_name)
+    const tableNames = tables.rows.map((r) => r.table_name)
     const required = ['users', 'organizations', 'org_members', 'sessions']
-    const missing = required.filter(t => !tableNames.includes(t))
+    const missing = required.filter((t) => !tableNames.includes(t))
 
     if (missing.length === 0) {
       log('success', 'All required tables exist')
-      tableNames.forEach(t => console.log(`  ✓ ${t}`))
+      tableNames.forEach((t) => console.log(`  ✓ ${t}`))
     } else {
       log('error', `Missing tables: ${missing.join(', ')}`)
     }
@@ -130,7 +130,7 @@ async function main() {
 
     if (testUsers.rows.length > 0) {
       log('info', `Found ${testUsers.rows.length} test users:`)
-      testUsers.rows.forEach(u => {
+      testUsers.rows.forEach((u) => {
         console.log(`  • ${u.email} (ID: ${u.id.slice(0, 8)}...)`)
       })
     } else {
@@ -141,7 +141,11 @@ async function main() {
   }
 
   // Step 4: Create test accounts with CORRECT password hashing
-  console.log(colors.yellow + '\n🔐 Step 4: Creating/Updating Test Accounts with SHA-256 Hashing' + colors.reset)
+  console.log(
+    colors.yellow +
+      '\n🔐 Step 4: Creating/Updating Test Accounts with SHA-256 Hashing' +
+      colors.reset
+  )
   console.log('-'.repeat(70))
 
   const testAccounts = [
@@ -153,15 +157,14 @@ async function main() {
   for (const account of testAccounts) {
     try {
       const passwordHash = hashPassword(account.password)
-      
+
       // Check if user exists
-      const existing = await pool.query(
-        'SELECT id FROM users WHERE email = $1',
-        [account.email.toLowerCase()]
-      )
+      const existing = await pool.query('SELECT id FROM users WHERE email = $1', [
+        account.email.toLowerCase(),
+      ])
 
       let userId: string
-      
+
       if (existing.rows.length > 0) {
         // Update existing user
         userId = existing.rows[0].id
@@ -184,18 +187,14 @@ async function main() {
       }
 
       // Verify password works
-      const userRow = await pool.query(
-        'SELECT password_hash FROM users WHERE id = $1',
-        [userId]
-      )
-      
+      const userRow = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId])
+
       if (userRow.rows[0]) {
         const isValid = verifyPassword(account.password, userRow.rows[0].password_hash)
         console.log(`  Password verification: ${isValid ? '✅ Valid' : '❌ FAILED'}`)
       }
 
       console.log(`  Credentials: ${account.email} / ${account.password}`)
-
     } catch (error: any) {
       log('error', `Failed to create user ${account.email}`)
       console.error(error.message)
@@ -208,10 +207,9 @@ async function main() {
 
   try {
     for (const account of testAccounts) {
-      const userResult = await pool.query(
-        'SELECT id FROM users WHERE email = $1',
-        [account.email.toLowerCase()]
-      )
+      const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [
+        account.email.toLowerCase(),
+      ])
 
       if (userResult.rows.length === 0) continue
 
@@ -227,7 +225,7 @@ async function main() {
       )
 
       let orgId: string
-      
+
       if (membership.rows.length > 0) {
         // Update existing membership to owner
         orgId = membership.rows[0].org_id
@@ -292,8 +290,8 @@ async function main() {
       body: JSON.stringify({
         username: testAccount.email,
         password: testAccount.password,
-        csrfToken: csrfData.csrfToken
-      })
+        csrfToken: csrfData.csrfToken,
+      }),
     })
 
     const loginData = await loginRes.json()
@@ -308,9 +306,9 @@ async function main() {
       log('info', 'Testing /api/organizations/current with token...')
       const orgRes = await fetch(`${API_BASE}/api/organizations/current`, {
         headers: {
-          'Authorization': `Bearer ${loginData.sessionToken}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${loginData.sessionToken}`,
+          'Content-Type': 'application/json',
+        },
       })
 
       if (orgRes.ok) {
@@ -323,12 +321,10 @@ async function main() {
         const errData = await orgRes.json()
         console.log(JSON.stringify(errData, null, 2))
       }
-
     } else {
       log('error', `Login failed with ${loginRes.status}`)
       console.log(JSON.stringify(loginData, null, 2))
     }
-
   } catch (error: any) {
     log('error', 'Failed to test authentication flow')
     console.error(error.message)
@@ -337,9 +333,9 @@ async function main() {
   // Summary
   console.log(colors.yellow + '\n📊 Summary' + colors.reset)
   console.log('='.repeat(70))
-  
+
   log('info', 'Test accounts created/updated:')
-  testAccounts.forEach(a => {
+  testAccounts.forEach((a) => {
     console.log(`  • ${a.email}`)
     console.log(`    Password: ${a.password}`)
   })
@@ -354,7 +350,7 @@ async function main() {
   await pool.end()
 }
 
-main().catch(error => {
+main().catch((error) => {
   log('error', 'Script failed')
   console.error(error)
   process.exit(1)

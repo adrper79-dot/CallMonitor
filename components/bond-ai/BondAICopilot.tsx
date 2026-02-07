@@ -50,7 +50,9 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
   ]
 
   return (
-    <div className={`bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/20 dark:to-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl overflow-hidden ${className || ''}`}>
+    <div
+      className={`bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/20 dark:to-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl overflow-hidden ${className || ''}`}
+    >
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
@@ -58,12 +60,22 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
       >
         <div className="flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3"
+            />
           </svg>
           <span className="text-sm font-semibold">Call Co-Pilot</span>
           {loading && <span className="text-xs text-indigo-200 animate-pulse">Thinking...</span>}
         </div>
-        <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg
+          className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -72,7 +84,7 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
         <div className="p-4">
           {/* Quick actions */}
           <div className="flex flex-wrap gap-1.5 mb-3">
-            {quickActions.map(action => (
+            {quickActions.map((action) => (
               <button
                 key={action.label}
                 onClick={() => askCopilot(action.query)}
@@ -88,8 +100,8 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
           <div className="flex gap-2 mb-3">
             <input
               value={question}
-              onChange={e => setQuestion(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && askCopilot()}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && askCopilot()}
               placeholder="Ask the co-pilot..."
               disabled={loading}
               className="flex-1 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -117,9 +129,7 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
                 {guidance}
               </div>
               {latency && (
-                <div className="text-[10px] text-gray-400 mt-2">
-                  Response in {latency}ms
-                </div>
+                <div className="text-[10px] text-gray-400 mt-2">Response in {latency}ms</div>
               )}
             </div>
           )}

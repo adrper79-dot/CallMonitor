@@ -46,7 +46,9 @@ export default function OrgSwitcher({ currentOrgName, className, onSwitch }: Org
       const data = await apiGet('/api/teams/my-orgs')
       setOrgs(data.organizations || [])
       setCurrentOrgId(data.current_org_id)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   const switchOrg = async (org: Org) => {
@@ -77,7 +79,7 @@ export default function OrgSwitcher({ currentOrgName, className, onSwitch }: Org
     return null
   }
 
-  const currentOrg = orgs.find(o => o.id === currentOrgId)
+  const currentOrg = orgs.find((o) => o.id === currentOrgId)
   const displayName = currentOrg?.name || currentOrgName || 'Organization'
 
   const ROLE_BADGES: Record<string, string> = {
@@ -101,7 +103,12 @@ export default function OrgSwitcher({ currentOrgName, className, onSwitch }: Org
         <span className="font-medium text-gray-900 dark:text-gray-100 max-w-[120px] truncate">
           {displayName}
         </span>
-        <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
@@ -114,7 +121,7 @@ export default function OrgSwitcher({ currentOrgName, className, onSwitch }: Org
             </p>
           </div>
           <div className="max-h-64 overflow-y-auto py-1">
-            {orgs.map(org => (
+            {orgs.map((org) => (
               <button
                 key={org.id}
                 onClick={() => switchOrg(org)}
@@ -134,15 +141,17 @@ export default function OrgSwitcher({ currentOrgName, className, onSwitch }: Org
                       {org.name}
                     </span>
                     {org.id === currentOrgId && (
-                      <svg className="w-4 h-4 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-4 h-4 text-blue-600 shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                       </svg>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs mt-0.5">
-                    <span className={ROLE_BADGES[org.role] || ROLE_BADGES.viewer}>
-                      {org.role}
-                    </span>
+                    <span className={ROLE_BADGES[org.role] || ROLE_BADGES.viewer}>{org.role}</span>
                     <span className="text-gray-400">·</span>
                     <span className="text-gray-400">{org.member_count} members</span>
                   </div>

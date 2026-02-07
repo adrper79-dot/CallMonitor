@@ -1,13 +1,13 @@
 /**
  * LIVE Workers API Integration Tests — NO MOCKS
- * 
+ *
  * Tests every API route against the real production Workers.
  * Each test properly distinguishes:
  *   ✅ PASS: Service is up and returned expected results
  *   ⚠️ WARN: Service works but is degraded (slow, partial)
  *   ❌ FAIL: Service is up but returned unexpected results
  *   ⛔ DOWN: Service is unreachable (network/config issue)
- * 
+ *
  * Run: npm run test:prod:api
  */
 
@@ -30,11 +30,16 @@ describe('Live Workers API Tests', () => {
 
   describe('Infrastructure Health', () => {
     test('Workers API is reachable', () => {
-      expect(apiHealth.status, `API SERVICE DOWN: ${apiHealth.error || 'unreachable'}`).not.toBe('down')
+      expect(apiHealth.status, `API SERVICE DOWN: ${apiHealth.error || 'unreachable'}`).not.toBe(
+        'down'
+      )
     })
 
     test('Health endpoint returns service checks', async () => {
-      if (apiHealth.status === 'down') { console.log('⛔ SKIPPED — API DOWN'); return }
+      if (apiHealth.status === 'down') {
+        console.log('⛔ SKIPPED — API DOWN')
+        return
+      }
 
       const { status, data, latency_ms, service_reachable } = await apiCall('GET', '/api/health')
       expect(service_reachable, 'API SERVICE DOWN during health check').toBe(true)
@@ -67,7 +72,10 @@ describe('Live Workers API Tests', () => {
 
     test('404 handler returns structured JSON', async () => {
       if (apiHealth.status === 'down') return
-      const { status, data, service_reachable } = await apiCall('GET', '/api/this-route-does-not-exist')
+      const { status, data, service_reachable } = await apiCall(
+        'GET',
+        '/api/this-route-does-not-exist'
+      )
       expect(service_reachable).toBe(true)
       expect(status).toBe(404)
       expect(data.error).toBeDefined()
@@ -87,9 +95,13 @@ describe('Live Workers API Tests', () => {
 
     test('POST /api/auth/callback/credentials — rejects empty credentials', async () => {
       if (apiHealth.status === 'down') return
-      const { status, data, service_reachable } = await apiCall('POST', '/api/auth/callback/credentials', {
-        body: { email: '', password: '' },
-      })
+      const { status, data, service_reachable } = await apiCall(
+        'POST',
+        '/api/auth/callback/credentials',
+        {
+          body: { email: '', password: '' },
+        }
+      )
       expect(service_reachable, 'AUTH SERVICE DOWN').toBe(true)
       expect([400, 401, 422]).toContain(status)
     })
@@ -275,7 +287,9 @@ describe('Live Workers API Tests', () => {
       expect(status).toBe(200)
       expect(data.catalog).toBeDefined()
       expect(data.total_tests).toBeGreaterThan(0)
-      console.log(`   📋 ${data.total_tests} tests available across ${data.catalog.length} categories`)
+      console.log(
+        `   📋 ${data.total_tests} tests available across ${data.catalog.length} categories`
+      )
     })
 
     test('GET /api/test/health — runs infrastructure probes', async () => {
@@ -288,10 +302,14 @@ describe('Live Workers API Tests', () => {
 
       // Log each probe result
       for (const result of data.results) {
-        const icon = result.status === 'healthy' ? '✅'
-          : result.status === 'degraded' ? '⚠️'
-          : result.status === 'down' ? '⛔'
-          : '❌'
+        const icon =
+          result.status === 'healthy'
+            ? '✅'
+            : result.status === 'degraded'
+              ? '⚠️'
+              : result.status === 'down'
+                ? '⛔'
+                : '❌'
         console.log(`   ${icon} ${result.service}: ${result.details} (${result.latency_ms}ms)`)
       }
       console.log(`   Overall: ${data.overall} | Total: ${data.total_latency_ms}ms`)
@@ -330,9 +348,13 @@ describe('Live Workers API Tests', () => {
       console.log(`   │  ✅ Passed:       ${String(s.passed).padStart(4)}                  │`)
       console.log(`   │  ⚠️  Warnings:     ${String(s.warnings).padStart(4)}                  │`)
       console.log(`   │  ❌ Failed:       ${String(s.failed).padStart(4)}                  │`)
-      console.log(`   │  ⛔ Services Down: ${String(s.services_down).padStart(4)}                  │`)
+      console.log(
+        `   │  ⛔ Services Down: ${String(s.services_down).padStart(4)}                  │`
+      )
       console.log(`   │  📊 Total:        ${String(s.total).padStart(4)}                  │`)
-      console.log(`   │  ⏱️  Duration:     ${String(s.suite_duration_ms).padStart(4)}ms               │`)
+      console.log(
+        `   │  ⏱️  Duration:     ${String(s.suite_duration_ms).padStart(4)}ms               │`
+      )
       console.log(`   └─────────────────────────────────────────┘\n`)
 
       // Log failures and service-down issues

@@ -18,7 +18,7 @@ type ValidationFailure = { success: false; error: string; response: Response }
 
 export async function validateBody<T>(
   c: Context,
-  schema: ZodSchema<T>,
+  schema: ZodSchema<T>
 ): Promise<ValidationSuccess<T> | ValidationFailure> {
   let raw: unknown
   try {

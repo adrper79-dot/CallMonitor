@@ -1,12 +1,12 @@
 /**
  * LIVE Voice & Telnyx Integration Tests — NO MOCKS
- * 
+ *
  * Tests the voice infrastructure against live services:
  *   - Telnyx API connectivity
  *   - WebRTC token generation
  *   - Call recording access
  *   - Voice config CRUD
- * 
+ *
  * Run: npm run test:prod:voice
  */
 
