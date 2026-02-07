@@ -1,11 +1,15 @@
 /**
- * TTS Routes - Text-to-speech generation
+ * TTS Routes - Text-to-speech generation with KV caching
  *
  * Endpoints:
- *   POST /generate - Generate TTS audio from text
+ *   POST /generate - Generate TTS audio from text (KV-cached by content hash)
  *
  * P2-2: Uses centralized getDb() — no inline neon imports
  * H1: Zod-validated request bodies via validateBody()
+ *
+ * Caching: SHA-256 hash of (text + voice_id + model) → R2 file key in KV
+ * Same text + voice produces identical audio — KV lookup avoids duplicate API calls
+ * TTL: 7 days (re-generates after expiry)
  */
 
 import { Hono } from 'hono'
@@ -17,6 +21,22 @@ import { TTSGenerateSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 
 export const ttsRoutes = new Hono<{ Bindings: Env }>()
+
+const TTS_CACHE_TTL = 7 * 24 * 60 * 60 // 7 days in seconds
+const TTS_MODEL = 'eleven_multilingual_v2'
+
+/**
+ * Generate a deterministic cache key from TTS input parameters.
+ * Same text + voice + model always produces the same hash.
+ */
+async function ttsCacheKey(text: string, voiceId: string): Promise<string> {
+  const raw = `tts:${voiceId}:${TTS_MODEL}:${text}`
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
+  const hash = Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+  return `tts-cache:${hash}`
+}
 
 async function ensureTable(db: ReturnType<typeof getDb>) {
   await db.query(`
@@ -62,6 +82,26 @@ ttsRoutes.post('/generate', async (c) => {
     }
 
     const voiceIdResolved = voice_id || '21m00Tcm4TlvDq8ikWAM' // Default: Rachel
+
+    // KV cache lookup — same text + voice produces identical audio
+    let cacheKey: string | null = null
+    try {
+      cacheKey = await ttsCacheKey(text, voiceIdResolved)
+      const cachedFileKey = await c.env.KV.get(cacheKey)
+      if (cachedFileKey) {
+        logger.info('TTS cache hit', { voiceId: voiceIdResolved, cacheKey })
+        return c.json({
+          success: true,
+          audio_url: `/api/audio/files/${cachedFileKey}`,
+          file_key: cachedFileKey,
+          cached: true,
+          duration_seconds: 0,
+        })
+      }
+    } catch {
+      // KV failure is non-fatal — proceed to generate
+    }
+
     const ttsResponse = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceIdResolved}`,
       {
@@ -108,6 +148,11 @@ ttsRoutes.post('/generate', async (c) => {
           session.user_id,
         ]
       )
+
+      // Store in KV cache — same text + voice skips ElevenLabs API next time
+      if (cacheKey) {
+        c.env.KV.put(cacheKey, fileName, { expirationTtl: TTS_CACHE_TTL }).catch(() => {})
+      }
 
       return c.json({
         success: true,

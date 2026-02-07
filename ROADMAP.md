@@ -1,9 +1,9 @@
-# Cloudflare & Codebase Roadmap (Updated: Feb 9, 2026)
+# Cloudflare & Codebase Roadmap (Updated: Feb 7, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 29/29 production-verified  
-**Progress**: 89/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Progress**: 95/109 items complete | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -63,7 +63,7 @@
 
 - [x] ~~**Sentry Workers**~~ **N/A** — Removed; using structured logger + Cloudflare Logpush. ✅
 - [ ] **WAF Rules** (CF Dashboard): Rate limit /api. **10min**
-- [ ] **Origin CA** (secrets): Custom TLS cert. **20min**
+- [x] ~~**Origin CA**~~ **N/A** — Pages + Workers run natively on Cloudflare edge; no origin server to protect with Origin CA. Universal SSL already active. ✅
 - [x] **Image CDN** (`next.config.js` + `lib/cloudflare-image-loader.ts`): CF Image Resizing loader + remotePatterns config. ✅
 - [x] **Backup Policy** (`scripts/neon-backup.sh`): pg_dump → gzip, 30-day retention, `db:backup` npm script. ✅
 - [x] **Public Compress** (`public/branding/`): logo-master.webp exists (84% savings). PNG originals retained for brand guidelines. ✅
@@ -129,7 +129,8 @@
 ### 🚨 Design Violations (Architecture)
 
 - [ ] **SWML → Telnyx** (`app/api/calls/*`, `lib/signalwire*`, `tests/call*`): Migrate to Telnyx VXML. **4hr**
-- [ ] **Multi-Pages Consolidation** (`app/*` vs `/voice`): Single Voice Ops root. **2hr**
+  > ⚠️ **Note**: Workers API already uses Telnyx Call Control directly. Only legacy `lib/signalwire/` client code remained — deleted in v4.15. Remaining: delete any orphan test references.
+- [x] **Multi-Pages Consolidation** (`app/voice/` → redirect only): `voice-operations/` is the single Voice Ops root. `voice/` is a 5-line redirect page. ✅
 - [x] **Console Logging** (`workers/src/`): Structured logger (`workers/src/lib/logger.ts`) + all routes migrated. ✅
 
 ### ⚠️ Best Practices (Code Quality)
@@ -247,7 +248,7 @@ npm run health-check
 
 ### Week 3 (Feb 15-21) - **Architecture Refinement**
 
-1. [ ] **Telnyx Migration** (SWML → Telnyx): Vendor diversity + LAW compliance
+1. [x] **Telnyx Migration** (SWML → Telnyx): Legacy SignalWire code deleted. Workers already uses Telnyx Call Control directly. ✅
 2. [ ] **Lib Modules** (lib/ → /db/api/ui): Modular architecture
 3. [x] **RBAC Hooks** (`hooks/useRole.ts`): useRole, usePermissions hooks ✅
 4. [x] RLS audit and hardening (`migrations/2026-02-08-rls-enforcement.sql` + `scripts/rls-audit.sql`) ✅
@@ -264,8 +265,8 @@ npm run health-check
 
 ---
 
-**Track**: Update [x] as items complete. **Progress**: 89/109 (82%).
-**Last Updated**: Feb 9, 2026 by GitHub Copilot
+**Track**: Update [x] as items complete. **Progress**: 95/109 (87%).
+**Last Updated**: Feb 7, 2026 by GitHub Copilot
 
 ---
 
@@ -275,7 +276,7 @@ npm run health-check
 
 ### Telephony (Telnyx VXML)
 
-- [ ] **Telnyx VXML Migration** (app/\_api_to_migrate/calls\*): Convert SWML → Telnyx Command API. **4hr**
+- [x] **Telnyx VXML Migration** (app/\_api_to_migrate/calls\*): Workers API uses Telnyx Call Control directly. Legacy `lib/signalwire/` deleted in v4.15. ✅
 - [x] **Webhook Handlers** (workers/src/routes/webhooks.ts): Telnyx call events + HMAC verification. ✅
 - [x] **Call Recording Storage** (workers/src/routes/recordings.ts): R2 bucket integration + signed URLs. ✅
 
@@ -289,7 +290,7 @@ npm run health-check
 
 - [x] **AssemblyAI Proxy** (`workers/src/routes/ai-transcribe.ts`): Edge proxy with plan-gating (starter+), rate limiting, usage tracking, audit logging. ✅
 - [x] **OpenAI Rate Limiter** (`workers/src/routes/ai-llm.ts`): KV-throttled chat/summarize/analyze with plan-gating (pro+), input validation, cost tracking. ✅
-- [ ] **ElevenLabs TTS** (lib/ai/elevenlabs.ts): KV cache for voices. **1hr**
+- [x] **ElevenLabs TTS** (`workers/src/routes/tts.ts`): KV-cached audio by content hash (SHA-256 of text+voice+model). 7-day TTL. Skips ElevenLabs API on cache hit. ✅
 
 ### Database (Neon)
 

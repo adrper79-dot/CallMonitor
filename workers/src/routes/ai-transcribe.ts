@@ -85,12 +85,12 @@ aiTranscribeRoutes.post(
         `INSERT INTO ai_summaries (org_id, call_id, provider, external_id, status, created_at)
        VALUES ($1, $2, 'assemblyai', $3, $4, NOW())
        ON CONFLICT DO NOTHING`,
-        [session.orgId, body.call_id || null, aaiResult.id, aaiResult.status]
+        [session.organization_id, body.call_id || null, aaiResult.id, aaiResult.status]
       )
 
       writeAuditLog(db, {
-        userId: session.userId,
-        orgId: session.orgId,
+        userId: session.user_id,
+        orgId: session.organization_id,
         action: AuditAction.CALL_RECORDED,
         resourceType: 'transcription',
         resourceId: aaiResult.id,
@@ -192,7 +192,7 @@ aiTranscribeRoutes.get('/result/:id', aiTranscriptionRateLimit, async (c) => {
     await db.query(
       `UPDATE ai_summaries SET status = 'completed', summary_text = $1, updated_at = NOW()
        WHERE external_id = $2 AND org_id = $3`,
-      [aaiResult.text?.substring(0, 5000), transcriptId, (session as any).orgId]
+      [aaiResult.text?.substring(0, 5000), transcriptId, session.organization_id]
     )
 
     return c.json({

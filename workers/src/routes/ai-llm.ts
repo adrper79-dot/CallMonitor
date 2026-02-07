@@ -90,7 +90,7 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, requirePlan('pro'), async (c) => {
 
     // Log token usage for cost tracking
     logger.info('OpenAI usage', {
-      orgId: session.orgId,
+      orgId: session.organization_id,
       model: body.model || DEFAULT_MODEL,
       promptTokens: oaiResult.usage?.prompt_tokens,
       completionTokens: oaiResult.usage?.completion_tokens,
@@ -174,7 +174,7 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, requirePlan('starter'), async (c)
         `INSERT INTO ai_summaries (org_id, call_id, provider, summary_text, status, created_at)
          VALUES ($1, $2, 'openai', $3, 'completed', NOW())
          ON CONFLICT DO NOTHING`,
-        [session.orgId, body.call_id, summary.substring(0, 5000)]
+        [session.organization_id, body.call_id, summary.substring(0, 5000)]
       )
     }
 

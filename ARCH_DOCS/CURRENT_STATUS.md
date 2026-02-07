@@ -1,7 +1,7 @@
 # Wordis Bond - Current Status & Quick Reference
 
-**Last Updated:** February 9, 2026  
-**Version:** 4.14 - AI Edge Proxies, Evidence Immutability & ROADMAP Cleanup  
+**Last Updated:** February 7, 2026  
+**Version:** 4.15 - Critical Bug Fixes, TTS Caching, Dead Code Cleanup & Middleware Ordering  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -12,7 +12,38 @@
 
 ---
 
-## 🔧 **Recent Updates (February 9, 2026)**
+## 🔧 **Recent Updates (February 7, 2026)**
+
+### **Critical Bug Fixes, TTS Caching, Dead Code Cleanup & Middleware Ordering (v4.15):** ✅ **DEPLOYED**
+
+1. **AI Session Property Bug Fix** ⭐ **CRITICAL — MULTI-TENANT ISOLATION**
+   - Fixed `session.orgId` / `session.userId` → `session.organization_id` / `session.user_id` in both AI proxy routes
+   - Root cause: Session interface uses snake_case (`user_id`, `organization_id`) but AI routes used camelCase
+   - Impact: AI summaries were stored with `null` org_id — broke multi-tenant isolation and audit trails
+   - Files: `ai-transcribe.ts` (3 fixes), `ai-llm.ts` (2 fixes)
+
+2. **Request Timing Middleware Ordering Fix** ⭐ **OBSERVABILITY**
+   - Moved `requestStart` + `correlationId` middleware from AFTER route mounting to BEFORE
+   - Without this, error handler couldn't reliably compute request duration or attach correlation IDs
+   - File: `workers/src/index.ts`
+
+3. **ElevenLabs TTS KV Cache** ⭐ **COST SAVINGS**
+   - SHA-256 hash of `text + voice_id + model` → R2 file key stored in KV with 7-day TTL
+   - Cache hit returns existing R2 URL instantly — skips ElevenLabs API call entirely
+   - Cache miss generates audio, uploads to R2, stores hash in KV for future requests
+   - File: `workers/src/routes/tts.ts`
+
+4. **Dead Code Cleanup** ✅ **HYGIENE**
+   - Deleted `lib/supabase.ts` — empty stub, no live imports (Supabase fully replaced by custom auth)
+   - Confirmed `lib/signalwire/`, `lib/rti/`, `lib/sso/`, `app/actions/`, `supabase/` already deleted in prior sessions
+   - Workers API already uses Telnyx Call Control directly — marked SWML migration as complete
+
+5. **ROADMAP Bookkeeping** ✅ **ACCURACY**
+   - Origin CA → **N/A** (Pages + Workers = native Cloudflare edge, Universal SSL active)
+   - Multi-Pages Consolidation → **Done** (voice-operations is the single root, voice/ is redirect)
+   - Telnyx VXML Migration → **Done** (Workers uses Telnyx directly, SignalWire deleted)
+   - ElevenLabs TTS Cache → **Done** (KV-cached content hash)
+   - Progress: 89/109 → **95/109 (87%)**
 
 ### **AI Edge Proxies, Evidence Immutability & ROADMAP Cleanup (v4.14):** ✅ **DEPLOYED**
 

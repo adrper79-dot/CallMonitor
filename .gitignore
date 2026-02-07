@@ -55,3 +55,4 @@ nul
 
 # Database backups (contain production data)
 backups/db/
+workers/dist_test/

@@ -121,6 +121,14 @@ app.use(
   })
 )
 
+// Request timing middleware — attaches start time + correlation ID for error diagnostics
+// Must be BEFORE route modules so handlers can access requestStart/correlationId
+app.use('*', async (c, next) => {
+  c.set('requestStart' as any, Date.now())
+  c.set('correlationId' as any, generateCorrelationId())
+  await next()
+})
+
 // Mount route modules
 app.route('/health', healthRoutes)
 app.route('/api/health', healthRoutes)
@@ -161,13 +169,6 @@ app.route('/api/audio', audioRoutes)
 app.route('/api/reliability', reliabilityRoutes)
 app.route('/api/_admin', adminRoutes)
 app.route('/api/compliance', complianceRoutes)
-
-// Request timing middleware — attaches start time for error diagnostics
-app.use('*', async (c, next) => {
-  c.set('requestStart' as any, Date.now())
-  c.set('correlationId' as any, generateCorrelationId())
-  await next()
-})
 
 // Root endpoint
 app.get('/', (c) => {

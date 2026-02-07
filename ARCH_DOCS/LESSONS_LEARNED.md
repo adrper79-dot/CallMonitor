@@ -100,6 +100,42 @@ try {
 
 ---
 
+## 🔴 CRITICAL — Session Property Names (v4.15 — AI Routes Silently Broken)
+
+**AI proxy routes shipped with wrong session property names — multi-tenant isolation silently broken.**
+
+### The Rule
+
+```typescript
+// ✅ CORRECT — Session interface uses snake_case
+session.user_id // NOT session.userId
+session.organization_id // NOT session.orgId
+session.email
+session.name
+session.role
+session.expires
+```
+
+### Why It Matters
+
+- The `Session` interface in `workers/src/lib/auth.ts` returns `user_id` and `organization_id` (snake_case)
+- Some route files (ai-transcribe.ts, ai-llm.ts) used `session.orgId` and `session.userId` (camelCase)
+- TypeScript doesn't catch this because handlers cast `session as any` to avoid type narrowing friction
+- Result: `undefined` passed to SQL `$1` parameter → `null` stored in `org_id` column
+- Impact: AI summaries had no org isolation — visible across organizations, audit logs had null userId/orgId
+
+### Prevention
+
+- NEVER use `as any` for session — always type as `Session` from `workers/src/lib/auth.ts`
+- Grep verification before deploy:
+  ```bash
+  # Should return ZERO results:
+  grep -r "session\.orgId\|session\.userId" workers/src/routes/
+  ```
+- Use `session.organization_id` and `session.user_id` exclusively
+
+---
+
 ## 🔴 CRITICAL — Audit Log Column Names
 
 ### The Rule
