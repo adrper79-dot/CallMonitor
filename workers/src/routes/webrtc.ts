@@ -267,7 +267,7 @@ webrtcRoutes.post('/dial', async (c) => {
         connection_id: c.env.TELNYX_CONNECTION_ID,
         to: phone_number,
         from: c.env.TELNYX_NUMBER,
-        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}&org_id=${session.organization_id}`,
+        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}`,
         record: 'record-from-answer',
         timeout_secs: 30,
       }),

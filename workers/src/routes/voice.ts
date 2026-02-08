@@ -16,13 +16,13 @@ export const voiceRoutes = new Hono<AppEnv>()
 
 // Get voice targets
 voiceRoutes.get('/targets', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const result = await db.query(
       `SELECT *
        FROM voice_targets
@@ -45,13 +45,13 @@ voiceRoutes.get('/targets', async (c) => {
 
 // Get voice configuration
 voiceRoutes.get('/config', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     // Get voice config from database
     const result = await db.query(
       `SELECT * FROM voice_configs 
@@ -83,13 +83,13 @@ voiceRoutes.get('/config', async (c) => {
 
 // Update voice configuration
 voiceRoutes.put('/config', voiceRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const parsed = await validateBody(c, VoiceConfigSchema)
     if (!parsed.success) return parsed.response
     const { orgId, modulations } = parsed.data
@@ -194,13 +194,13 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
 
 // Place a voice call via Telnyx Call Control API
 voiceRoutes.post('/call', voiceRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const parsed = await validateBody(c, CreateCallSchema)
     if (!parsed.success) return parsed.response
     const {
@@ -350,13 +350,13 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
 
 // Create voice target
 voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const parsed = await validateBody(c, VoiceTargetSchema)
     if (!parsed.success) return parsed.response
     const { organization_id, phone_number, name } = parsed.data
@@ -374,6 +374,15 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
       [session.organization_id, phone_number, name]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'voice_targets',
+      resourceId: result.rows[0].id,
+      action: AuditAction.VOICE_TARGET_CREATED,
+      after: { phone_number, name },
+    })
+
     return c.json({
       success: true,
       target: result.rows[0],
@@ -388,25 +397,34 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
 
 // Delete voice target
 voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const targetId = c.req.param('id')
 
     const result = await db.query(
       `DELETE FROM voice_targets
        WHERE id = $1 AND organization_id = $2
-       RETURNING id`,
+       RETURNING id, phone_number, name`,
       [targetId, session.organization_id]
     )
 
     if (result.rows.length === 0) {
       return c.json({ error: 'Target not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'voice_targets',
+      resourceId: targetId,
+      action: AuditAction.VOICE_TARGET_DELETED,
+      before: result.rows[0],
+    })
 
     return c.json({ success: true, message: 'Target deleted' })
   } catch (err: any) {

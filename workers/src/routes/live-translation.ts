@@ -34,119 +34,141 @@ export const liveTranslationRoutes = new Hono<AppEnv>()
  *   done         — stream close
  */
 liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
-  const db = getDb(c.env)
-  try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  // Auth + validation BEFORE any DB call
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const callId = c.req.query('callId')
-    if (!callId) return c.json({ error: 'callId query parameter required' }, 400)
+  const callId = c.req.query('callId')
+  if (!callId) return c.json({ error: 'callId query parameter required' }, 400)
 
-    // Verify the call belongs to this org
-    const callCheck = await db.query(
-      'SELECT id, status FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1',
-      [callId, session.organization_id]
-    )
-    if (callCheck.rows.length === 0) {
-      return c.json({ error: 'Call not found' }, 404)
+  // Plan gating: live translation requires 'business' plan
+  {
+    const db = getDb(c.env)
+    try {
+      const planCheck = await db.query(
+        `SELECT o.plan FROM organizations o WHERE o.id = $1 LIMIT 1`,
+        [session.organization_id]
+      )
+      const plan = planCheck.rows[0]?.plan || 'free'
+      if (!['business', 'enterprise'].includes(plan)) {
+        return c.json({ error: 'Live translation requires a Business or Enterprise plan' }, 403)
+      }
+
+      // Verify the call belongs to this org
+      const callCheck = await db.query(
+        'SELECT id, status FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1',
+        [callId, session.organization_id]
+      )
+      if (callCheck.rows.length === 0) {
+        return c.json({ error: 'Call not found' }, 404)
+      }
+
+      // Audit the stream start
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'call_translations',
+        resourceId: callId,
+        action: AuditAction.LIVE_TRANSLATION_STARTED,
+        after: { call_id: callId },
+      })
+    } finally {
+      await db.end()
     }
+  }
 
-    // Audit the stream start
-    writeAuditLog(db, {
-      organizationId: session.organization_id,
-      userId: session.user_id,
-      resourceType: 'call_translations',
-      resourceId: callId,
-      action: AuditAction.LIVE_TRANSLATION_STARTED,
-      after: { call_id: callId },
-    })
+  logger.info('Live translation stream opened', {
+    callId,
+    orgId: session.organization_id,
+  })
 
-    logger.info('Live translation stream opened', {
-      callId,
-      orgId: session.organization_id,
-    })
+  // Stream SSE — open/close DB per poll to avoid holding connections
+  return streamSSE(c, async (stream) => {
+    let lastSegmentIndex = -1
+    let heartbeatCount = 0
+    const MAX_HEARTBEATS = 1800 // 30 minutes max at 1/s
 
-    // Stream SSE
-    return streamSSE(c, async (stream) => {
-      let lastSegmentIndex = -1
-      let heartbeatCount = 0
-      const MAX_HEARTBEATS = 1800 // 30 minutes max at 1/s
+    while (heartbeatCount < MAX_HEARTBEATS) {
+      const pollDb = getDb(c.env)
+      try {
+        // Check call status
+        const statusResult = await pollDb.query(
+          'SELECT status FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1',
+          [callId, session.organization_id]
+        )
 
-      while (heartbeatCount < MAX_HEARTBEATS) {
-        try {
-          // Check call status
-          const statusResult = await db.query(
-            'SELECT status FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1',
-            [callId, session.organization_id]
-          )
-
-          if (statusResult.rows.length === 0) {
-            await stream.writeSSE({
-              event: 'error',
-              data: JSON.stringify({ message: 'Call not found' }),
-            })
-            break
-          }
-
-          const callStatus = statusResult.rows[0].status
-          const isActive = ['initiating', 'ringing', 'in_progress'].includes(callStatus)
-
-          // Fetch new translation segments
-          const newSegments = await db.query(
-            `SELECT id, original_text, translated_text, source_language, target_language,
-                    segment_index, confidence, created_at
-             FROM call_translations
-             WHERE call_id = $1 AND organization_id = $2 AND segment_index > $3
-             ORDER BY segment_index ASC
-             LIMIT 50`,
-            [callId, session.organization_id, lastSegmentIndex]
-          )
-
-          // Push each new segment
-          for (const seg of newSegments.rows) {
-            await stream.writeSSE({
-              event: 'translation',
-              data: JSON.stringify({
-                id: seg.id,
-                original_text: seg.original_text,
-                translated_text: seg.translated_text,
-                source_language: seg.source_language,
-                target_language: seg.target_language,
-                segment_index: seg.segment_index,
-                confidence: seg.confidence,
-                timestamp: seg.created_at,
-              }),
-              id: String(seg.segment_index),
-            })
-            lastSegmentIndex = seg.segment_index
-          }
-
-          // Push status event
-          await stream.writeSSE({
-            event: 'status',
-            data: JSON.stringify({ status: isActive ? 'active' : 'ended' }),
-          })
-
-          // If call ended, send final batch then close
-          if (!isActive) {
-            await stream.writeSSE({ event: 'done', data: '{}' })
-            break
-          }
-
-          heartbeatCount++
-          await stream.sleep(1000)
-        } catch (pollErr: any) {
-          logger.error('Live translation poll error', { error: pollErr?.message, callId })
+        if (statusResult.rows.length === 0) {
           await stream.writeSSE({
             event: 'error',
-            data: JSON.stringify({ message: 'Internal error' }),
+            data: JSON.stringify({ message: 'Call not found' }),
           })
           break
         }
+
+        const callStatus = statusResult.rows[0].status
+        const isActive = ['initiating', 'ringing', 'in_progress'].includes(callStatus)
+
+        // Fetch new translation segments
+        const newSegments = await pollDb.query(
+          `SELECT id, original_text, translated_text, source_language, target_language,
+                  segment_index, confidence, created_at
+           FROM call_translations
+           WHERE call_id = $1 AND organization_id = $2 AND segment_index > $3
+           ORDER BY segment_index ASC
+           LIMIT 50`,
+          [callId, session.organization_id, lastSegmentIndex]
+        )
+
+        // Push each new segment
+        for (const seg of newSegments.rows) {
+          await stream.writeSSE({
+            event: 'translation',
+            data: JSON.stringify({
+              id: seg.id,
+              original_text: seg.original_text,
+              translated_text: seg.translated_text,
+              source_language: seg.source_language,
+              target_language: seg.target_language,
+              segment_index: seg.segment_index,
+              confidence: seg.confidence,
+              timestamp: seg.created_at,
+            }),
+            id: String(seg.segment_index),
+          })
+          lastSegmentIndex = seg.segment_index
+        }
+
+        // Push status event
+        await stream.writeSSE({
+          event: 'status',
+          data: JSON.stringify({ status: isActive ? 'active' : 'ended' }),
+        })
+
+        // If call ended, send final batch then close
+        if (!isActive) {
+          await stream.writeSSE({ event: 'done', data: '{}' })
+          break
+        }
+
+        heartbeatCount++
+      } catch (pollErr: any) {
+        logger.error('Live translation poll error', { error: pollErr?.message, callId })
+        await stream.writeSSE({
+          event: 'error',
+          data: JSON.stringify({ message: 'Internal error' }),
+        })
+        break
+      } finally {
+        await pollDb.end()
       }
 
-      // Audit stream end
-      writeAuditLog(db, {
+      await stream.sleep(1000)
+    }
+
+    // Audit stream end (fire-and-forget with its own connection)
+    const auditDb = getDb(c.env)
+    try {
+      writeAuditLog(auditDb, {
         organizationId: session.organization_id,
         userId: session.user_id,
         resourceType: 'call_translations',
@@ -154,13 +176,10 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
         action: AuditAction.LIVE_TRANSLATION_COMPLETED,
         after: { call_id: callId, segments_delivered: lastSegmentIndex + 1 },
       })
-    })
-  } catch (err: any) {
-    logger.error('Live translation stream error', { error: err?.message })
-    return c.json({ error: 'Failed to start live translation stream' }, 500)
-  } finally {
-    await db.end()
-  }
+    } finally {
+      await auditDb.end()
+    }
+  })
 })
 
 /**

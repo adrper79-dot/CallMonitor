@@ -176,7 +176,7 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
       const telnyxRes = await fetch('https://api.telnyx.com/v2/calls', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -191,14 +191,15 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
         const errBody = await telnyxRes.text()
         logger.error('Telnyx call origination failed', { status: telnyxRes.status, body: errBody })
         // Update DB to reflect failure
-        await db.query(
-          `UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`,
-          [call.id]
-        )
+        await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`, [
+          call.id,
+        ])
         return c.json({ error: 'Failed to originate call via telephony provider' }, 502)
       }
 
-      const telnyxData = await telnyxRes.json() as { data: { call_control_id: string; call_session_id: string } }
+      const telnyxData = (await telnyxRes.json()) as {
+        data: { call_control_id: string; call_session_id: string }
+      }
       // Store call_control_id so webhooks can match events back to this call
       await db.query(
         `UPDATE calls SET call_control_id = $1, call_sid = $2, status = 'initiated' WHERE id = $3`,
@@ -206,14 +207,19 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
       )
     } catch (telnyxErr: any) {
       logger.error('Telnyx call origination exception', { error: telnyxErr?.message })
-      await db.query(
-        `UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`,
-        [call.id]
-      )
+      await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`, [
+        call.id,
+      ])
       return c.json({ error: 'Telephony provider unavailable' }, 502)
     }
 
-    return c.json({ success: true, call }, 201)
+    // Re-fetch the updated call record so the response includes call_control_id and correct status
+    const updatedResult = await db.query(
+      `SELECT * FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [call.id, session.organization_id]
+    )
+
+    return c.json({ success: true, call: updatedResult.rows[0] || call }, 201)
   } catch (err: any) {
     logger.error('POST /api/calls/start error', { error: err?.message })
     return c.json({ error: 'Failed to start call' }, 500)
@@ -264,7 +270,7 @@ callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+              Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({}),
@@ -1037,17 +1043,7 @@ callsRoutes.post('/:id/notes', async (c) => {
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
-    // Ensure table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS call_notes (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
-        content TEXT NOT NULL,
-        created_by UUID,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
+    // call_notes table must exist via migrations — no DDL in request handlers
     const { rows: inserted } = await db.query(
       `INSERT INTO call_notes (call_id, content, created_by) VALUES ($1, $2, $3) RETURNING *`,
       [callId, content.trim(), session.user_id]
@@ -1102,16 +1098,6 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
 
     return c.json({ success: true, call: updated[0] })
   } catch (error: any) {
-    // If disposition column doesn't exist, add it dynamically
-    if (error.code === '42703') {
-      try {
-        await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition TEXT`)
-        await db.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS disposition_notes TEXT`)
-        return c.json({ success: false, error: 'Schema updated. Please retry.' }, 503)
-      } catch {
-        /* fall through */
-      }
-    }
     logger.error('PUT disposition error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
   } finally {
@@ -1142,18 +1128,7 @@ callsRoutes.post('/:id/confirmations', async (c) => {
     )
     if (calls.length === 0) return c.json({ success: false, error: 'Call not found' }, 404)
 
-    // Ensure table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS call_confirmations (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
-        confirmation_type TEXT NOT NULL,
-        details JSONB,
-        confirmed_by UUID,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
+    // call_confirmations table must exist via migrations — no DDL in request handlers
     const { rows: inserted } = await db.query(
       `INSERT INTO call_confirmations (call_id, confirmation_type, details, confirmed_by)
        VALUES ($1, $2, $3, $4) RETURNING *`,

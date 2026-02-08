@@ -668,3 +668,39 @@ The Feb 7 audit found:
 ---
 
 _This document should be updated after every sprint or major incident._
+
+---
+
+## 🔴 Session 3 Deep Audit — Voice/Translation/DB Patterns (February 2026)
+
+### SSE Streams Must Not Hold DB Connections
+
+**live-translation.ts** held a single `getDb()` Pool for up to 30 minutes during SSE streaming. Neon serverless connections are expensive edge resources. **Fix:** Open/close a fresh DB connection per poll iteration inside the SSE loop. The cost of connection setup (~5ms) is negligible vs the 1-second poll interval.
+
+### Plan Gating Must Be Enforced, Not Just Commented
+
+A comment said "requires business plan" but no code enforced it. **Rule:** If a feature is plan-gated, the middleware or handler MUST check `organizations.plan` before proceeding. Never rely on frontend-only gating.
+
+### Auth Before DB — Always
+
+Six handlers in voice.ts called `getDb(c.env)` before `requireAuth(c)`. This means unauthenticated requests waste a DB pool connection. **Rule:** `requireAuth()` (or `requireRole()`) MUST be the first call in every handler. Only acquire DB after auth succeeds.
+
+### Audit Logs on All Mutations
+
+POST /targets and DELETE /targets/:id had no audit trail. **Rule:** Every CREATE, UPDATE, DELETE operation MUST call `writeAuditLog()`. Add new action constants to `AuditAction` as needed.
+
+### Never Leak Internal IDs in External URLs
+
+webrtc.ts embedded `org_id` in the Telnyx webhook callback URL. **Rule:** Webhook URLs should contain only the minimum correlation key (e.g., `call_id`). Internal identifiers like organization_id must never appear in URLs sent to third parties.
+
+### No DDL in Request Handlers
+
+calls.ts had `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ADD COLUMN IF NOT EXISTS` inside request handlers. This causes: (1) unnecessary DDL execution per request, (2) schema drift if migrations are run separately, (3) permission issues in pooled connections. **Rule:** All DDL goes in migration files under `migrations/`. Request handlers only do DML.
+
+### statement_timeout Belongs in Connection Options
+
+db.ts ran `SET statement_timeout = 30000` as a separate query before every user query, doubling round-trips. **Fix:** Use Pool's `options` parameter: `options: '-c statement_timeout=30000'`. This sets the timeout at connection time with zero extra queries.
+
+### Telnyx Webhook Signing — HMAC vs Ed25519
+
+Telnyx V2 webhooks can sign with either shared-secret HMAC or Ed25519 public key. Our verification used HMAC-SHA256 but read the `telnyx-signature-ed25519` header. This works if your Telnyx portal is configured for shared-secret signing, but would fail silently with Ed25519. **Lesson:** Always verify which signing method your Telnyx application uses. For Ed25519, you need to import the public key and use `crypto.subtle.verify('Ed25519', ...)`.
