@@ -8,7 +8,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
@@ -47,23 +47,15 @@ export default function ReportsPage() {
 
   const userId = (session?.user as any)?.id
 
-  useEffect(() => {
-    if (userId) {
-      fetchOrganization()
-    }
-  }, [userId])
-
-  useEffect(() => {
-    if (organizationId) {
-      fetchReports()
-    }
-  }, [organizationId])
-
-  const fetchOrganization = async () => {
+  const fetchOrganization = useCallback(async () => {
     try {
-      const data = await apiGet<{ organization_id?: string }>(`/api/users/${userId}/organization`)
-      if (data.organization_id) {
-        setOrganizationId(data.organization_id)
+      const data = await apiGet<{
+        success: boolean
+        organization: { id: string; name: string; plan: string; plan_status: string }
+        role: string
+      }>(`/api/users/${userId}/organization`)
+      if (data.organization?.id) {
+        setOrganizationId(data.organization.id)
       } else {
         setError('Organization not found. Please contact support.')
       }
@@ -71,9 +63,9 @@ export default function ReportsPage() {
       logger.error('Error fetching organization', err, { userId })
       setError('Failed to load organization. Please try again.')
     }
-  }
+  }, [userId])
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -85,7 +77,19 @@ export default function ReportsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (userId) {
+      fetchOrganization()
+    }
+  }, [userId, fetchOrganization])
+
+  useEffect(() => {
+    if (organizationId) {
+      fetchReports()
+    }
+  }, [organizationId, fetchReports])
 
   const handleGenerateReport = async () => {
     try {

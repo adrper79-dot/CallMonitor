@@ -19,6 +19,8 @@ import { PlanComparisonTable } from '@/components/settings/PlanComparisonTable'
 import { AIAgentConfig } from '@/components/settings/AIAgentConfig'
 import { WebhookList } from '@/components/settings/WebhookList'
 import { WebhookSigningDocs } from '@/components/settings/WebhookSigningDocs'
+import { WebhookOverview } from '@/components/settings/WebhookOverview'
+import { WebhookEventFilter } from '@/components/settings/WebhookEventFilter'
 import { apiGet } from '@/lib/apiClient'
 import { useRBAC } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
@@ -58,12 +60,14 @@ function SettingsPageContent() {
 
     async function fetchOrganization() {
       try {
-        const data = await apiGet<{ organization_id?: string; organization_name?: string }>(
-          `/api/users/${userId}/organization`
-        )
-        const orgId = data.organization_id || ''
+        const data = await apiGet<{
+          success: boolean
+          organization: { id: string; name: string; plan: string; plan_status: string }
+          role: string
+        }>(`/api/users/${userId}/organization`)
+        const orgId = data.organization?.id || ''
         setOrganizationId(orgId)
-        setOrganizationName(data.organization_name || null)
+        setOrganizationName(data.organization?.name || null)
       } catch (e) {
         logger.error('Failed to fetch organization', e, { userId })
         setOrganizationId('')
@@ -104,7 +108,7 @@ function SettingsPageContent() {
             Sign In
           </a>
           <p className="mt-4 text-sm text-gray-500">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <a href="/signup" className="text-primary-600 hover:text-primary-700">
               Create one
             </a>
@@ -279,36 +283,10 @@ function SettingsPageContent() {
 
           {/* Webhooks - Integrations & Event Subscriptions */}
           {activeTab === 'webhooks' && (
-            <div className="space-y-8">
-              <section className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                    Webhook Subscriptions
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    Receive real-time notifications when events occur in your organization.
-                  </p>
-                </div>
-                <WebhookList
-                  organizationId={organizationId}
-                  canEdit={role === 'owner' || role === 'admin'}
-                />
-              </section>
-
-              <div className="border-t border-gray-200 pt-8">
-                <section className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                      Developer Documentation
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      Learn how to verify webhook signatures and implement webhook handlers.
-                    </p>
-                  </div>
-                  <WebhookSigningDocs />
-                </section>
-              </div>
-            </div>
+            <WebhooksTab
+              organizationId={organizationId}
+              canEdit={role === 'owner' || role === 'admin'}
+            />
           )}
 
           {/* Billing */}
@@ -609,6 +587,55 @@ function AIControlSection({
         </ul>
       </div>
     </section>
+  )
+}
+
+/**
+ * WebhooksTab — Extracted sub-component for the webhooks settings tab.
+ * Composes WebhookOverview, WebhookEventFilter, WebhookList, and WebhookSigningDocs.
+ */
+function WebhooksTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
+  const [webhookEventFilter, setWebhookEventFilter] = useState<string[]>([])
+
+  return (
+    <div className="space-y-8">
+      <section className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Webhook Subscriptions</h2>
+          <p className="text-sm text-gray-500">
+            Receive real-time notifications when events occur in your organization.
+          </p>
+        </div>
+
+        {/* Overview Dashboard */}
+        <WebhookOverview organizationId={organizationId} />
+
+        {/* Event Type Filter */}
+        <WebhookEventFilter
+          selectedEvents={webhookEventFilter}
+          onFilterChange={setWebhookEventFilter}
+        />
+
+        {/* Webhook List */}
+        <WebhookList
+          organizationId={organizationId}
+          canEdit={canEdit}
+          eventFilter={webhookEventFilter}
+        />
+      </section>
+
+      <div className="border-t border-gray-200 pt-8">
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Developer Documentation</h2>
+            <p className="text-sm text-gray-500">
+              Learn how to verify webhook signatures and implement webhook handlers.
+            </p>
+          </div>
+          <WebhookSigningDocs />
+        </section>
+      </div>
+    </div>
   )
 }
 
