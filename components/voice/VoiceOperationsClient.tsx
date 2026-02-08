@@ -16,7 +16,6 @@ import ActivityFeedEmbed from './ActivityFeedEmbed'
 import CallModulations from './CallModulations'
 import { BookingsList } from './BookingsList'
 import { BookingModal } from './BookingModal'
-import { OnboardingWizard, OnboardingConfig } from './OnboardingWizard'
 import { RecentTargets } from './RecentTargets'
 import { ActiveCallPanel } from './ActiveCallPanel'
 import { LiveTranslationPanel } from './LiveTranslationPanel'
@@ -51,26 +50,6 @@ function CallingModeSelectorWithWebRTC({
       disabled={disabled}
     />
   )
-}
-
-// Helper component that syncs onboarding completion to TargetNumberProvider
-function OnboardingSync() {
-  const { setTargetNumber } = useTargetNumber()
-
-  useEffect(() => {
-    function handleOnboardingComplete(e: CustomEvent<{ targetNumber?: string }>) {
-      if (e.detail?.targetNumber) {
-        setTargetNumber(e.detail.targetNumber)
-      }
-    }
-
-    window.addEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
-    return () => {
-      window.removeEventListener('onboarding:complete', handleOnboardingComplete as EventListener)
-    }
-  }, [setTargetNumber])
-
-  return null // This is a sync-only component, no UI
 }
 
 /**
@@ -118,7 +97,6 @@ export default function VoiceOperationsClient({
 }: VoiceOperationsClientProps) {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
-  const [showOnboarding, setShowOnboarding] = useState(false)
   const [optionsExpanded, setOptionsExpanded] = useState(false)
 
   // Responsive layout: true when viewport >= lg (1024px)
@@ -143,13 +121,6 @@ export default function VoiceOperationsClient({
 
   // Real-time updates for active call
   const { updates } = useRealtime(organizationId)
-
-  // Check if first-time user (no calls, no targets configured)
-  useEffect(() => {
-    if (initialCalls.length === 0) {
-      setShowOnboarding(true)
-    }
-  }, [initialCalls.length])
 
   // Monitor real-time updates for active call
   useEffect(() => {
@@ -190,21 +161,6 @@ export default function VoiceOperationsClient({
     setSelectedCallId(callId)
   }
 
-  const handleOnboardingComplete = async (config: OnboardingConfig) => {
-    setShowOnboarding(false)
-
-    const callEvent = new CustomEvent('onboarding:complete', {
-      detail: {
-        targetNumber: config.targetNumber,
-        targetName: config.targetName,
-        fromNumber: config.fromNumber,
-        record: config.record,
-        transcribe: config.transcribe,
-      },
-    })
-    window.dispatchEvent(callEvent)
-  }
-
   const handleTargetSelect = (number: string, name?: string) => {
     // Handled by TargetCampaignSelector through config context
   }
@@ -218,30 +174,10 @@ export default function VoiceOperationsClient({
     // Handled by CallModulations component directly
   }
 
-  // Show onboarding for first-time users
-  if (showOnboarding && initialCalls.length === 0) {
-    return (
-      <VoiceConfigProvider organizationId={organizationId}>
-        <div className="min-h-screen bg-gray-50">
-          <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
-          <div className="py-12 px-4">
-            <OnboardingWizard
-              organizationId={organizationId}
-              onComplete={handleOnboardingComplete}
-              onSkip={() => setShowOnboarding(false)}
-            />
-          </div>
-        </div>
-      </VoiceConfigProvider>
-    )
-  }
-
   return (
     <VoiceConfigProvider organizationId={organizationId}>
       <WebRTCProvider organizationId={organizationId}>
         <TargetNumberProvider>
-          {/* Sync onboarding completion to TargetNumberProvider */}
-          <OnboardingSync />
           <div className="flex flex-col h-screen bg-gray-50">
             {/* Header */}
             <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
@@ -300,29 +236,33 @@ export default function VoiceOperationsClient({
                   )}
 
                   {/* Calling Mode Toggle - Phone vs Browser */}
-                  <div className="bg-white rounded-md border border-gray-200 p-4">
-                    <CallingModeSelectorWithWebRTC
-                      mode={callingMode}
-                      onModeChange={setCallingMode}
-                      disabled={!!activeCallId}
-                    />
-                  </div>
+                  {isDesktop && (
+                    <div className="bg-white rounded-md border border-gray-200 p-4">
+                      <CallingModeSelectorWithWebRTC
+                        mode={callingMode}
+                        onModeChange={setCallingMode}
+                        disabled={!!activeCallId}
+                      />
+                    </div>
+                  )}
 
-                  {/* PRIMARY ACTION: Call Controls - Mode dependent */}
-                  <div data-tour="place-call">
-                    {callingMode === 'phone' && !activeCallId && (
-                      <ExecutionControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
-                    )}
-                    {callingMode === 'browser' && (
-                      <WebRTCCallControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
-                    )}
-                  </div>
+                  {/* PRIMARY ACTION: Call Controls - Mode dependent (desktop only) */}
+                  {isDesktop && (
+                    <div data-tour="place-call">
+                      {callingMode === 'phone' && !activeCallId && (
+                        <ExecutionControls
+                          organizationId={organizationId}
+                          onCallPlaced={handleCallPlaced}
+                        />
+                      )}
+                      {callingMode === 'browser' && (
+                        <WebRTCCallControls
+                          organizationId={organizationId}
+                          onCallPlaced={handleCallPlaced}
+                        />
+                      )}
+                    </div>
+                  )}
 
                   {/* Recent Targets */}
                   <div className="bg-white rounded-md border border-gray-200 p-4">
@@ -412,26 +352,32 @@ export default function VoiceOperationsClient({
                     {!isDesktop && <TargetCampaignSelector organizationId={organizationId} />}
 
                     {/* Calling Mode Toggle */}
-                    <div className="bg-white rounded-md border border-gray-200 p-4">
-                      <CallingModeSelectorWithWebRTC
-                        mode={callingMode}
-                        onModeChange={setCallingMode}
-                        disabled={!!activeCallId}
-                      />
-                    </div>
+                    {!isDesktop && (
+                      <div className="bg-white rounded-md border border-gray-200 p-4">
+                        <CallingModeSelectorWithWebRTC
+                          mode={callingMode}
+                          onModeChange={setCallingMode}
+                          disabled={!!activeCallId}
+                        />
+                      </div>
+                    )}
 
                     {/* Call Controls - Mode dependent */}
-                    {callingMode === 'phone' && !activeCallId && (
-                      <ExecutionControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
-                    )}
-                    {callingMode === 'browser' && (
-                      <WebRTCCallControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
+                    {!isDesktop && (
+                      <>
+                        {callingMode === 'phone' && !activeCallId && (
+                          <ExecutionControls
+                            organizationId={organizationId}
+                            onCallPlaced={handleCallPlaced}
+                          />
+                        )}
+                        {callingMode === 'browser' && (
+                          <WebRTCCallControls
+                            organizationId={organizationId}
+                            onCallPlaced={handleCallPlaced}
+                          />
+                        )}
+                      </>
                     )}
 
                     {/* Recent Targets */}
