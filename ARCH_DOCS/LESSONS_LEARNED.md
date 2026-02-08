@@ -631,8 +631,8 @@ The Feb 7 audit found:
 8. ~~**Frontend/backend RBAC role mismatch**~~ — ✅ Fixed in Round 2. Added operator/analyst/compliance to backend roleHierarchy.
 9. **API key client_secret not hashed** — `auth_providers.client_secret_hash` stores literal '**_hashed_**'. Low risk (0 orgs using auth_providers in prod).
 10. **R2 credentials in git history** — deploy-cloudflare.sh deleted but keys persist in git. Must be rotated manually.
-11. **Runtime DDL in 6 lower-traffic routes** — admin.ts, reports.ts, tts.ts, audio.ts, compliance.ts, webhook-failures.ts, caller-id.ts, shopper.ts still have `CREATE TABLE IF NOT EXISTS`. Migration created but DDL not yet removed from these files.
-12. **Migrations not yet executed** — `2026-02-07-audit-remediation.sql` and `2026-02-07-runtime-ddl-consolidation.sql` created but NOT run against production Neon. Must execute before removing remaining runtime DDL from lower-traffic routes.
+11. ~~**Runtime DDL in lower-traffic routes**~~ — ✅ Fixed. All runtime DDL removed from all route files. Migrations executed against production Neon.
+12. ~~**Migrations not yet executed**~~ — ✅ Fixed. Both `2026-02-07-audit-remediation.sql` and `2026-02-07-runtime-ddl-consolidation.sql` executed against production Neon. Created missing tables (call_translations, survey_responses, caller_ids) and added disposition_notes column.
 
 ---
 
