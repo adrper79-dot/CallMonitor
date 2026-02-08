@@ -123,7 +123,7 @@ export const DispositionSchema = z.object({
 
 export const ConfirmationSchema = z.object({
   confirmation_type: nonEmptyString,
-  details: z.record(z.unknown()).optional(),
+  details: z.record(z.string(), z.unknown()).optional(),
   confirmed_by: uuid.optional(),
 })
 
@@ -157,7 +157,7 @@ export const CreateCallSchema = z.object({
   organization_id: uuid.optional(),
   target_id: z.string().max(200).optional(),
   campaign_id: z.string().max(200).optional(),
-  modulations: z.record(z.unknown()).optional(),
+  modulations: z.record(z.string(), z.unknown()).optional(),
   flow_type: z.string().max(50).optional(),
 })
 
@@ -361,7 +361,7 @@ export const CreateAlertRuleSchema = z.object({
   name: nonEmptyString,
   description: z.string().max(2000).optional(),
   rule_type: nonEmptyString,
-  rule_config: z.record(z.unknown()).optional(),
+  rule_config: z.record(z.string(), z.unknown()).optional(),
   severity: z.enum(['info', 'warning', 'critical']).default('info'),
   notification_channels: z.array(z.string().max(50)).default(['in_app']),
   cooldown_minutes: z.number().int().min(1).max(10080).default(60),
@@ -370,7 +370,7 @@ export const CreateAlertRuleSchema = z.object({
 export const UpdateAlertRuleSchema = z.object({
   name: z.string().max(200).optional(),
   description: z.string().max(2000).optional(),
-  rule_config: z.record(z.unknown()).optional(),
+  rule_config: z.record(z.string(), z.unknown()).optional(),
   severity: z.enum(['info', 'warning', 'critical']).optional(),
   is_enabled: z.boolean().optional(),
   notification_channels: z.array(z.string().max(50)).optional(),
@@ -393,7 +393,7 @@ export const CopilotSchema = z
 export const GenerateReportSchema = z.object({
   name: nonEmptyString,
   type: z.string().max(50).default('call_volume'),
-  filters: z.record(z.unknown()).optional(),
+  filters: z.record(z.string(), z.unknown()).optional(),
   metrics: z.array(z.unknown()).optional(),
   format: z.enum(['pdf', 'csv', 'json']).default('pdf'),
 })
@@ -403,7 +403,7 @@ export const ScheduleReportSchema = z.object({
   report_type: z.string().max(50).default('call_volume'),
   cron_pattern: z.string().max(100).default('0 8 * * 1'),
   delivery_emails: z.array(z.string().email().max(254)).optional(),
-  filters: z.record(z.unknown()).optional(),
+  filters: z.record(z.string(), z.unknown()).optional(),
   format: z.string().max(20).default('pdf'),
 })
 
@@ -435,7 +435,7 @@ export const UpdateWebhookSchema = z.object({
 export const CreateScorecardSchema = z.object({
   call_id: uuid.optional(),
   template_id: z.string().max(200).optional(),
-  scores: z.record(z.unknown()).optional(),
+  scores: z.record(z.string(), z.unknown()).optional(),
   notes: z.string().max(10_000).optional(),
   overall_score: z.number().min(0).max(100).optional(),
 })
@@ -468,7 +468,7 @@ export const UpdateAuthProviderSchema = z.object({
   enabled: z.boolean().optional(),
   client_id: z.string().max(500).optional().nullable(),
   client_secret: z.string().max(500).optional().nullable(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 })
 
 // ─── Reliability Schemas ─────────────────────────────────────────────────────
@@ -512,7 +512,7 @@ export const LogComplianceViolationSchema = z.object({
     'AI_NO_NEGOTIATION',
   ]),
   violation_type: z.enum(['blocked', 'warned', 'detected', 'prevented']),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const ResolveComplianceViolationSchema = z.object({

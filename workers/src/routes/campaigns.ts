@@ -11,14 +11,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateCampaignSchema, UpdateCampaignSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const campaignsRoutes = new Hono<{ Bindings: Env }>()
+export const campaignsRoutes = new Hono<AppEnv>()
 
 // Get campaigns for organization
 campaignsRoutes.get('/', async (c) => {
@@ -75,6 +76,16 @@ campaignsRoutes.post('/', async (c) => {
       RETURNING *`,
       [session.organization_id, name, description || '', scenario || '', status || 'draft']
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'campaigns',
+      resourceId: result.rows[0].id,
+      action: AuditAction.CAMPAIGN_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, campaign: result.rows[0] }, 201)
   } catch (err: any) {
@@ -217,6 +228,16 @@ campaignsRoutes.put('/:id', async (c) => {
       return c.json({ error: 'Campaign not found' }, 404)
     }
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'campaigns',
+      resourceId: campaignId,
+      action: AuditAction.CAMPAIGN_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, campaign: result.rows[0] })
   } catch (err: any) {
     logger.error('PUT /api/campaigns/:id error', { error: err?.message })
@@ -245,6 +266,16 @@ campaignsRoutes.delete('/:id', async (c) => {
     if (result.rows.length === 0) {
       return c.json({ error: 'Campaign not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'campaigns',
+      resourceId: campaignId,
+      action: AuditAction.CAMPAIGN_DELETED,
+      before: { id: campaignId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Campaign deleted' })
   } catch (err: any) {

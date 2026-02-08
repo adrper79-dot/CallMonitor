@@ -11,7 +11,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv, Env } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import {
@@ -30,7 +30,7 @@ import {
 import { generateCorrelationId } from '../lib/errors'
 import { logger } from '../lib/logger'
 
-export const testRoutes = new Hono<{ Bindings: Env }>()
+export const testRoutes = new Hono<AppEnv>()
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

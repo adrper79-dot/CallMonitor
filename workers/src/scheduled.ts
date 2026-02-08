@@ -52,16 +52,49 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
 
   for (const call of result.rows) {
     try {
-      // TODO: Trigger AssemblyAI transcription
+      // BL-013: Submit recording to AssemblyAI for transcription
+      const audioUrl = call.recording_url.startsWith('http')
+        ? call.recording_url
+        : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${call.call_sid}`
+
+      const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
+
+      const headers: Record<string, string> = {
+        'Authorization': env.ASSEMBLYAI_API_KEY,
+        'Content-Type': 'application/json',
+      }
+
+      const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          audio_url: audioUrl,
+          webhook_url: webhookUrl,
+          ...(env.ASSEMBLYAI_WEBHOOK_SECRET
+            ? { webhook_auth_header_name: 'Authorization', webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET }
+            : {}),
+        }),
+      })
+
+      if (!assemblyRes.ok) {
+        logger.warn('AssemblyAI retry submission failed', { callId: call.id, status: assemblyRes.status })
+        continue
+      }
+
+      const assemblyData = await assemblyRes.json() as { id: string }
+
       await db.query(
-        `
-        UPDATE calls 
-        SET transcript_status = 'pending', transcript_retries = transcript_retries + 1
-        WHERE id = $1
-      `,
-        [call.id]
+        `UPDATE calls
+         SET transcript_status = 'pending',
+             transcript_retries = transcript_retries + 1,
+             transcript_id = $1
+         WHERE id = $2`,
+        [assemblyData.id, call.id]
       )
+
+      logger.info('AssemblyAI transcription retry submitted', { callId: call.id, transcriptId: assemblyData.id })
     } catch (error) {
+      logger.warn('AssemblyAI retry exception', { callId: call.id })
       // Skip failed individual retries
     }
   }

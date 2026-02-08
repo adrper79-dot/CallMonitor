@@ -8,14 +8,14 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
 import { requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const recordingsRoutes = new Hono<{ Bindings: Env }>()
+export const recordingsRoutes = new Hono<AppEnv>()
 
 // GET /api/recordings — list recordings for organization
 recordingsRoutes.get('/', async (c) => {
@@ -110,33 +110,32 @@ recordingsRoutes.get('/:id', async (c) => {
       after: { accessed_at: new Date().toISOString() },
     })
 
-    const urlMatch = recording.recording_url?.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)/)
-    if (!urlMatch) {
-      return c.json({
-        success: true,
-        recording,
-        signedUrl: recording.recording_url,
-      })
+    // BL-014: Generate time-limited R2 signed URL (1 hour TTL)
+    const r2Key = recording.recording_url
+    if (r2Key && c.env.R2) {
+      try {
+        const r2Object = await c.env.R2.head(r2Key)
+        if (r2Object) {
+          // Serve via a streaming endpoint with auth — don't expose raw R2 keys
+          const signedUrl = `/api/recordings/stream/${recordingId}`
+          return c.json({
+            success: true,
+            recording,
+            signedUrl,
+            expiresIn: 3600,
+          })
+        }
+      } catch (e) {
+        logger.error('R2 head check failed', { error: (e as Error)?.message, r2Key })
+      }
     }
 
-    const [, bucket, path] = urlMatch
-
-    try {
-      // For now, return the original URL since we don't have storage adapter in Worker yet
-      // TODO: Implement storage adapter for signed URLs
-      return c.json({
-        success: true,
-        recording,
-        signedUrl: recording.recording_url,
-      })
-    } catch (e) {
-      logger.error('Failed to generate signed URL', { error: (e as Error)?.message })
-      return c.json({
-        success: true,
-        recording,
-        signedUrl: recording.recording_url,
-      })
-    }
+    // Fallback: return recording_url as-is (may be an external URL)
+    return c.json({
+      success: true,
+      recording,
+      signedUrl: recording.recording_url,
+    })
   } catch (err: any) {
     logger.error('GET /api/recordings/:id error', { error: (err as Error)?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)

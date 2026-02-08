@@ -1,0 +1,13 @@
+{
+  "project": "debt_collection_validation",
+  "objective": "Validate market need and positioning for compliance-focused debt collection software",
+  "agents": {
+    "research": {
+      "role": "Market & Regulatory Research",
+      "tasks": ["Pain point validation", "Regulation analysis", "Market sizing"],
+      "tools": ["browser_action", "search_files", "execute_command"]
+    },
+    "competitive": {
+      "role": "Competitive Intelligence",
+      "tasks": ["Feature comparison", "Pricing analysis", "Gap identification"],
+      "tools": ["browser

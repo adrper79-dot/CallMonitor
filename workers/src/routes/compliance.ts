@@ -12,14 +12,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { LogComplianceViolationSchema, ResolveComplianceViolationSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const complianceRoutes = new Hono<{ Bindings: Env }>()
+export const complianceRoutes = new Hono<AppEnv>()
 
 // POST /violations — Log a compliance violation
 // Called by frontend's logComplianceViolation() in complianceUtils.ts
@@ -47,6 +48,15 @@ complianceRoutes.post('/violations', async (c) => {
         context ? JSON.stringify(context) : null,
       ]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'compliance_violations',
+      resourceId: result.rows[0].id,
+      action: AuditAction.COMPLIANCE_VIOLATION_LOGGED,
+      after: result.rows[0],
+    })
 
     return c.json(
       {
@@ -183,6 +193,15 @@ complianceRoutes.patch('/violations/:id', async (c) => {
     if (result.rows.length === 0) {
       return c.json({ error: 'Violation not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'compliance_violations',
+      resourceId: result.rows[0].id,
+      action: AuditAction.COMPLIANCE_VIOLATION_RESOLVED,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, violation: result.rows[0] })
   } catch (err: any) {

@@ -1,0 +1,12 @@
+{
+  "competitor_pricing": {
+    "low": "$100/agent/mo",
+    "avg": "$150/agent/mo",
+    "high": "$200/agent/mo"
+  },
+  "recommended_pricing": {
+    "base": "$99/agent/mo",
+    "premium": "$149/agent/mo",
+    "justification": "Undercut avg, premium for AI features"
+  }
+}

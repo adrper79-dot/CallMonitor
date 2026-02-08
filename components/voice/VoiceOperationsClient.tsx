@@ -100,14 +100,7 @@ export default function VoiceOperationsClient({
   const [optionsExpanded, setOptionsExpanded] = useState(false)
 
   // Responsive layout: true when viewport >= lg (1024px)
-  const [isDesktop, setIsDesktop] = useState(false)
-  useEffect(() => {
-    const mql = window.matchMedia('(min-width: 1024px)')
-    setIsDesktop(mql.matches)
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
-  }, [])
+  
 
   // Calling mode: phone (traditional) or browser (WebRTC)
   const [callingMode, setCallingMode] = useState<CallingMode>('phone')
@@ -228,41 +221,35 @@ export default function VoiceOperationsClient({
                       <LiveTranslationFeed callId={activeCallId} organizationId={organizationId} />
                     )}
 
-                  {/* Target & Campaign Selector (desktop only — mobile has its own in dial tab) */}
-                  {isDesktop && (
-                    <div className="space-y-4" data-tour="target-selector">
-                      <TargetCampaignSelector organizationId={organizationId} />
-                    </div>
-                  )}
+                  {/* Target & Campaign Selector */}
+                  <div className="hidden lg:block space-y-4" data-tour="target-selector">
+                    <TargetCampaignSelector organizationId={organizationId} />
+                  </div>
 
-                  {/* Calling Mode Toggle - Phone vs Browser */}
-                  {isDesktop && (
-                    <div className="bg-white rounded-md border border-gray-200 p-4">
-                      <CallingModeSelectorWithWebRTC
-                        mode={callingMode}
-                        onModeChange={setCallingMode}
-                        disabled={!!activeCallId}
+                  {/* Calling Mode Toggle */}
+                  <div className="hidden lg:block bg-white rounded-md border border-gray-200 p-4">
+                    <CallingModeSelectorWithWebRTC
+                      mode={callingMode}
+                      onModeChange={setCallingMode}
+                      disabled={!!activeCallId}
+                    />
+                  </div>
+
+                  {/* PRIMARY ACTION: Call Controls - Desktop */}
+                  <div className="hidden lg:block" data-tour="place-call">
+                    {callingMode === 'phone' && !activeCallId && (
+                      <ExecutionControls
+                        organizationId={organizationId}
+                        onCallPlaced={handleCallPlaced}
                       />
-                    </div>
-                  )}
-
-                  {/* PRIMARY ACTION: Call Controls - Mode dependent (desktop only) */}
-                  {isDesktop && (
-                    <div data-tour="place-call">
-                      {callingMode === 'phone' && !activeCallId && (
-                        <ExecutionControls
-                          organizationId={organizationId}
-                          onCallPlaced={handleCallPlaced}
-                        />
-                      )}
-                      {callingMode === 'browser' && (
-                        <WebRTCCallControls
-                          organizationId={organizationId}
-                          onCallPlaced={handleCallPlaced}
-                        />
-                      )}
-                    </div>
-                  )}
+                    )}
+                    {callingMode === 'browser' && (
+                      <WebRTCCallControls
+                        organizationId={organizationId}
+                        onCallPlaced={handleCallPlaced}
+                      />
+                    )}
+                  </div>
 
                   {/* Recent Targets */}
                   <div className="bg-white rounded-md border border-gray-200 p-4">
@@ -349,36 +336,34 @@ export default function VoiceOperationsClient({
                       />
                     )}
 
-                    {!isDesktop && <TargetCampaignSelector organizationId={organizationId} />}
+                    <div className="lg:hidden p-4">
+                      <TargetCampaignSelector organizationId={organizationId} />
+                    </div>
 
-                    {/* Calling Mode Toggle */}
-                    {!isDesktop && (
-                      <div className="bg-white rounded-md border border-gray-200 p-4">
-                        <CallingModeSelectorWithWebRTC
-                          mode={callingMode}
-                          onModeChange={setCallingMode}
-                          disabled={!!activeCallId}
+                    {/* Calling Mode Toggle - Mobile */}
+                    <div className="lg:hidden bg-white rounded-md border border-gray-200 p-4">
+                      <CallingModeSelectorWithWebRTC
+                        mode={callingMode}
+                        onModeChange={setCallingMode}
+                        disabled={!!activeCallId}
+                      />
+                    </div>
+
+                    {/* Call Controls - Mobile */}
+                    <div className="lg:hidden">
+                      {callingMode === 'phone' && !activeCallId && (
+                        <ExecutionControls
+                          organizationId={organizationId}
+                          onCallPlaced={handleCallPlaced}
                         />
-                      </div>
-                    )}
-
-                    {/* Call Controls - Mode dependent */}
-                    {!isDesktop && (
-                      <>
-                        {callingMode === 'phone' && !activeCallId && (
-                          <ExecutionControls
-                            organizationId={organizationId}
-                            onCallPlaced={handleCallPlaced}
-                          />
-                        )}
-                        {callingMode === 'browser' && (
-                          <WebRTCCallControls
-                            organizationId={organizationId}
-                            onCallPlaced={handleCallPlaced}
-                          />
-                        )}
-                      </>
-                    )}
+                      )}
+                      {callingMode === 'browser' && (
+                        <WebRTCCallControls
+                          organizationId={organizationId}
+                          onCallPlaced={handleCallPlaced}
+                        />
+                      )}
+                    </div>
 
                     {/* Recent Targets */}
                     <div className="bg-white rounded-md border border-gray-200 p-4">

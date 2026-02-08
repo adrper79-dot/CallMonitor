@@ -13,14 +13,14 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TTSGenerateSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 
-export const ttsRoutes = new Hono<{ Bindings: Env }>()
+export const ttsRoutes = new Hono<AppEnv>()
 
 const TTS_CACHE_TTL = 7 * 24 * 60 * 60 // 7 days in seconds
 const TTS_MODEL = 'eleven_multilingual_v2'
@@ -54,15 +54,15 @@ ttsRoutes.post('/generate', async (c) => {
       return c.json({ error: 'Invalid organization' }, 400)
     }
 
-    // Use ElevenLabs API if configured, otherwise return stub
+    // Use ElevenLabs API if configured, otherwise return 503
     const elevenLabsKey = c.env.ELEVENLABS_API_KEY
     if (!elevenLabsKey) {
+      // BL-016: Return proper 503 instead of misleading 200 success
       return c.json({
-        success: true,
-        audio_url: null,
-        message: 'TTS not configured — set ELEVENLABS_API_KEY secret',
-        duration_seconds: 0,
-      })
+        success: false,
+        error: 'Text-to-speech service is not configured',
+        code: 'TTS_NOT_CONFIGURED',
+      }, 503)
     }
 
     const voiceIdResolved = voice_id || '21m00Tcm4TlvDq8ikWAM' // Default: Rachel

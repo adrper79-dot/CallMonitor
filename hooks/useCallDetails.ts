@@ -51,30 +51,9 @@ export function useCallDetails(callId: string | null) {
       }
 
       // Fetch call details with Bearer token authentication
-      try {
-        const data = await apiGet(`/api/calls/${encodeURIComponent(callId)}`)
-        if (mountedRef.current) setDetails(data)
-        return data
-      } catch (primaryError) {
-        // Fallback to existing endpoint if new one doesn't exist
-        try {
-          const fallbackData = await apiGet(`/api/calls/getCallStatus?callId=${encodeURIComponent(callId)}`)
-          const newDetails = {
-            call: fallbackData.call || null,
-            recording: fallbackData.recording || null,
-            transcript: fallbackData.recording?.transcript_json || null,
-            translation: null,
-            manifest: fallbackData.evidence_manifest || null,
-            score: null,
-            survey: null,
-            transcriptionStatus: null,
-          }
-          if (mountedRef.current) setDetails(newDetails)
-          return newDetails
-        } catch (fallbackError) {
-          throw new Error('Failed to fetch call details')
-        }
-      }
+      const data = await apiGet(`/api/calls/${encodeURIComponent(callId)}`)
+      if (mountedRef.current) setDetails(data)
+      return data
     } catch (err: any) {
       if (mountedRef.current) {
         setError(err?.message || 'Failed to load call details')

@@ -45,10 +45,10 @@ Use Grok/Cline agents to validate:
 
 ### Command 1: Create Project Structure
 
-```bash
-# Create validation workspace
-mkdir -p /home/claude/validation_project/{agents,data,reports}
-cd /home/claude/validation_project
+```powershell
+# Create validation workspace (Windows/Cline)
+mkdir validation_project\\agents,data,reports
+cd validation_project
 
 # Create agent configuration
 cat > agents/config.json << 'JSON'
@@ -80,7 +80,7 @@ cat > agents/config.json << 'JSON'
 }
 JSON
 
-echo "✓ Project structure created"
+echo "✓ Project structure created (Cline/Grok ready)"
 ```
 
 ---
@@ -121,8 +121,8 @@ OUTPUT FORMAT:
 }
 PROMPT
 
-# Note: You would execute this as web searches, I'll show the command structure:
-echo "Research Task 1 prompt created. Execute with web_search tool."
+# Note: Execute with Cline <browser_action>: <browser_action><action>launch</action><url>https://google.com/search?q=FDCPA+lawsuit+settlements+2024+2026</url></browser_action>
+echo "Research Task 1 prompt created. Execute with browser_action."
 ```
 
 ### Command 3: Market Size Analysis
@@ -154,7 +154,7 @@ OUTPUT:
 }
 PROMPT
 
-echo "Research Task 2 prompt created."
+echo "Research Task 2 prompt created. Use browser_action for market data."
 ```
 
 ### Command 4: Regulatory Environment Analysis
@@ -190,7 +190,7 @@ OUTPUT:
 }
 PROMPT
 
-echo "Research Task 3 prompt created."
+echo "Research Task 3 prompt created. Use browser_action for regulations."
 ```
 
 ---
@@ -228,7 +228,7 @@ OUTPUT:
 Feature matrix in table format showing gaps where competitors are weak
 PROMPT
 
-echo "Competitive Task 1 prompt created."
+echo "Competitive Task 1 prompt created. Use browser_action on competitor sites."
 ```
 
 ### Command 6: Pricing Analysis
@@ -270,7 +270,7 @@ OUTPUT:
 }
 PROMPT
 
-echo "Competitive Task 2 prompt created."
+echo "Competitive Task 2 prompt created. Use browser_action for pricing."
 ```
 
 ### Command 7: Gap Analysis
@@ -309,7 +309,7 @@ OUTPUT:
 }
 PROMPT
 
-echo "Competitive Task 3 prompt created."
+echo "Competitive Task 3 prompt created. Use browser_action for reviews/gaps."
 ```
 
 ---
@@ -353,7 +353,7 @@ OUTPUT:
 }
 PROMPT
 
-echo "Customer Task 1 prompt created."
+echo "Customer Task 1 prompt created. Use browser_action for ICP data."
 ```
 
 ### Command 9: Early Adopter Identification
@@ -391,7 +391,7 @@ CREATE LIST:
 GOAL: 10-15 specific agencies with contact info
 PROMPT
 
-echo "Customer Task 2 prompt created."
+echo "Customer Task 2 prompt created. Use browser_action for agency targets."
 ```
 
 ### Command 10: Outreach Message Testing
@@ -419,7 +419,7 @@ CREATE:
 RECOMMEND which angle to lead with based on evidence
 PROMPT
 
-echo "Customer Task 3 prompt created."
+echo "Customer Task 3 prompt created. Use browser_action for messaging insights."
 ```
 
 ---
@@ -470,7 +470,7 @@ SYNTHESIZE INTO:
 OUTPUT FORMAT: Executive summary (2 pages) + detailed report
 PROMPT
 
-echo "Synthesis task prompt created."
+echo "Synthesis task prompt created. Use read_file on data/ files."
 ```
 
 ---

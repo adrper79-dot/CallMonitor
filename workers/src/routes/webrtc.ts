@@ -5,14 +5,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebRTCDialSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const webrtcRoutes = new Hono<{ Bindings: Env }>()
+export const webrtcRoutes = new Hono<AppEnv>()
 
 // Debug endpoint to check Telnyx configuration
 webrtcRoutes.get('/debug', async (c) => {
@@ -161,7 +162,9 @@ webrtcRoutes.get('/token', async (c) => {
       )
     }
 
-    const credData = await createCredResponse.json()
+    const credData = (await createCredResponse.json()) as {
+      data: { id: string; sip_username: string; expires_at: string }
+    }
     const credentialId = credData.data.id
 
     // Step 2: Get JWT token for the created credential
@@ -280,7 +283,9 @@ webrtcRoutes.post('/dial', async (c) => {
       return c.json({ error: 'Failed to initiate call' }, 500)
     }
 
-    const telnyxData = await telnyxResponse.json()
+    const telnyxData = (await telnyxResponse.json()) as {
+      data: { call_control_id: string }
+    }
     const callSid = telnyxData.data.call_control_id
 
     // Update call record with Telnyx call SID (column is call_sid, not external_id)
@@ -289,6 +294,16 @@ webrtcRoutes.post('/dial', async (c) => {
       'ringing',
       callId,
     ])
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: callId,
+      action: AuditAction.CALL_STARTED,
+      before: null,
+      after: { call_id: callId, call_sid: callSid, phone_number, direction: 'outbound' },
+    })
 
     return c.json({
       success: true,

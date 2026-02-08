@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { apiGet, apiPost } from '@/lib/apiClient'
+import { apiGet, apiPost, apiPatch } from '@/lib/apiClient'
 
 interface Alert {
   id: string
@@ -74,7 +74,7 @@ export default function BondAIAlertsPanel({ className, compact }: BondAIAlertsPa
 
   const acknowledgeAlert = async (id: string, action: 'read' | 'acknowledged' | 'dismissed') => {
     try {
-      await apiPost(`/api/bond-ai/alerts/${id}`, { status: action }, { method: 'PATCH' } as any)
+      await apiPatch(`/api/bond-ai/alerts/${id}`, { status: action })
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status: action } : a)))
       setUnreadCount((prev) => Math.max(0, prev - 1))
     } catch {

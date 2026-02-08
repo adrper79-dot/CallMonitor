@@ -84,12 +84,23 @@ export interface Env {
   ELEVENLABS_API_KEY: string
   STRIPE_WEBHOOK_SECRET: string
   TELNYX_WEBHOOK_SECRET: string
+  ASSEMBLYAI_WEBHOOK_SECRET?: string
   NEXT_PUBLIC_APP_URL?: string
   API_BASE_URL?: string
 }
 
-// Create Hono app with typed bindings
-const app = new Hono<{ Bindings: Env }>()
+// Session type — set by authMiddleware via c.set('session', session)
+import type { Session } from './lib/auth'
+
+/**
+ * Shared Hono app environment type — includes Bindings + Variables.
+ * All route files should use `AppEnv` instead of `{ Bindings: Env }` directly
+ * so that c.get('session') / c.set('session', ...) are type-safe.
+ */
+export type AppEnv = { Bindings: Env; Variables: { session: Session } }
+
+// Create Hono app with typed bindings + session variable
+const app = new Hono<AppEnv>()
 
 // Global middleware
 // Note: Hono logger() removed — it logged all requests to console including auth headers

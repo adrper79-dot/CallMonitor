@@ -1,0 +1,8 @@
+{
+  "total_agencies": 8000,
+  "target_segment_size": 2500,
+  "avg_agents_per_agency": 25,
+  "tam_calculation": "8000 agencies * 25 agents * $100/mo * 12 = $240M",
+  "sam_calculation": "2500 SMB * 25 * $100 * 12 = $75M",
+  "som_target": "Year 1: 50 agencies ($1.5M ARR)"
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { apiGet, apiPost } from '@/lib/apiClient'
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
 
 interface Message {
   id: string
@@ -146,7 +146,7 @@ export default function BondAIChat({ contextType, contextId, className }: BondAI
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await apiPost(`/api/bond-ai/conversations/${id}`, undefined, { method: 'DELETE' } as any)
+      await apiDelete(`/api/bond-ai/conversations/${id}`)
       setConversations((prev) => prev.filter((c) => c.id !== id))
       if (activeConversation === id) {
         startNewConversation()

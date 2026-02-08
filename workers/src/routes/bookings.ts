@@ -9,7 +9,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
@@ -19,7 +19,7 @@ import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { bookingRateLimit } from '../lib/rate-limit'
 
-export const bookingsRoutes = new Hono<{ Bindings: Env }>()
+export const bookingsRoutes = new Hono<AppEnv>()
 
 // GET / — list bookings
 bookingsRoutes.get('/', async (c) => {
@@ -169,7 +169,7 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
       resourceType: 'bookings',
       resourceId: bookingId,
       action: AuditAction.BOOKING_UPDATED,
-      after: { status, title, description, scheduled_at },
+      after: { status, title, description, start_time },
     })
 
     return c.json({ success: true, booking: result.rows[0] })

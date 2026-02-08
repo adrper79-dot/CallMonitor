@@ -8,12 +8,12 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 
-export const callCapabilitiesRoutes = new Hono<{ Bindings: Env }>()
+export const callCapabilitiesRoutes = new Hono<AppEnv>()
 
 /** Capability tiers keyed by plan slug */
 const PLAN_CAPABILITIES: Record<string, any> = {

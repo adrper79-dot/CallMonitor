@@ -3,7 +3,7 @@
  * Session validation, token parsing, and fingerprint binding (H2 hardening)
  */
 
-import type { Context } from 'hono'
+import type { Context, Next } from 'hono'
 import type { Env } from '../index'
 import { getDb } from './db'
 
@@ -20,7 +20,7 @@ export interface Session {
  * Compute device fingerprint from request headers.
  * Used to bind sessions to the device that created them (H2 hardening).
  */
-export async function computeFingerprint(c: Context<{ Bindings: Env }>): Promise<string> {
+export async function computeFingerprint(c: Context<{ Bindings: Env; Variables: { session: Session } }>): Promise<string> {
   const userAgent = c.req.header('User-Agent') || 'unknown'
   const origin = c.req.header('Origin') || c.req.header('Referer') || 'unknown'
   const raw = `${userAgent}|${origin}`
@@ -33,7 +33,7 @@ export async function computeFingerprint(c: Context<{ Bindings: Env }>): Promise
 /**
  * Parse session token from request cookies or Authorization header
  */
-export function parseSessionToken(c: Context<{ Bindings: Env }>): string | null {
+export function parseSessionToken(c: Context<{ Bindings: Env; Variables: { session: Session } }>): string | null {
   // Check Authorization header first (for API clients)
   const authHeader = c.req.header('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
@@ -51,7 +51,7 @@ export function parseSessionToken(c: Context<{ Bindings: Env }>): string | null 
 }
 
 export async function verifySession(
-  c: Context<{ Bindings: Env }>,
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>,
   token: string
 ): Promise<Session | null> {
   try {
@@ -125,7 +125,7 @@ export async function verifySession(
 /**
  * Middleware helper: require authenticated session
  */
-export async function requireAuth(c: Context<{ Bindings: Env }>): Promise<Session | null> {
+export async function requireAuth(c: Context<{ Bindings: Env; Variables: { session: Session } }>): Promise<Session | null> {
   const token = parseSessionToken(c)
 
   if (!token) {
@@ -136,10 +136,28 @@ export async function requireAuth(c: Context<{ Bindings: Env }>): Promise<Sessio
 }
 
 /**
+ * Hono middleware: authenticate and set session in context.
+ *
+ * This MUST run before requirePlan() so that c.get('session') is populated.
+ * Use as: route.get('/path', authMiddleware, requirePlan('pro'), handler)
+ */
+export const authMiddleware = async (
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>,
+  next: Next
+) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Authentication required', code: 'AUTH_REQUIRED' }, 401)
+  }
+  c.set('session', session)
+  await next()
+}
+
+/**
  * Middleware helper: require specific role
  */
 export async function requireRole(
-  c: Context<{ Bindings: Env }>,
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>,
   requiredRole: string
 ): Promise<Session | null> {
   const session = await requireAuth(c)

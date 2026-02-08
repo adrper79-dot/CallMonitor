@@ -3,7 +3,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
@@ -12,7 +12,7 @@ import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { voiceRateLimit } from '../lib/rate-limit'
 
-export const voiceRoutes = new Hono<{ Bindings: Env }>()
+export const voiceRoutes = new Hono<AppEnv>()
 
 // Get voice targets
 voiceRoutes.get('/targets', async (c) => {

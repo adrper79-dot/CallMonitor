@@ -11,12 +11,12 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getAllCapabilities, checkCapabilities, getPlanDetails } from '../lib/capabilities'
 import { analyticsRateLimit } from '../lib/rate-limit'
 
-export const capabilitiesRoutes = new Hono<{ Bindings: Env }>()
+export const capabilitiesRoutes = new Hono<AppEnv>()
 
 // GET / — All capabilities for the org (used on app init)
 capabilitiesRoutes.get('/', analyticsRateLimit, async (c) => {

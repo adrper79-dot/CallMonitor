@@ -3,12 +3,12 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 
-export const auditRoutes = new Hono<{ Bindings: Env }>()
+export const auditRoutes = new Hono<AppEnv>()
 
 // Get audit logs for organization
 auditRoutes.get('/', async (c) => {

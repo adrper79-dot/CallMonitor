@@ -12,14 +12,14 @@
 
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { voiceRateLimit } from '../lib/rate-limit'
 
-export const liveTranslationRoutes = new Hono<{ Bindings: Env }>()
+export const liveTranslationRoutes = new Hono<AppEnv>()
 
 /**
  * GET /api/voice/translate/stream?callId=...
@@ -59,7 +59,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
       resourceId: callId,
       action: AuditAction.LIVE_TRANSLATION_STARTED,
       after: { call_id: callId },
-    }).catch(() => {})
+    })
 
     logger.info('Live translation stream opened', {
       callId,
@@ -153,7 +153,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
         resourceId: callId,
         action: AuditAction.LIVE_TRANSLATION_COMPLETED,
         after: { call_id: callId, segments_delivered: lastSegmentIndex + 1 },
-      }).catch(() => {})
+      })
     })
   } catch (err: any) {
     logger.error('Live translation stream error', { error: err?.message })

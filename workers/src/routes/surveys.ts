@@ -11,14 +11,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateSurveySchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const surveysRoutes = new Hono<{ Bindings: Env }>()
+export const surveysRoutes = new Hono<AppEnv>()
 
 // GET / — List surveys
 surveysRoutes.get('/', async (c) => {
@@ -101,6 +102,16 @@ surveysRoutes.post('/', async (c) => {
       return c.json({ error: 'Failed to create survey' }, 500)
     }
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'surveys',
+      resourceId: survey.id,
+      action: AuditAction.SURVEY_CREATED,
+      before: null,
+      after: survey,
+    })
+
     return c.json({ success: true, survey })
   } catch (err: any) {
     logger.error('POST /api/surveys error', { error: err?.message })
@@ -127,6 +138,16 @@ surveysRoutes.delete('/:id', async (c) => {
     )
 
     if (result.rows.length === 0) return c.json({ error: 'Survey not found' }, 404)
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'surveys',
+      resourceId: id,
+      action: AuditAction.SURVEY_DELETED,
+      before: { id },
+      after: null,
+    })
 
     return c.json({ success: true, deleted: id })
   } catch (err: any) {

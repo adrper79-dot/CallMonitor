@@ -17,21 +17,22 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import type { AppEnv } from '../index'
+import { requireAuth, authMiddleware } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { aiLlmRateLimit } from '../lib/rate-limit'
 import { requirePlan } from '../lib/plan-gating'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const aiLlmRoutes = new Hono<{ Bindings: Env }>()
+export const aiLlmRoutes = new Hono<AppEnv>()
 
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const DEFAULT_MODEL = 'gpt-4o-mini'
 const MAX_TOKENS = 4096
 
 // POST /chat — Proxied chat completion
-aiLlmRoutes.post('/chat', aiLlmRateLimit, requirePlan('pro'), async (c) => {
+aiLlmRoutes.post('/chat', aiLlmRateLimit, authMiddleware, requirePlan('pro'), async (c) => {
   const session = c.get('session') as any
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -109,7 +110,7 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, requirePlan('pro'), async (c) => {
 })
 
 // POST /summarize — Summarize call transcript
-aiLlmRoutes.post('/summarize', aiLlmRateLimit, requirePlan('starter'), async (c) => {
+aiLlmRoutes.post('/summarize', aiLlmRateLimit, authMiddleware, requirePlan('starter'), async (c) => {
   const session = c.get('session') as any
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -176,6 +177,16 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, requirePlan('starter'), async (c)
          ON CONFLICT DO NOTHING`,
         [session.organization_id, body.call_id, summary.substring(0, 5000)]
       )
+
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'ai_summaries',
+        resourceId: body.call_id,
+        action: AuditAction.AI_SUMMARIZE_COMPLETED,
+        before: null,
+        after: { call_id: body.call_id, provider: 'openai', status: 'completed' },
+      })
     }
 
     return c.json({
@@ -192,7 +203,7 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, requirePlan('starter'), async (c)
 })
 
 // POST /analyze — Analyze call for compliance and quality
-aiLlmRoutes.post('/analyze', aiLlmRateLimit, requirePlan('pro'), async (c) => {
+aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'), async (c) => {
   const session = c.get('session') as any
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 

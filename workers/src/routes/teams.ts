@@ -6,8 +6,8 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import type { AppEnv } from '../index'
+import { requireAuth, authMiddleware } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import {
@@ -18,18 +18,19 @@ import {
   UpdateRoleSchema,
 } from '../lib/schemas'
 import { requirePlan } from '../lib/plan-gating'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const teamsRoutes = new Hono<{ Bindings: Env }>()
+export const teamsRoutes = new Hono<AppEnv>()
 
 // ════════════════════════════════════════════════════════════
 // TEAMS (departments/squads)
 // ════════════════════════════════════════════════════════════
 
 // List teams in org
-teamsRoutes.get('/', requirePlan('pro'), async (c) => {
+teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
+    const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     if (!session.organization_id) {
@@ -57,10 +58,10 @@ teamsRoutes.get('/', requirePlan('pro'), async (c) => {
 })
 
 // Create team (manager+ role)
-teamsRoutes.post('/', requirePlan('pro'), async (c) => {
+teamsRoutes.post('/', authMiddleware, requirePlan('pro'), async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
+    const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
@@ -86,6 +87,16 @@ teamsRoutes.post('/', requirePlan('pro'), async (c) => {
         session.user_id,
       ]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'teams',
+      resourceId: result.rows[0].id,
+      action: AuditAction.TEAM_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, team: result.rows[0] }, 201)
   } catch (err: any) {
@@ -136,6 +147,15 @@ teamsRoutes.put('/:id', async (c) => {
         session.organization_id,
       ]
     )
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'teams',
+      resourceId: teamId,
+      action: AuditAction.TEAM_UPDATED,
+      before: null,
+      after: { name, description, team_type, parent_team_id, manager_user_id, is_active },
+    })
 
     return c.json({ success: true })
   } catch (err: any) {
@@ -165,6 +185,15 @@ teamsRoutes.delete('/:id', async (c) => {
        WHERE id = $1 AND organization_id = $2`,
       [teamId, session.organization_id]
     )
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'teams',
+      resourceId: teamId,
+      action: AuditAction.TEAM_DELETED,
+      before: { is_active: true },
+      after: { is_active: false },
+    })
 
     return c.json({ success: true })
   } catch (err: any) {
@@ -259,6 +288,16 @@ teamsRoutes.post('/:id/members', async (c) => {
       [teamId, user_id, team_role]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'team_members',
+      resourceId: result.rows[0].id,
+      action: AuditAction.MEMBER_INVITED,
+      before: null,
+      after: { team_id: teamId, user_id, team_role },
+    })
+
     return c.json({ success: true, membership: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to add team member' }, 500)
@@ -292,6 +331,16 @@ teamsRoutes.delete('/:id/members/:userId', async (c) => {
     }
 
     await db.query(`DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`, [teamId, userId])
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'team_members',
+      resourceId: userId,
+      action: AuditAction.MEMBER_REMOVED,
+      before: { team_id: teamId, user_id: userId },
+      after: null,
+    })
 
     return c.json({ success: true })
   } catch (err: any) {
@@ -364,6 +413,16 @@ teamsRoutes.post('/switch-org', async (c) => {
     // For now: return the new org context so the client can update its session cache
     const member = membership.rows[0]
 
+    writeAuditLog(db, {
+      organizationId: organization_id,
+      userId: session.user_id,
+      resourceType: 'organizations',
+      resourceId: organization_id,
+      action: AuditAction.ORG_SWITCHED,
+      before: { organization_id: session.organization_id },
+      after: { organization_id, org_name: member.org_name, role: member.role },
+    })
+
     return c.json({
       success: true,
       organization: {
@@ -424,6 +483,16 @@ teamsRoutes.patch('/members/:userId/role', async (c) => {
        WHERE user_id = $2 AND organization_id = $3`,
       [role, userId, session.organization_id]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'team_members',
+      resourceId: userId,
+      action: AuditAction.ROLE_CHANGED,
+      before: null,
+      after: { user_id: userId, new_role: role },
+    })
 
     return c.json({ success: true, user_id: userId, new_role: role })
   } catch (err: any) {

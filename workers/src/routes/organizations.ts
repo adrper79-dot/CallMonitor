@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateOrgSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const organizationsRoutes = new Hono<{ Bindings: Env }>()
+export const organizationsRoutes = new Hono<AppEnv>()
 
 // Create a new organization
 organizationsRoutes.post('/', async (c) => {
@@ -58,6 +59,15 @@ organizationsRoutes.post('/', async (c) => {
        VALUES ($1, $2, 'admin')`,
       [org.id, user_id]
     )
+
+    writeAuditLog(db, {
+      organizationId: org.id,
+      userId: user_id,
+      resourceType: 'organizations',
+      resourceId: org.id,
+      action: AuditAction.ORG_CREATED,
+      after: org,
+    })
 
     return c.json({
       success: true,

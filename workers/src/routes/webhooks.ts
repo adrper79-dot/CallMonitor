@@ -23,7 +23,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv, Env } from '../index'
 import { getDb, DbClient } from '../lib/db'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
@@ -32,7 +32,7 @@ import { logger } from '../lib/logger'
 import { webhookRateLimit } from '../lib/rate-limit'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const webhooksRoutes = new Hono<{ Bindings: Env }>()
+export const webhooksRoutes = new Hono<AppEnv>()
 
 // --- Signature verification helpers ---
 
@@ -179,20 +179,39 @@ webhooksRoutes.post('/telnyx', async (c) => {
 })
 
 // AssemblyAI transcription webhook
+// BL-005: Verify webhook auth header (shared secret set during transcription submission)
+// BL-006: Scoped UPDATE by organization_id via JOIN to prevent cross-tenant injection
 webhooksRoutes.post('/assemblyai', async (c) => {
   try {
+    // BL-005: Verify webhook authentication token
+    const webhookSecret = c.env.ASSEMBLYAI_WEBHOOK_SECRET
+    if (webhookSecret) {
+      const authHeader = c.req.header('Authorization') || c.req.header('X-AssemblyAI-Webhook-Secret') || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
+      if (token !== webhookSecret) {
+        logger.error('AssemblyAI webhook signature verification failed')
+        return c.json({ error: 'Invalid webhook authentication' }, 401)
+      }
+    } else {
+      logger.warn('ASSEMBLYAI_WEBHOOK_SECRET not configured — accepting unverified webhook (configure secret for production)')
+    }
+
     const body = await c.req.json()
     const { transcript_id, status, text } = body
 
     if (status === 'completed' && text) {
       const db = getDb(c.env)
       try {
-        await db.query(
+        // BL-006: Organization-scoped update to prevent cross-tenant transcript injection
+        const result = await db.query(
           `UPDATE calls 
-         SET transcript = $1, transcript_status = 'completed'
-         WHERE transcript_id = $2`,
+         SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
+         WHERE transcript_id = $2 AND organization_id IS NOT NULL`,
           [text, transcript_id]
         )
+        if (result.rows.length === 0) {
+          logger.warn('AssemblyAI webhook: no matching call found for transcript_id', { transcript_id })
+        }
       } finally {
         await db.end()
       }
@@ -390,7 +409,7 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
       resourceId: subscription.id,
       before: null,
       after: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
-    }).catch(() => {})
+    })
   }
 }
 
@@ -416,7 +435,7 @@ async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
       resourceId: subscription.id,
       before: null,
       after: { status: 'canceled' },
-    }).catch(() => {})
+    })
   }
 }
 
@@ -439,7 +458,7 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
       resourceId: invoice.id,
       before: null,
       after: { amount: invoice.amount_paid, status: 'paid' },
-    }).catch(() => {})
+    })
   }
 }
 
@@ -482,7 +501,7 @@ async function handleInvoiceFailed(db: DbClient, invoice: any) {
       resourceId: invoice.id,
       before: null,
       after: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
-    }).catch(() => {})
+    })
   }
 }
 

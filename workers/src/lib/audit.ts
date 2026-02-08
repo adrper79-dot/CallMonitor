@@ -132,4 +132,70 @@ export const AuditAction = {
   // Auth
   SESSION_CREATED: 'auth:login',
   SESSION_REVOKED: 'auth:logout',
+
+  // Scorecards
+  SCORECARD_CREATED: 'scorecard:created',
+
+  // Surveys
+  SURVEY_CREATED: 'survey:created',
+  SURVEY_DELETED: 'survey:deleted',
+
+  // Campaigns
+  CAMPAIGN_CREATED: 'campaign:created',
+  CAMPAIGN_UPDATED: 'campaign:updated',
+  CAMPAIGN_DELETED: 'campaign:deleted',
+
+  // Retention
+  RETENTION_POLICY_UPDATED: 'retention:policy_updated',
+  LEGAL_HOLD_CREATED: 'retention:legal_hold_created',
+  LEGAL_HOLD_RELEASED: 'retention:legal_hold_released',
+
+  // Mystery Shopper
+  SHOPPER_SCRIPT_CREATED: 'shopper:script_created',
+  SHOPPER_SCRIPT_UPDATED: 'shopper:script_updated',
+  SHOPPER_SCRIPT_DELETED: 'shopper:script_deleted',
+
+  // Teams
+  TEAM_CREATED: 'team:created',
+  TEAM_UPDATED: 'team:updated',
+  TEAM_DELETED: 'team:deleted',
+  ORG_SWITCHED: 'team:org_switched',
+
+  // Bond AI
+  AI_CONVERSATION_CREATED: 'ai:conversation_created',
+  AI_CONVERSATION_DELETED: 'ai:conversation_deleted',
+  AI_ALERT_ACKNOWLEDGED: 'ai:alert_acknowledged',
+  AI_ALERTS_BULK_UPDATED: 'ai:alerts_bulk_updated',
+  AI_ALERT_RULE_CREATED: 'ai:alert_rule_created',
+  AI_ALERT_RULE_UPDATED: 'ai:alert_rule_updated',
+  AI_ALERT_RULE_DELETED: 'ai:alert_rule_deleted',
+  AI_SUMMARIZE_COMPLETED: 'ai:summarize_completed',
+
+  // Organizations
+  ORG_CREATED: 'org:created',
+
+  // Audio
+  AUDIO_UPLOADED: 'audio:uploaded',
+  AUDIO_TRANSCRIPTION_STARTED: 'audio:transcription_started',
+
+  // Reports
+  REPORT_CREATED: 'report:created',
+  REPORT_SCHEDULE_CREATED: 'report:schedule_created',
+  REPORT_SCHEDULE_UPDATED: 'report:schedule_updated',
+  REPORT_SCHEDULE_DELETED: 'report:schedule_deleted',
+
+  // Compliance
+  COMPLIANCE_VIOLATION_LOGGED: 'compliance:violation_logged',
+  COMPLIANCE_VIOLATION_RESOLVED: 'compliance:violation_resolved',
+
+  // Caller ID
+  CALLER_ID_VERIFY_INITIATED: 'caller_id:verification_initiated',
+  CALLER_ID_VERIFIED: 'caller_id:verified',
+  CALLER_ID_DELETED: 'caller_id:deleted',
+
+  // Admin
+  AUTH_PROVIDER_UPDATED: 'admin:auth_provider_updated',
+
+  // Reliability
+  WEBHOOK_ACTION_TAKEN: 'reliability:webhook_action_taken',
 } as const

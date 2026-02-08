@@ -10,14 +10,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebhookActionSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const reliabilityRoutes = new Hono<{ Bindings: Env }>()
+export const reliabilityRoutes = new Hono<AppEnv>()
 
 // GET /webhooks — List webhook failures and metrics
 reliabilityRoutes.get('/webhooks', async (c) => {
@@ -121,6 +122,15 @@ reliabilityRoutes.put('/webhooks', async (c) => {
              WHERE id = $3`,
             ['Retried successfully — HTTP ' + resp.status, session.user_id, failure_id]
           )
+          writeAuditLog(db, {
+            organizationId: session.organization_id,
+            userId: session.user_id,
+            resourceType: 'webhook_failures',
+            resourceId: failure_id,
+            action: AuditAction.WEBHOOK_ACTION_TAKEN,
+            after: { action: 'retry', status: 'resolved', http_status: resp.status },
+          })
+
           return c.json({ success: true, status: 'resolved', message: 'Retry succeeded' })
         } else {
           await db.query(
@@ -161,6 +171,15 @@ reliabilityRoutes.put('/webhooks', async (c) => {
          WHERE id = $3`,
         [resolution_notes || 'Discarded by user', session.user_id, failure_id]
       )
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'webhook_failures',
+        resourceId: failure_id,
+        action: AuditAction.WEBHOOK_ACTION_TAKEN,
+        after: { action: 'discard', status: 'discarded' },
+      })
+
       return c.json({ success: true, status: 'discarded' })
     }
 
@@ -173,6 +192,15 @@ reliabilityRoutes.put('/webhooks', async (c) => {
          WHERE id = $3`,
         [resolution_notes || 'Marked for manual review', session.user_id, failure_id]
       )
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'webhook_failures',
+        resourceId: failure_id,
+        action: AuditAction.WEBHOOK_ACTION_TAKEN,
+        after: { action: 'manual_review', status: 'under_review' },
+      })
+
       return c.json({ success: true, status: 'under_review' })
     }
 

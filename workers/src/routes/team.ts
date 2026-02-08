@@ -3,7 +3,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
@@ -13,7 +13,7 @@ import { writeAuditLog, AuditAction } from '../lib/audit'
 import { teamRateLimit } from '../lib/rate-limit'
 import { sendEmail, teamInviteEmailHtml } from '../lib/email'
 
-export const teamRoutes = new Hono<{ Bindings: Env }>()
+export const teamRoutes = new Hono<AppEnv>()
 
 // Get team members
 teamRoutes.get('/members', async (c) => {
@@ -309,6 +309,7 @@ teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
 
 // Cancel/revoke invite
 teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -320,7 +321,6 @@ teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
     }
 
     const inviteId = c.req.param('id')
-    const db = getDb(c.env)
 
     await db.query(
       `UPDATE team_invites SET status = 'cancelled' 
@@ -374,6 +374,7 @@ teamRoutes.post('/members', teamRateLimit, async (c) => {
 
 // Remove team member
 teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -385,7 +386,6 @@ teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
     }
 
     const memberId = c.req.param('id')
-    const db = getDb(c.env)
 
     // Prevent removing self
     if (memberId === session.user_id) {

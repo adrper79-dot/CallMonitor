@@ -170,15 +170,16 @@ export async function getDbPool() {
 export async function dbQuery<T = any>(
   sql: string,
   params?: any[]
-): Promise<{ rows: T[]; service_reachable: boolean; error?: string }> {
+): Promise<{ rows: T[]; service_reachable: boolean; latency_ms: number; error?: string }> {
   const pool = await getDbPool()
   if (!pool) {
-    return { rows: [], service_reachable: false, error: 'DATABASE_URL not configured' }
+    return { rows: [], service_reachable: false, latency_ms: 0, error: 'DATABASE_URL not configured' }
   }
 
+  const start = Date.now()
   try {
     const result = await pool.query(sql, params)
-    return { rows: result.rows, service_reachable: true }
+    return { rows: result.rows, service_reachable: true, latency_ms: Date.now() - start }
   } catch (err: any) {
     const isDown =
       err.message?.includes('ECONNREFUSED') ||
@@ -187,6 +188,7 @@ export async function dbQuery<T = any>(
     return {
       rows: [],
       service_reachable: !isDown,
+      latency_ms: Date.now() - start,
       error: err.message,
     }
   }

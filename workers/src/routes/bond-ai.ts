@@ -9,7 +9,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
@@ -32,9 +32,12 @@ import {
   fetchTestResults,
 } from '../lib/bond-ai'
 import { requirePlan } from '../lib/plan-gating'
+import { authMiddleware } from '../lib/auth'
 import { aiLlmRateLimit } from '../lib/rate-limit'
+import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const bondAiRoutes = new Hono<{ Bindings: Env }>()
+export const bondAiRoutes = new Hono<AppEnv>()
 
 // ════════════════════════════════════════════════════════════
 // TIER 1: CHAT WIDGET
@@ -91,6 +94,16 @@ bondAiRoutes.post('/conversations', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_conversations',
+      resourceId: result.rows[0].id,
+      action: AuditAction.AI_CONVERSATION_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, conversation: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to create conversation' }, 500)
@@ -100,10 +113,10 @@ bondAiRoutes.post('/conversations', async (c) => {
 })
 
 // Send chat message (the main Tier 1 endpoint)
-bondAiRoutes.post('/chat', requirePlan('pro'), aiLlmRateLimit, async (c) => {
+bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
+    const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     if (!c.env.OPENAI_API_KEY) {
@@ -322,6 +335,16 @@ bondAiRoutes.delete('/conversations/:id', async (c) => {
       [conversationId, session.organization_id, session.user_id]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_conversations',
+      resourceId: conversationId,
+      action: AuditAction.AI_CONVERSATION_DELETED,
+      before: { status: 'active' },
+      after: { status: 'deleted' },
+    })
+
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to delete conversation' }, 500)
@@ -405,6 +428,16 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
       [status, session.user_id, alertId, session.organization_id]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_alerts',
+      resourceId: alertId,
+      action: AuditAction.AI_ALERT_ACKNOWLEDGED,
+      before: null,
+      after: { status },
+    })
+
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to update alert' }, 500)
@@ -431,6 +464,16 @@ bondAiRoutes.post('/alerts/bulk-action', async (c) => {
        WHERE id IN (${placeholders}) AND organization_id = $${alert_ids.length + 3}`,
       [action, session.user_id, ...alert_ids, session.organization_id]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_alerts',
+      resourceId: alert_ids.join(','),
+      action: AuditAction.AI_ALERTS_BULK_UPDATED,
+      before: null,
+      after: { alert_ids, action },
+    })
 
     return c.json({ success: true, updated: alert_ids.length })
   } catch (err: any) {
@@ -507,6 +550,16 @@ bondAiRoutes.post('/alert-rules', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_alert_rules',
+      resourceId: result.rows[0].id,
+      action: AuditAction.AI_ALERT_RULE_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, rule: result.rows[0] }, 201)
   } catch (err: any) {
     return c.json({ error: 'Failed to create alert rule' }, 500)
@@ -562,6 +615,16 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_alert_rules',
+      resourceId: ruleId,
+      action: AuditAction.AI_ALERT_RULE_UPDATED,
+      before: null,
+      after: { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes },
+    })
+
     return c.json({ success: true })
   } catch (err: any) {
     return c.json({ error: 'Failed to update alert rule' }, 500)
@@ -587,6 +650,16 @@ bondAiRoutes.delete('/alert-rules/:id', async (c) => {
       ruleId,
       session.organization_id,
     ])
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'bond_ai_alert_rules',
+      resourceId: ruleId,
+      action: AuditAction.AI_ALERT_RULE_DELETED,
+      before: { id: ruleId },
+      after: null,
+    })
 
     return c.json({ success: true })
   } catch (err: any) {

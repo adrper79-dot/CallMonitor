@@ -11,14 +11,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TranscribeSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const audioRoutes = new Hono<{ Bindings: Env }>()
+export const audioRoutes = new Hono<AppEnv>()
 
 // POST /upload — Upload audio file
 audioRoutes.post('/upload', async (c) => {
@@ -53,6 +54,16 @@ audioRoutes.post('/upload', async (c) => {
         session.user_id,
       ]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'audio_files',
+      resourceId: result.rows[0].id,
+      action: AuditAction.AUDIO_UPLOADED,
+      before: null,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, file: result.rows[0] })
   } catch (err: any) {
@@ -89,17 +100,66 @@ audioRoutes.post('/transcribe', async (c) => {
     )
     const transcription = insertResult.rows[0]
 
-    // In production, this would queue a Deepgram/Whisper job via a durable object or queue.
-    // For now, mark as completed with a placeholder.
-    await db.query(
-      `UPDATE transcriptions
-       SET status = 'completed',
-           transcript = 'Transcription processing is configured but no speech-to-text provider is set.',
-           confidence = 0,
-           completed_at = NOW()
-       WHERE id = $1`,
-      [transcription.id]
-    )
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'transcriptions',
+      resourceId: transcription.id,
+      action: AuditAction.AUDIO_TRANSCRIPTION_STARTED,
+      before: null,
+      after: { id: transcription.id, status: 'processing', language: transcription.language },
+    })
+
+    // BL-015: Submit to AssemblyAI for real transcription
+    if (c.env.ASSEMBLYAI_API_KEY && file_key) {
+      try {
+        const audioUrl = `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/audio/files/${file_key}`
+        const webhookUrl = `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
+
+        const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+          method: 'POST',
+          headers: {
+            'Authorization': c.env.ASSEMBLYAI_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audio_url: audioUrl,
+            language_code: language || 'en',
+            webhook_url: webhookUrl,
+            ...(c.env.ASSEMBLYAI_WEBHOOK_SECRET
+              ? { webhook_auth_header_name: 'Authorization', webhook_auth_header_value: c.env.ASSEMBLYAI_WEBHOOK_SECRET }
+              : {}),
+          }),
+        })
+
+        if (assemblyRes.ok) {
+          const assemblyData = await assemblyRes.json() as { id: string }
+          // Store the AssemblyAI transcript ID for webhook matching
+          await db.query(
+            `UPDATE transcriptions SET external_id = $1 WHERE id = $2`,
+            [assemblyData.id, transcription.id]
+          )
+        } else {
+          logger.warn('AssemblyAI submission failed', { status: assemblyRes.status, transcriptionId: transcription.id })
+          await db.query(
+            `UPDATE transcriptions SET status = 'failed' WHERE id = $1`,
+            [transcription.id]
+          )
+        }
+      } catch (assemblyErr: any) {
+        logger.error('AssemblyAI submission exception', { error: assemblyErr?.message })
+        await db.query(
+          `UPDATE transcriptions SET status = 'failed' WHERE id = $1`,
+          [transcription.id]
+        )
+      }
+    } else if (!c.env.ASSEMBLYAI_API_KEY) {
+      // No STT provider configured — mark as failed
+      await db.query(
+        `UPDATE transcriptions SET status = 'failed', transcript = 'No speech-to-text provider configured' WHERE id = $1`,
+        [transcription.id]
+      )
+    }
 
     return c.json({
       success: true,

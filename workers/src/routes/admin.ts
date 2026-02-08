@@ -10,14 +10,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateAuthProviderSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const adminRoutes = new Hono<{ Bindings: Env }>()
+export const adminRoutes = new Hono<AppEnv>()
 
 // GET /auth-providers — List auth providers & diagnostic info
 adminRoutes.get('/auth-providers', async (c) => {
@@ -71,13 +72,23 @@ adminRoutes.post('/auth-providers', async (c) => {
     if (!parsed.success) return parsed.response
     const { provider, enabled, client_id, client_secret, config } = parsed.data
 
+    // BL-025: Hash client_secret with SHA-256 before storing
+    let secretHash: string | null = null
+    if (client_secret) {
+      const encoder = new TextEncoder()
+      const data = encoder.encode(client_secret)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      secretHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    }
+
     const result = await db.query(
       `INSERT INTO auth_providers (organization_id, provider, enabled, client_id, client_secret_hash, config)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
        ON CONFLICT (organization_id, provider) DO UPDATE SET
          enabled = COALESCE($3, auth_providers.enabled),
          client_id = COALESCE($4, auth_providers.client_id),
-         client_secret_hash = CASE WHEN $5 IS NOT NULL THEN '***hashed***' ELSE auth_providers.client_secret_hash END,
+         client_secret_hash = CASE WHEN $5 IS NOT NULL THEN $5 ELSE auth_providers.client_secret_hash END,
          config = COALESCE($6::jsonb, auth_providers.config),
          updated_at = NOW()
        RETURNING id, provider, enabled, client_id, updated_at`,
@@ -86,12 +97,22 @@ adminRoutes.post('/auth-providers', async (c) => {
         provider,
         enabled ?? false,
         client_id || null,
-        client_secret ? '***hashed***' : null,
+        secretHash,
         JSON.stringify(config || {}),
       ]
     )
 
     const row = result.rows[0]
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'auth_providers',
+      resourceId: row.id,
+      action: AuditAction.AUTH_PROVIDER_UPDATED,
+      after: { provider: row.provider, enabled: row.enabled },
+    })
+
     return c.json({
       success: true,
       provider: {

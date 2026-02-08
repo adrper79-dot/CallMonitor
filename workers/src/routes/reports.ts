@@ -12,21 +12,22 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import type { AppEnv } from '../index'
+import { requireAuth, authMiddleware } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { requirePlan } from '../lib/plan-gating'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const reportsRoutes = new Hono<{ Bindings: Env }>()
+export const reportsRoutes = new Hono<AppEnv>()
 
 // GET / — List reports
-reportsRoutes.get('/', requirePlan('business'), async (c) => {
+reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
+    const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
@@ -55,10 +56,10 @@ reportsRoutes.get('/', requirePlan('business'), async (c) => {
 })
 
 // POST / — Generate a new report
-reportsRoutes.post('/', requirePlan('business'), async (c) => {
+reportsRoutes.post('/', authMiddleware, requirePlan('business'), async (c) => {
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
+    const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, GenerateReportSchema)
@@ -79,6 +80,16 @@ reportsRoutes.post('/', requirePlan('business'), async (c) => {
         session.user_id,
       ]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'reports',
+      resourceId: result.rows[0].id,
+      action: AuditAction.REPORT_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, report: result.rows[0] })
   } catch (err: any) {
@@ -183,6 +194,16 @@ reportsRoutes.post('/schedules', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'report_schedules',
+      resourceId: result.rows[0].id,
+      action: AuditAction.REPORT_SCHEDULE_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
     logger.error('POST /api/reports/schedules error', { error: err?.message })
@@ -218,6 +239,16 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
 
     if (result.rows.length === 0) return c.json({ error: 'Schedule not found' }, 404)
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'report_schedules',
+      resourceId: scheduleId,
+      action: AuditAction.REPORT_SCHEDULE_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, schedule: result.rows[0] })
   } catch (err: any) {
     logger.error('PATCH /api/reports/schedules/:id error', { error: err?.message })
@@ -244,6 +275,16 @@ reportsRoutes.delete('/schedules/:id', async (c) => {
     )
 
     if (result.rows.length === 0) return c.json({ error: 'Schedule not found' }, 404)
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'report_schedules',
+      resourceId: scheduleId,
+      action: AuditAction.REPORT_SCHEDULE_DELETED,
+      before: { id: scheduleId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Schedule deleted' })
   } catch (err: any) {

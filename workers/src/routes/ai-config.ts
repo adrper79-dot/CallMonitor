@@ -10,14 +10,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateAIConfigSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const aiConfigRoutes = new Hono<{ Bindings: Env }>()
+export const aiConfigRoutes = new Hono<AppEnv>()
 
 const DEFAULT_CONFIG = {
   enabled: false,
@@ -83,6 +84,15 @@ aiConfigRoutes.put('/', async (c) => {
        RETURNING config, updated_at`,
       [session.organization_id, JSON.stringify(merged), session.user_id]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'ai_config',
+      resourceId: session.organization_id,
+      action: AuditAction.AI_CONFIG_UPDATED,
+      after: result.rows[0].config,
+    })
 
     return c.json({
       success: true,

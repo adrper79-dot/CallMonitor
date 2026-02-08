@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { WEBHOOK_EVENT_TYPES, WebhookSubscription, CreateWebhookRequest } from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
-import { apiPost, apiPut } from '@/lib/apiClient'
+import { apiPost, apiPatch } from '@/lib/apiClient'
 
 interface WebhookFormProps {
   organizationId: string
@@ -137,7 +137,7 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
         : '/api/webhooks/subscriptions'
 
       const data = isEditing
-        ? await apiPut(endpoint, body)
+        ? await apiPatch(endpoint, body)
         : await apiPost(endpoint, body)
 
       if (!isEditing && data.subscription?.secret) {

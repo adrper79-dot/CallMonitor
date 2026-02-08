@@ -17,15 +17,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import type { AppEnv } from '../index'
+import { requireAuth, authMiddleware } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { aiTranscriptionRateLimit } from '../lib/rate-limit'
 import { requirePlan } from '../lib/plan-gating'
-import { writeAuditLog, AuditAction } from '../lib/audit'
+import { writeAuditLog } from '../lib/audit'
 import { logger } from '../lib/logger'
 
-export const aiTranscribeRoutes = new Hono<{ Bindings: Env }>()
+export const aiTranscribeRoutes = new Hono<AppEnv>()
 
 const ASSEMBLYAI_BASE = 'https://api.assemblyai.com/v2'
 
@@ -33,6 +33,7 @@ const ASSEMBLYAI_BASE = 'https://api.assemblyai.com/v2'
 aiTranscribeRoutes.post(
   '/transcribe',
   aiTranscriptionRateLimit,
+  authMiddleware,
   requirePlan('starter'),
   async (c) => {
     const session = c.get('session') as any
@@ -90,13 +91,13 @@ aiTranscribeRoutes.post(
 
       writeAuditLog(db, {
         userId: session.user_id,
-        orgId: session.organization_id,
-        action: AuditAction.CALL_RECORDED,
+        organizationId: session.organization_id,
+        action: 'transcription:submitted',
         resourceType: 'transcription',
         resourceId: aaiResult.id,
-        oldValue: null,
-        newValue: { audio_url: body.audio_url, call_id: body.call_id },
-      }).catch(() => {})
+        before: null,
+        after: { audio_url: body.audio_url, call_id: body.call_id },
+      })
 
       return c.json(
         {

@@ -7,12 +7,12 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 
-export const userRoutes = new Hono<{ Bindings: Env }>()
+export const userRoutes = new Hono<AppEnv>()
 
 // Get current authenticated user profile
 userRoutes.get('/me', async (c) => {

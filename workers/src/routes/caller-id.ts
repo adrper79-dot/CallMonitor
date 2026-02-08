@@ -11,14 +11,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const callerIdRoutes = new Hono<{ Bindings: Env }>()
+export const callerIdRoutes = new Hono<AppEnv>()
 
 /** Shared: list caller IDs */
 async function listCallerIds(c: any) {
@@ -89,6 +90,16 @@ async function initiateVerification(c: any) {
     // In production, send the code via SMS/call using Telnyx
     // For now, log it (would be replaced with actual Telnyx verify API)
     // Verification code generated (do NOT log the code itself)
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'caller_ids',
+      resourceId: phone_number,
+      action: AuditAction.CALLER_ID_VERIFY_INITIATED,
+      before: null,
+      after: { phone_number },
+    })
 
     return c.json({
       success: true,
@@ -211,6 +222,16 @@ callerIdRoutes.delete('/:id', async (c) => {
     if (result.rows.length === 0) {
       return c.json({ error: 'Caller ID not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'caller_ids',
+      resourceId: callerId,
+      action: AuditAction.CALLER_ID_DELETED,
+      before: { id: callerId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Caller ID removed' })
   } catch (err: any) {

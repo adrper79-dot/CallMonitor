@@ -139,7 +139,9 @@ export async function getOrgPlan(env: Env, orgId: string): Promise<PlanName> {
       const row = result.rows[0]
 
       // Check if subscription is active
-      const status = row.subscription_status || 'inactive'
+      // Treat null/missing status as 'active' for backward compatibility
+      // (orgs created before Stripe integration have no subscription_status)
+      const status = row.subscription_status || 'active'
       const isActive = ['active', 'trialing'].includes(status)
 
       if (isActive && row.plan) {
@@ -148,6 +150,9 @@ export async function getOrgPlan(env: Env, orgId: string): Promise<PlanName> {
         if (PLAN_HIERARCHY.includes(dbPlan as PlanName)) {
           plan = dbPlan as PlanName
         }
+      } else if (isActive && !row.plan) {
+        // Org has no plan set — treat as 'free' (the default)
+        plan = 'free'
       }
     }
 

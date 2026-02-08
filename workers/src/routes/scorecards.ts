@@ -9,14 +9,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateScorecardSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const scorecardsRoutes = new Hono<{ Bindings: Env }>()
+export const scorecardsRoutes = new Hono<AppEnv>()
 
 // GET / — list scorecards
 scorecardsRoutes.get('/', async (c) => {
@@ -77,6 +78,15 @@ scorecardsRoutes.post('/', async (c) => {
         session.user_id,
       ]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'scorecards',
+      resourceId: result.rows[0].id,
+      action: AuditAction.SCORECARD_CREATED,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, scorecard: result.rows[0], scorecardId: result.rows[0].id }, 201)
   } catch (err: any) {

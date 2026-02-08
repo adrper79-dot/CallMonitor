@@ -1,0 +1,20 @@
+{
+  "critical_regulations": [
+    {
+      "name": "FDCPA Regulation F",
+      "requirement": "One-to-one consent for digital communications",
+      "violation_cost": "$500-$1500 per violation",
+      "automation_opportunity": "high",
+      "current_solutions": "Manual tracking in legacy software"
+    },
+    {
+      "name": "TCPA",
+      "requirement": "Prior express written consent for autodialers",
+      "violation_cost": "$500-$1500 per call",
+      "automation_opportunity": "high",
+      "current_solutions": "Basic DNC lists"
+    }
+  ],
+  "compliance_gaps": ["Real-time consent validation", "State-specific rules"],
+  "opportunity_score": 9
+}

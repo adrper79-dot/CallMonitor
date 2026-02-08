@@ -3,7 +3,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
 import { requireAuth, requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
@@ -24,7 +24,7 @@ import { writeAuditLog, AuditAction } from '../lib/audit'
 import { callMutationRateLimit } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml } from '../lib/email'
 
-export const callsRoutes = new Hono<{ Bindings: Env }>()
+export const callsRoutes = new Hono<AppEnv>()
 
 // List calls for organization
 callsRoutes.get('/', async (c) => {
@@ -171,8 +171,47 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
       after: { phone: caller_id || phone_number, system_id, status: 'pending' },
     })
 
-    // TODO: Trigger actual call via Telnyx
-    // This would be: await telnyxClient.calls.create({ ... })
+    // BL-011: Trigger actual call via Telnyx Call Control v2
+    try {
+      const telnyxRes = await fetch('https://api.telnyx.com/v2/calls', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          connection_id: c.env.TELNYX_CONNECTION_ID,
+          to: phone_number,
+          from: caller_id || c.env.TELNYX_NUMBER,
+          webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
+        }),
+      })
+
+      if (!telnyxRes.ok) {
+        const errBody = await telnyxRes.text()
+        logger.error('Telnyx call origination failed', { status: telnyxRes.status, body: errBody })
+        // Update DB to reflect failure
+        await db.query(
+          `UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`,
+          [call.id]
+        )
+        return c.json({ error: 'Failed to originate call via telephony provider' }, 502)
+      }
+
+      const telnyxData = await telnyxRes.json() as { data: { call_control_id: string; call_session_id: string } }
+      // Store call_control_id so webhooks can match events back to this call
+      await db.query(
+        `UPDATE calls SET call_control_id = $1, call_sid = $2, status = 'initiated' WHERE id = $3`,
+        [telnyxData.data.call_control_id, telnyxData.data.call_session_id, call.id]
+      )
+    } catch (telnyxErr: any) {
+      logger.error('Telnyx call origination exception', { error: telnyxErr?.message })
+      await db.query(
+        `UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`,
+        [call.id]
+      )
+      return c.json({ error: 'Telephony provider unavailable' }, 502)
+    }
 
     return c.json({ success: true, call }, 201)
   } catch (err: any) {
@@ -217,7 +256,35 @@ callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
       after: { status: 'completed', ended_at: endedCall.ended_at },
     })
 
-    // TODO: Trigger actual call hangup via Telnyx
+    // BL-012: Trigger actual call hangup via Telnyx Call Control v2
+    if (endedCall.call_control_id) {
+      try {
+        const hangupRes = await fetch(
+          `https://api.telnyx.com/v2/calls/${endedCall.call_control_id}/actions/hangup`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          }
+        )
+        if (!hangupRes.ok) {
+          // Non-fatal — call may have already been hung up by the other party
+          logger.warn('Telnyx hangup request failed', {
+            callId,
+            callControlId: endedCall.call_control_id,
+            status: hangupRes.status,
+          })
+        }
+      } catch (hangupErr: any) {
+        logger.warn('Telnyx hangup exception (call may already be ended)', {
+          callId,
+          error: hangupErr?.message,
+        })
+      }
+    }
 
     return c.json({ success: true, call: endedCall })
   } catch (err: any) {

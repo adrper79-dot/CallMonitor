@@ -13,13 +13,13 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { analyticsRateLimit, analyticsExportRateLimit } from '../lib/rate-limit'
 
-export const analyticsRoutes = new Hono<{ Bindings: Env }>()
+export const analyticsRoutes = new Hono<AppEnv>()
 
 function parseDateRange(c: any) {
   const now = new Date()

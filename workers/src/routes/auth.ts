@@ -9,7 +9,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
 import { parseSessionToken, verifySession, computeFingerprint } from '../lib/auth'
 import { validateBody } from '../lib/validate'
@@ -24,7 +24,7 @@ import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib
 import { logger } from '../lib/logger'
 import { sendEmail, passwordResetEmailHtml } from '../lib/email'
 
-export const authRoutes = new Hono<{ Bindings: Env }>()
+export const authRoutes = new Hono<AppEnv>()
 
 // Get current session
 authRoutes.get('/session', async (c) => {
@@ -367,6 +367,69 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
 authRoutes.post('/_log', async (c) => {
   // Silently accept logs (don't expose to client)
   return c.json({ received: true })
+})
+
+// BL-023: Session refresh — extend session without re-login
+// Call this when user is actively using the app to prevent 7-day expiry
+authRoutes.post('/refresh', async (c) => {
+  try {
+    const token = parseSessionToken(c)
+    if (!token) {
+      return c.json({ error: 'No session token' }, 401)
+    }
+
+    const session = await verifySession(c, token)
+    if (!session) {
+      return c.json({ error: 'Invalid or expired session' }, 401)
+    }
+
+    // Only refresh if session expires within the next 24 hours
+    const expiresAt = new Date(session.expires)
+    const hoursUntilExpiry = (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60)
+    if (hoursUntilExpiry > 24) {
+      // Session still has >24h left — no refresh needed
+      return c.json({
+        success: true,
+        refreshed: false,
+        expires: session.expires,
+        message: 'Session still valid, no refresh needed',
+      })
+    }
+
+    // Extend session by 7 days from now
+    const newExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+    const db = getDb(c.env)
+    try {
+      await db.query(
+        `UPDATE public.sessions SET expires = $1 WHERE session_token = $2`,
+        [newExpires.toISOString(), token]
+      )
+
+      // Refresh KV fingerprint TTL
+      const fingerprint = await computeFingerprint(c)
+      await c.env.KV.put(`fp:${token}`, fingerprint, {
+        expirationTtl: 7 * 24 * 60 * 60,
+      })
+
+      // Update cookie expiry
+      c.header(
+        'Set-Cookie',
+        `session-token=${token}; Path=/; Expires=${newExpires.toUTCString()}; SameSite=None; Secure; HttpOnly`
+      )
+
+      return c.json({
+        success: true,
+        refreshed: true,
+        expires: newExpires.toISOString(),
+      })
+    } finally {
+      await db.end()
+    }
+  } catch (err: any) {
+    logger.error('Session refresh error', { error: err?.message })
+    return c.json({ error: 'Failed to refresh session' }, 500)
+  }
 })
 
 // Signout endpoint - invalidate session

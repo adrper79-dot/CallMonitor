@@ -12,14 +12,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const shopperRoutes = new Hono<{ Bindings: Env }>()
+export const shopperRoutes = new Hono<AppEnv>()
 
 /** Shared handler: list scripts */
 async function listScripts(c: any) {
@@ -76,6 +77,15 @@ async function upsertScript(c: any) {
       if (result.rows.length === 0) {
         return c.json({ error: 'Script not found' }, 404)
       }
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'shopper_scripts',
+        resourceId: result.rows[0].id,
+        action: AuditAction.SHOPPER_SCRIPT_UPDATED,
+        before: null,
+        after: result.rows[0],
+      })
       return c.json({ success: true, script: result.rows[0] })
     }
 
@@ -86,6 +96,16 @@ async function upsertScript(c: any) {
        RETURNING *`,
       [session.organization_id, name, content || '', scenario || '', is_active ?? true]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'shopper_scripts',
+      resourceId: result.rows[0].id,
+      action: AuditAction.SHOPPER_SCRIPT_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
 
     return c.json({ success: true, script: result.rows[0] }, 201)
   } finally {
@@ -170,6 +190,16 @@ shopperRoutes.put('/scripts/:id', async (c) => {
       return c.json({ error: 'Script not found' }, 404)
     }
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'shopper_scripts',
+      resourceId: scriptId,
+      action: AuditAction.SHOPPER_SCRIPT_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, script: result.rows[0] })
   } catch (err: any) {
     logger.error('PUT /api/shopper/scripts/:id error', { error: err?.message })
@@ -200,6 +230,16 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
     if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'shopper_scripts',
+      resourceId: scriptId,
+      action: AuditAction.SHOPPER_SCRIPT_DELETED,
+      before: { id: scriptId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Script deleted' })
   } catch (err: any) {
@@ -244,6 +284,16 @@ shopperRoutes.delete('/scripts/manage', async (c) => {
     if (result.rows.length === 0) {
       return c.json({ error: 'Script not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'shopper_scripts',
+      resourceId: scriptId,
+      action: AuditAction.SHOPPER_SCRIPT_DELETED,
+      before: { id: scriptId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Script deleted' })
   } catch (err: any) {

@@ -7,13 +7,13 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { analyticsRateLimit } from '../lib/rate-limit'
 
-export const usageRoutes = new Hono<{ Bindings: Env }>()
+export const usageRoutes = new Hono<AppEnv>()
 
 /** Shared: get real usage data from DB */
 async function getUsageData(c: any) {
@@ -109,6 +109,21 @@ async function getUsageData(c: any) {
 
     const limits = planLimits[plan] || planLimits.free
 
+    // BL-017: Calculate storage usage from recordings table
+    let storageBytes = 0
+    try {
+      const storageResult = await db.query(
+        `SELECT COALESCE(SUM(file_size_bytes), 0)::bigint as total_bytes
+         FROM recordings
+         WHERE organization_id = $1
+           AND created_at >= $2::timestamptz`,
+        [session.organization_id, monthStart]
+      )
+      storageBytes = parseInt(storageResult.rows?.[0]?.total_bytes || '0', 10)
+    } catch {
+      // file_size_bytes column might not exist yet — default to 0
+    }
+
     return c.json({
       success: true,
       usage: {
@@ -116,7 +131,7 @@ async function getUsageData(c: any) {
         minutes,
         recordings,
         transcriptions,
-        apiRequests: 0,
+        storageBytes,
       },
       limits: {
         callsPerMonth: limits.calls,

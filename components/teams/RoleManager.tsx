@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { apiGet, apiPost } from '@/lib/apiClient'
+import { apiGet, apiPost, apiPatch } from '@/lib/apiClient'
 
 interface Member {
   id: string
@@ -87,9 +87,7 @@ export default function RoleManager({ className }: RoleManagerProps) {
 
   const updateRole = async (userId: string, newRole: string) => {
     try {
-      await apiPost(`/api/teams/members/${userId}/role`, { role: newRole }, {
-        method: 'PATCH',
-      } as any)
+      await apiPatch(`/api/teams/members/${userId}/role`, { role: newRole })
       setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, role: newRole } : m)))
       setEditingMember(null)
     } catch (err: any) {

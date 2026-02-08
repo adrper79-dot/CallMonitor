@@ -16,7 +16,7 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
@@ -26,7 +26,7 @@ import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { billingRateLimit } from '../lib/rate-limit'
 
-export const billingRoutes = new Hono<{ Bindings: Env }>()
+export const billingRoutes = new Hono<AppEnv>()
 
 /** Shared handler: fetch subscription data from organizations table */
 async function getBillingInfo(c: any) {
@@ -283,7 +283,7 @@ billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
       action: AuditAction.PAYMENT_METHOD_REMOVED,
       before: null,
       after: { payment_method_id: pmId },
-    }).catch(() => {})
+    })
 
     return c.json({ success: true, message: 'Payment method removed' })
   } catch (err: any) {
@@ -555,7 +555,7 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         action: AuditAction.SUBSCRIPTION_CANCELLED,
         before: null,
         after: { subscription_id: subscriptionId, cancel_at_period_end: true },
-      }).catch(() => {})
+      })
 
       return c.json({
         success: true,
@@ -622,7 +622,7 @@ billingRoutes.post('/resume', billingRateLimit, idempotent(), async (c) => {
       action: AuditAction.SUBSCRIPTION_UPDATED,
       before: { status: 'cancelling' },
       after: { status: 'active', cancel_at_period_end: false },
-    }).catch(() => {})
+    })
 
     return c.json({ success: true, message: 'Subscription resumed' })
   } catch (err: any) {
@@ -714,7 +714,7 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
       action: AuditAction.SUBSCRIPTION_UPDATED,
       before: { plan_id: oldPlanId },
       after: { plan_id: body.planId, price_id: body.priceId },
-    }).catch(() => {})
+    })
 
     return c.json({ success: true, message: 'Plan changed successfully' })
   } catch (err: any) {

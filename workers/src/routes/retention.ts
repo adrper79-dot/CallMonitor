@@ -13,14 +13,15 @@
  */
 
 import { Hono } from 'hono'
-import type { Env } from '../index'
+import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { UpdateRetentionSchema, CreateLegalHoldSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
-export const retentionRoutes = new Hono<{ Bindings: Env }>()
+export const retentionRoutes = new Hono<AppEnv>()
 
 // GET / — Get retention policy
 retentionRoutes.get('/', async (c) => {
@@ -94,6 +95,16 @@ retentionRoutes.put('/', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'retention_policies',
+      resourceId: result.rows[0].id,
+      action: AuditAction.RETENTION_POLICY_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, policy: result.rows[0] })
   } catch (err: any) {
     logger.error('PUT /api/retention error', { error: err?.message })
@@ -150,6 +161,16 @@ retentionRoutes.post('/legal-holds', async (c) => {
       ]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'legal_holds',
+      resourceId: result.rows[0].id,
+      action: AuditAction.LEGAL_HOLD_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
     return c.json({ success: true, legalHold: result.rows[0] })
   } catch (err: any) {
     logger.error('POST /api/retention/legal-holds error', { error: err?.message })
@@ -177,6 +198,16 @@ retentionRoutes.delete('/legal-holds/:id', async (c) => {
     )
 
     if (result.rows.length === 0) return c.json({ error: 'Legal hold not found' }, 404)
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'legal_holds',
+      resourceId: holdId,
+      action: AuditAction.LEGAL_HOLD_RELEASED,
+      before: { id: holdId },
+      after: null,
+    })
 
     return c.json({ success: true, message: 'Legal hold released' })
   } catch (err: any) {
