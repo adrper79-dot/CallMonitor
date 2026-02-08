@@ -38,22 +38,6 @@ async function ttsCacheKey(text: string, voiceId: string): Promise<string> {
   return `tts-cache:${hash}`
 }
 
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS tts_audio (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      text TEXT NOT NULL,
-      voice_id TEXT,
-      language TEXT DEFAULT 'en',
-      file_key TEXT NOT NULL,
-      duration_seconds INTEGER,
-      created_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-}
-
 // POST /generate — Generate TTS audio
 ttsRoutes.post('/generate', async (c) => {
   const db = getDb(c.env)
@@ -134,8 +118,6 @@ ttsRoutes.post('/generate', async (c) => {
       })
 
       // Store record in DB
-      await ensureTable(db)
-
       await db.query(
         `INSERT INTO tts_audio (organization_id, text, voice_id, language, file_key, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)`,

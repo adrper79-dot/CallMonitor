@@ -32,23 +32,6 @@ reportsRoutes.get('/', requirePlan('business'), async (c) => {
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
 
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS reports (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'call_volume',
-        status TEXT NOT NULL DEFAULT 'pending',
-        filters JSONB DEFAULT '{}',
-        metrics JSONB DEFAULT '[]',
-        format TEXT DEFAULT 'pdf',
-        result_url TEXT,
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        completed_at TIMESTAMPTZ
-      )`
-    )
-
     const rowsResult = await db.query(
       `SELECT *, COUNT(*) OVER() as total_count
       FROM reports
@@ -81,23 +64,6 @@ reportsRoutes.post('/', requirePlan('business'), async (c) => {
     const parsed = await validateBody(c, GenerateReportSchema)
     if (!parsed.success) return parsed.response
     const { name, type, filters, metrics, format } = parsed.data
-
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS reports (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'call_volume',
-        status TEXT NOT NULL DEFAULT 'pending',
-        filters JSONB DEFAULT '{}',
-        metrics JSONB DEFAULT '[]',
-        format TEXT DEFAULT 'pdf',
-        result_url TEXT,
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        completed_at TIMESTAMPTZ
-      )`
-    )
 
     const result = await db.query(
       `INSERT INTO reports (organization_id, name, type, status, filters, metrics, format, created_by)
@@ -174,23 +140,6 @@ reportsRoutes.get('/schedules', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS report_schedules (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        report_type TEXT NOT NULL DEFAULT 'call_volume',
-        cron_pattern TEXT NOT NULL DEFAULT '0 8 * * 1',
-        is_active BOOLEAN DEFAULT true,
-        delivery_emails TEXT[],
-        filters JSONB DEFAULT '{}',
-        format TEXT DEFAULT 'pdf',
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )`
-    )
-
     const rowsResult = await db.query(
       `SELECT * FROM report_schedules
       WHERE organization_id = $1
@@ -217,23 +166,6 @@ reportsRoutes.post('/schedules', async (c) => {
     const parsed = await validateBody(c, ScheduleReportSchema)
     if (!parsed.success) return parsed.response
     const { name, report_type, cron_pattern, delivery_emails, filters, format } = parsed.data
-
-    await db.query(
-      `CREATE TABLE IF NOT EXISTS report_schedules (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        report_type TEXT NOT NULL DEFAULT 'call_volume',
-        cron_pattern TEXT NOT NULL DEFAULT '0 8 * * 1',
-        is_active BOOLEAN DEFAULT true,
-        delivery_emails TEXT[],
-        filters JSONB DEFAULT '{}',
-        format TEXT DEFAULT 'pdf',
-        created_by UUID,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )`
-    )
 
     const result = await db.query(
       `INSERT INTO report_schedules (organization_id, name, report_type, cron_pattern, delivery_emails, filters, format, created_by)

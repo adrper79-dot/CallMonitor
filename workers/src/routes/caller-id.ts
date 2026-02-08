@@ -29,18 +29,6 @@ async function listCallerIds(c: any) {
 
   const db = getDb(c.env)
   try {
-    // Check if table exists
-    const tableCheck = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'caller_ids'
-      ) as exists
-    `)
-
-    if (!tableCheck.rows[0].exists) {
-      return c.json({ success: true, callerIds: [] })
-    }
-
     const result = await db.query(
       `SELECT * FROM caller_ids
        WHERE organization_id = $1
@@ -67,21 +55,6 @@ async function initiateVerification(c: any) {
 
   const db = getDb(c.env)
   try {
-    // Ensure table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS caller_ids (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        phone_number TEXT NOT NULL,
-        label TEXT,
-        status TEXT DEFAULT 'pending',
-        verification_code TEXT,
-        verified_at TIMESTAMP WITH TIME ZONE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
     // Check for duplicate
     const existing = await db.query(
       `SELECT id, status FROM caller_ids

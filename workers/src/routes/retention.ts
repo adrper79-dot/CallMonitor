@@ -22,46 +22,12 @@ import { logger } from '../lib/logger'
 
 export const retentionRoutes = new Hono<{ Bindings: Env }>()
 
-async function ensureRetentionTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS retention_policies (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL UNIQUE,
-      recording_retention_days INTEGER DEFAULT 365,
-      transcript_retention_days INTEGER DEFAULT 365,
-      call_log_retention_days INTEGER DEFAULT 730,
-      auto_delete_enabled BOOLEAN DEFAULT false,
-      gdpr_mode BOOLEAN DEFAULT false,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-}
-
-async function ensureLegalHoldsTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS legal_holds (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      name TEXT NOT NULL,
-      matter_reference TEXT,
-      applies_to_all BOOLEAN DEFAULT false,
-      status TEXT DEFAULT 'active',
-      created_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      released_at TIMESTAMPTZ
-    )
-  `)
-}
-
 // GET / — Get retention policy
 retentionRoutes.get('/', async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureRetentionTable(db)
 
     const result = await db.query(
       `SELECT * FROM retention_policies
@@ -104,8 +70,6 @@ retentionRoutes.put('/', async (c) => {
       gdpr_mode,
     } = parsed.data
 
-    await ensureRetentionTable(db)
-
     const result = await db.query(
       `INSERT INTO retention_policies (
          organization_id, recording_retention_days, transcript_retention_days,
@@ -146,8 +110,6 @@ retentionRoutes.get('/legal-holds', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    await ensureLegalHoldsTable(db)
-
     const result = await db.query(
       `SELECT * FROM legal_holds
        WHERE organization_id = $1
@@ -174,8 +136,6 @@ retentionRoutes.post('/legal-holds', async (c) => {
     const parsed = await validateBody(c, CreateLegalHoldSchema)
     if (!parsed.success) return parsed.response
     const { name, matter_reference, applies_to_all } = parsed.data
-
-    await ensureLegalHoldsTable(db)
 
     const result = await db.query(
       `INSERT INTO legal_holds (organization_id, name, matter_reference, applies_to_all, created_by)

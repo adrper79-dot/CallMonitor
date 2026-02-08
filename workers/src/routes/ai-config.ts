@@ -30,27 +30,12 @@ const DEFAULT_CONFIG = {
   language: 'en',
 }
 
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ai_configs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL UNIQUE,
-      config JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-}
-
 // GET / — Get AI configuration
 aiConfigRoutes.get('/', async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTable(db)
 
     const result = await db.query(
       `SELECT config, updated_at
@@ -83,8 +68,6 @@ aiConfigRoutes.put('/', async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTable(db)
 
     const parsed = await validateBody(c, UpdateAIConfigSchema)
     if (!parsed.success) return parsed.response

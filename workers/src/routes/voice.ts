@@ -23,23 +23,6 @@ voiceRoutes.get('/targets', async (c) => {
       return c.json({ error: 'Unauthorized' }, 401)
     }
 
-    // Check if voice_targets table exists
-    const tableCheck = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'voice_targets'
-      ) as exists
-    `)
-
-    if (!tableCheck.rows[0].exists) {
-      logger.warn('Voice targets table does not exist')
-      return c.json({
-        success: true,
-        targets: [],
-      })
-    }
-
     const result = await db.query(
       `SELECT *
        FROM voice_targets
@@ -381,30 +364,6 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
     // Accept organization_id from body but verify against session
     if (organization_id && organization_id !== session.organization_id) {
       return c.json({ error: 'Invalid organization' }, 400)
-    }
-
-    // Check if voice_targets table exists
-    const tableCheck = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'voice_targets'
-      ) as exists
-    `)
-
-    if (!tableCheck.rows[0].exists) {
-      logger.warn('Voice targets table does not exist, creating...')
-      await db.query(`
-        CREATE TABLE voice_targets (
-          id SERIAL PRIMARY KEY,
-          organization_id UUID NOT NULL,
-          phone_number TEXT NOT NULL,
-          name TEXT,
-          is_active BOOLEAN DEFAULT true,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-      `)
     }
 
     // Insert new target

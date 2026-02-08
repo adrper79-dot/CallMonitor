@@ -19,23 +19,6 @@ import { logger } from '../lib/logger'
 
 export const adminRoutes = new Hono<{ Bindings: Env }>()
 
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS auth_providers (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      provider TEXT NOT NULL,
-      enabled BOOLEAN DEFAULT false,
-      client_id TEXT,
-      client_secret_hash TEXT,
-      config JSONB DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(organization_id, provider)
-    )
-  `)
-}
-
 // GET /auth-providers — List auth providers & diagnostic info
 adminRoutes.get('/auth-providers', async (c) => {
   const db = getDb(c.env)
@@ -43,8 +26,6 @@ adminRoutes.get('/auth-providers', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
-
-    await ensureTable(db)
 
     const result = await db.query(
       `SELECT id, provider, enabled, client_id, config, created_at, updated_at
@@ -89,8 +70,6 @@ adminRoutes.post('/auth-providers', async (c) => {
     const parsed = await validateBody(c, UpdateAuthProviderSchema)
     if (!parsed.success) return parsed.response
     const { provider, enabled, client_id, client_secret, config } = parsed.data
-
-    await ensureTable(db)
 
     const result = await db.query(
       `INSERT INTO auth_providers (organization_id, provider, enabled, client_id, client_secret_hash, config)

@@ -20,48 +20,12 @@ import { logger } from '../lib/logger'
 
 export const audioRoutes = new Hono<{ Bindings: Env }>()
 
-// Ensure tables exist
-async function ensureTables(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS audio_files (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      file_key TEXT NOT NULL,
-      original_name TEXT,
-      content_type TEXT DEFAULT 'audio/mpeg',
-      size_bytes INTEGER,
-      duration_seconds INTEGER,
-      created_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS transcriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      audio_file_id UUID,
-      file_key TEXT,
-      status TEXT DEFAULT 'pending',
-      language TEXT DEFAULT 'en',
-      transcript TEXT,
-      confidence NUMERIC(5,4),
-      word_count INTEGER,
-      error TEXT,
-      created_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      completed_at TIMESTAMPTZ
-    )
-  `)
-}
-
 // POST /upload — Upload audio file
 audioRoutes.post('/upload', async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTables(db)
 
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
@@ -105,8 +69,6 @@ audioRoutes.post('/transcribe', async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTables(db)
 
     const parsed = await validateBody(c, TranscribeSchema)
     if (!parsed.success) return parsed.response
@@ -162,8 +124,6 @@ audioRoutes.get('/transcriptions/:id', async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTables(db)
 
     const id = c.req.param('id')
 

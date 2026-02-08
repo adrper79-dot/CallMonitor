@@ -30,18 +30,6 @@ async function listScripts(c: any) {
 
   const db = getDb(c.env)
   try {
-    // Check if table exists
-    const tableCheck = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'shopper_scripts'
-      ) as exists
-    `)
-
-    if (!tableCheck.rows[0].exists) {
-      return c.json({ success: true, scripts: [], total: 0 })
-    }
-
     const result = await db.query(
       `SELECT * FROM shopper_scripts
        WHERE organization_id = $1
@@ -72,20 +60,6 @@ async function upsertScript(c: any) {
 
   const db = getDb(c.env)
   try {
-    // Ensure table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS shopper_scripts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        organization_id UUID NOT NULL,
-        name TEXT NOT NULL,
-        content TEXT,
-        scenario TEXT,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      )
-    `)
-
     if (id) {
       // Update existing
       const result = await db.query(

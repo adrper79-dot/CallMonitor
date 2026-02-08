@@ -19,27 +19,6 @@ import { logger } from '../lib/logger'
 
 export const reliabilityRoutes = new Hono<{ Bindings: Env }>()
 
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS webhook_failures (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      organization_id UUID NOT NULL,
-      webhook_url TEXT NOT NULL,
-      event_type TEXT,
-      payload JSONB,
-      status_code INTEGER,
-      error_message TEXT,
-      retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 3,
-      status TEXT DEFAULT 'failed',
-      resolution_notes TEXT,
-      resolved_by UUID,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      resolved_at TIMESTAMPTZ
-    )
-  `)
-}
-
 // GET /webhooks — List webhook failures and metrics
 reliabilityRoutes.get('/webhooks', async (c) => {
   const db = getDb(c.env)
@@ -87,8 +66,7 @@ reliabilityRoutes.get('/webhooks', async (c) => {
       )
       if (metricsResult.rows.length > 0) metrics = metricsResult.rows[0]
     } catch {
-      // Table may not exist or have different schema — create it
-      await ensureTable(db)
+      // Table exists via migration — log and continue with defaults
     }
 
     return c.json({
@@ -111,8 +89,6 @@ reliabilityRoutes.put('/webhooks', async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-    await ensureTable(db)
 
     const parsed = await validateBody(c, WebhookActionSchema)
     if (!parsed.success) return parsed.response
