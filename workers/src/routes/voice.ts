@@ -126,10 +126,6 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       setClauses.push(`translate = $${paramIndex++}`)
       values.push(modulations.translate)
     }
-    if (modulations.translate_mode !== undefined) {
-      setClauses.push(`translate_mode = $${paramIndex++}`)
-      values.push(modulations.translate_mode)
-    }
     if (modulations.translate_from !== undefined) {
       setClauses.push(`translate_from = $${paramIndex++}`)
       values.push(modulations.translate_from)
@@ -161,9 +157,9 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       // Upsert: INSERT with defaults, UPDATE only the sent fields
       result = await db.query(
         `INSERT INTO voice_configs (
-          organization_id, record, transcribe, translate, translate_mode, translate_from, translate_to,
+          organization_id, record, transcribe, translate, translate_from, translate_to,
           survey, synthetic_caller, use_voice_cloning, updated_at
-        ) VALUES ($1, false, false, false, 'post_call', NULL, NULL, false, false, false, NOW())
+        ) VALUES ($1, false, false, false, NULL, NULL, false, false, false, NOW())
         ON CONFLICT (organization_id)
         DO UPDATE SET ${setClauses.join(', ')}, updated_at = NOW()
         RETURNING *`,

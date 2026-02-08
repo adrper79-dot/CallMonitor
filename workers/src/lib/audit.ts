@@ -65,7 +65,7 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
 
   void db
     .query(
-      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, before, after, created_at)
+      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
       [
         organizationId,
