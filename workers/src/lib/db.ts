@@ -56,12 +56,10 @@ export function getDb(env: Env): DbClient {
   }
 
   const pool = new Pool({
-    connectionString,
+    connectionString: `${connectionString}?statement_timeout=30000`,
     max: POOL_MAX,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
-    // Set statement_timeout via connection options string (avoids per-query SET round-trip)
-    options: `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
   })
 
   return {
