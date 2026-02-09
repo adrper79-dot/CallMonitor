@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { WebhookStatusBadge } from './WebhookStatusBadge'
 import { apiGet } from '@/lib/apiClient'
 
@@ -26,7 +26,7 @@ interface WebhookDeliveryLogProps {
 
 /**
  * WebhookDeliveryLog Component - Professional Design System v3.0
- * 
+ *
  * Shows delivery history for a webhook with filtering and pagination
  */
 export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookDeliveryLogProps) {
@@ -38,11 +38,7 @@ export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookD
   const [total, setTotal] = useState(0)
   const limit = 50
 
-  useEffect(() => {
-    loadDeliveries()
-  }, [webhookId, statusFilter, offset])
-
-  async function loadDeliveries() {
+  const loadDeliveries = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -66,7 +62,11 @@ export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookD
     } finally {
       setLoading(false)
     }
-  }
+  }, [webhookId, statusFilter, offset, limit])
+
+  useEffect(() => {
+    loadDeliveries()
+  }, [loadDeliveries])
 
   function formatDate(dateString: string) {
     const date = new Date(dateString)
@@ -74,7 +74,7 @@ export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookD
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -112,9 +112,7 @@ export function WebhookDeliveryLog({ webhookId, webhookName, onClose }: WebhookD
 
         {/* Filters */}
         <div className="px-6 py-4 border-b border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Filter by status
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by status</label>
           <select
             value={statusFilter}
             onChange={(e) => {

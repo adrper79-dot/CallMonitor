@@ -13,6 +13,7 @@ export interface Session {
   name: string
   organization_id: string
   role: string
+  platform_role?: string
   expires: string
 }
 
@@ -20,7 +21,9 @@ export interface Session {
  * Compute device fingerprint from request headers.
  * Used to bind sessions to the device that created them (H2 hardening).
  */
-export async function computeFingerprint(c: Context<{ Bindings: Env; Variables: { session: Session } }>): Promise<string> {
+export async function computeFingerprint(
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>
+): Promise<string> {
   const userAgent = c.req.header('User-Agent') || 'unknown'
   const origin = c.req.header('Origin') || c.req.header('Referer') || 'unknown'
   const raw = `${userAgent}|${origin}`
@@ -33,7 +36,9 @@ export async function computeFingerprint(c: Context<{ Bindings: Env; Variables: 
 /**
  * Parse session token from request cookies or Authorization header
  */
-export function parseSessionToken(c: Context<{ Bindings: Env; Variables: { session: Session } }>): string | null {
+export function parseSessionToken(
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>
+): string | null {
   // Check Authorization header first (for API clients)
   const authHeader = c.req.header('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
@@ -78,6 +83,7 @@ export async function verifySession(
         u.email, 
         u.name, 
         u.id as user_id,
+        u.platform_role,
         om.organization_id, 
         om.role
       FROM public.sessions s
@@ -97,7 +103,7 @@ export async function verifySession(
       const storedFp = await c.env.KV.get(`fp:${token}`)
       if (storedFp) {
         const currentFp = await computeFingerprint(c)
-        if (storedFp !== currentFp) {
+        if (!timingSafeEqual(storedFp, currentFp)) {
           // Fingerprint mismatch — possible token theft
           return null
         }
@@ -114,6 +120,7 @@ export async function verifySession(
       name: row.name,
       organization_id: row.organization_id,
       role: row.role || 'viewer',
+      platform_role: row.platform_role,
       expires: row.expires instanceof Date ? row.expires.toISOString() : String(row.expires),
     }
   } catch (error: any) {
@@ -125,7 +132,9 @@ export async function verifySession(
 /**
  * Middleware helper: require authenticated session
  */
-export async function requireAuth(c: Context<{ Bindings: Env; Variables: { session: Session } }>): Promise<Session | null> {
+export async function requireAuth(
+  c: Context<{ Bindings: Env; Variables: { session: Session } }>
+): Promise<Session | null> {
   const token = parseSessionToken(c)
 
   if (!token) {
@@ -185,6 +194,23 @@ export async function requireRole(
   }
 
   return session
+}
+
+/**
+ * Constant-time string comparison to prevent timing side-channel attacks.
+ * Used for hash comparison, fingerprint validation, and token verification.
+ * BL-057 / BL-079: Replaces vulnerable === comparisons.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  const encoder = new TextEncoder()
+  const bufA = encoder.encode(a)
+  const bufB = encoder.encode(b)
+  let diff = 0
+  for (let i = 0; i < bufA.length; i++) {
+    diff |= bufA[i] ^ bufB[i]
+  }
+  return diff === 0
 }
 
 /**

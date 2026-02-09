@@ -23,6 +23,7 @@ import {
 import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
 import { logger } from '../lib/logger'
 import { sendEmail, passwordResetEmailHtml } from '../lib/email'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const authRoutes = new Hono<AppEnv>()
 
@@ -82,6 +83,16 @@ authRoutes.post('/validate-key', async (c) => {
 
     // Update last used
     await db.query(`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, [keyRecord.id])
+
+    // Audit: API key validated (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: keyRecord.organization_id,
+      userId: 'api_key',
+      resourceType: 'api_key',
+      resourceId: keyRecord.id,
+      action: AuditAction.API_KEY_VALIDATED,
+      after: { organization_name: keyRecord.organization_name },
+    })
 
     return c.json({
       valid: true,
@@ -189,6 +200,16 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
         // Don't fail signup if org creation fails
       }
     }
+
+    // Audit: user signup (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: 'signup',
+      userId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      action: AuditAction.USER_SIGNUP,
+      after: { email: user.email, name: user.name },
+    })
 
     return c.json({
       success: true,
@@ -341,6 +362,16 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
       `session-token=${sessionToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=None; Secure; HttpOnly`
     )
 
+    // Audit: user login (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: org?.organization_id || 'none',
+      userId: user.id,
+      resourceType: 'session',
+      resourceId: sessionId,
+      action: AuditAction.SESSION_CREATED,
+      after: { email: user.email, role: org?.role || null },
+    })
+
     return c.json({
       url: '/dashboard',
       ok: true,
@@ -401,10 +432,10 @@ authRoutes.post('/refresh', async (c) => {
 
     const db = getDb(c.env)
     try {
-      await db.query(
-        `UPDATE public.sessions SET expires = $1 WHERE session_token = $2`,
-        [newExpires.toISOString(), token]
-      )
+      await db.query(`UPDATE public.sessions SET expires = $1 WHERE session_token = $2`, [
+        newExpires.toISOString(),
+        token,
+      ])
 
       // Refresh KV fingerprint TTL
       const fingerprint = await computeFingerprint(c)
@@ -417,6 +448,16 @@ authRoutes.post('/refresh', async (c) => {
         'Set-Cookie',
         `session-token=${token}; Path=/; Expires=${newExpires.toUTCString()}; SameSite=None; Secure; HttpOnly`
       )
+
+      // Audit: session refreshed (fire-and-forget)
+      writeAuditLog(db, {
+        organizationId: session.organization_id || 'none',
+        userId: session.user_id,
+        resourceType: 'session',
+        resourceId: token,
+        action: AuditAction.SESSION_REFRESHED,
+        after: { expires: newExpires.toISOString() },
+      })
 
       return c.json({
         success: true,
@@ -449,6 +490,15 @@ authRoutes.post('/signout', async (c) => {
   try {
     // Delete session from database
     await db.query('DELETE FROM public.sessions WHERE session_token = $1', [token])
+
+    // Audit: signout (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: 'signout',
+      userId: 'unknown',
+      resourceType: 'session',
+      resourceId: token.substring(0, 8) + '...',
+      action: AuditAction.SESSION_REVOKED,
+    })
 
     // H2 hardening: clean up fingerprint from KV
     try {
@@ -521,6 +571,16 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
       text: `Reset your password: ${resetUrl}\n\nThis link expires in 60 minutes.`,
     }).catch((err) => logger.error('Failed to send reset email', { error: err?.message }))
 
+    // Audit: password reset requested (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: 'password_reset',
+      userId,
+      resourceType: 'user',
+      resourceId: userId,
+      action: AuditAction.PASSWORD_RESET_REQUESTED,
+      after: { email: email.toLowerCase() },
+    })
+
     return c.json({
       message: 'If an account with that email exists, a password reset link has been sent.',
     })
@@ -561,6 +621,17 @@ authRoutes.post('/reset-password', forgotPasswordRateLimit, async (c) => {
     }
 
     logger.info('Password reset successful', { userId })
+
+    // Audit: password reset completed (fire-and-forget)
+    writeAuditLog(db, {
+      organizationId: 'password_reset',
+      userId,
+      resourceType: 'user',
+      resourceId: userId,
+      action: AuditAction.PASSWORD_RESET_COMPLETED,
+      after: { email: result.rows[0].email },
+    })
+
     return c.json({ message: 'Password has been reset successfully' })
   } catch (err: any) {
     logger.error('Reset password error', { error: err?.message })

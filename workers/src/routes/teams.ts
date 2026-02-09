@@ -19,6 +19,7 @@ import {
 } from '../lib/schemas'
 import { requirePlan } from '../lib/plan-gating'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { teamRateLimit } from '../lib/rate-limit'
 
 export const teamsRoutes = new Hono<AppEnv>()
 
@@ -37,19 +38,28 @@ teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
       return c.json({ success: true, teams: [] })
     }
 
+    const page = parseInt(c.req.query('page') || '1', 10)
+    const limit = Math.min(parseInt(c.req.query('limit') || '25', 10), 200)
+    const offset = (page - 1) * limit
+
     const result = await db.query(
       `SELECT t.id, t.name, t.description, t.team_type, t.parent_team_id,
               t.manager_user_id, t.is_active, t.created_at,
               u.name as manager_name, u.email as manager_email,
-              (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) as member_count
+              (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) as member_count,
+              COUNT(*) OVER() as total_count
        FROM teams t
        LEFT JOIN users u ON u.id = t.manager_user_id::text
        WHERE t.organization_id = $1 AND t.is_active = true
-       ORDER BY t.name`,
-      [session.organization_id]
+       ORDER BY t.name
+       LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
     )
 
-    return c.json({ success: true, teams: result.rows })
+    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
+    const teams = result.rows.map(({ total_count, ...t }: any) => t)
+
+    return c.json({ success: true, teams, pagination: { page, limit, total } })
   } catch (err: any) {
     return c.json({ error: 'Failed to list teams' }, 500)
   } finally {
@@ -58,7 +68,7 @@ teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
 })
 
 // Create team (manager+ role)
-teamsRoutes.post('/', authMiddleware, requirePlan('pro'), async (c) => {
+teamsRoutes.post('/', authMiddleware, requirePlan('pro'), teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = c.get('session')
@@ -110,7 +120,7 @@ teamsRoutes.post('/', authMiddleware, requirePlan('pro'), async (c) => {
 })
 
 // Update team
-teamsRoutes.put('/:id', async (c) => {
+teamsRoutes.put('/:id', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -166,7 +176,7 @@ teamsRoutes.put('/:id', async (c) => {
 })
 
 // Delete team (admin+ role)
-teamsRoutes.delete('/:id', async (c) => {
+teamsRoutes.delete('/:id', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -246,7 +256,7 @@ teamsRoutes.get('/:id/members', async (c) => {
 })
 
 // Add member to team
-teamsRoutes.post('/:id/members', async (c) => {
+teamsRoutes.post('/:id/members', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -307,7 +317,7 @@ teamsRoutes.post('/:id/members', async (c) => {
 })
 
 // Remove member from team
-teamsRoutes.delete('/:id/members/:userId', async (c) => {
+teamsRoutes.delete('/:id/members/:userId', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -385,7 +395,7 @@ teamsRoutes.get('/my-orgs', async (c) => {
 })
 
 // Switch active org (updates session)
-teamsRoutes.post('/switch-org', async (c) => {
+teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -444,7 +454,7 @@ teamsRoutes.post('/switch-org', async (c) => {
 // ════════════════════════════════════════════════════════════
 
 // Update member role
-teamsRoutes.patch('/members/:userId/role', async (c) => {
+teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

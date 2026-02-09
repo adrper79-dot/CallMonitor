@@ -348,7 +348,7 @@ export default function SignUpPage() {
                   required
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  This will be your team's workspace name
+                  This will be your team&apos;s workspace name
                 </p>
               </div>
             )}

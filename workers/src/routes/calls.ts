@@ -21,8 +21,9 @@ import {
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
-import { callMutationRateLimit } from '../lib/rate-limit'
+import { callMutationRateLimit, aiSummaryRateLimit, emailRateLimit } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml } from '../lib/email'
+import { getTranslationConfig } from '../lib/translation-processor'
 
 export const callsRoutes = new Hono<AppEnv>()
 
@@ -55,7 +56,7 @@ callsRoutes.get('/', async (c) => {
   const url = new URL(c.req.url)
   const status = url.searchParams.get('status')
   const page = parseInt(url.searchParams.get('page') || '1')
-  const limit = parseInt(url.searchParams.get('limit') || '50')
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200)
   const offset = (page - 1) * limit
 
   const db = getDb(c.env)
@@ -173,18 +174,37 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
 
     // BL-011: Trigger actual call via Telnyx Call Control v2
     try {
+      // Check if live translation is enabled — if so, enable Telnyx real-time transcription
+      const translationConfig = await getTranslationConfig(db, session.organization_id)
+      const enableTranscription = translationConfig?.live_translate === true
+
+      const callPayload: Record<string, unknown> = {
+        connection_id: c.env.TELNYX_CONNECTION_ID,
+        to: phone_number,
+        from: caller_id || c.env.TELNYX_NUMBER,
+        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
+      }
+
+      // Enable Telnyx real-time transcription for live translation pipeline
+      if (enableTranscription) {
+        callPayload.transcription = {
+          transcription_engine: 'B',
+          transcription_tracks: 'both',
+        }
+        logger.info('Live translation enabled for call', {
+          callId: call.id,
+          from: translationConfig!.translate_from,
+          to: translationConfig!.translate_to,
+        })
+      }
+
       const telnyxRes = await fetch('https://api.telnyx.com/v2/calls', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          connection_id: c.env.TELNYX_CONNECTION_ID,
-          to: phone_number,
-          from: caller_id || c.env.TELNYX_NUMBER,
-          webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
-        }),
+        body: JSON.stringify(callPayload),
       })
 
       if (!telnyxRes.ok) {
@@ -370,8 +390,8 @@ callsRoutes.get('/:id/outcome', async (c) => {
         json_build_object('email', u.email) as declared_by_user
        FROM call_outcomes o
        LEFT JOIN users u ON o.declared_by_user_id = u.id
-       WHERE o.call_id = $1`,
-      [callId]
+       WHERE o.call_id = $1 AND o.organization_id = $2`,
+      [callId, organization_id]
     )
     const outcome = outcomes[0]
 
@@ -474,8 +494,8 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
 
     // Check if outcome already exists
     const { rows: existingOutcomes } = await db.query(
-      `SELECT id FROM call_outcomes WHERE call_id = $1`,
-      [callId]
+      `SELECT id FROM call_outcomes WHERE call_id = $1 AND organization_id = $2`,
+      [callId, organization_id]
     )
 
     if (existingOutcomes.length > 0) {
@@ -603,8 +623,8 @@ callsRoutes.put('/:id/outcome', async (c) => {
 
     // Get existing outcome
     const { rows: existingOutcomes } = await db.query(
-      `SELECT * FROM call_outcomes WHERE call_id = $1`,
-      [callId]
+      `SELECT * FROM call_outcomes WHERE call_id = $1 AND organization_id = $2`,
+      [callId, organization_id]
     )
     const existingOutcome = existingOutcomes[0]
 
@@ -668,6 +688,24 @@ callsRoutes.put('/:id/outcome', async (c) => {
       revision: outcome.revision_number,
     })
 
+    // Audit log: outcome updated
+    writeAuditLog(db, {
+      organizationId: organization_id,
+      userId: user_id,
+      resourceType: 'call_outcomes',
+      resourceId: outcome.id,
+      action: AuditAction.CALL_OUTCOME_UPDATED,
+      before: {
+        outcome_status: existingOutcome.outcome_status,
+        confidence_level: existingOutcome.confidence_level,
+      },
+      after: {
+        outcome_status: outcome.outcome_status,
+        confidence_level: outcome.confidence_level,
+        revision: outcome.revision_number,
+      },
+    })
+
     return c.json({
       success: true,
       data: {
@@ -691,7 +729,7 @@ callsRoutes.put('/:id/outcome', async (c) => {
 })
 
 // POST /api/calls/[id]/summary
-callsRoutes.post('/:id/summary', async (c) => {
+callsRoutes.post('/:id/summary', aiSummaryRateLimit, async (c) => {
   const session = await requireRole(c, 'viewer')
   if (!session) {
     return c.json({ success: false, error: 'Unauthorized' }, 401)
@@ -919,6 +957,16 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       summaryLength: summaryResult.summary_text?.length,
     })
 
+    // Audit log: AI summary generated
+    writeAuditLog(db, {
+      organizationId: organization_id,
+      userId: user_id,
+      resourceType: 'ai_summaries',
+      resourceId: aiSummary?.id || callId,
+      action: AuditAction.CALL_AI_SUMMARY_GENERATED,
+      after: { call_id: callId, model: 'gpt-4-turbo-preview', review_status: 'pending' },
+    })
+
     return c.json({
       success: true,
       data: {
@@ -1049,6 +1097,16 @@ callsRoutes.post('/:id/notes', async (c) => {
       [callId, content.trim(), session.user_id]
     )
 
+    // Audit log: note created
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'call_notes',
+      resourceId: inserted[0].id,
+      action: AuditAction.CALL_NOTE_CREATED,
+      after: { call_id: callId, content_length: content.trim().length },
+    })
+
     return c.json({ success: true, note: inserted[0] }, 201)
   } catch (error: any) {
     logger.error('POST notes error', { error: error?.message })
@@ -1135,6 +1193,16 @@ callsRoutes.post('/:id/confirmations', async (c) => {
       [callId, confirmation_type, JSON.stringify(details || {}), confirmed_by || session.user_id]
     )
 
+    // Audit log: confirmation created
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'call_confirmations',
+      resourceId: inserted[0].id,
+      action: AuditAction.CALL_CONFIRMATION_CREATED,
+      after: { call_id: callId, confirmation_type },
+    })
+
     return c.json({ success: true, confirmation: inserted[0] }, 201)
   } catch (error: any) {
     logger.error('POST confirmations error', { error: error?.message })
@@ -1169,8 +1237,8 @@ callsRoutes.get('/:id/export', async (c) => {
     let recordings: any[] = []
     try {
       const res = await db.query(
-        `SELECT id, recording_url, duration_seconds, status, created_at FROM recordings WHERE call_id = $1`,
-        [callId]
+        `SELECT id, recording_url, duration_seconds, status, created_at FROM recordings WHERE call_id = $1 AND organization_id = $2`,
+        [callId, session.organization_id]
       )
       recordings = res.rows || []
     } catch {
@@ -1180,7 +1248,10 @@ callsRoutes.get('/:id/export', async (c) => {
     // Get outcome
     let outcome = null
     try {
-      const res = await db.query(`SELECT * FROM call_outcomes WHERE call_id = $1`, [callId])
+      const res = await db.query(
+        `SELECT * FROM call_outcomes WHERE call_id = $1 AND organization_id = $2`,
+        [callId, session.organization_id]
+      )
       outcome = res.rows?.[0] || null
     } catch {
       /* table might not exist */
@@ -1190,8 +1261,8 @@ callsRoutes.get('/:id/export', async (c) => {
     let notes: any[] = []
     try {
       const res = await db.query(
-        `SELECT * FROM call_notes WHERE call_id = $1 ORDER BY created_at`,
-        [callId]
+        `SELECT * FROM call_notes WHERE call_id = $1 AND organization_id = $2 ORDER BY created_at`,
+        [callId, session.organization_id]
       )
       notes = res.rows || []
     } catch {
@@ -1224,7 +1295,7 @@ callsRoutes.get('/:id/export', async (c) => {
 })
 
 // POST /api/calls/:id/email — email call artifacts (placeholder)
-callsRoutes.post('/:id/email', async (c) => {
+callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
   try {
     const session = await requireRole(c, 'agent')
     if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
@@ -1238,18 +1309,20 @@ callsRoutes.post('/:id/email', async (c) => {
     const db = getDb(c.env)
     try {
       const callResult = await db.query(
-        `SELECT id, phone_number, created_at, summary FROM calls WHERE id = $1 AND organization_id = $2`,
+        `SELECT id, caller_id_used, started_at, status, disposition FROM calls WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
         [callId, session.organization_id]
       )
       if (callResult.rows.length === 0) {
         return c.json({ success: false, error: 'Call not found' }, 404)
       }
       const call = callResult.rows[0]
-      const callDate = new Date(call.created_at).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+      const callDate = call.started_at
+        ? new Date(call.started_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : 'Unknown date'
       const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
 
       // Send email to all recipients (fire-and-forget per recipient)
@@ -1261,13 +1334,23 @@ callsRoutes.post('/:id/email', async (c) => {
             callId,
             session.name || 'A team member',
             callDate,
-            call.summary,
+            call.disposition || call.status || 'No summary available',
             appUrl
           ),
         }).catch(() => {})
       }
 
       logger.info('Call share email sent', { callId, recipientCount: recipients.length })
+
+      // Audit log: call emailed
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'calls',
+        resourceId: callId,
+        action: AuditAction.CALL_EMAILED,
+        after: { recipients, recipient_count: recipients.length },
+      })
 
       return c.json({
         success: true,

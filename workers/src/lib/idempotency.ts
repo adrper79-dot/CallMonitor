@@ -16,6 +16,7 @@
 
 import type { Context, Next, MiddlewareHandler } from 'hono'
 import type { Env } from '../index'
+import type { Session } from './auth'
 import { logger } from './logger'
 
 /** Default TTL: 24 hours (in seconds) — matches Stripe's idempotency window */
@@ -63,7 +64,12 @@ export function idempotent(ttlSeconds = DEFAULT_TTL_SECONDS): MiddlewareHandler<
       return c.json({ error: 'Idempotency-Key too long (max 256 chars)' }, 400)
     }
 
-    const kvKey = `${KV_PREFIX}:${key}`
+    // BL-059: Scope idempotency key per organization to prevent cross-tenant collision
+    const session = (
+      c as unknown as Context<{ Bindings: Env; Variables: { session: Session } }>
+    ).get('session')
+    const orgScope = session?.organization_id || 'global'
+    const kvKey = `${KV_PREFIX}:${orgScope}:${key}`
 
     // Check for cached response
     try {

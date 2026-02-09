@@ -17,17 +17,21 @@ import { validateBody } from '../lib/validate'
 import { UpdateAuthProviderSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { adminRateLimit } from '../lib/rate-limit'
 
 export const adminRoutes = new Hono<AppEnv>()
 
+/** Roles at admin level or above in the RBAC hierarchy */
+const ADMIN_ROLES = ['admin', 'owner']
+
 // GET /auth-providers — List auth providers & diagnostic info
 adminRoutes.get('/auth-providers', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-    if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
-
     const result = await db.query(
       `SELECT id, provider, enabled, client_id, config, created_at, updated_at
        FROM auth_providers
@@ -61,13 +65,13 @@ adminRoutes.get('/auth-providers', async (c) => {
 })
 
 // POST /auth-providers — Toggle / update a provider
-adminRoutes.post('/auth-providers', async (c) => {
+adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-    if (session.role !== 'admin') return c.json({ error: 'Admin access required' }, 403)
-
     const parsed = await validateBody(c, UpdateAuthProviderSchema)
     if (!parsed.success) return parsed.response
     const { provider, enabled, client_id, client_secret, config } = parsed.data
@@ -79,7 +83,7 @@ adminRoutes.post('/auth-providers', async (c) => {
       const data = encoder.encode(client_secret)
       const hashBuffer = await crypto.subtle.digest('SHA-256', data)
       const hashArray = Array.from(new Uint8Array(hashBuffer))
-      secretHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      secretHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
     }
 
     const result = await db.query(

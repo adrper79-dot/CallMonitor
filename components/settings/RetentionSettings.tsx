@@ -182,7 +182,7 @@ export function RetentionSettings({ organizationId, canEdit }: RetentionSettings
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Retention Policy</h2>
           <p className="text-sm text-gray-500">
-            Configure how long call evidence is retained and when it's automatically archived.
+            Configure how long call evidence is retained and when it&apos;s automatically archived.
           </p>
         </div>
 

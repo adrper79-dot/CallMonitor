@@ -1,0 +1,767 @@
+/**
+ * Collections CRM Routes - Debt collection account management
+ *
+ * Endpoints:
+ *   GET    /              - List collection accounts
+ *   POST   /              - Create collection account
+ *   GET    /stats         - Aggregate portfolio stats
+ *   GET    /imports        - List CSV import history
+ *   POST   /import         - CSV bulk import
+ *   GET    /:id           - Get single account
+ *   PUT    /:id           - Update account
+ *   DELETE /:id           - Soft-delete account
+ *   GET    /:id/payments  - List payments for account
+ *   POST   /:id/payments  - Record payment
+ *   GET    /:id/tasks     - List tasks for account
+ *   POST   /:id/tasks     - Create task
+ *   PUT    /:id/tasks/:taskId  - Update task
+ *   DELETE /:id/tasks/:taskId  - Delete task
+ */
+
+import { Hono } from 'hono'
+import type { AppEnv } from '../index'
+import { requireAuth } from '../lib/auth'
+import { validateBody } from '../lib/validate'
+import {
+  CreateCollectionAccountSchema,
+  UpdateCollectionAccountSchema,
+  CreateCollectionPaymentSchema,
+  CreateCollectionTaskSchema,
+  UpdateCollectionTaskSchema,
+  CollectionCsvImportSchema,
+} from '../lib/schemas'
+import { getDb } from '../lib/db'
+import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
+import { collectionsRateLimit, collectionsImportRateLimit } from '../lib/rate-limit'
+
+export const collectionsRoutes = new Hono<AppEnv>()
+
+// ─── List collection accounts ────────────────────────────────────────────────
+collectionsRoutes.get('/', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    if (!session.organization_id) {
+      return c.json({ success: true, accounts: [] })
+    }
+
+    const status = c.req.query('status')
+    const search = c.req.query('search')
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+
+    let query = `SELECT * FROM collection_accounts
+      WHERE organization_id = $1 AND is_deleted = false`
+    const params: any[] = [session.organization_id]
+    let paramIndex = 2
+
+    if (status) {
+      query += ` AND status = $${paramIndex}`
+      params.push(status)
+      paramIndex++
+    }
+
+    if (search) {
+      query += ` AND (name ILIKE $${paramIndex} OR external_id ILIKE $${paramIndex})`
+      params.push(`%${search}%`)
+      paramIndex++
+    }
+
+    query += ` ORDER BY balance_due DESC, created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`
+    params.push(limit, offset)
+
+    const result = await db.query(query, params)
+
+    return c.json({ success: true, accounts: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections error', { error: err?.message })
+    return c.json({ error: 'Failed to get collection accounts' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Portfolio stats ─────────────────────────────────────────────────────────
+collectionsRoutes.get('/stats', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const result = await db.query(
+      `SELECT
+        COUNT(*)::int AS total_accounts,
+        COALESCE(SUM(balance_due), 0)::numeric AS total_balance_due,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active_accounts,
+        COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_accounts,
+        COUNT(*) FILTER (WHERE status = 'partial')::int AS partial_accounts,
+        COUNT(*) FILTER (WHERE status = 'disputed')::int AS disputed_accounts,
+        COUNT(*) FILTER (WHERE status = 'archived')::int AS archived_accounts,
+        COALESCE(SUM(balance_due) FILTER (WHERE status = 'paid'), 0)::numeric AS total_recovered
+      FROM collection_accounts
+      WHERE organization_id = $1 AND is_deleted = false`,
+      [session.organization_id]
+    )
+
+    const stats = result.rows[0]
+    const totalDue = parseFloat(stats.total_balance_due) || 0
+
+    // Get total payments
+    const paymentsResult = await db.query(
+      `SELECT COALESCE(SUM(amount), 0)::numeric AS total_payments
+      FROM collection_payments
+      WHERE organization_id = $1`,
+      [session.organization_id]
+    )
+    const totalPayments = parseFloat(paymentsResult.rows[0].total_payments) || 0
+
+    // Pending tasks count
+    const tasksResult = await db.query(
+      `SELECT COUNT(*)::int AS pending_tasks
+      FROM collection_tasks
+      WHERE organization_id = $1 AND status IN ('pending', 'in_progress')`,
+      [session.organization_id]
+    )
+
+    return c.json({
+      success: true,
+      stats: {
+        ...stats,
+        total_payments: totalPayments,
+        recovery_rate:
+          totalDue > 0 ? Math.round((totalPayments / (totalDue + totalPayments)) * 100) : 0,
+        pending_tasks: tasksResult.rows[0].pending_tasks,
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/collections/stats error', { error: err?.message })
+    return c.json({ error: 'Failed to get collection stats' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Import history ──────────────────────────────────────────────────────────
+collectionsRoutes.get('/imports', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const result = await db.query(
+      `SELECT * FROM collection_csv_imports
+      WHERE organization_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50`,
+      [session.organization_id]
+    )
+
+    return c.json({ success: true, imports: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/imports error', { error: err?.message })
+    return c.json({ error: 'Failed to get import history' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Create collection account ───────────────────────────────────────────────
+collectionsRoutes.post('/', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const parsed = await validateBody(c, CreateCollectionAccountSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    const result = await db.query(
+      `INSERT INTO collection_accounts
+        (organization_id, external_id, source, name, balance_due, primary_phone,
+         secondary_phone, email, address, custom_fields, status, notes,
+         promise_date, promise_amount, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING *`,
+      [
+        session.organization_id,
+        data.external_id || null,
+        data.source || 'manual',
+        data.name,
+        data.balance_due,
+        data.primary_phone,
+        data.secondary_phone || null,
+        data.email || null,
+        data.address || null,
+        data.custom_fields ? JSON.stringify(data.custom_fields) : null,
+        data.status || 'active',
+        data.notes || null,
+        data.promise_date || null,
+        data.promise_amount || null,
+        session.user_id,
+      ]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_accounts',
+      resourceId: result.rows[0].id,
+      action: AuditAction.COLLECTION_ACCOUNT_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
+    return c.json({ success: true, account: result.rows[0] }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/collections error', { error: err?.message })
+    return c.json({ error: 'Failed to create collection account' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── CSV bulk import ─────────────────────────────────────────────────────────
+collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const parsed = await validateBody(c, CollectionCsvImportSchema)
+    if (!parsed.success) return parsed.response
+    const { file_name, accounts, column_mapping } = parsed.data
+
+    // Create import record
+    const importResult = await db.query(
+      `INSERT INTO collection_csv_imports
+        (organization_id, file_name, rows_total, rows_imported, rows_skipped,
+         column_mapping, status, created_by)
+      VALUES ($1, $2, $3, 0, 0, $4, 'processing', $5)
+      RETURNING *`,
+      [
+        session.organization_id,
+        file_name,
+        accounts.length,
+        column_mapping ? JSON.stringify(column_mapping) : null,
+        session.user_id,
+      ]
+    )
+    const importId = importResult.rows[0].id
+
+    let imported = 0
+    let skipped = 0
+    const errors: Array<{ row: number; error: string }> = []
+
+    for (let i = 0; i < accounts.length; i++) {
+      const acct = accounts[i]
+      try {
+        await db.query(
+          `INSERT INTO collection_accounts
+            (organization_id, external_id, source, name, balance_due, primary_phone,
+             secondary_phone, email, address, custom_fields, status, notes,
+             promise_date, promise_amount, created_by)
+          VALUES ($1, $2, 'csv_import', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [
+            session.organization_id,
+            acct.external_id || null,
+            acct.name,
+            acct.balance_due,
+            acct.primary_phone,
+            acct.secondary_phone || null,
+            acct.email || null,
+            acct.address || null,
+            acct.custom_fields ? JSON.stringify(acct.custom_fields) : null,
+            acct.status || 'active',
+            acct.notes || null,
+            acct.promise_date || null,
+            acct.promise_amount || null,
+            session.user_id,
+          ]
+        )
+        imported++
+      } catch (rowErr: any) {
+        skipped++
+        errors.push({ row: i + 1, error: rowErr?.message || 'Unknown error' })
+      }
+    }
+
+    // Update import record
+    await db.query(
+      `UPDATE collection_csv_imports
+      SET rows_imported = $1, rows_skipped = $2, errors = $3,
+          status = $4, completed_at = NOW()
+      WHERE id = $5`,
+      [
+        imported,
+        skipped,
+        errors.length > 0 ? JSON.stringify(errors) : null,
+        skipped === accounts.length ? 'failed' : 'completed',
+        importId,
+      ]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_csv_imports',
+      resourceId: importId,
+      action: AuditAction.COLLECTION_CSV_IMPORTED,
+      before: null,
+      after: { file_name, imported, skipped, total: accounts.length },
+    })
+
+    return c.json(
+      {
+        success: true,
+        import: {
+          id: importId,
+          file_name,
+          rows_total: accounts.length,
+          rows_imported: imported,
+          rows_skipped: skipped,
+          errors: errors.length > 0 ? errors : null,
+        },
+      },
+      201
+    )
+  } catch (err: any) {
+    logger.error('POST /api/collections/import error', { error: err?.message })
+    return c.json({ error: 'Failed to import accounts' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Get single account ──────────────────────────────────────────────────────
+collectionsRoutes.get('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    // Skip static routes that are handled above
+    if (['stats', 'imports', 'import'].includes(accountId)) {
+      return c.json({ error: 'Not found' }, 404)
+    }
+
+    const result = await db.query(
+      `SELECT * FROM collection_accounts
+      WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+      [accountId, session.organization_id]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    return c.json({ success: true, account: result.rows[0] })
+  } catch (err: any) {
+    logger.error('GET /api/collections/:id error', { error: err?.message })
+    return c.json({ error: 'Failed to get collection account' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Update account ──────────────────────────────────────────────────────────
+collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+    const parsed = await validateBody(c, UpdateCollectionAccountSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    const result = await db.query(
+      `UPDATE collection_accounts
+      SET name = COALESCE($1, name),
+          balance_due = COALESCE($2, balance_due),
+          primary_phone = COALESCE($3, primary_phone),
+          secondary_phone = COALESCE($4, secondary_phone),
+          email = COALESCE($5, email),
+          address = COALESCE($6, address),
+          custom_fields = COALESCE($7, custom_fields),
+          status = COALESCE($8, status),
+          notes = COALESCE($9, notes),
+          promise_date = COALESCE($10, promise_date),
+          promise_amount = COALESCE($11, promise_amount),
+          last_contacted_at = COALESCE($12, last_contacted_at),
+          updated_at = NOW()
+      WHERE id = $13 AND organization_id = $14 AND is_deleted = false
+      RETURNING *`,
+      [
+        data.name || null,
+        data.balance_due ?? null,
+        data.primary_phone || null,
+        data.secondary_phone ?? null,
+        data.email ?? null,
+        data.address ?? null,
+        data.custom_fields ? JSON.stringify(data.custom_fields) : null,
+        data.status || null,
+        data.notes ?? null,
+        data.promise_date ?? null,
+        data.promise_amount ?? null,
+        data.last_contacted_at || null,
+        accountId,
+        session.organization_id,
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_accounts',
+      resourceId: accountId,
+      action: AuditAction.COLLECTION_ACCOUNT_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
+    return c.json({ success: true, account: result.rows[0] })
+  } catch (err: any) {
+    logger.error('PUT /api/collections/:id error', { error: err?.message })
+    return c.json({ error: 'Failed to update collection account' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Soft-delete account ─────────────────────────────────────────────────────
+collectionsRoutes.delete('/:id', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    const result = await db.query(
+      `UPDATE collection_accounts
+      SET is_deleted = true, deleted_at = NOW(), deleted_by = $1, updated_at = NOW()
+      WHERE id = $2 AND organization_id = $3 AND is_deleted = false
+      RETURNING id`,
+      [session.user_id, accountId, session.organization_id]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_accounts',
+      resourceId: accountId,
+      action: AuditAction.COLLECTION_ACCOUNT_DELETED,
+      before: { id: accountId },
+      after: null,
+    })
+
+    return c.json({ success: true, message: 'Account deleted' })
+  } catch (err: any) {
+    logger.error('DELETE /api/collections/:id error', { error: err?.message })
+    return c.json({ error: 'Failed to delete collection account' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── List payments for account ───────────────────────────────────────────────
+collectionsRoutes.get('/:id/payments', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    const result = await db.query(
+      `SELECT * FROM collection_payments
+      WHERE account_id = $1 AND organization_id = $2
+      ORDER BY created_at DESC`,
+      [accountId, session.organization_id]
+    )
+
+    return c.json({ success: true, payments: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/:id/payments error', { error: err?.message })
+    return c.json({ error: 'Failed to get payments' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Record payment ──────────────────────────────────────────────────────────
+collectionsRoutes.post('/:id/payments', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    // Verify account exists and belongs to org
+    const accountCheck = await db.query(
+      `SELECT id, balance_due FROM collection_accounts
+      WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+      [accountId, session.organization_id]
+    )
+
+    if (accountCheck.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    const parsed = await validateBody(c, CreateCollectionPaymentSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    // Ensure account_id from URL matches
+    const paymentAccountId = accountId
+
+    const result = await db.query(
+      `INSERT INTO collection_payments
+        (organization_id, account_id, amount, method, stripe_payment_id,
+         reference_number, notes, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+      [
+        session.organization_id,
+        paymentAccountId,
+        data.amount,
+        data.method || 'other',
+        data.stripe_payment_id || null,
+        data.reference_number || null,
+        data.notes || null,
+        session.user_id,
+      ]
+    )
+
+    // Update account balance
+    const currentBalance = parseFloat(accountCheck.rows[0].balance_due)
+    const newBalance = Math.max(0, currentBalance - data.amount)
+    const newStatus = newBalance === 0 ? 'paid' : newBalance < currentBalance ? 'partial' : 'active'
+
+    await db.query(
+      `UPDATE collection_accounts
+      SET balance_due = $1, status = $2, updated_at = NOW()
+      WHERE id = $3 AND organization_id = $4`,
+      [newBalance, newStatus, paymentAccountId, session.organization_id]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_payments',
+      resourceId: result.rows[0].id,
+      action: AuditAction.COLLECTION_PAYMENT_CREATED,
+      before: { balance_due: currentBalance },
+      after: { ...result.rows[0], new_balance: newBalance },
+    })
+
+    return c.json({ success: true, payment: result.rows[0], new_balance: newBalance }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/collections/:id/payments error', { error: err?.message })
+    return c.json({ error: 'Failed to record payment' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── List tasks for account ──────────────────────────────────────────────────
+collectionsRoutes.get('/:id/tasks', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    const result = await db.query(
+      `SELECT * FROM collection_tasks
+      WHERE account_id = $1 AND organization_id = $2
+      ORDER BY due_date ASC NULLS LAST, created_at DESC`,
+      [accountId, session.organization_id]
+    )
+
+    return c.json({ success: true, tasks: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/:id/tasks error', { error: err?.message })
+    return c.json({ error: 'Failed to get tasks' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Create task ─────────────────────────────────────────────────────────────
+collectionsRoutes.post('/:id/tasks', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+
+    // Verify account exists
+    const accountCheck = await db.query(
+      `SELECT id FROM collection_accounts
+      WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+      [accountId, session.organization_id]
+    )
+
+    if (accountCheck.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    const parsed = await validateBody(c, CreateCollectionTaskSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    const result = await db.query(
+      `INSERT INTO collection_tasks
+        (organization_id, account_id, type, title, notes, due_date,
+         assigned_to, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+      [
+        session.organization_id,
+        accountId,
+        data.type || 'followup',
+        data.title,
+        data.notes || null,
+        data.due_date || null,
+        data.assigned_to || null,
+        session.user_id,
+      ]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_tasks',
+      resourceId: result.rows[0].id,
+      action: AuditAction.COLLECTION_TASK_CREATED,
+      before: null,
+      after: result.rows[0],
+    })
+
+    return c.json({ success: true, task: result.rows[0] }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/collections/:id/tasks error', { error: err?.message })
+    return c.json({ error: 'Failed to create task' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Update task ─────────────────────────────────────────────────────────────
+collectionsRoutes.put('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+    const taskId = c.req.param('taskId')
+
+    const parsed = await validateBody(c, UpdateCollectionTaskSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    const result = await db.query(
+      `UPDATE collection_tasks
+      SET title = COALESCE($1, title),
+          notes = COALESCE($2, notes),
+          due_date = COALESCE($3, due_date),
+          status = COALESCE($4, status),
+          assigned_to = COALESCE($5, assigned_to),
+          completed_at = CASE WHEN $4 = 'completed' THEN NOW() ELSE completed_at END,
+          updated_at = NOW()
+      WHERE id = $6 AND account_id = $7 AND organization_id = $8
+      RETURNING *`,
+      [
+        data.title || null,
+        data.notes ?? null,
+        data.due_date ?? null,
+        data.status || null,
+        data.assigned_to ?? null,
+        taskId,
+        accountId,
+        session.organization_id,
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Task not found' }, 404)
+    }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_tasks',
+      resourceId: taskId,
+      action: AuditAction.COLLECTION_TASK_UPDATED,
+      before: null,
+      after: result.rows[0],
+    })
+
+    return c.json({ success: true, task: result.rows[0] })
+  } catch (err: any) {
+    logger.error('PUT /api/collections/:id/tasks/:taskId error', { error: err?.message })
+    return c.json({ error: 'Failed to update task' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Delete task ─────────────────────────────────────────────────────────────
+collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env)
+  try {
+    const accountId = c.req.param('id')
+    const taskId = c.req.param('taskId')
+
+    const result = await db.query(
+      `DELETE FROM collection_tasks
+      WHERE id = $1 AND account_id = $2 AND organization_id = $3
+      RETURNING id`,
+      [taskId, accountId, session.organization_id]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Task not found' }, 404)
+    }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_tasks',
+      resourceId: taskId,
+      action: AuditAction.COLLECTION_TASK_DELETED,
+      before: { id: taskId },
+      after: null,
+    })
+
+    return c.json({ success: true, message: 'Task deleted' })
+  } catch (err: any) {
+    logger.error('DELETE /api/collections/:id/tasks/:taskId error', { error: err?.message })
+    return c.json({ error: 'Failed to delete task' }, 500)
+  } finally {
+    await db.end()
+  }
+})

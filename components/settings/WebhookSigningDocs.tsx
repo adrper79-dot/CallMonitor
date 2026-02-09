@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -184,8 +184,18 @@ echo json_encode(['received' => true]);
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-start gap-3 mb-4">
           <div className="w-10 h-10 rounded-md bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <svg
+              className="w-5 h-5 text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
             </svg>
           </div>
           <div>
@@ -198,14 +208,25 @@ echo json_encode(['received' => true]);
 
         <div className="space-y-3 text-sm text-gray-600">
           <p>
-            All webhook requests from Word Is Bond include an <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">X-Webhook-Signature</code> header
-            containing an HMAC-SHA256 signature of the request body.
+            All webhook requests from Word Is Bond include an{' '}
+            <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">
+              X-Webhook-Signature
+            </code>{' '}
+            header containing an HMAC-SHA256 signature of the request body.
           </p>
           <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
             <h4 className="font-medium text-gray-900 mb-2">How it works:</h4>
             <ol className="list-decimal list-inside space-y-1">
-              <li>Word Is Bond creates HMAC-SHA256 hash of the webhook payload using your secret</li>
-              <li>The hash is sent in the <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">X-Webhook-Signature</code> header</li>
+              <li>
+                Word Is Bond creates HMAC-SHA256 hash of the webhook payload using your secret
+              </li>
+              <li>
+                The hash is sent in the{' '}
+                <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">
+                  X-Webhook-Signature
+                </code>{' '}
+                header
+              </li>
               <li>Your server computes the same hash using your secret</li>
               <li>Compare the hashes using constant-time comparison to prevent timing attacks</li>
             </ol>
@@ -258,40 +279,119 @@ echo json_encode(['received' => true]);
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Best Practices</h3>
         <ul className="space-y-3 text-sm text-gray-600">
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Always verify signatures</strong> - Never process webhooks without signature verification</span>
+            <span>
+              <strong className="text-gray-900">Always verify signatures</strong> - Never process
+              webhooks without signature verification
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Use constant-time comparison</strong> - Prevents timing attacks on signature verification</span>
+            <span>
+              <strong className="text-gray-900">Use constant-time comparison</strong> - Prevents
+              timing attacks on signature verification
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Store secrets securely</strong> - Keep webhook secrets in environment variables or secret managers</span>
+            <span>
+              <strong className="text-gray-900">Store secrets securely</strong> - Keep webhook
+              secrets in environment variables or secret managers
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Return 2xx quickly</strong> - Process webhooks asynchronously to avoid timeouts</span>
+            <span>
+              <strong className="text-gray-900">Return 2xx quickly</strong> - Process webhooks
+              asynchronously to avoid timeouts
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Implement idempotency</strong> - Use <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">event_id</code> to deduplicate events</span>
+            <span>
+              <strong className="text-gray-900">Implement idempotency</strong> - Use{' '}
+              <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">event_id</code>{' '}
+              to deduplicate events
+            </span>
           </li>
           <li className="flex items-start gap-2">
-            <svg className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
-            <span><strong className="text-gray-900">Monitor delivery logs</strong> - Track failed deliveries and investigate errors</span>
+            <span>
+              <strong className="text-gray-900">Monitor delivery logs</strong> - Track failed
+              deliveries and investigate errors
+            </span>
           </li>
         </ul>
       </div>
@@ -300,7 +400,8 @@ echo json_encode(['received' => true]);
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Webhook Payload Structure</h3>
         <div className="bg-gray-900 text-gray-100 rounded-md p-4 overflow-x-auto">
-          <pre className="text-sm"><code>{`{
+          <pre className="text-sm">
+            <code>{`{
   "event": "call.completed",
   "event_id": "evt_abc123def456",
   "timestamp": "2026-02-06T14:32:15Z",
@@ -312,7 +413,8 @@ echo json_encode(['received' => true]);
     "recording_url": "https://...",
     "transcript_available": true
   }
-}`}</code></pre>
+}`}</code>
+          </pre>
         </div>
       </div>
 
@@ -323,10 +425,12 @@ echo json_encode(['received' => true]);
           <div>
             <h4 className="font-medium text-gray-900 mb-2">Signature verification fails</h4>
             <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 ml-4">
-              <li>Ensure you're using the exact raw request body (no parsing or modification)</li>
-              <li>Verify you're using the correct secret from your webhook configuration</li>
-              <li>Check that you're using HMAC-SHA256 (not SHA256 alone)</li>
-              <li>Make sure you're using hexadecimal encoding for the computed hash</li>
+              <li>
+                Ensure you&apos;re using the exact raw request body (no parsing or modification)
+              </li>
+              <li>Verify you&apos;re using the correct secret from your webhook configuration</li>
+              <li>Check that you&apos;re using HMAC-SHA256 (not SHA256 alone)</li>
+              <li>Make sure you&apos;re using hexadecimal encoding for the computed hash</li>
             </ul>
           </div>
           <div>
@@ -343,7 +447,7 @@ echo json_encode(['received' => true]);
               <li>Check delivery logs in the webhooks settings page</li>
               <li>Verify your endpoint is publicly accessible (no firewalls blocking)</li>
               <li>Ensure your webhook subscription is active</li>
-              <li>Verify you're subscribed to the correct event types</li>
+              <li>Verify you&apos;re subscribed to the correct event types</li>
             </ul>
           </div>
         </div>

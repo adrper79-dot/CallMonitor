@@ -2,7 +2,61 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Applicable Versions:** v4.8 – v4.24+
+**Applicable Versions:** v4.8 – v4.28
+
+---
+
+## 🔴 CRITICAL — Helper Function Return Type Mismatches (v4.28 — 500 in Bond AI Insights)
+
+**When you refactor a helper's return type, ALL callers must be updated too.**
+
+### The Bug
+
+`fetchKpiSummary()` was rewritten (in a prior fix) to return `{ settings, recentPerformance }` — an object. But the `/insights` handler still treated the return value as an array, calling `.filter()` on it → `TypeError: kpis.filter is not a function` → 500.
+
+Additionally, the insights handler created a standalone `const db = getDb(c.env)` and called `db.end()` in finally — but each helper creates its own db connection. The outer db was never used for queries, just opened and closed wastefully.
+
+### Why It's Insidious
+
+- TypeScript didn't catch it because the return was typed as `any` in the Promise.all destructuring
+- The prior fix to `fetchKpiSummary` was correct, but the caller was never updated
+- The handler returned generic `{ error: 'Failed to get insights' }` with no logging, hiding the actual TypeError
+
+### Prevention
+
+1. When refactoring a helper function's return type, search for ALL callers with `grep_search`
+2. Never use `.filter()` on an unknown return type without verifying it's an array
+3. Always add `logger.error(...)` in catch blocks — silent 500s are the hardest to debug
+4. Don't create unused `db` connections — each helper should manage its own lifecycle
+
+---
+
+## 🔴 CRITICAL — Auth Routes Missing Audit Logging (v4.28 — Security Gap)
+
+**The highest-value audit events (login, signup, password reset) had ZERO audit trail.**
+
+### The Gap
+
+`auth.ts` had 677 lines and 7 mutation endpoints — signup, login, signout, session refresh, forgot-password, reset-password, validate-key. None of them called `writeAuditLog()`. The `AuditAction` enum already had `SESSION_CREATED` and `SESSION_REVOKED` constants defined, but they were never used.
+
+### Why It Matters
+
+- Compliance requires knowing WHO logged in, WHEN, and from WHERE
+- Password reset events are critical for security incident investigation
+- API key validation events help detect stolen credentials
+- Without auth audit logs, there's no forensic trail for the most sensitive operations
+
+### The Fix
+
+- Added `writeAuditLog()` calls to all 7 mutation endpoints in auth.ts
+- Added 5 new `AuditAction` constants: `USER_SIGNUP`, `SESSION_REFRESHED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `API_KEY_VALIDATED`
+- All audit calls use fire-and-forget pattern — never blocks auth response
+
+### Prevention
+
+1. Every new mutation endpoint MUST include a `writeAuditLog()` call — treat it as a PR checklist item
+2. When creating new route files, always import `{ writeAuditLog, AuditAction }` from `../lib/audit`
+3. Auth events are the highest-priority audit targets — check auth.ts first in any audit review
 
 ---
 
@@ -704,3 +758,291 @@ db.ts ran `SET statement_timeout = 30000` as a separate query before every user 
 ### Telnyx Webhook Signing — HMAC vs Ed25519
 
 Telnyx V2 webhooks can sign with either shared-secret HMAC or Ed25519 public key. Our verification used HMAC-SHA256 but read the `telnyx-signature-ed25519` header. This works if your Telnyx portal is configured for shared-secret signing, but would fail silently with Ed25519. **Lesson:** Always verify which signing method your Telnyx application uses. For Ed25519, you need to import the public key and use `crypto.subtle.verify('Ed25519', ...)`.
+
+---
+
+## 🔴 CRITICAL — Credentials Committed to Git History (v4.29 Audit — Feb 8, 2026)
+
+**Two files containing live production credentials were tracked in git.**
+
+### The Files
+
+| File                       | Contents                                             | Risk            |
+| -------------------------- | ---------------------------------------------------- | --------------- |
+| `workers/.neon_secret.txt` | Full Neon PostgreSQL connection string with password | Database access |
+| `migrations/rclone.conf`   | R2 access key + secret key                           | Storage access  |
+
+### Why It Happened
+
+- Both files were created during infrastructure setup for one-off tasks (manual migration, R2 sync)
+- Neither was in `.gitignore` at creation time
+- No pre-commit hook checked for credential patterns
+
+### The Fix (v4.29 Audit)
+
+1. Files removed from tracking with `git rm --cached`
+2. Both patterns added to `.gitignore` (`workers/.neon_secret.txt`, `**/rclone.conf`, `**/*.secret.txt`)
+3. **Credentials must be rotated** — even after removal, they persist in git history
+
+### Prevention
+
+1. **Never create credential files** without FIRST adding the pattern to `.gitignore`
+2. Add `detect-secrets` or `gitleaks` as a pre-commit hook to catch credential patterns
+3. For one-off tasks, use environment variables or Cloudflare `wrangler secret` — never plaintext files
+4. Periodically audit git history: `git log --all --diff-filter=A -- '*.secret*' '*.conf' '*.key'`
+
+---
+
+## 🟠 HIGH — Dead Frontend DB Code Creates False Architecture (v4.29 Audit — Feb 8, 2026)
+
+**Nine frontend files directly imported `@/lib/pgClient` — code that can never execute in static export.**
+
+### The Files Deleted
+
+| File                           | Purpose                           | Workers Equivalent               |
+| ------------------------------ | --------------------------------- | -------------------------------- |
+| `lib/pgClient.ts`              | Pool singleton using `pg` library | `workers/src/lib/db.ts`          |
+| `lib/neon.ts`                  | Neon serverless client            | `workers/src/lib/db.ts`          |
+| `lib/rateLimit.ts`             | Token bucket using pgClient       | `workers/src/lib/rate-limit.ts`  |
+| `lib/idempotency.ts`           | Idempotency keys using pgClient   | `workers/src/lib/idempotency.ts` |
+| `lib/cache.ts`                 | Edge cache using pgClient         | Workers KV                       |
+| `lib/kv-sessions.ts`           | KV session store                  | Workers KV sessions              |
+| `services/callPlacer.ts`       | Call placement using pgClient     | `workers/src/routes/voice.ts`    |
+| `services/reportGenerator.ts`  | Report gen using pgClient         | `workers/src/routes/reports.ts`  |
+| `services/auditLogger.ts`      | Audit using pgClient              | `workers/src/lib/audit.ts`       |
+| `services/callMonitor.ts`      | Monitoring using pgClient         | Workers routes                   |
+| `services/webhookDelivery.ts`  | Webhook dispatch using pgClient   | `workers/src/routes/webhooks.ts` |
+| `services/edgeCacheService.ts` | Cache service                     | Workers KV                       |
+
+### Why This Matters
+
+- `pgClient.ts` used the `pg` library (TCP-only) with `rejectUnauthorized: false` — MITM-vulnerable and incompatible with edge runtimes
+- `neon.ts` created a module-level singleton pool — violates the per-request create-and-close pattern
+- A developer might import from `@/lib/rateLimit` instead of `workers/src/lib/rate-limit` and get zero runtime errors but zero rate limiting
+- Tree-shaking might pull `pg` or `@neondatabase/serverless` into the client bundle
+
+### Prevention
+
+1. **Rule:** No file under `lib/` or `services/` (frontend) may import database clients
+2. After any architecture migration, audit for orphaned files that reference the old pattern
+3. The `services/` directory was deleted entirely — all service logic lives in Workers routes
+
+---
+
+## 🟠 HIGH — Report Download URL Points to Wrong Domain (v4.29 Audit — Feb 8, 2026)
+
+**`app/reports/page.tsx` used a relative URL for exports, resolving to the Pages domain (no API) instead of the Workers domain.**
+
+### The Bug
+
+```typescript
+// BEFORE (broken) — resolves to https://voxsouth.online/api/reports/...
+window.open(`/api/reports/${reportId}/export?format=${format}`, '_blank')
+
+// AFTER (fixed) — resolves to https://wordisbond-api.adrper79.workers.dev/api/reports/...
+window.open(resolveApiUrl(`/api/reports/${reportId}/export?format=${format}`), '_blank')
+```
+
+### Prevention
+
+1. **NEVER use relative `/api/` URLs** in the frontend — static export has no API routes
+2. Always use `resolveApiUrl()` or `API_BASE` from `@/lib/apiClient` for any API URL
+3. `window.open()` calls to API endpoints need the same treatment as `fetch()` calls
+
+---
+
+## 🔴 CRITICAL — Removing `.passthrough()` Requires Consumer Audit (v4.29 — Session 4, Feb 8, 2026)
+
+**Removing `.passthrough()` from a Zod schema can break consumers that rely on extra fields passing through validation.**
+
+### The Bug
+
+`VoiceConfigSchema.modulations` used `.passthrough()` which allowed arbitrary extra fields. The route handler in `voice.ts` accessed `modulations.live_translate` — a property not explicitly defined in the schema. When `.passthrough()` was removed (BL-069), TypeScript immediately flagged `live_translate` as an unknown property.
+
+### Why It's Insidious
+
+- `.passthrough()` silently creates implicit contracts — consumers use fields that aren't in the schema definition
+- TypeScript only catches it AFTER removal, not during the time `.passthrough()` was active
+- The schema appears "clean" in code review but has hidden consumers relying on pass-through behavior
+
+### Prevention
+
+1. Before removing `.passthrough()`, `grep_search` for all properties accessed on the parsed result — not just the schema's explicit fields
+2. When you find implicit fields, add them explicitly to the schema before removing `.passthrough()`
+3. Prefer `.strict()` over `.passthrough()` for new schemas — it rejects extra fields immediately, forcing explicit definitions
+
+---
+
+## 🟠 HIGH — Hono Context Type Casting Requires `unknown` Intermediate (v4.29 — Session 4)
+
+**Hono's middleware generic typing prevents direct `Context<A>` → `Context<B>` casts when the Variable types don't overlap.**
+
+### The Bug
+
+In `idempotency.ts`, accessing the session from Hono's context required:
+
+```typescript
+// ❌ FAILS — TypeScript error: types don't overlap
+const session = (c as Context<{ Bindings: Env; Variables: { session: Session } }>).get('session')
+
+// ✅ WORKS — double-cast through unknown
+const session = (c as unknown as Context<{ Bindings: Env; Variables: { session: Session } }>).get(
+  'session'
+)
+```
+
+### Why It Happens
+
+Hono's `Context<E>` type is generic over the full environment shape. When a middleware's `E` type doesn't include `Variables: { session: Session }`, TypeScript sees the two Context types as structurally incompatible and refuses the direct cast.
+
+### Prevention
+
+1. For middleware that needs session access, use the `unknown` intermediate cast pattern
+2. Alternatively, define a shared `AppEnv` type and use it consistently across all middleware (done in BL-003 for routes, but not for standalone middleware)
+3. Consider `c.get('session') as Session | undefined` with a runtime null-check as a simpler alternative
+
+---
+
+## 🟠 HIGH — Cross-Tenant Idempotency Key Collision (v4.29 — Session 4)
+
+**Idempotency keys stored in KV without org-scoping caused cross-tenant data leaks.**
+
+### The Bug
+
+`idempotency.ts` stored keys as `idem:${key}`. If Org A and Org B both sent `Idempotency-Key: create-booking-123`, Org B would receive Org A's cached response — including Org A's data.
+
+### The Fix
+
+Changed to `idem:${orgId}:${key}`. When no session exists (pre-auth middleware), falls back to `idem:global:${key}`.
+
+### Prevention
+
+1. **Every KV/cache key MUST include tenant scope** — `organization_id` or `user_id`
+2. Audit all KV operations for tenant isolation, not just database queries
+3. The multi-tenant isolation checklist should include: DB WHERE clauses ✓, RLS policies ✓, KV key prefixes ✓
+
+---
+
+## 🟡 MEDIUM — Rate Limiter Wiring Requires Two Steps (v4.29 — Session 4)
+
+**Creating a rate limiter in `rate-limit.ts` doesn't protect anything — it must also be wired into route handlers.**
+
+### The Pattern
+
+```typescript
+// Step 1: Define in rate-limit.ts (necessary but not sufficient)
+export const aiSummaryRateLimit = createRateLimiter({ requests: 5, window: 60 })
+
+// Step 2: Wire into route handler (THIS is what actually protects)
+routes.post('/:id/ai-summary', aiSummaryRateLimit, requireAuth, async (c) => { ... })
+```
+
+### Why 35 Endpoints Were Unprotected
+
+Session 2 created rate limiters for auth endpoints but didn't audit mutation endpoints in other route files. The limiters existed but were never imported or used.
+
+### Prevention
+
+1. When adding a rate limiter, ALWAYS verify it's imported AND used in the route definition
+2. Rate limit audit should check both `rate-limit.ts` (definitions) and route files (usage)
+3. Group rate limiters by domain: auth, billing, AI, voice — makes coverage gaps obvious
+
+---
+
+## 🟡 MEDIUM — DB Migration Must Use NOT VALID + VALIDATE Pattern (v4.29 — Session 4)
+
+**Adding NOT NULL constraints or FK constraints to existing tables can cause downtime if not done in two phases.**
+
+### Zero-Downtime Pattern
+
+```sql
+-- Phase 1: Add constraint without validating existing rows (fast, minimal lock)
+ALTER TABLE calls ADD CONSTRAINT calls_org_id_not_null
+  CHECK (organization_id IS NOT NULL) NOT VALID;
+
+-- Phase 2: Validate existing rows (slow, but doesn't block writes)
+ALTER TABLE calls VALIDATE CONSTRAINT calls_org_id_not_null;
+
+-- Phase 3: Set the actual NOT NULL (instant, since constraint guarantees it)
+ALTER TABLE calls ALTER COLUMN organization_id SET NOT NULL;
+
+-- Phase 4: Drop redundant check constraint
+ALTER TABLE calls DROP CONSTRAINT calls_org_id_not_null;
+```
+
+### Why Direct ALTER Fails
+
+`ALTER TABLE ... ALTER COLUMN ... SET NOT NULL` without prior validation acquires an ACCESS EXCLUSIVE lock and scans the entire table — blocking all reads/writes for the duration.
+
+### Prevention
+
+1. Always use NOT VALID + VALIDATE for constraints on tables with production data
+2. Wrap migrations in `BEGIN/COMMIT` for atomicity
+3. Use `IF NOT EXISTS` / `IF EXISTS` guards for idempotency
+4. Test migrations on a Neon branch before applying to main
+
+---
+
+## 🔴 CRITICAL — Auth Before DB: Always Call `requireAuth()` Before `getDb()` (v4.29 — Session 5, Feb 9, 2026)
+
+**Opening a DB connection before checking auth wastes pool slots on unauthenticated traffic.**
+
+### The Bug
+
+27 route handlers across 5 files (`collections.ts`, `admin.ts`, `compliance.ts`, `scorecards.ts`, `audio.ts`) called `const db = getDb(c.env)` as their first statement, then called `requireAuth(c)` inside the `try` block. On 401 rejections, the DB connection was opened, used for nothing, then closed in `finally`. Under unauthenticated traffic spikes, this exhausts the Neon connection pool (100 max on free tier).
+
+### Prevention
+
+1. **Pattern:** `requireAuth()` → 401 early return → `getDb()` → `try/finally { db.end() }`
+2. Any new route handler should be reviewed for auth-before-db ordering
+3. Add a linting rule or code review checklist item for this pattern
+
+---
+
+## 🔴 CRITICAL — Cron Jobs Must Call `db.end()` (v4.29 — Session 5)
+
+**`scheduled.ts` leaked 3 DB connections per cron cycle because functions never closed them.**
+
+### The Bug
+
+All 3 cron functions (`retryFailedTranscriptions`, `cleanupExpiredSessions`, `aggregateUsage`) called `getDb(env)` but never called `db.end()`. Unlike HTTP handlers (which have a `finally` block pattern), the cron functions were just bare async functions with no cleanup. Over time, this exhausts the connection pool.
+
+### Prevention
+
+1. Every function that calls `getDb()` MUST have a corresponding `db.end()` in a `finally` block
+2. Grep for `getDb(` and verify each call site has a matching `db.end()` or `await db.end()` in finally
+
+---
+
+## 🟠 HIGH — Always Verify Sub-Agent Results (v4.29 — Session 5)
+
+**Sub-agents may report changes that were already in place or report stale file state.**
+
+### The Bug
+
+A sub-agent was tasked with fixing `LiveTranslationPanel.tsx` to use `apiFetch` from `@/lib/apiClient` instead of raw `fetch()`. It reported making the fix. But upon reading the actual file, it already had `import { apiFetch } from '@/lib/apiClient'` on line 5 and used `apiFetch` at line 85. The sub-agent either read stale context or reported changes that matched the existing code.
+
+Similarly, another sub-agent reported fixing BL-054 webhook handlers, but the file already had the `AND organization_id IS NOT NULL` guards in place from a prior session.
+
+### Prevention
+
+1. Always `read_file` after a sub-agent reports changes to verify the actual file state
+2. Don't trust sub-agent "diff" reports — verify by reading the file directly
+3. Mark items as "verified fixed" only after independent confirmation
+
+---
+
+## 🟡 MEDIUM — Rate Limiters Need Brute-Force Tiers (v4.29 — Session 5)
+
+**Verification code endpoints need stricter rate limits than general mutation endpoints.**
+
+### The Bug
+
+The caller-id PUT /verify endpoint accepted a 6-digit code with no rate limiting. An attacker could brute-force all 1,000,000 combinations in minutes. General rate limiters (20/5min) are insufficient for sensitive verification flows.
+
+### Prevention
+
+1. Verification/OTP endpoints: Use strict limits (5/5min per IP)
+2. General mutation endpoints: Standard limits (20–30/5min)
+3. Read-only endpoints: Relaxed limits (60/5min) or no rate limiting
+4. Always consider the attack surface when setting rate limit tiers

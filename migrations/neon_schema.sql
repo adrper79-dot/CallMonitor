@@ -4,7 +4,6 @@
 -- ============================================================================
 
 -- 1. Enable required extensions (supported in Neon 2026)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";   -- for better text/search on transcripts/notes
 
 -- 2. Create helper function for updated_at triggers
@@ -67,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.verification_tokens (
 -- 4. Your main application tables (cleaned & fixed)
 -- organizations (root tenant)
 CREATE TABLE IF NOT EXISTS public.organizations (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   plan text,
   created_at timestamptz DEFAULT now(),
@@ -80,7 +79,7 @@ CREATE TABLE IF NOT EXISTS public.organizations (
 
 -- org_members (membership link)
 CREATE TABLE IF NOT EXISTS public.org_members (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id text NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   role text DEFAULT 'member',
@@ -91,7 +90,7 @@ CREATE TABLE IF NOT EXISTS public.org_members (
 
 -- calls (core entity)
 CREATE TABLE IF NOT EXISTS public.calls (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid REFERENCES public.organizations(id),
   system_id uuid,
   status text,
@@ -110,7 +109,7 @@ CREATE TABLE IF NOT EXISTS public.calls (
 
 -- recordings
 CREATE TABLE IF NOT EXISTS public.recordings (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations(id),
   call_id uuid REFERENCES public.calls(id),
   recording_url text NOT NULL,

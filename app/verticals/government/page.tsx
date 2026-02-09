@@ -225,7 +225,7 @@ export default function GovernmentVerticalPage() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-3">Constituent Services</h3>
               <p className="text-gray-600 mb-4">
-                Record all citizen inquiries to city council offices, mayor's hotline, or 311
+                Record all citizen inquiries to city council offices, mayor&apos;s hotline, or 311
                 services.
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
@@ -314,7 +314,7 @@ export default function GovernmentVerticalPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span>Defend against "misinformation" claims</span>
+                  <span>Defend against &quot;misinformation&quot; claims</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>

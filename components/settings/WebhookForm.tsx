@@ -1,7 +1,11 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
-import { WEBHOOK_EVENT_TYPES, WebhookSubscription, CreateWebhookRequest } from '@/types/tier1-features'
+import {
+  WEBHOOK_EVENT_TYPES,
+  WebhookSubscription,
+  CreateWebhookRequest,
+} from '@/types/tier1-features'
 import { Badge } from '@/components/ui/badge'
 import { apiPost, apiPatch } from '@/lib/apiClient'
 
@@ -14,7 +18,7 @@ interface WebhookFormProps {
 
 /**
  * WebhookForm Component - Professional Design System v3.0
- * 
+ *
  * Create or edit webhook subscription
  */
 export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: WebhookFormProps) {
@@ -23,11 +27,15 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
   const [name, setName] = useState(webhook?.name || '')
   const [url, setUrl] = useState(webhook?.url || '')
   const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook?.events || [])
-  const [retryPolicy, setRetryPolicy] = useState<'none' | 'fixed' | 'exponential'>(webhook?.retry_policy || 'exponential')
+  const [retryPolicy, setRetryPolicy] = useState<'none' | 'fixed' | 'exponential'>(
+    webhook?.retry_policy || 'exponential'
+  )
   const [maxRetries, setMaxRetries] = useState(webhook?.max_retries?.toString() || '5')
   const [timeoutMs, setTimeoutMs] = useState(webhook?.timeout_ms?.toString() || '30000')
   const [headers, setHeaders] = useState<Array<{ key: string; value: string }>>(
-    webhook?.headers ? Object.entries(webhook.headers).map(([key, value]) => ({ key, value: value as string })) : []
+    webhook?.headers
+      ? Object.entries(webhook.headers).map(([key, value]) => ({ key, value: value as string }))
+      : []
   )
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -75,7 +83,7 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
 
   function toggleEvent(event: string) {
     if (selectedEvents.includes(event)) {
-      setSelectedEvents(selectedEvents.filter(e => e !== event))
+      setSelectedEvents(selectedEvents.filter((e) => e !== event))
     } else {
       setSelectedEvents([...selectedEvents, event])
     }
@@ -116,7 +124,7 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
       setError(null)
 
       const headersObj: Record<string, string> = {}
-      headers.forEach(h => {
+      headers.forEach((h) => {
         if (h.key && h.value) {
           headersObj[h.key] = h.value
         }
@@ -129,16 +137,14 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
         headers: headersObj,
         retry_policy: retryPolicy,
         max_retries: parseInt(maxRetries),
-        timeout_ms: parseInt(timeoutMs)
+        timeout_ms: parseInt(timeoutMs),
       }
 
       const endpoint = isEditing
         ? `/api/webhooks/subscriptions/${webhook.id}`
         : '/api/webhooks/subscriptions'
 
-      const data = isEditing
-        ? await apiPatch(endpoint, body)
-        : await apiPost(endpoint, body)
+      const data = isEditing ? await apiPatch(endpoint, body) : await apiPost(endpoint, body)
 
       if (!isEditing && data.subscription?.secret) {
         // Show secret for new webhooks
@@ -166,14 +172,12 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
               <h3 className="text-lg font-semibold text-gray-900">Webhook Created!</h3>
             </div>
             <p className="text-sm text-gray-600">
-              Save this secret - it won't be shown again.
+              Save this secret - it won&apos;t be shown again.
             </p>
           </div>
 
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-            <label className="block text-xs font-medium text-gray-700 mb-2">
-              Webhook Secret
-            </label>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Webhook Secret</label>
             <code className="block bg-white p-3 rounded border border-gray-300 font-mono text-sm text-gray-900 break-all">
               {createdSecret}
             </code>
@@ -313,12 +317,16 @@ export function WebhookForm({ organizationId, webhook, onClose, onSuccess }: Web
                     </label>
                     <select
                       value={retryPolicy}
-                      onChange={(e) => setRetryPolicy(e.target.value as 'none' | 'fixed' | 'exponential')}
+                      onChange={(e) =>
+                        setRetryPolicy(e.target.value as 'none' | 'fixed' | 'exponential')
+                      }
                       className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-600 focus:border-primary-600 sm:text-sm"
                     >
-                      <option value="none">None - Don't retry failed deliveries</option>
+                      <option value="none">None - Don&apos;t retry failed deliveries</option>
                       <option value="fixed">Fixed - Retry with fixed interval</option>
-                      <option value="exponential">Exponential - Exponential backoff (recommended)</option>
+                      <option value="exponential">
+                        Exponential - Exponential backoff (recommended)
+                      </option>
                     </select>
                   </div>
 

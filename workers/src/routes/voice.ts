@@ -11,6 +11,7 @@ import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/s
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { voiceRateLimit } from '../lib/rate-limit'
+import { getTranslationConfig } from '../lib/translation-processor'
 
 export const voiceRoutes = new Hono<AppEnv>()
 
@@ -69,9 +70,15 @@ voiceRoutes.get('/config', async (c) => {
       synthetic_caller: false,
     }
 
+    // Map DB column live_translate (boolean) → frontend translate_mode ('live'|'post_call')
+    const enrichedConfig = {
+      ...config,
+      translate_mode: config.live_translate ? 'live' : 'post_call',
+    }
+
     return c.json({
       success: true,
-      config,
+      config: enrichedConfig,
     })
   } catch (err: any) {
     logger.error('GET /api/voice/config error', { error: err?.message })
@@ -146,6 +153,15 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       setClauses.push(`use_voice_cloning = $${paramIndex++}`)
       values.push(modulations.use_voice_cloning)
     }
+    // Map frontend translate_mode ('live'|'post_call') → DB live_translate (boolean)
+    if (modulations.translate_mode !== undefined) {
+      setClauses.push(`live_translate = $${paramIndex++}`)
+      values.push(modulations.translate_mode === 'live')
+    }
+    if (modulations.live_translate !== undefined) {
+      setClauses.push(`live_translate = $${paramIndex++}`)
+      values.push(modulations.live_translate)
+    }
 
     let result
     if (setClauses.length === 0) {
@@ -176,9 +192,17 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       after: modulations,
     })
 
+    // Map live_translate boolean back to translate_mode for frontend
+    const responseConfig = result.rows[0]
+      ? {
+          ...result.rows[0],
+          translate_mode: result.rows[0].live_translate ? 'live' : 'post_call',
+        }
+      : {}
+
     return c.json({
       success: true,
-      config: result.rows[0],
+      config: responseConfig,
     })
   } catch (err: any) {
     logger.error('PUT /api/voice/config error', { error: err?.message })
@@ -252,6 +276,19 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
       to: destinationNumber,
       from: callerNumber,
       answering_machine_detection: 'detect',
+    }
+
+    // Check if live translation is enabled — enable Telnyx real-time transcription
+    const translationConfig = await getTranslationConfig(db, session.organization_id)
+    if (translationConfig?.live_translate) {
+      callPayload.transcription = {
+        transcription_engine: 'B',
+        transcription_tracks: 'both',
+      }
+      logger.info('Live translation enabled for voice call', {
+        from: translationConfig.translate_from,
+        to: translationConfig.translate_to,
+      })
     }
 
     // If bridge call, the from_number is the agent's phone that gets called first

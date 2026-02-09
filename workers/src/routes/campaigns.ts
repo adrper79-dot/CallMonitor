@@ -18,6 +18,7 @@ import { CreateCampaignSchema, UpdateCampaignSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { campaignsRateLimit } from '../lib/rate-limit'
 
 export const campaignsRoutes = new Hono<AppEnv>()
 
@@ -43,11 +44,15 @@ campaignsRoutes.get('/', async (c) => {
       return c.json({ success: true, campaigns: [] })
     }
 
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+
     const result = await db.query(
       `SELECT * FROM campaigns
       WHERE organization_id = $1
-      ORDER BY created_at DESC`,
-      [session.organization_id]
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
     )
 
     return c.json({ success: true, campaigns: result.rows })
@@ -60,7 +65,7 @@ campaignsRoutes.get('/', async (c) => {
 })
 
 // Create campaign
-campaignsRoutes.post('/', async (c) => {
+campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -71,10 +76,18 @@ campaignsRoutes.post('/', async (c) => {
     const { name, description, scenario, status } = parsed.data
 
     const result = await db.query(
-      `INSERT INTO campaigns (organization_id, name, description, scenario, status)
-      VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO campaigns (organization_id, name, description, custom_prompt, call_flow_type, created_by, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
-      [session.organization_id, name, description || '', scenario || '', status || 'draft']
+      [
+        session.organization_id,
+        name,
+        description || '',
+        scenario || '',
+        'outbound',
+        session.user_id,
+        status || 'draft',
+      ]
     )
 
     writeAuditLog(db, {
@@ -194,7 +207,7 @@ campaignsRoutes.get('/:id/stats', async (c) => {
 })
 
 // Update campaign
-campaignsRoutes.put('/:id', async (c) => {
+campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -209,7 +222,7 @@ campaignsRoutes.put('/:id', async (c) => {
       `UPDATE campaigns
       SET name = COALESCE($1, name),
           description = COALESCE($2, description),
-          scenario = COALESCE($3, scenario),
+          custom_prompt = COALESCE($3, custom_prompt),
           status = COALESCE($4, status),
           updated_at = NOW()
       WHERE id = $5 AND organization_id = $6
@@ -248,7 +261,7 @@ campaignsRoutes.put('/:id', async (c) => {
 })
 
 // Delete campaign
-campaignsRoutes.delete('/:id', async (c) => {
+campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

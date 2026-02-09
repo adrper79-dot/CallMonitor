@@ -14,6 +14,7 @@ import { requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { recordingRateLimit } from '../lib/rate-limit'
 
 export const recordingsRoutes = new Hono<AppEnv>()
 
@@ -27,7 +28,7 @@ recordingsRoutes.get('/', async (c) => {
     }
 
     const page = parseInt(c.req.query('page') || '1')
-    const limit = parseInt(c.req.query('limit') || '20')
+    const limit = Math.min(parseInt(c.req.query('limit') || '20', 10), 200)
     const offset = (page - 1) * limit
     const callId = c.req.query('call_id')
 
@@ -145,7 +146,7 @@ recordingsRoutes.get('/:id', async (c) => {
 })
 
 // DELETE /api/recordings/:id — delete a recording
-recordingsRoutes.delete('/:id', async (c) => {
+recordingsRoutes.delete('/:id', recordingRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireRole(c, 'manager')

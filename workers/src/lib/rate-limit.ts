@@ -195,3 +195,126 @@ export const aiLlmRateLimit = rateLimit({
   windowSeconds: 5 * 60,
   prefix: 'rl:ai-llm',
 })
+
+/** Collections CRM mutations: 30 per 5 minutes per IP */
+export const collectionsRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:collections',
+})
+
+/** Collections CSV import: 5 per 15 minutes per IP (heavy operation) */
+export const collectionsImportRateLimit = rateLimit({
+  limit: 5,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:collections-import',
+})
+
+/** Campaign mutations: 20 per 5 minutes per IP */
+export const campaignsRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:campaigns',
+})
+
+/** Retention policy mutations: 10 per 15 minutes per IP */
+export const retentionRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:retention',
+})
+
+/** Compliance mutations: 20 per 5 minutes per IP */
+export const complianceRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:compliance',
+})
+
+/** Admin mutations: 10 per 15 minutes per IP */
+export const adminRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:admin',
+})
+
+/** Survey mutations: 20 per 5 minutes per IP */
+export const surveyRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:survey' })
+
+/** Bond AI mutations: 20 per 5 minutes per IP */
+export const bondAiRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:bond-ai' })
+
+/** AI summary generation: 10 per 5 minutes per IP (OpenAI spend) */
+export const aiSummaryRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:ai-summary',
+})
+
+/** User management: 10 per 15 minutes per IP */
+export const userRateLimit = rateLimit({ limit: 10, windowSeconds: 15 * 60, prefix: 'rl:user' })
+
+/** Organization mutations: 5 per 15 minutes per IP */
+export const orgRateLimit = rateLimit({ limit: 5, windowSeconds: 15 * 60, prefix: 'rl:org' })
+
+/** Recording mutations: 10 per 5 minutes per IP */
+export const recordingRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:recording',
+})
+
+/** Report generation: 10 per 5 minutes per IP */
+export const reportRateLimit = rateLimit({ limit: 10, windowSeconds: 5 * 60, prefix: 'rl:report' })
+
+/** Email operations: 5 per 5 minutes per IP */
+export const emailRateLimit = rateLimit({ limit: 5, windowSeconds: 5 * 60, prefix: 'rl:email' })
+
+/** Shopper/script mutations: 20 per 5 minutes per IP */
+export const shopperRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:shopper',
+})
+
+export const callerIdRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:caller-id',
+})
+export const callerIdVerifyRateLimit = rateLimit({
+  limit: 5,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:caller-id-verify',
+})
+export const audioRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:audio' })
+export const scorecardsRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:scorecards',
+})
+
+// ─── Feature v5.0 Rate Limiters ──────────────────────────────────────────────
+
+/** Sentiment analysis: 30 per minute per IP (OpenAI cost control) */
+export const sentimentRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 60,
+  prefix: 'rl:sentiment',
+})
+
+/** IVR payment flows: 10 per minute per IP (financial transaction safety) */
+export const ivrRateLimit = rateLimit({ limit: 10, windowSeconds: 60, prefix: 'rl:ivr' })
+
+/** Predictive dialer queue operations: 5 per minute per IP */
+export const predictiveDialerRateLimit = rateLimit({
+  limit: 5,
+  windowSeconds: 60,
+  prefix: 'rl:dialer',
+})
+
+/** AI toggle (mode switching): 10 per minute per IP */
+export const aiToggleRateLimit = rateLimit({ limit: 10, windowSeconds: 60, prefix: 'rl:ai-toggle' })
+
+/** DTMF gather operations: 20 per minute per IP */
+export const gatherRateLimit = rateLimit({ limit: 20, windowSeconds: 60, prefix: 'rl:gather' })

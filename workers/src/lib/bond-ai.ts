@@ -43,110 +43,133 @@ Guidelines:
 
 export async function fetchOrgStats(env: Env, orgId: string) {
   const db = getDb(env)
-  const [calls, tests, scorecards] = await Promise.all([
-    db.query(
-      `SELECT COUNT(*) as total, 
-              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as last_7d,
-              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as last_24h
-       FROM calls WHERE organization_id = $1`,
-      [orgId]
-    ),
-    db.query(
-      `SELECT COUNT(*) as total,
-              COUNT(*) FILTER (WHERE status = 'passed') as passed,
-              COUNT(*) FILTER (WHERE status = 'failed') as failed
-       FROM test_results WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '30 days'`,
-      [orgId]
-    ),
-    db.query(
-      `SELECT COUNT(*) as total,
-              ROUND(AVG(total_score)::numeric, 1) as avg_score
-       FROM scorecards WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '30 days'`,
-      [orgId]
-    ),
-  ])
+  try {
+    const [calls, tests, scorecards] = await Promise.all([
+      db.query(
+        `SELECT COUNT(*) as total,
+                COUNT(*) FILTER (WHERE started_at > NOW() - INTERVAL '7 days') as last_7d,
+                COUNT(*) FILTER (WHERE started_at > NOW() - INTERVAL '24 hours') as last_24h
+         FROM calls WHERE organization_id = $1 AND is_deleted = false`,
+        [orgId]
+      ),
+      db.query(
+        `SELECT COUNT(*) as total,
+                COUNT(*) FILTER (WHERE tr.status = 'passed') as passed,
+                COUNT(*) FILTER (WHERE tr.status = 'failed') as failed
+         FROM test_results tr
+         JOIN test_configs tc ON tc.id = tr.test_config_id
+         WHERE tc.organization_id = $1 AND tr.created_at > NOW() - INTERVAL '30 days'`,
+        [orgId]
+      ),
+      db.query(
+        `SELECT COUNT(*) as total
+         FROM scorecards WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '30 days'`,
+        [orgId]
+      ),
+    ])
 
-  return {
-    calls: calls.rows[0] || { total: 0, last_7d: 0, last_24h: 0 },
-    tests: tests.rows[0] || { total: 0, passed: 0, failed: 0 },
-    scorecards: scorecards.rows[0] || { total: 0, avg_score: null },
+    return {
+      calls: calls.rows[0] || { total: 0, last_7d: 0, last_24h: 0 },
+      tests: tests.rows[0] || { total: 0, passed: 0, failed: 0 },
+      scorecards: scorecards.rows[0] || { total: 0 },
+    }
+  } finally {
+    await db.end()
   }
 }
 
-export async function fetchRecentAlerts(env: Env, orgId: string, limit = 10) {
-  const db = getDb(env)
-  const result = await db.query(
-    `SELECT id, alert_type, severity, title, message, status, created_at
-     FROM bond_ai_alerts
-     WHERE organization_id = $1
-     ORDER BY created_at DESC
-     LIMIT $2`,
-    [orgId, limit]
-  )
-  return result.rows
+export async function fetchRecentAlerts(env: Env, _orgId: string, _limit = 10) {
+  // bond_ai_alerts table does not exist yet — return empty gracefully
+  try {
+    return [] as Array<Record<string, unknown>>
+  } catch {
+    return []
+  }
 }
 
 export async function fetchKpiSummary(env: Env, orgId: string) {
   const db = getDb(env)
-  const result = await db.query(
-    `SELECT ks.metric_name, ks.target_value, ks.warning_threshold,
-            kl.metric_value as latest_value, kl.recorded_at
-     FROM kpi_settings ks
-     LEFT JOIN LATERAL (
-       SELECT metric_value, recorded_at FROM kpi_logs
-       WHERE organization_id = ks.organization_id AND metric_name = ks.metric_name
-       ORDER BY recorded_at DESC LIMIT 1
-     ) kl ON true
-     WHERE ks.organization_id = $1`,
-    [orgId]
-  )
-  return result.rows
+  try {
+    const [settings, recentPerformance] = await Promise.all([
+      db.query(
+        `SELECT id, response_time_threshold_ms, response_time_warning_ms,
+                consecutive_failures_before_alert, alert_sensitivity,
+                default_test_frequency, send_email_alerts, send_sms_alerts,
+                alert_on_recovery
+         FROM kpi_settings
+         WHERE organization_id = $1`,
+        [orgId]
+      ),
+      db.query(
+        `SELECT COUNT(*) as total_runs,
+                COUNT(*) FILTER (WHERE tr.status = 'passed') as passed,
+                COUNT(*) FILTER (WHERE tr.status = 'failed') as failed,
+                ROUND(AVG(tr.duration_ms)::numeric, 0) as avg_duration_ms
+         FROM test_results tr
+         JOIN test_configs tc ON tc.id = tr.test_config_id
+         WHERE tc.organization_id = $1 AND tr.created_at > NOW() - INTERVAL '7 days'`,
+        [orgId]
+      ),
+    ])
+
+    return {
+      settings: settings.rows[0] || null,
+      recentPerformance: recentPerformance.rows[0] || {
+        total_runs: 0,
+        passed: 0,
+        failed: 0,
+        avg_duration_ms: null,
+      },
+    }
+  } finally {
+    await db.end()
+  }
 }
 
 export async function fetchCallContext(env: Env, orgId: string, callId: string) {
   const db = getDb(env)
-  const [call, summary, scorecard] = await Promise.all([
-    db.query(
-      `SELECT id, phone_number, direction, status, duration_seconds, 
-              recording_url, created_at
-       FROM calls WHERE id = $1 AND organization_id = $2`,
-      [callId, orgId]
-    ),
-    db.query(
-      `SELECT summary_text, topics_discussed, potential_concerns, 
-              recommended_followup, confidence_score
-       FROM ai_summaries WHERE call_id = $1 AND organization_id = $2
-       ORDER BY created_at DESC LIMIT 1`,
-      [callId, orgId]
-    ),
-    db.query(
-      `SELECT total_score, section_scores, notes
-       FROM scorecards WHERE call_id = $1 AND organization_id = $2
-       ORDER BY created_at DESC LIMIT 1`,
-      [callId, orgId]
-    ),
-  ])
+  try {
+    const [call, scorecards] = await Promise.all([
+      db.query(
+        `SELECT id, caller_id_used, status, started_at, ended_at,
+                call_sid, disposition, system_id, created_by
+         FROM calls WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+        [callId, orgId]
+      ),
+      db.query(
+        `SELECT id, name, description, structure, created_at
+         FROM scorecards WHERE organization_id = $1
+         ORDER BY created_at DESC LIMIT 5`,
+        [orgId]
+      ),
+    ])
 
-  return {
-    call: call.rows[0] || null,
-    summary: summary.rows[0] || null,
-    scorecard: scorecard.rows[0] || null,
+    return {
+      call: call.rows[0] || null,
+      scorecards: scorecards.rows,
+    }
+  } finally {
+    await db.end()
   }
 }
 
 export async function fetchTestResults(env: Env, orgId: string, limit = 20) {
   const db = getDb(env)
-  const result = await db.query(
-    `SELECT tr.id, tr.test_config_id, tr.status, tr.score, tr.details, tr.created_at,
-            tc.name as test_name, tc.test_type
-     FROM test_results tr
-     JOIN test_configs tc ON tc.id = tr.test_config_id
-     WHERE tr.organization_id = $1
-     ORDER BY tr.created_at DESC
-     LIMIT $2`,
-    [orgId, limit]
-  )
-  return result.rows
+  try {
+    const result = await db.query(
+      `SELECT tr.id, tr.test_config_id, tr.status, tr.duration_ms, tr.meta, tr.created_at,
+              tc.name as test_name, tc.test_type
+       FROM test_results tr
+       JOIN test_configs tc ON tc.id = tr.test_config_id
+       WHERE tc.organization_id = $1
+       ORDER BY tr.created_at DESC
+       LIMIT $2`,
+      [orgId, limit]
+    )
+    return result.rows
+  } finally {
+    await db.end()
+  }
 }
 
 // ── OpenAI Chat Completion ──────────────────────────────────

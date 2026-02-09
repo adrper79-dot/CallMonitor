@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import AuthProvider from '../components/AuthProvider'
-import Navigation from '../components/Navigation'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ToastProvider } from '../components/ui/toast'
 import { ThemeProvider } from '../components/theme-provider'
@@ -77,10 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               enableSystem
               disableTransitionOnChange
             >
-              <ToastProvider>
-                <Navigation />
-                {children}
-              </ToastProvider>
+              <ToastProvider>{children}</ToastProvider>
             </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>

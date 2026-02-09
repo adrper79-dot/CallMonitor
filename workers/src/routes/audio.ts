@@ -17,17 +17,18 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TranscribeSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { audioRateLimit } from '../lib/rate-limit'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const audioRoutes = new Hono<AppEnv>()
 
 // POST /upload — Upload audio file
-audioRoutes.post('/upload', async (c) => {
+audioRoutes.post('/upload', audioRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
     if (!file) return c.json({ error: 'No file provided' }, 400)
@@ -75,12 +76,12 @@ audioRoutes.post('/upload', async (c) => {
 })
 
 // POST /transcribe — Start transcription job
-audioRoutes.post('/transcribe', async (c) => {
+audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, TranscribeSchema)
     if (!parsed.success) return parsed.response
     const { audio_file_id, file_key, language } = parsed.data
@@ -119,7 +120,7 @@ audioRoutes.post('/transcribe', async (c) => {
         const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
           method: 'POST',
           headers: {
-            'Authorization': c.env.ASSEMBLYAI_API_KEY,
+            Authorization: c.env.ASSEMBLYAI_API_KEY,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -127,31 +128,35 @@ audioRoutes.post('/transcribe', async (c) => {
             language_code: language || 'en',
             webhook_url: webhookUrl,
             ...(c.env.ASSEMBLYAI_WEBHOOK_SECRET
-              ? { webhook_auth_header_name: 'Authorization', webhook_auth_header_value: c.env.ASSEMBLYAI_WEBHOOK_SECRET }
+              ? {
+                  webhook_auth_header_name: 'Authorization',
+                  webhook_auth_header_value: c.env.ASSEMBLYAI_WEBHOOK_SECRET,
+                }
               : {}),
           }),
         })
 
         if (assemblyRes.ok) {
-          const assemblyData = await assemblyRes.json() as { id: string }
+          const assemblyData = (await assemblyRes.json()) as { id: string }
           // Store the AssemblyAI transcript ID for webhook matching
-          await db.query(
-            `UPDATE transcriptions SET external_id = $1 WHERE id = $2`,
-            [assemblyData.id, transcription.id]
-          )
+          await db.query(`UPDATE transcriptions SET external_id = $1 WHERE id = $2`, [
+            assemblyData.id,
+            transcription.id,
+          ])
         } else {
-          logger.warn('AssemblyAI submission failed', { status: assemblyRes.status, transcriptionId: transcription.id })
-          await db.query(
-            `UPDATE transcriptions SET status = 'failed' WHERE id = $1`,
-            [transcription.id]
-          )
+          logger.warn('AssemblyAI submission failed', {
+            status: assemblyRes.status,
+            transcriptionId: transcription.id,
+          })
+          await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1`, [
+            transcription.id,
+          ])
         }
       } catch (assemblyErr: any) {
         logger.error('AssemblyAI submission exception', { error: assemblyErr?.message })
-        await db.query(
-          `UPDATE transcriptions SET status = 'failed' WHERE id = $1`,
-          [transcription.id]
-        )
+        await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1`, [
+          transcription.id,
+        ])
       }
     } else if (!c.env.ASSEMBLYAI_API_KEY) {
       // No STT provider configured — mark as failed
@@ -180,11 +185,11 @@ audioRoutes.post('/transcribe', async (c) => {
 
 // GET /transcriptions/:id — Get transcription status & result
 audioRoutes.get('/transcriptions/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const id = c.req.param('id')
 
     const result = await db.query(

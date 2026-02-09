@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +46,7 @@ export default function VoiceTargetManager({
   const { config, updateConfig } = useVoiceConfig(organizationId)
   const selectedTargetId = config?.target_id
 
-  const fetchTargets = async () => {
+  const fetchTargets = useCallback(async () => {
     if (!organizationId) return
 
     try {
@@ -60,11 +60,11 @@ export default function VoiceTargetManager({
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     fetchTargets()
-  }, [organizationId])
+  }, [fetchTargets])
 
   const handleAddTarget = async () => {
     if (!newNumber || !organizationId) return

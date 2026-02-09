@@ -45,7 +45,7 @@ export default function TrustPackPage() {
       <section className="py-16 px-6">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            What "System of Record" Means
+            What &quot;System of Record&quot; Means
           </h2>
           <div className="prose prose-gray max-w-none">
             <p>
@@ -305,7 +305,7 @@ export default function TrustPackPage() {
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">Questions?</h2>
           <p className="text-gray-600 mb-6">
             If you have questions about our data handling practices, security architecture, or need
-            specific compliance documentation, we're here to help.
+            specific compliance documentation, we&apos;re here to help.
           </p>
           <Link
             href="mailto:trust@wordisbond.com"

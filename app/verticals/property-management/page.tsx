@@ -82,8 +82,9 @@ export default function PropertyManagementVerticalPage() {
           </h1>
 
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            End "he-said, she-said" disputes with evidence-grade documentation. Record tenant
-            communications, track maintenance requests, and resolve conflicts with defensible proof.
+            End &quot;he-said, she-said&quot; disputes with evidence-grade documentation. Record
+            tenant communications, track maintenance requests, and resolve conflicts with defensible
+            proof.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

@@ -48,6 +48,12 @@ import { audioRoutes } from './routes/audio'
 import { reliabilityRoutes } from './routes/reliability'
 import { adminRoutes } from './routes/admin'
 import { complianceRoutes } from './routes/compliance'
+import { collectionsRoutes } from './routes/collections'
+import { sentimentRoutes } from './routes/sentiment'
+import { dialerRoutes } from './routes/dialer'
+import { ivrRoutes } from './routes/ivr'
+import { aiToggleRoutes } from './routes/ai-toggle'
+import { adminMetricsRoutes } from './routes/admin-metrics'
 import {
   buildErrorContext,
   logError,
@@ -143,8 +149,24 @@ app.use(
     },
     credentials: true,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Idempotency-Key'],
-    exposeHeaders: ['Idempotent-Replayed', 'X-Correlation-ID'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Idempotency-Key',
+      'X-Sentiment-Score',
+      'X-AI-Mode',
+      'X-Dialer-Session',
+      'X-IVR-Flow-Id',
+    ],
+    exposeHeaders: [
+      'Idempotent-Replayed',
+      'X-Correlation-ID',
+      'X-Sentiment-Score',
+      'X-AI-Mode',
+      'X-Dialer-Session',
+      'X-IVR-Flow-Id',
+    ],
   })
 )
 
@@ -200,6 +222,12 @@ app.route('/api/audio', audioRoutes)
 app.route('/api/reliability', reliabilityRoutes)
 app.route('/api/_admin', adminRoutes)
 app.route('/api/compliance', complianceRoutes)
+app.route('/api/collections', collectionsRoutes)
+app.route('/api/sentiment', sentimentRoutes)
+app.route('/api/dialer', dialerRoutes)
+app.route('/api/ivr', ivrRoutes)
+app.route('/api/ai-toggle', aiToggleRoutes)
+app.route('/api/admin/metrics', adminMetricsRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

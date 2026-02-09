@@ -20,6 +20,7 @@ import { validateBody } from '../lib/validate'
 import { UpdateRetentionSchema, CreateLegalHoldSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { retentionRateLimit } from '../lib/rate-limit'
 
 export const retentionRoutes = new Hono<AppEnv>()
 
@@ -55,7 +56,7 @@ retentionRoutes.get('/', async (c) => {
 })
 
 // PUT / — Update retention policy
-retentionRoutes.put('/', async (c) => {
+retentionRoutes.put('/', retentionRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -121,11 +122,15 @@ retentionRoutes.get('/legal-holds', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+
     const result = await db.query(
       `SELECT * FROM legal_holds
        WHERE organization_id = $1
-       ORDER BY created_at DESC`,
-      [session.organization_id]
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
     )
 
     return c.json({ success: true, legalHolds: result.rows })
@@ -138,7 +143,7 @@ retentionRoutes.get('/legal-holds', async (c) => {
 })
 
 // POST /legal-holds — Create legal hold
-retentionRoutes.post('/legal-holds', async (c) => {
+retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -181,7 +186,7 @@ retentionRoutes.post('/legal-holds', async (c) => {
 })
 
 // DELETE /legal-holds/:id — Release legal hold
-retentionRoutes.delete('/legal-holds/:id', async (c) => {
+retentionRoutes.delete('/legal-holds/:id', retentionRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

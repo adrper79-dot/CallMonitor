@@ -303,6 +303,12 @@ npm run build
 
 ---
 
+## 🤖 **Agent Quick References** (New)
+
+- **DB:** [05-REFERENCE/DB_SCHEMA_REFERENCE.md](05-REFERENCE/DB_SCHEMA_REFERENCE.md) — Tables/rels/queries.
+- **Code:** [05-REFERENCE/CODEBASE_REFERENCE.md](05-REFERENCE/CODEBASE_REFERENCE.md) — Funcs/modules/patterns.
+- **Design:** [05-REFERENCE/DESIGN_REFERENCE.md](05-REFERENCE/DESIGN_REFERENCE.md) — UI/topologies.
+
 ## 🐛 **Troubleshooting**
 
 ### **Translation toggle not visible:**

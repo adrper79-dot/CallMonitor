@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { WebhookSubscription } from '@/types/tier1-features'
@@ -11,14 +11,15 @@ import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/apiClient'
 interface WebhookListProps {
   organizationId: string
   canEdit: boolean
+  eventFilter?: string[]
 }
 
 /**
  * WebhookList Component - Professional Design System v3.0
- * 
+ *
  * Display all webhook subscriptions with actions
  */
-export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
+export function WebhookList({ organizationId, canEdit, eventFilter }: WebhookListProps) {
   const [webhooks, setWebhooks] = useState<WebhookSubscription[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +40,9 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
       setLoading(true)
       setError(null)
 
-      const data = await apiGet<{ subscriptions: WebhookSubscription[] }>('/api/webhooks/subscriptions')
+      const data = await apiGet<{ subscriptions: WebhookSubscription[] }>(
+        '/api/webhooks/subscriptions'
+      )
       setWebhooks(data.subscriptions || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load webhooks')
@@ -62,7 +65,9 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
   async function deleteWebhook(id: string) {
     if (!canEdit) return
 
-    const confirmed = confirm('Are you sure you want to delete this webhook? This action cannot be undone.')
+    const confirmed = confirm(
+      'Are you sure you want to delete this webhook? This action cannot be undone.'
+    )
     if (!confirmed) return
 
     try {
@@ -81,8 +86,13 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
 
     try {
       setTestingId(webhook.id)
-      const data = await apiPost<{ delivery: { id: string } }>(`/api/webhooks/subscriptions/${webhook.id}/test`, {})
-      alert(`Test webhook sent! Check your endpoint for delivery.\n\nDelivery ID: ${data.delivery.id}`)
+      const data = await apiPost<{ delivery: { id: string } }>(
+        `/api/webhooks/subscriptions/${webhook.id}/test`,
+        {}
+      )
+      alert(
+        `Test webhook sent! Check your endpoint for delivery.\n\nDelivery ID: ${data.delivery.id}`
+      )
     } catch (err: any) {
       alert(err.message || 'Failed to send test webhook')
     } finally {
@@ -99,7 +109,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
     })
   }
 
@@ -126,6 +136,10 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
     )
   }
 
+  const displayedWebhooks = eventFilter?.length
+    ? webhooks.filter((w) => w.events.some((e) => eventFilter.includes(e)))
+    : webhooks
+
   return (
     <>
       <div className="space-y-4">
@@ -151,7 +165,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
         </div>
 
         {/* Empty State */}
-        {webhooks.length === 0 ? (
+        {displayedWebhooks.length === 0 ? (
           <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
@@ -185,7 +199,7 @@ export function WebhookList({ organizationId, canEdit }: WebhookListProps) {
         ) : (
           /* Webhook Cards */
           <div className="space-y-4">
-            {webhooks.map((webhook) => (
+            {displayedWebhooks.map((webhook) => (
               <div
                 key={webhook.id}
                 className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"

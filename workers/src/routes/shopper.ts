@@ -19,6 +19,7 @@ import { validateBody } from '../lib/validate'
 import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { shopperRateLimit } from '../lib/rate-limit'
 
 export const shopperRoutes = new Hono<AppEnv>()
 
@@ -66,13 +67,12 @@ async function upsertScript(c: any) {
       const result = await db.query(
         `UPDATE shopper_scripts
          SET name = $1,
-             content = $2,
-             scenario = $3,
-             is_active = $4,
+             script_text = $2,
+             is_active = $3,
              updated_at = NOW()
-         WHERE id = $5 AND organization_id = $6
+         WHERE id = $4 AND organization_id = $5
          RETURNING *`,
-        [name, content || '', scenario || '', is_active ?? true, id, session.organization_id]
+        [name, content || '', is_active ?? true, id, session.organization_id]
       )
       if (result.rows.length === 0) {
         return c.json({ error: 'Script not found' }, 404)
@@ -91,10 +91,10 @@ async function upsertScript(c: any) {
 
     // Create new
     const result = await db.query(
-      `INSERT INTO shopper_scripts (organization_id, name, content, scenario, is_active)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO shopper_scripts (organization_id, name, script_text, is_active)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [session.organization_id, name, content || '', scenario || '', is_active ?? true]
+      [session.organization_id, name, content || '', is_active ?? true]
     )
 
     writeAuditLog(db, {
@@ -134,7 +134,7 @@ shopperRoutes.get('/scripts/manage', async (c) => {
 })
 
 // POST /scripts
-shopperRoutes.post('/scripts', async (c) => {
+shopperRoutes.post('/scripts', shopperRateLimit, async (c) => {
   try {
     return await upsertScript(c)
   } catch (err: any) {
@@ -144,7 +144,7 @@ shopperRoutes.post('/scripts', async (c) => {
 })
 
 // POST /scripts/manage — frontend alias
-shopperRoutes.post('/scripts/manage', async (c) => {
+shopperRoutes.post('/scripts/manage', shopperRateLimit, async (c) => {
   try {
     return await upsertScript(c)
   } catch (err: any) {
@@ -154,7 +154,7 @@ shopperRoutes.post('/scripts/manage', async (c) => {
 })
 
 // PUT /scripts/:id — update script
-shopperRoutes.put('/scripts/:id', async (c) => {
+shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -170,20 +170,12 @@ shopperRoutes.put('/scripts/:id', async (c) => {
     const result = await db.query(
       `UPDATE shopper_scripts
        SET name = COALESCE($1, name),
-           content = COALESCE($2, content),
-           scenario = COALESCE($3, scenario),
-           is_active = COALESCE($4, is_active),
+           script_text = COALESCE($2, script_text),
+           is_active = COALESCE($3, is_active),
            updated_at = NOW()
-       WHERE id = $5 AND organization_id = $6
+       WHERE id = $4 AND organization_id = $5
        RETURNING *`,
-      [
-        name || null,
-        content || null,
-        scenario || null,
-        is_active ?? null,
-        scriptId,
-        session.organization_id,
-      ]
+      [name || null, content || null, is_active ?? null, scriptId, session.organization_id]
     )
 
     if (result.rows.length === 0) {
@@ -210,7 +202,7 @@ shopperRoutes.put('/scripts/:id', async (c) => {
 })
 
 // DELETE /scripts/:id — delete script
-shopperRoutes.delete('/scripts/:id', async (c) => {
+shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -251,7 +243,7 @@ shopperRoutes.delete('/scripts/:id', async (c) => {
 })
 
 // DELETE /scripts/manage — frontend compat (id in body or query)
-shopperRoutes.delete('/scripts/manage', async (c) => {
+shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

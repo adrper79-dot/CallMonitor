@@ -1,19 +1,19 @@
+'use client'
+
 /**
  * Subscription Cancellation Modal
- * 
+ *
  * Confirmation dialog for subscription cancellation
  * Shows what features will be lost and when
- * 
+ *
  * Features:
  * - Feature loss preview
  * - Prorated refund information
  * - Effective date display
  * - Cancellation confirmation
- * 
+ *
  * @module components/billing/CancelSubscriptionModal
  */
-
-'use client'
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -108,8 +108,7 @@ export function CancelSubscriptionModal({
             Cancel Subscription
           </DialogTitle>
           <DialogDescription>
-            This action will cancel your subscription at the end of the current billing
-            period
+            This action will cancel your subscription at the end of the current billing period
           </DialogDescription>
         </DialogHeader>
 
@@ -117,8 +116,8 @@ export function CancelSubscriptionModal({
           {/* Effective Date */}
           <Alert>
             <AlertDescription>
-              Your subscription will remain active until{' '}
-              <strong>{effectiveDate}</strong>, then downgrade to the Free plan.
+              Your subscription will remain active until <strong>{effectiveDate}</strong>, then
+              downgrade to the Free plan.
             </AlertDescription>
           </Alert>
 
@@ -126,9 +125,8 @@ export function CancelSubscriptionModal({
           {proratedAmount && proratedAmount > 0 && (
             <Alert>
               <AlertDescription>
-                You will receive a prorated refund of{' '}
-                <strong>${proratedAmount.toFixed(2)}</strong> for the unused portion of
-                your subscription.
+                You will receive a prorated refund of <strong>${proratedAmount.toFixed(2)}</strong>{' '}
+                for the unused portion of your subscription.
               </AlertDescription>
             </Alert>
           )}
@@ -169,8 +167,8 @@ export function CancelSubscriptionModal({
               className="mt-1"
             />
             <label htmlFor="confirm-cancel" className="text-sm cursor-pointer">
-              I understand that I will lose access to premium features and my plan will
-              downgrade to Free on {effectiveDate}
+              I understand that I will lose access to premium features and my plan will downgrade to
+              Free on {effectiveDate}
             </label>
           </div>
         </div>
@@ -179,11 +177,7 @@ export function CancelSubscriptionModal({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={canceling}>
             Keep Subscription
           </Button>
-          <Button
-            variant="destructive"
-            onClick={handleCancel}
-            disabled={!confirmed || canceling}
-          >
+          <Button variant="destructive" onClick={handleCancel} disabled={!confirmed || canceling}>
             {canceling ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

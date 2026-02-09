@@ -33,7 +33,7 @@ import {
 } from '../lib/bond-ai'
 import { requirePlan } from '../lib/plan-gating'
 import { authMiddleware } from '../lib/auth'
-import { aiLlmRateLimit } from '../lib/rate-limit'
+import { aiLlmRateLimit, bondAiRateLimit } from '../lib/rate-limit'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
@@ -69,7 +69,7 @@ bondAiRoutes.get('/conversations', async (c) => {
 })
 
 // Create conversation
-bondAiRoutes.post('/conversations', async (c) => {
+bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -321,7 +321,7 @@ bondAiRoutes.get('/conversations/:id/messages', async (c) => {
 })
 
 // Delete/archive conversation
-bondAiRoutes.delete('/conversations/:id', async (c) => {
+bondAiRoutes.delete('/conversations/:id', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -447,7 +447,7 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
 })
 
 // Bulk acknowledge alerts
-bondAiRoutes.post('/alerts/bulk-action', async (c) => {
+bondAiRoutes.post('/alerts/bulk-action', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -508,7 +508,7 @@ bondAiRoutes.get('/alert-rules', async (c) => {
   }
 })
 
-bondAiRoutes.post('/alert-rules', async (c) => {
+bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -568,7 +568,7 @@ bondAiRoutes.post('/alert-rules', async (c) => {
   }
 })
 
-bondAiRoutes.put('/alert-rules/:id', async (c) => {
+bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -622,7 +622,15 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
       resourceId: ruleId,
       action: AuditAction.AI_ALERT_RULE_UPDATED,
       before: null,
-      after: { name, description, rule_config, severity, is_enabled, notification_channels, cooldown_minutes },
+      after: {
+        name,
+        description,
+        rule_config,
+        severity,
+        is_enabled,
+        notification_channels,
+        cooldown_minutes,
+      },
     })
 
     return c.json({ success: true })
@@ -633,7 +641,7 @@ bondAiRoutes.put('/alert-rules/:id', async (c) => {
   }
 })
 
-bondAiRoutes.delete('/alert-rules/:id', async (c) => {
+bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -762,24 +770,29 @@ bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
 // ════════════════════════════════════════════════════════════
 
 bondAiRoutes.get('/insights', async (c) => {
-  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const [stats, alerts, kpis] = await Promise.all([
+    const [stats, alerts, kpiData] = await Promise.all([
       fetchOrgStats(c.env, session.organization_id),
       fetchRecentAlerts(c.env, session.organization_id, 5),
       fetchKpiSummary(c.env, session.organization_id),
     ])
 
-    // KPI breach detection
-    const kpiBreaches = kpis.filter(
-      (k: any) =>
-        k.latest_value !== null &&
-        k.warning_threshold !== null &&
-        parseFloat(k.latest_value) < parseFloat(k.warning_threshold)
-    )
+    // KPI breach detection — check if avg response time exceeds warning threshold
+    const breaches: Array<{ metric: string; value: number; threshold: number }> = []
+    if (kpiData.settings && kpiData.recentPerformance) {
+      const avgMs = parseFloat(kpiData.recentPerformance.avg_duration_ms || '0')
+      const warningMs = kpiData.settings.response_time_warning_ms
+      if (avgMs > 0 && warningMs && avgMs > warningMs) {
+        breaches.push({
+          metric: 'avg_response_time_ms',
+          value: avgMs,
+          threshold: warningMs,
+        })
+      }
+    }
 
     return c.json({
       success: true,
@@ -787,15 +800,15 @@ bondAiRoutes.get('/insights', async (c) => {
         summary: stats,
         recent_alerts: alerts,
         kpi_status: {
-          total: kpis.length,
-          breached: kpiBreaches.length,
-          breaches: kpiBreaches,
+          settings: kpiData.settings,
+          recent_performance: kpiData.recentPerformance,
+          breached: breaches.length,
+          breaches,
         },
       },
     })
   } catch (err: any) {
+    logger.error('Insights fetch failed', { error: err?.message })
     return c.json({ error: 'Failed to get insights' }, 500)
-  } finally {
-    await db.end()
   }
 })

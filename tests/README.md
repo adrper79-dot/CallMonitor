@@ -8,6 +8,11 @@ Comprehensive test coverage for critical paths in the Voice Operations platform.
 
 ```
 tests/
+├── e2e/                # Playwright E2E browser tests
+│   ├── auth.setup.ts   # Auth state setup (saves .auth/user.json)
+│   ├── login.spec.ts   # Sign-in page tests
+│   ├── navigation.spec.ts   # Public page & auth guard tests
+│   └── settings-webhook.spec.ts  # Webhook settings (requires auth)
 ├── unit/           # Unit tests for individual functions/services
 │   ├── rbac.test.ts
 │   ├── errorHandling.test.ts
@@ -23,6 +28,45 @@ tests/
 │   └── startCallFlow.test.ts
 └── setup.ts       # Test setup and mocks
 ```
+
+## E2E Tests (Playwright)
+
+Browser-based end-to-end tests using Playwright. Config: `playwright.config.ts` (project root).
+
+### Running E2E Tests
+
+```bash
+# Headless (CI-friendly)
+npm run test:e2e
+
+# With browser UI visible
+npm run test:e2e:headed
+
+# Interactive Playwright UI for debugging
+npm run test:e2e:ui
+
+# Run a specific spec file
+npx playwright test tests/e2e/login.spec.ts
+
+# Show HTML report after a run
+npx playwright show-report
+```
+
+### E2E File Overview
+
+| File                       | Purpose                             | Auth Required?                 |
+| -------------------------- | ----------------------------------- | ------------------------------ |
+| `login.spec.ts`            | Sign-in form, validation, links     | No                             |
+| `navigation.spec.ts`       | Public pages, CTA, auth guards, 404 | No                             |
+| `settings-webhook.spec.ts` | Webhook CRUD in settings            | Yes (skipped until configured) |
+| `auth.setup.ts`            | Saves authenticated browser state   | N/A (setup)                    |
+
+### Setting Up Authenticated Tests
+
+1. Set `E2E_TEST_EMAIL` and `E2E_TEST_PASSWORD` environment variables
+2. Uncomment the `chromium-authenticated` project in `playwright.config.ts`
+3. Remove `.skip` from `settings-webhook.spec.ts`
+4. Auth state is persisted to `.auth/user.json` (git-ignored)
 
 ## Running Tests
 
@@ -92,6 +136,7 @@ npm test -- tests/unit/rbac.test.ts
 ## Mocking
 
 Tests use mocks for:
+
 - Supabase client (`@/lib/supabaseAdmin`)
 - External APIs (SignalWire, AssemblyAI, OpenAI)
 - Next.js server components
@@ -115,6 +160,7 @@ See `tests/setup.ts` for global mocks.
 ## CI/CD Integration
 
 Tests should run in CI/CD pipeline:
+
 - On every pull request
 - Before deployment
 - Coverage reports should be generated

@@ -18,6 +18,7 @@ import { validateBody } from '../lib/validate'
 import { CreateSurveySchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { surveyRateLimit } from '../lib/rate-limit'
 
 export const surveysRoutes = new Hono<AppEnv>()
 
@@ -28,27 +29,37 @@ surveysRoutes.get('/', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
+    const page = parseInt(c.req.query('page') || '1', 10)
+    const limit = Math.min(parseInt(c.req.query('limit') || '25', 10), 200)
+    const offset = (page - 1) * limit
+
     // Try full schema first, fall back to minimal
     let surveys: any[] = []
+    let total = 0
     try {
       const result = await db.query(
-        `SELECT id, title, description, questions, active, trigger_type, created_at, updated_at
+        `SELECT id, title, description, questions, active, trigger_type, created_at, updated_at,
+                COUNT(*) OVER() as total_count
          FROM surveys
          WHERE organization_id = $1
-         ORDER BY created_at DESC`,
-        [session.organization_id]
+         ORDER BY created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [session.organization_id, limit, offset]
       )
-      surveys = result.rows
+      surveys = result.rows.map(({ total_count, ...r }: any) => r)
+      total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
     } catch {
       // Table may exist with different columns — try minimal
       try {
         const result = await db.query(
-          `SELECT * FROM surveys
+          `SELECT *, COUNT(*) OVER() as total_count FROM surveys
            WHERE organization_id = $1
-           ORDER BY created_at DESC`,
-          [session.organization_id]
+           ORDER BY created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [session.organization_id, limit, offset]
         )
-        surveys = result.rows
+        surveys = result.rows.map(({ total_count, ...r }: any) => r)
+        total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
       } catch {
         // Table doesn't exist yet — return empty
         surveys = []
@@ -58,7 +69,8 @@ surveysRoutes.get('/', async (c) => {
     return c.json({
       success: true,
       surveys,
-      total: surveys.length,
+      total,
+      pagination: { page, limit, total },
     })
   } catch (err: any) {
     logger.error('GET /api/surveys error', { error: err?.message })
@@ -69,7 +81,7 @@ surveysRoutes.get('/', async (c) => {
 })
 
 // POST / — Create survey
-surveysRoutes.post('/', async (c) => {
+surveysRoutes.post('/', surveyRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -83,8 +95,8 @@ surveysRoutes.post('/', async (c) => {
     let survey: any
     try {
       const result = await db.query(
-        `INSERT INTO surveys (organization_id, title, description, questions, active, trigger_type, created_by)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+        `INSERT INTO surveys (organization_id, name, description, questions, is_active, created_by)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6)
          RETURNING *`,
         [
           session.organization_id,
@@ -92,7 +104,6 @@ surveysRoutes.post('/', async (c) => {
           description || null,
           JSON.stringify(questions || []),
           active !== undefined ? active : true,
-          trigger_type || 'post_call',
           session.user_id,
         ]
       )
@@ -112,7 +123,7 @@ surveysRoutes.post('/', async (c) => {
       after: survey,
     })
 
-    return c.json({ success: true, survey })
+    return c.json({ success: true, survey }, 201)
   } catch (err: any) {
     logger.error('POST /api/surveys error', { error: err?.message })
     return c.json({ error: 'Failed to create survey' }, 500)
@@ -122,7 +133,7 @@ surveysRoutes.post('/', async (c) => {
 })
 
 // DELETE /:id — Delete survey
-surveysRoutes.delete('/:id', async (c) => {
+surveysRoutes.delete('/:id', surveyRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

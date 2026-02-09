@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +81,7 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
     weight: 20,
   })
 
-  const fetchScripts = async () => {
+  const fetchScripts = useCallback(async () => {
     if (!organizationId) return
 
     try {
@@ -102,11 +102,11 @@ export default function ShopperScriptManager({ organizationId }: ShopperScriptMa
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     fetchScripts()
-  }, [organizationId])
+  }, [fetchScripts])
 
   const handleNewScript = () => {
     setEditingScript({

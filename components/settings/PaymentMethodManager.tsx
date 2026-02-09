@@ -1,9 +1,11 @@
+'use client'
+
 /**
  * Payment Method Manager Component
- * 
+ *
  * Displays and manages payment methods attached to the subscription.
  * RBAC: Owner/Admin only
- * 
+ *
  * Features:
  * - List all payment methods
  * - Default payment method indicator
@@ -11,20 +13,12 @@
  * - Remove payment method
  * - Card brand icons
  * - Last 4 digits display
- * 
+ *
  * @module components/settings/PaymentMethodManager
  */
 
-'use client'
-
-import { useState, useEffect } from 'react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -67,16 +61,14 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
 
   const canManage = role === 'owner' || role === 'admin'
 
-  useEffect(() => {
-    fetchPaymentMethods()
-  }, [organizationId])
-
-  const fetchPaymentMethods = async () => {
+  const fetchPaymentMethods = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const data = await apiGet<{ paymentMethods: PaymentMethod[] }>(`/api/billing/payment-methods?orgId=${organizationId}`)
+      const data = await apiGet<{ paymentMethods: PaymentMethod[] }>(
+        `/api/billing/payment-methods?orgId=${organizationId}`
+      )
       setPaymentMethods(data.paymentMethods || [])
     } catch (err: any) {
       if (err.status === 404) {
@@ -89,7 +81,11 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchPaymentMethods()
+  }, [fetchPaymentMethods])
 
   const handleAddPaymentMethod = async () => {
     if (!canManage) return
@@ -116,7 +112,9 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       setRemoving(paymentMethodId)
       setError(null)
 
-      await apiDelete(`/api/billing/payment-methods/${paymentMethodId}?organizationId=${organizationId}`)
+      await apiDelete(
+        `/api/billing/payment-methods/${paymentMethodId}?organizationId=${organizationId}`
+      )
 
       await fetchPaymentMethods()
     } catch (err: any) {
@@ -154,11 +152,7 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
             <CardTitle>Payment Methods</CardTitle>
             <CardDescription>Manage your payment methods</CardDescription>
           </div>
-          <Button
-            onClick={handleAddPaymentMethod}
-            disabled={!canManage || adding}
-            size="sm"
-          >
+          <Button onClick={handleAddPaymentMethod} disabled={!canManage || adding} size="sm">
             {adding ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -176,9 +170,7 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
       <CardContent>
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
 
           {paymentMethods.length === 0 ? (
@@ -236,8 +228,8 @@ export function PaymentMethodManager({ organizationId, role }: PaymentMethodMana
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to remove this payment method? This action
-                            cannot be undone.
+                            Are you sure you want to remove this payment method? This action cannot
+                            be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

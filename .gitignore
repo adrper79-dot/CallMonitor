@@ -5,6 +5,9 @@
 /coverage
 *.lcov
 tests/.env
+.auth/
+test-results/
+playwright-report/
 
 # Environment files (NEVER commit secrets)
 .env
@@ -49,9 +52,14 @@ vercel.json
 
 # Workers dev secrets
 workers/.dev.vars
+workers/.neon_secret.txt
 .dev.vars
 workers/dist_dry/
 nul
+
+# Credential files (NEVER commit)
+**/rclone.conf
+**/*.secret.txt
 
 # Auto-generated Cloudflare type files
 worker-configuration.d.ts

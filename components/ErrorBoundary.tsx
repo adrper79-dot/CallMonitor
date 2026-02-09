@@ -16,7 +16,7 @@ interface State {
 
 /**
  * Error Boundary Component
- * 
+ *
  * Catches React errors and displays a user-friendly fallback UI.
  * Logs errors to monitoring system.
  */
@@ -55,16 +55,17 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
           <div className="max-w-md w-full space-y-8">
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                Oops! Something went wrong
-              </h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h1>
               <p className="text-gray-600 mb-6">
-                We're sorry for the inconvenience. An error occurred while displaying this page.
+                We&apos;re sorry for the inconvenience. An error occurred while displaying this
+                page.
               </p>
-              
+
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <div className="text-left bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <h3 className="text-sm font-semibold text-red-800 mb-2">Error Details (Development Only):</h3>
+                  <h3 className="text-sm font-semibold text-red-800 mb-2">
+                    Error Details (Development Only):
+                  </h3>
                   <pre className="text-xs text-red-700 overflow-auto">
                     {this.state.error.toString()}
                   </pre>
@@ -80,7 +81,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   )}
                 </div>
               )}
-              
+
               <div className="space-y-3">
                 <button
                   onClick={() => window.location.reload()}
@@ -89,7 +90,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   Reload Page
                 </button>
                 <button
-                  onClick={() => window.location.href = '/'}
+                  onClick={() => (window.location.href = '/')}
                   className="w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Go to Home

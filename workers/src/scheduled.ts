@@ -27,7 +27,7 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         break
     }
   } catch (error) {
-    logger.error('Scheduled job failed')
+    logger.error('Scheduled job failed', { error: (error as Error)?.message, cron })
     // Don't throw - let the job complete so it can retry next interval
   }
 }
@@ -39,8 +39,9 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
 async function retryFailedTranscriptions(env: Env): Promise<void> {
   const db = getDb(env)
 
-  // Find calls with failed transcriptions that haven't exceeded retry limit
-  const result = await db.query(`
+  try {
+    // Find calls with failed transcriptions that haven't exceeded retry limit
+    const result = await db.query(`
     SELECT id, call_sid, recording_url, transcript_retries
     FROM calls
     WHERE transcript_status = 'failed'
@@ -50,53 +51,68 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
     LIMIT 10
   `)
 
-  for (const call of result.rows) {
-    try {
-      // BL-013: Submit recording to AssemblyAI for transcription
-      const audioUrl = call.recording_url.startsWith('http')
-        ? call.recording_url
-        : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${call.call_sid}`
+    for (const call of result.rows) {
+      try {
+        // BL-013: Submit recording to AssemblyAI for transcription
+        const audioUrl = call.recording_url.startsWith('http')
+          ? call.recording_url
+          : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${call.call_sid}`
 
-      const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
+        const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
 
-      const headers: Record<string, string> = {
-        'Authorization': env.ASSEMBLYAI_API_KEY,
-        'Content-Type': 'application/json',
-      }
+        const headers: Record<string, string> = {
+          Authorization: env.ASSEMBLYAI_API_KEY,
+          'Content-Type': 'application/json',
+        }
 
-      const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          audio_url: audioUrl,
-          webhook_url: webhookUrl,
-          ...(env.ASSEMBLYAI_WEBHOOK_SECRET
-            ? { webhook_auth_header_name: 'Authorization', webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET }
-            : {}),
-        }),
-      })
+        const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            audio_url: audioUrl,
+            webhook_url: webhookUrl,
+            ...(env.ASSEMBLYAI_WEBHOOK_SECRET
+              ? {
+                  webhook_auth_header_name: 'Authorization',
+                  webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET,
+                }
+              : {}),
+          }),
+        })
 
-      if (!assemblyRes.ok) {
-        logger.warn('AssemblyAI retry submission failed', { callId: call.id, status: assemblyRes.status })
-        continue
-      }
+        if (!assemblyRes.ok) {
+          logger.warn('AssemblyAI retry submission failed', {
+            callId: call.id,
+            status: assemblyRes.status,
+          })
+          continue
+        }
 
-      const assemblyData = await assemblyRes.json() as { id: string }
+        const assemblyData = (await assemblyRes.json()) as { id: string }
 
-      await db.query(
-        `UPDATE calls
+        await db.query(
+          `UPDATE calls
          SET transcript_status = 'pending',
              transcript_retries = transcript_retries + 1,
              transcript_id = $1
          WHERE id = $2`,
-        [assemblyData.id, call.id]
-      )
+          [assemblyData.id, call.id]
+        )
 
-      logger.info('AssemblyAI transcription retry submitted', { callId: call.id, transcriptId: assemblyData.id })
-    } catch (error) {
-      logger.warn('AssemblyAI retry exception', { callId: call.id })
-      // Skip failed individual retries
+        logger.info('AssemblyAI transcription retry submitted', {
+          callId: call.id,
+          transcriptId: assemblyData.id,
+        })
+      } catch (error) {
+        logger.warn('AssemblyAI retry exception', {
+          callId: call.id,
+          error: (error as Error)?.message,
+        })
+        // Skip failed individual retries
+      }
     }
+  } finally {
+    await db.end()
   }
 }
 
@@ -107,11 +123,15 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
 async function cleanupExpiredSessions(env: Env): Promise<void> {
   const db = getDb(env)
 
-  // Delete expired sessions from public.sessions
-  await db.query(`
-    DELETE FROM public.sessions
-    WHERE expires < NOW()
-  `)
+  try {
+    // Delete expired sessions from public.sessions
+    await db.query(`
+      DELETE FROM public.sessions
+      WHERE expires < NOW()
+    `)
+  } finally {
+    await db.end()
+  }
 }
 
 /**
@@ -121,14 +141,15 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
 async function aggregateUsage(env: Env): Promise<void> {
   const db = getDb(env)
 
-  // Calculate usage for the previous day
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  const dateStr = yesterday.toISOString().split('T')[0]
+  try {
+    // Calculate usage for the previous day
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const dateStr = yesterday.toISOString().split('T')[0]
 
-  // Aggregate call statistics per organization
-  await db.query(
-    `
+    // Aggregate call statistics per organization
+    await db.query(
+      `
     INSERT INTO usage_stats (organization_id, date, total_calls, total_duration_seconds, total_recordings)
     SELECT 
       organization_id,
@@ -146,6 +167,9 @@ async function aggregateUsage(env: Env): Promise<void> {
       updated_at = NOW()
     RETURNING organization_id
   `,
-    [dateStr]
-  )
+      [dateStr]
+    )
+  } finally {
+    await db.end()
+  }
 }

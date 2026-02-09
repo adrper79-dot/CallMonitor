@@ -1,6 +1,6 @@
 /**
  * RBAC (Role-Based Access Control) and Plan Gating
- * 
+ *
  * Per MASTER_ARCHITECTURE.txt RBAC matrix:
  * - Roles: Owner, Admin, Operator, Analyst, Viewer
  * - Plans: Base, Pro, Insights, Global
@@ -8,7 +8,17 @@
  */
 
 export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
-export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'business' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
+export type Plan =
+  | 'base'
+  | 'pro'
+  | 'insights'
+  | 'global'
+  | 'business'
+  | 'free'
+  | 'enterprise'
+  | 'trial'
+  | 'standard'
+  | 'active'
 
 export interface PermissionCheck {
   role: UserRole
@@ -21,14 +31,14 @@ export interface PermissionCheck {
  * Feature-to-Plan mapping
  */
 const FEATURE_PLANS: Record<string, Plan[]> = {
-  'recording': ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
-  'transcription': ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
-  'translation': ['global', 'business', 'enterprise'],
-  'real_time_translation_preview': ['business', 'enterprise'],
-  'survey': ['insights', 'global', 'business', 'enterprise'],
-  'secret_shopper': ['insights', 'global', 'business', 'enterprise'],
-  'booking': ['business', 'enterprise'],  // Cal.com-style scheduling
-  'voice_cloning': ['business', 'enterprise'],  // ElevenLabs voice cloning
+  recording: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+  transcription: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+  translation: ['pro', 'insights', 'global', 'business', 'enterprise'],
+  real_time_translation_preview: ['business', 'enterprise'],
+  survey: ['insights', 'global', 'business', 'enterprise'],
+  secret_shopper: ['insights', 'global', 'business', 'enterprise'],
+  booking: ['business', 'enterprise'], // Cal.com-style scheduling
+  voice_cloning: ['business', 'enterprise'], // ElevenLabs voice cloning
 }
 
 /**
@@ -36,61 +46,66 @@ const FEATURE_PLANS: Record<string, Plan[]> = {
  */
 const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'execute')[]>> = {
   owner: {
-    'voice_config': ['read', 'write'],
-    'call': ['read', 'execute'],
-    'recording': ['read', 'write'],
-    'transcript': ['read'],
-    'translation': ['read'],
-    'survey': ['read'],
-    'secret_shopper': ['read', 'write', 'execute'],
-    'booking': ['read', 'write', 'execute'],  // Full booking access
+    voice_config: ['read', 'write'],
+    call: ['read', 'execute'],
+    recording: ['read', 'write'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read', 'write', 'execute'],
+    booking: ['read', 'write', 'execute'], // Full booking access
   },
   admin: {
-    'voice_config': ['read', 'write'],
-    'call': ['read', 'execute'],
-    'recording': ['read', 'write'],
-    'transcript': ['read'],
-    'translation': ['read'],
-    'survey': ['read'],
-    'secret_shopper': ['read', 'write', 'execute'],
-    'booking': ['read', 'write', 'execute'],  // Full booking access
+    voice_config: ['read', 'write'],
+    call: ['read', 'execute'],
+    recording: ['read', 'write'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read', 'write', 'execute'],
+    booking: ['read', 'write', 'execute'], // Full booking access
   },
   operator: {
-    'voice_config': ['read'],
-    'call': ['read', 'execute'],
-    'recording': ['read'],
-    'transcript': ['read'],
-    'translation': ['read'],
-    'survey': ['read'],
-    'secret_shopper': ['read', 'execute'],
-    'booking': ['read', 'write', 'execute'],  // Can create/manage bookings
+    voice_config: ['read'],
+    call: ['read', 'execute'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read', 'execute'],
+    booking: ['read', 'write', 'execute'], // Can create/manage bookings
   },
   analyst: {
-    'voice_config': ['read'],
-    'call': ['read'],
-    'recording': ['read'],
-    'transcript': ['read'],
-    'translation': ['read'],
-    'survey': ['read'],
-    'secret_shopper': ['read'],
-    'booking': ['read'],  // View only
+    voice_config: ['read'],
+    call: ['read'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read'],
+    booking: ['read'], // View only
   },
   viewer: {
-    'voice_config': ['read'], // masked
-    'call': ['read'], // masked
-    'recording': ['read'], // masked
-    'transcript': ['read'], // masked
-    'translation': ['read'], // masked
-    'survey': ['read'], // masked
-    'secret_shopper': ['read'], // masked
-    'booking': ['read'],  // View only, masked
+    voice_config: ['read'], // masked
+    call: ['read'], // masked
+    recording: ['read'], // masked
+    transcript: ['read'], // masked
+    translation: ['read'], // masked
+    survey: ['read'], // masked
+    secret_shopper: ['read'], // masked
+    booking: ['read'], // View only, masked
   },
 }
 
 /**
  * Check if a user has permission for a feature/action
  */
-export function hasPermission(role: UserRole, plan: Plan, feature: string, action: 'read' | 'write' | 'execute'): boolean {
+export function hasPermission(
+  role: UserRole,
+  plan: Plan,
+  feature: string,
+  action: 'read' | 'write' | 'execute'
+): boolean {
   // Normalize role and plan
   const normalizedRole = role.toLowerCase() as UserRole
   const normalizedPlan = plan.toLowerCase() as Plan
@@ -141,7 +156,11 @@ export function getPlanFeatures(plan: Plan): string[] {
 /**
  * Check if role can perform action on resource
  */
-export function canPerformAction(role: UserRole, resource: string, action: 'read' | 'write' | 'execute'): boolean {
+export function canPerformAction(
+  role: UserRole,
+  resource: string,
+  action: 'read' | 'write' | 'execute'
+): boolean {
   const normalizedRole = role.toLowerCase() as UserRole
   const rolePerms = ROLE_PERMISSIONS[normalizedRole]
   if (!rolePerms) {
@@ -159,14 +178,45 @@ export function canPerformAction(role: UserRole, resource: string, action: 'read
 /**
  * API endpoint permission requirements
  */
-export const API_PERMISSIONS: Record<string, { role: UserRole[], plan?: Plan[], action: 'read' | 'write' | 'execute' }> = {
-  'POST /api/voice/call': { role: ['owner', 'admin', 'operator'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'execute' },
-  'PUT /api/voice/config': { role: ['owner', 'admin'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'write' },
-  'GET /api/voice/config': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/recordings': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/transcripts': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'], action: 'read' },
-  'GET /api/surveys/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'business', 'enterprise'], action: 'read' },
-  'GET /api/shopper/results': { role: ['owner', 'admin', 'operator', 'analyst', 'viewer'], plan: ['insights', 'global', 'business', 'enterprise'], action: 'read' },
+export const API_PERMISSIONS: Record<
+  string,
+  { role: UserRole[]; plan?: Plan[]; action: 'read' | 'write' | 'execute' }
+> = {
+  'POST /api/voice/call': {
+    role: ['owner', 'admin', 'operator'],
+    plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+    action: 'execute',
+  },
+  'PUT /api/voice/config': {
+    role: ['owner', 'admin'],
+    plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+    action: 'write',
+  },
+  'GET /api/voice/config': {
+    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+    action: 'read',
+  },
+  'GET /api/recordings': {
+    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+    action: 'read',
+  },
+  'GET /api/transcripts': {
+    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
+    action: 'read',
+  },
+  'GET /api/surveys/results': {
+    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    plan: ['insights', 'global', 'business', 'enterprise'],
+    action: 'read',
+  },
+  'GET /api/shopper/results': {
+    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    plan: ['insights', 'global', 'business', 'enterprise'],
+    action: 'read',
+  },
 }
 
 /**

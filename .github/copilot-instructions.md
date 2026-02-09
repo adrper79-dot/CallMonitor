@@ -5,7 +5,7 @@
 - **Product:** Word Is Bond — AI-powered voice intelligence platform for call centers
 - **Stack:** Next.js 15 (static export on Cloudflare Pages) + Hono 4.7 (Cloudflare Workers API) + Neon PostgreSQL 17 + Telnyx (voice) + Stripe (billing)
 - **URLs:** `https://voxsouth.online` (UI) | `https://wordisbond-api.adrper79.workers.dev` (API)
-- **Version:** v4.24+ | **Progress:** 109/109 ROADMAP items (100%)
+- **Version:** v4.29 | **Progress:** 109/109 ROADMAP items (100%)
 
 ## Critical Rules (NEVER Violate)
 
@@ -51,7 +51,9 @@ routes.post('/resource', rateLimit, async (c) => {
   const session = c.get('session')
   const db = getDb(c.env)
   try {
-    const result = await db.query('INSERT INTO ... WHERE organization_id = $1 RETURNING *', [session.organization_id])
+    const result = await db.query('INSERT INTO ... WHERE organization_id = $1 RETURNING *', [
+      session.organization_id,
+    ])
     writeAuditLog(db, {
       userId: session.user_id,
       orgId: session.organization_id,

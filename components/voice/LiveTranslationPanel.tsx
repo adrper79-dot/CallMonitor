@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { apiFetch } from '@/lib/apiClient'
 
 interface TranslationSegment {
   id: number
@@ -70,23 +71,17 @@ export function LiveTranslationPanel({
       return
     }
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('wb-session-token') : null
-
-    // EventSource doesn't support custom headers — use query param for auth
-    // The API route uses requireAuth which checks the Authorization header,
-    // so we use fetch-based SSE reader instead
+    // EventSource doesn't support custom headers — use fetch-based SSE reader
+    // with centralized apiFetch (resolves API URL + attaches Bearer token automatically)
     const abortController = new AbortController()
 
     async function connectStream() {
       try {
         setStatus('connecting')
-        const apiBase =
-          process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev'
-        const url = `${apiBase}/api/voice/translate/stream?callId=${encodeURIComponent(callId)}`
+        const sseUrl = `/api/voice/translate/stream?callId=${encodeURIComponent(callId)}`
 
-        const response = await fetch(url, {
+        const response = await apiFetch(sseUrl, {
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: 'text/event-stream',
           },
           signal: abortController.signal,

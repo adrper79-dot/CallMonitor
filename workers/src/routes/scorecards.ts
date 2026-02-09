@@ -15,17 +15,18 @@ import { validateBody } from '../lib/validate'
 import { CreateScorecardSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
+import { scorecardsRateLimit } from '../lib/rate-limit'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const scorecardsRoutes = new Hono<AppEnv>()
 
 // GET / — list scorecards
 scorecardsRoutes.get('/', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const tableCheck = await db.query(
       `SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -54,12 +55,12 @@ scorecardsRoutes.get('/', async (c) => {
 })
 
 // POST / — create scorecard
-scorecardsRoutes.post('/', async (c) => {
+scorecardsRoutes.post('/', scorecardsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, CreateScorecardSchema)
     if (!parsed.success) return parsed.response
     const { call_id, template_id, scores, notes, overall_score } = parsed.data
@@ -99,11 +100,11 @@ scorecardsRoutes.post('/', async (c) => {
 
 // GET /alerts — scorecard alerts/notifications
 scorecardsRoutes.get('/alerts', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     // Check if alerts table exists
     const tableCheck = await db.query(
       `SELECT EXISTS (
@@ -135,11 +136,11 @@ scorecardsRoutes.get('/alerts', async (c) => {
 
 // GET /:id — single scorecard
 scorecardsRoutes.get('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const scorecardId = c.req.param('id')
 
     const result = await db.query(

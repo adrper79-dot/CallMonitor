@@ -1,6 +1,6 @@
 /**
  * Centralized Logging System
- * 
+ *
  * Replaces console.log/error/warn with environment-aware structured logging.
  * Production logs only errors and warnings, development logs everything.
  */
@@ -22,12 +22,12 @@ class Logger {
 
   private shouldLog(level: LogLevel): boolean {
     if (this.isTest) return false
-    
+
     // Production: only warn and error
     if (!this.isDevelopment) {
       return level === 'warn' || level === 'error'
     }
-    
+
     // Development: log everything
     return true
   }
@@ -40,13 +40,13 @@ class Logger {
 
   debug(message: string, context?: LogContext): void {
     if (this.shouldLog('debug')) {
-      console.log(this.formatMessage('debug', message, context))
+      console.info(this.formatMessage('debug', message, context))
     }
   }
 
   info(message: string, context?: LogContext): void {
     if (this.shouldLog('info')) {
-      console.log(this.formatMessage('info', message, context))
+      console.info(this.formatMessage('info', message, context))
     }
   }
 
@@ -58,13 +58,16 @@ class Logger {
 
   error(message: string, error?: Error | unknown, context?: LogContext): void {
     if (this.shouldLog('error')) {
-      const errorContext = error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        ...context
-      } : { error, ...context }
-      
+      const errorContext =
+        error instanceof Error
+          ? {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+              ...context,
+            }
+          : { error, ...context }
+
       console.error(this.formatMessage('error', message, errorContext))
     }
   }

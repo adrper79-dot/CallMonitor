@@ -159,12 +159,19 @@ UX design principles and deployment guidelines:
 
 ### **05-REFERENCE** - Reference Materials
 
-Sample data and reference materials:
+**Agent-Optimized Refs (New):**
 
-- **evidence_manifest_sample.json** - Example evidence manifest structure
-- **JSON_MAPPING** - JSON field mappings
+- **[DB_SCHEMA_REFERENCE.md](05-REFERENCE/DB_SCHEMA_REFERENCE.md)** - Tables, rels, ERD, queries.
+- **[CODEBASE_REFERENCE.md](05-REFERENCE/CODEBASE_REFERENCE.md)** - Key funcs/modules/routes.
+- **[DESIGN_REFERENCE.md](05-REFERENCE/DESIGN_REFERENCE.md)** - UI system, topologies.
 
-**When to read:** Understanding data structures
+**Other:**
+
+- **evidence_manifest_sample.json** - Evidence structure.
+- **JSON_MAPPING** - Field mappings.
+- **[TAILWIND_SHADCN.md](05-REFERENCE/TAILWIND_SHADCN.md)** - UI tech.
+
+**When to read:** Quick lookups, agent context.
 
 ---
 
@@ -199,7 +206,9 @@ Historical reviews, fixes, and completed implementations:
 
 ## 🚀 **Quick Start Guides**
 
-### **For New Developers:**
+### **For Agents/New Developers:**
+
+- Use 05-REFERENCE/ new refs for DB/code/design overviews.
 
 1. Read `CURRENT_STATUS.md` for system overview
 2. Read `01-CORE/MASTER_ARCHITECTURE.txt`

@@ -182,7 +182,7 @@ export default function HomePage() {
           </div>
 
           <p className="text-center text-gray-300 mt-12 text-lg">
-            We don't grade your calls. We <strong className="text-white">bind them</strong>.
+            We don&apos;t grade your calls. We <strong className="text-white">bind them</strong>.
           </p>
         </div>
       </section>
@@ -193,7 +193,7 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <blockquote className="text-2xl md:text-3xl text-gray-900 font-medium leading-relaxed mb-10">
-            "Every conversation becomes a verifiable artifact."
+            &quot;Every conversation becomes a verifiable artifact.&quot;
           </blockquote>
 
           <div className="grid md:grid-cols-5 gap-4 text-sm">
@@ -300,7 +300,9 @@ export default function HomePage() {
           <h2 className="text-3xl font-semibold text-center text-gray-900 mb-4">
             Security & Trust
           </h2>
-          <p className="text-center text-gray-600 mb-10">Trust is not claimed. It's constructed.</p>
+          <p className="text-center text-gray-600 mb-10">
+            Trust is not claimed. It&apos;s constructed.
+          </p>
 
           <div className="grid md:grid-cols-2 gap-4">
             <TrustItem text="Server-side orchestration only" />
@@ -337,7 +339,7 @@ export default function HomePage() {
       ═══════════════════════════════════════════════════════════════════════ */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">You Don't Need:</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">You Don&apos;t Need:</h2>
           <ul className="space-y-3 text-gray-600 mb-10">
             <li>a softphone</li>
             <li>a call recorder</li>
@@ -361,8 +363,8 @@ export default function HomePage() {
             Solutions by Industry
           </h2>
           <p className="text-center text-gray-600 mb-10 max-w-2xl mx-auto">
-            Evidence-grade documentation tailored to your industry's compliance and documentation
-            needs.
+            Evidence-grade documentation tailored to your industry&apos;s compliance and
+            documentation needs.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link
@@ -520,8 +522,8 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">Not Sure What You Need?</h2>
           <p className="text-lg text-gray-600 mb-8">
-            Compare traditional call recording, AI insights platforms, and Word Is Bond's System of
-            Record approach.
+            Compare traditional call recording, AI insights platforms, and Word Is Bond&apos;s
+            System of Record approach.
           </p>
           <Link
             href="/compare"

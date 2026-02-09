@@ -1,9 +1,15 @@
-"use client"
+'use client'
 
 import React, { useEffect, useState, useRef } from 'react'
 import type { Call } from '@/app/voice-operations/page'
 import { Input } from '@/components/ui/input'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ClientDate } from '@/components/ui/ClientDate'
@@ -22,11 +28,16 @@ type SortBy = 'date' | 'score' | 'duration'
 
 /**
  * CallList - Professional Design System v3.0
- * 
+ *
  * Clean data table with minimal decoration.
  * Efficient, scannable, keyboard accessible.
  */
-export default function CallList({ calls: initialCalls, selectedCallId, organizationId, onSelect }: CallListProps) {
+export default function CallList({
+  calls: initialCalls,
+  selectedCallId,
+  organizationId,
+  onSelect,
+}: CallListProps) {
   const [calls, setCalls] = useState<Call[]>(initialCalls)
   const [filteredCalls, setFilteredCalls] = useState<Call[]>(initialCalls)
   const [focusedIndex, setFocusedIndex] = useState<number>(0)
@@ -45,7 +56,9 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
     async () => {
       if (!organizationId) return []
       try {
-        const data = await apiGet(`/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`)
+        const data = await apiGet(
+          `/api/calls?orgId=${encodeURIComponent(organizationId)}&page=${page}&limit=${pageSize}`
+        )
         return data.calls || []
       } catch {
         return []
@@ -197,10 +210,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
             </SelectContent>
           </Select>
 
-          <Select
-            value={sortBy}
-            onValueChange={(value) => setSortBy(value as SortBy)}
-          >
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortBy)}>
             <SelectTrigger>
               <SelectValue placeholder="Newest First" />
             </SelectTrigger>
@@ -212,11 +222,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
           </Select>
         </div>
 
-        {!connected && (
-          <div className="text-xs text-warning">
-            Offline mode - using cached data
-          </div>
-        )}
+        {!connected && <div className="text-xs text-warning">Offline mode - using cached data</div>}
       </div>
 
       {/* Call List */}
@@ -229,10 +235,18 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
           <table className="w-full border-collapse bg-white">
             <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
               <tr>
-                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">ID</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">Status</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">Date</th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">User</th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">
+                  ID
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide text-left">
+                  User
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -241,7 +255,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
                 return (
                   <tr
                     key={c.id}
-                    role="listitem"
+                    role="row"
                     tabIndex={0}
                     aria-selected={selected}
                     onClick={() => onSelect?.(c.id)}
@@ -265,9 +279,7 @@ export default function CallList({ calls: initialCalls, selectedCallId, organiza
                     <td className="px-4 py-3 text-sm text-gray-600">
                       <ClientDate date={c.started_at} format="short" />
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {c.created_by || '—'}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{c.created_by || '—'}</td>
                   </tr>
                 )
               })}

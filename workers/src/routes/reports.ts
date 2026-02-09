@@ -20,6 +20,7 @@ import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { requirePlan } from '../lib/plan-gating'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { reportRateLimit } from '../lib/rate-limit'
 
 export const reportsRoutes = new Hono<AppEnv>()
 
@@ -30,7 +31,7 @@ reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
     const session = c.get('session')
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
     const page = parseInt(c.req.query('page') || '1')
-    const limit = parseInt(c.req.query('limit') || '20')
+    const limit = Math.min(parseInt(c.req.query('limit') || '20', 10), 200)
     const offset = (page - 1) * limit
 
     const rowsResult = await db.query(
@@ -56,7 +57,7 @@ reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
 })
 
 // POST / — Generate a new report
-reportsRoutes.post('/', authMiddleware, requirePlan('business'), async (c) => {
+reportsRoutes.post('/', authMiddleware, requirePlan('business'), reportRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = c.get('session')
@@ -151,14 +152,22 @@ reportsRoutes.get('/schedules', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
+    const page = parseInt(c.req.query('page') || '1', 10)
+    const limit = Math.min(parseInt(c.req.query('limit') || '25', 10), 200)
+    const offset = (page - 1) * limit
+
     const rowsResult = await db.query(
-      `SELECT * FROM report_schedules
+      `SELECT *, COUNT(*) OVER() as total_count FROM report_schedules
       WHERE organization_id = $1
-      ORDER BY created_at DESC`,
-      [session.organization_id]
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
     )
 
-    return c.json({ success: true, schedules: rowsResult.rows })
+    const total = rowsResult.rows.length > 0 ? parseInt(rowsResult.rows[0].total_count) : 0
+    const schedules = rowsResult.rows.map(({ total_count, ...s }: any) => s)
+
+    return c.json({ success: true, schedules, pagination: { page, limit, total } })
   } catch (err: any) {
     logger.error('GET /api/reports/schedules error', { error: err?.message })
     return c.json({ error: 'Failed to list schedules' }, 500)
@@ -168,7 +177,7 @@ reportsRoutes.get('/schedules', async (c) => {
 })
 
 // POST /schedules — Create report schedule
-reportsRoutes.post('/schedules', async (c) => {
+reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -214,7 +223,7 @@ reportsRoutes.post('/schedules', async (c) => {
 })
 
 // PATCH /schedules/:id — Update report schedule (toggle active, etc.)
-reportsRoutes.patch('/schedules/:id', async (c) => {
+reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -259,7 +268,7 @@ reportsRoutes.patch('/schedules/:id', async (c) => {
 })
 
 // DELETE /schedules/:id — Delete report schedule
-reportsRoutes.delete('/schedules/:id', async (c) => {
+reportsRoutes.delete('/schedules/:id', reportRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

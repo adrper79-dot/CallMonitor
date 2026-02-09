@@ -17,6 +17,7 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { callerIdRateLimit, callerIdVerifyRateLimit } from '../lib/rate-limit'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const callerIdRoutes = new Hono<AppEnv>()
@@ -132,7 +133,7 @@ callerIdRoutes.get('/verify', async (c) => {
 })
 
 // POST / — initiate verification
-callerIdRoutes.post('/', async (c) => {
+callerIdRoutes.post('/', callerIdRateLimit, async (c) => {
   try {
     return await initiateVerification(c)
   } catch (err: any) {
@@ -142,7 +143,7 @@ callerIdRoutes.post('/', async (c) => {
 })
 
 // POST /verify — frontend alias
-callerIdRoutes.post('/verify', async (c) => {
+callerIdRoutes.post('/verify', callerIdRateLimit, async (c) => {
   try {
     return await initiateVerification(c)
   } catch (err: any) {
@@ -152,7 +153,7 @@ callerIdRoutes.post('/verify', async (c) => {
 })
 
 // PUT /verify — confirm verification with code
-callerIdRoutes.put('/verify', async (c) => {
+callerIdRoutes.put('/verify', callerIdVerifyRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -202,7 +203,7 @@ callerIdRoutes.put('/verify', async (c) => {
 })
 
 // DELETE /:id — remove caller ID
-callerIdRoutes.delete('/:id', async (c) => {
+callerIdRoutes.delete('/:id', callerIdRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)

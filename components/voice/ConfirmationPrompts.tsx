@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
@@ -56,27 +56,29 @@ interface ConfirmationPromptsProps {
 
 /**
  * ConfirmationPrompts - Guided Confirmation Capture
- * 
+ *
  * Per AI Role Policy (ARCH_DOCS/01-CORE/AI_ROLE_POLICY.md):
  * - Displays prompts to GUIDE the operator
  * - The OPERATOR asks the question (not AI)
  * - The CUSTOMER answers verbally
  * - The OPERATOR clicks to mark confirmed
- * 
+ *
  * "The operator asks the question, the customer answers, the operator marks it captured."
  */
 export function ConfirmationPrompts({
   callId,
   organizationId,
   callDuration,
-  templates = DEFAULT_CONFIRMATION_TEMPLATES.filter(t => t.isRequired || t.useCases.includes('general')),
+  templates = DEFAULT_CONFIRMATION_TEMPLATES.filter(
+    (t) => t.isRequired || t.useCases.includes('general')
+  ),
   onConfirmationCaptured,
   onConfirmationSkipped,
   isCallActive = true,
 }: ConfirmationPromptsProps) {
   // Initialize checklist from templates
   const [checklist, setChecklist] = useState<ConfirmationChecklistItem[]>(() =>
-    templates.map(template => ({
+    templates.map((template) => ({
       id: `${callId}-${template.id}`,
       template,
       status: 'pending' as ChecklistStatus,
@@ -113,8 +115,8 @@ export function ConfirmationPrompts({
       }
 
       // Update local state
-      setChecklist(prev =>
-        prev.map(item =>
+      setChecklist((prev) =>
+        prev.map((item) =>
           item.id === activeItem.id
             ? {
                 ...item,
@@ -153,8 +155,8 @@ export function ConfirmationPrompts({
       }
 
       // Update local state
-      setChecklist(prev =>
-        prev.map(item =>
+      setChecklist((prev) =>
+        prev.map((item) =>
           item.id === skipItem.id
             ? { ...item, status: 'skipped' as ChecklistStatus, notes: skipReason }
             : item
@@ -181,9 +183,11 @@ export function ConfirmationPrompts({
   }
 
   // Count stats
-  const confirmedCount = checklist.filter(i => i.status === 'confirmed').length
-  const requiredCount = checklist.filter(i => i.template.isRequired).length
-  const requiredConfirmed = checklist.filter(i => i.template.isRequired && i.status === 'confirmed').length
+  const confirmedCount = checklist.filter((i) => i.status === 'confirmed').length
+  const requiredCount = checklist.filter((i) => i.template.isRequired).length
+  const requiredConfirmed = checklist.filter(
+    (i) => i.template.isRequired && i.status === 'confirmed'
+  ).length
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -197,9 +201,7 @@ export function ConfirmationPrompts({
             {confirmedCount}/{checklist.length} Complete
           </Badge>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Ask the customer and mark when confirmed
-        </p>
+        <p className="text-xs text-gray-500 mt-1">Ask the customer and mark when confirmed</p>
       </div>
 
       {/* Checklist Items */}
@@ -211,16 +213,18 @@ export function ConfirmationPrompts({
               item.status === 'confirmed'
                 ? 'bg-green-50'
                 : item.status === 'skipped'
-                ? 'bg-yellow-50'
-                : 'bg-white hover:bg-gray-50'
+                  ? 'bg-yellow-50'
+                  : 'bg-white hover:bg-gray-50'
             }`}
           >
             <div className="flex items-start gap-3">
               {/* Status Icon */}
-              <div className={`
+              <div
+                className={`
                 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium
                 ${getStatusColor(item.status)}
-              `}>
+              `}
+              >
                 {getStatusIcon(item.status)}
               </div>
 
@@ -230,27 +234,26 @@ export function ConfirmationPrompts({
                   <span className="text-base">{item.template.icon}</span>
                   <span className="font-medium text-gray-900">{item.template.label}</span>
                   {item.template.isRequired && (
-                    <Badge variant="secondary" className="text-xs">Required</Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      Required
+                    </Badge>
                   )}
                 </div>
-                
+
                 {/* Prompt text - what to ask */}
-                <p className="text-sm text-gray-600 mt-1">
-                  {item.template.promptText}
-                </p>
+                <p className="text-sm text-gray-600 mt-1">{item.template.promptText}</p>
 
                 {/* Confirmed details */}
                 {item.status === 'confirmed' && item.recordingTimestamp !== undefined && (
                   <p className="text-xs text-green-700 mt-1">
-                    ✓ Confirmed by {CONFIRMER_ROLE_CONFIG[item.confirmerRole || 'customer'].label} at {formatTimestamp(item.recordingTimestamp)}
+                    ✓ Confirmed by {CONFIRMER_ROLE_CONFIG[item.confirmerRole || 'customer'].label}{' '}
+                    at {formatTimestamp(item.recordingTimestamp)}
                   </p>
                 )}
 
                 {/* Skipped reason */}
                 {item.status === 'skipped' && item.notes && (
-                  <p className="text-xs text-yellow-700 mt-1">
-                    Skipped: {item.notes}
-                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">Skipped: {item.notes}</p>
                 )}
               </div>
 
@@ -277,7 +280,11 @@ export function ConfirmationPrompts({
 
               {item.status !== 'pending' && (
                 <Badge className={getStatusColor(item.status)}>
-                  {item.status === 'confirmed' ? 'Confirmed' : item.status === 'skipped' ? 'Skipped' : item.status}
+                  {item.status === 'confirmed'
+                    ? 'Confirmed'
+                    : item.status === 'skipped'
+                      ? 'Skipped'
+                      : item.status}
                 </Badge>
               )}
             </div>
@@ -288,7 +295,8 @@ export function ConfirmationPrompts({
       {/* AI Role Reminder */}
       <div className="px-4 py-2 bg-blue-50 border-t border-blue-100">
         <p className="text-xs text-blue-700">
-          <strong>Reminder:</strong> You ask the question. The customer answers. You mark it confirmed.
+          <strong>Reminder:</strong> You ask the question. The customer answers. You mark it
+          confirmed.
         </p>
       </div>
 
@@ -307,7 +315,7 @@ export function ConfirmationPrompts({
               <div className="bg-gray-50 p-3 rounded-md">
                 <p className="text-sm text-gray-600">{activeItem.template.description}</p>
                 <p className="text-sm font-medium text-gray-900 mt-2">
-                  "{activeItem.template.promptText}"
+                  &quot;{activeItem.template.promptText}&quot;
                 </p>
               </div>
 
@@ -317,15 +325,16 @@ export function ConfirmationPrompts({
                   Who confirmed?
                 </label>
                 <div className="flex gap-2 flex-wrap">
-                  {(Object.keys(CONFIRMER_ROLE_CONFIG) as ConfirmerRole[]).map(role => (
+                  {(Object.keys(CONFIRMER_ROLE_CONFIG) as ConfirmerRole[]).map((role) => (
                     <button
                       key={role}
                       onClick={() => setConfirmerRole(role)}
                       className={`
                         px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                        ${confirmerRole === role
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ${
+                          confirmerRole === role
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }
                       `}
                     >

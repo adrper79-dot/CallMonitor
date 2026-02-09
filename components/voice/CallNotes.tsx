@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
 /**
  * Call Notes Component
- * 
+ *
  * Structured notes (checkboxes + short text) for calls
  * Per MASTER_ARCHITECTURE: Notes are structured, not freeform
- * 
+ *
  * Tags:
  * - Objection Raised
  * - Competitor Mentioned
@@ -19,7 +19,7 @@
  * - Technical Issue
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { CallNote, CallNoteTag, CALL_NOTE_TAGS, CALL_NOTE_TAG_LABELS } from '@/types/tier1-features'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -46,7 +46,7 @@ const TAG_COLORS: Record<CallNoteTag, string> = {
   compliance_issue: 'bg-pink-100 text-pink-800',
   quality_concern: 'bg-amber-100 text-amber-800',
   positive_feedback: 'bg-emerald-100 text-emerald-800',
-  technical_issue: 'bg-slate-100 text-slate-800'
+  technical_issue: 'bg-slate-100 text-slate-800',
 }
 
 export default function CallNotes({ callId, organizationId, readOnly = false }: CallNotesProps) {
@@ -62,7 +62,7 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
   useEffect(() => {
     async function fetchNotes() {
       if (!callId) return
-      
+
       setLoading(true)
       try {
         const data = await apiGet(`/api/calls/${callId}/notes`)
@@ -70,22 +70,18 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       } catch (err) {
         logger.error('CallNotes: failed to fetch notes', err, {
           callId,
-          organizationId
+          organizationId,
         })
       } finally {
         setLoading(false)
       }
     }
-    
+
     fetchNotes()
-  }, [callId])
+  }, [callId, organizationId])
 
   const toggleTag = (tag: CallNoteTag) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    )
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
   }
 
   const handleAddNote = async () => {
@@ -93,33 +89,33 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       toast({
         title: 'Error',
         description: 'Please select at least one tag',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
-    
+
     setSaving(true)
     try {
       const data = await apiPost(`/api/calls/${callId}/notes`, {
         tags: selectedTags,
-        note: noteText || null
+        note: noteText || null,
       })
-      setNotes(prev => [data.note, ...prev])
-      
+      setNotes((prev) => [data.note, ...prev])
+
       // Reset form
       setSelectedTags([])
       setNoteText('')
       setShowAddForm(false)
-      
+
       toast({
         title: 'Note added',
-        description: 'Your note has been saved'
+        description: 'Your note has been saved',
       })
     } catch (err: any) {
       toast({
         title: 'Error',
         description: err.message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
     } finally {
       setSaving(false)
@@ -143,11 +139,7 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       <div className="px-4 py-3 border-b border-[#E5E5E5] flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[#333333]">📌 Call Notes</h3>
         {!readOnly && !showAddForm && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowAddForm(true)}
-          >
+          <Button size="sm" variant="outline" onClick={() => setShowAddForm(true)}>
             + Add Note
           </Button>
         )}
@@ -157,19 +149,20 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       {showAddForm && !readOnly && (
         <div className="p-4 bg-[#FAFAFA] border-b border-[#E5E5E5]">
           <p className="text-xs text-[#666666] mb-3">Select applicable tags:</p>
-          
+
           {/* Tags Grid */}
           <div className="flex flex-wrap gap-2 mb-3">
-            {CALL_NOTE_TAGS.map(tag => (
+            {CALL_NOTE_TAGS.map((tag) => (
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
                 disabled={saving}
                 className={`
                   px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                  ${selectedTags.includes(tag)
-                    ? `${TAG_COLORS[tag]} ring-2 ring-offset-1 ring-[#C4001A]`
-                    : 'bg-white text-[#666666] border border-[#E5E5E5] hover:bg-[#F5F5F5]'
+                  ${
+                    selectedTags.includes(tag)
+                      ? `${TAG_COLORS[tag]} ring-2 ring-offset-1 ring-[#C4001A]`
+                      : 'bg-white text-[#666666] border border-[#E5E5E5] hover:bg-[#F5F5F5]'
                   }
                 `}
               >
@@ -181,13 +174,15 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
           {/* Note Text */}
           <Textarea
             value={noteText}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNoteText(e.target.value.slice(0, 500))}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setNoteText(e.target.value.slice(0, 500))
+            }
             placeholder="Add optional note text..."
             className="text-sm resize-none mb-2"
             rows={2}
             disabled={saving}
           />
-          
+
           <div className="flex items-center justify-between">
             <span className="text-xs text-[#999999]">{noteText.length}/500</span>
             <div className="flex space-x-2">
@@ -218,29 +213,22 @@ export default function CallNotes({ callId, organizationId, readOnly = false }: 
       {/* Notes List */}
       <div className="divide-y divide-[#E5E5E5]">
         {notes.length === 0 ? (
-          <div className="p-4 text-center text-sm text-[#666666]">
-            No notes yet
-          </div>
+          <div className="p-4 text-center text-sm text-[#666666]">No notes yet</div>
         ) : (
-          notes.map(note => (
+          notes.map((note) => (
             <div key={note.id} className="p-4">
               {/* Tags */}
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {note.tags.map(tag => (
-                  <Badge 
-                    key={tag} 
-                    className={`${TAG_COLORS[tag as CallNoteTag]} text-xs`}
-                  >
+                {note.tags.map((tag) => (
+                  <Badge key={tag} className={`${TAG_COLORS[tag as CallNoteTag]} text-xs`}>
                     {CALL_NOTE_TAG_LABELS[tag as CallNoteTag]}
                   </Badge>
                 ))}
               </div>
-              
+
               {/* Note text */}
-              {note.note && (
-                <p className="text-sm text-[#333333] mb-2">{note.note}</p>
-              )}
-              
+              {note.note && <p className="text-sm text-[#333333] mb-2">{note.note}</p>}
+
               {/* Metadata */}
               <div className="flex items-center text-xs text-[#999999]">
                 <ClientDate date={note.created_at} format="short" />

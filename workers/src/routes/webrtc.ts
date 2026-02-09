@@ -12,6 +12,7 @@ import { validateBody } from '../lib/validate'
 import { WebRTCDialSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { getTranslationConfig } from '../lib/translation-processor'
 
 export const webrtcRoutes = new Hono<AppEnv>()
 
@@ -257,20 +258,39 @@ webrtcRoutes.post('/dial', async (c) => {
     const callId = callResult.rows[0].id
 
     // Initiate call via Telnyx Call Control API
+    // Check if live translation is enabled — if so, enable Telnyx real-time transcription
+    const translationConfig = await getTranslationConfig(db, session.organization_id)
+    const enableTranscription = translationConfig?.live_translate === true
+
+    const callPayload: Record<string, unknown> = {
+      connection_id: c.env.TELNYX_CONNECTION_ID,
+      to: phone_number,
+      from: c.env.TELNYX_NUMBER,
+      webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}`,
+      record: 'record-from-answer',
+      timeout_secs: 30,
+    }
+
+    // Enable Telnyx real-time transcription for live translation pipeline
+    if (enableTranscription) {
+      callPayload.transcription = {
+        transcription_engine: 'B',
+        transcription_tracks: 'both',
+      }
+      logger.info('Live translation enabled for WebRTC call', {
+        callId,
+        from: translationConfig!.translate_from,
+        to: translationConfig!.translate_to,
+      })
+    }
+
     const telnyxResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        connection_id: c.env.TELNYX_CONNECTION_ID,
-        to: phone_number,
-        from: c.env.TELNYX_NUMBER,
-        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}`,
-        record: 'record-from-answer',
-        timeout_secs: 30,
-      }),
+      body: JSON.stringify(callPayload),
     })
 
     if (!telnyxResponse.ok) {

@@ -3,15 +3,15 @@ import path from 'path'
 
 /**
  * Vitest config for Production Integration Tests
- * 
+ *
  * NO MOCKS - uses real database, API, and services.
  * Run with: npm run test:production
  */
 export default defineConfig({
   resolve: {
     alias: {
-      '@': path.resolve(__dirname)
-    }
+      '@': path.resolve(__dirname),
+    },
   },
   test: {
     globals: true,
@@ -25,9 +25,11 @@ export default defineConfig({
     clearMocks: false,
     restoreMocks: false,
     env: {
-      NODE_ENV: 'production'
+      NODE_ENV: 'production',
     },
-    testTimeout: 60000,
-    hookTimeout: 30000,
-  }
+    testTimeout: 120000,
+    hookTimeout: 60000,
+    // Run test files sequentially to avoid rate limit storms
+    fileParallelism: false,
+  },
 })

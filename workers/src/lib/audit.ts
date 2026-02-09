@@ -98,6 +98,10 @@ export const AuditAction = {
   CALL_OUTCOME_DECLARED: 'call:outcome_declared',
   CALL_OUTCOME_UPDATED: 'call:outcome_updated',
   CALL_DISPOSITION_SET: 'call:disposition_set',
+  CALL_NOTE_CREATED: 'call:note_created',
+  CALL_CONFIRMATION_CREATED: 'call:confirmation_created',
+  CALL_EMAILED: 'call:emailed',
+  CALL_AI_SUMMARY_GENERATED: 'call:ai_summary_generated',
 
   // Recordings
   RECORDING_ACCESSED: 'recording:accessed',
@@ -134,6 +138,11 @@ export const AuditAction = {
   // Auth
   SESSION_CREATED: 'auth:login',
   SESSION_REVOKED: 'auth:logout',
+  USER_SIGNUP: 'auth:signup',
+  SESSION_REFRESHED: 'auth:session_refreshed',
+  PASSWORD_RESET_REQUESTED: 'auth:password_reset_requested',
+  PASSWORD_RESET_COMPLETED: 'auth:password_reset_completed',
+  API_KEY_VALIDATED: 'auth:api_key_validated',
 
   // Scorecards
   SCORECARD_CREATED: 'scorecard:created',
@@ -200,4 +209,41 @@ export const AuditAction = {
 
   // Reliability
   WEBHOOK_ACTION_TAKEN: 'reliability:webhook_action_taken',
+
+  // Collections CRM
+  COLLECTION_ACCOUNT_CREATED: 'collection:account_created',
+  COLLECTION_ACCOUNT_UPDATED: 'collection:account_updated',
+  COLLECTION_ACCOUNT_DELETED: 'collection:account_deleted',
+  COLLECTION_PAYMENT_CREATED: 'collection:payment_created',
+  COLLECTION_TASK_CREATED: 'collection:task_created',
+  COLLECTION_TASK_UPDATED: 'collection:task_updated',
+  COLLECTION_TASK_DELETED: 'collection:task_deleted',
+  COLLECTION_CSV_IMPORTED: 'collection:csv_imported',
+
+  // Sentiment & Objection Detection (v5.0)
+  SENTIMENT_ANALYZED: 'sentiment:analyzed',
+  SENTIMENT_ALERT_TRIGGERED: 'sentiment:alert_triggered',
+  OBJECTION_DETECTED: 'sentiment:objection_detected',
+
+  // Hybrid AI Toggle (v5.0)
+  AI_MODE_ACTIVATED: 'ai_mode:activated',
+  AI_MODE_HUMAN_TAKEOVER: 'ai_mode:human_takeover',
+  AI_SCRIPT_EXECUTED: 'ai_mode:script_executed',
+
+  // Predictive Dialer (v5.0)
+  DIALER_QUEUE_STARTED: 'dialer:queue_started',
+  DIALER_QUEUE_PAUSED: 'dialer:queue_paused',
+  DIALER_CALL_CONNECTED: 'dialer:call_connected',
+  DIALER_AMD_DETECTED: 'dialer:amd_detected',
+
+  // IVR Payments (v5.0)
+  IVR_FLOW_STARTED: 'ivr:flow_started',
+  IVR_PAYMENT_INITIATED: 'ivr:payment_initiated',
+  IVR_PAYMENT_COMPLETED: 'ivr:payment_completed',
+  IVR_PAYMENT_FAILED: 'ivr:payment_failed',
+  IVR_DTMF_COLLECTED: 'ivr:dtmf_collected',
+
+  // Multi-Language (v5.0)
+  LANGUAGE_DETECTED: 'language:detected',
+  TRANSLATION_CONFIG_UPDATED: 'translation:config_updated',
 } as const

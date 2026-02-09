@@ -121,7 +121,7 @@ export function CallingModeSelector({
 
       {mode === 'browser' && (
         <p className="mt-2 text-xs text-gray-500">
-          Browser calling uses your computer's microphone and speakers. Make sure to grant
+          Browser calling uses your computer&apos;s microphone and speakers. Make sure to grant
           microphone permission when prompted.
         </p>
       )}

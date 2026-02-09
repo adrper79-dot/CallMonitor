@@ -95,7 +95,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
     }
 
     console.info('[WebRTCCallControls] Attempting call with:', {
-      phoneNumber: targetNumber,
+      phoneNumber: targetNumber ? `***${targetNumber.slice(-4)}` : 'none',
       hasValidNumber,
     })
 
@@ -152,7 +152,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
             </div>
             <h3 className="text-sm font-medium text-gray-900 mb-1">Browser Calling</h3>
             <p className="text-xs text-gray-500 mb-4">
-              Connect to enable calling from your browser using your computer's microphone.
+              Connect to enable calling from your browser using your computer&apos;s microphone.
             </p>
           </div>
 

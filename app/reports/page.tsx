@@ -13,7 +13,7 @@ import { useSession } from '@/components/AuthProvider'
 import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { apiGet, apiPost } from '@/lib/apiClient'
+import { apiGet, apiPost, resolveApiUrl } from '@/lib/apiClient'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -119,7 +119,7 @@ export default function ReportsPage() {
   }
 
   const handleDownload = (reportId: string, format: string) => {
-    window.open(`/api/reports/${reportId}/export?format=${format}`, '_blank')
+    window.open(resolveApiUrl(`/api/reports/${reportId}/export?format=${format}`), '_blank')
   }
 
   const getStatusBadge = (status: GeneratedReport['status']) => {

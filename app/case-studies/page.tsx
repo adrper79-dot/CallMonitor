@@ -77,13 +77,13 @@ export default function CaseStudiesPage() {
             </div>
 
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Medical Practice Ends 50 "No-Show" Disputes
+              Medical Practice Ends 50 &quot;No-Show&quot; Disputes
             </h2>
 
             <p className="text-lg text-gray-700 mb-8">
               A 12-provider family practice was losing $15,000/month to disputed appointment
-              confirmations and "I never agreed to that" billing conflicts. Word Is Bond eliminated
-              the problem.
+              confirmations and &quot;I never agreed to that&quot; billing conflicts. Word Is Bond
+              eliminated the problem.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -114,7 +114,7 @@ export default function CaseStudiesPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">•</span>
-                  <span>Insurance verification "he-said/she-said" situations</span>
+                  <span>Insurance verification &quot;he-said/she-said&quot; situations</span>
                 </li>
               </ul>
 
@@ -135,9 +135,9 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-blue-600 pl-4 italic text-gray-700">
-                "We went from 40-50 no-show disputes per month to less than 3. Patients now know we
-                have the recording, and suddenly they 'remember' the conversation. ROI in the first
-                month."
+                &quot;We went from 40-50 no-show disputes per month to less than 3. Patients now
+                know we have the recording, and suddenly they &apos;remember&apos; the conversation.
+                ROI in the first month.&quot;
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Dr. Sarah Chen, Practice Administrator</p>
             </div>
@@ -161,8 +161,9 @@ export default function CaseStudiesPage() {
             </h2>
 
             <p className="text-lg text-gray-700 mb-8">
-              A 5-attorney immigration firm faced a $250,000 malpractice claim alleging "improper
-              advice." Word Is Bond's evidence bundle led to immediate dismissal.
+              A 5-attorney immigration firm faced a $250,000 malpractice claim alleging
+              &quot;improper advice.&quot; Word Is Bond&apos;s evidence bundle led to immediate
+              dismissal.
             </p>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -214,8 +215,9 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-purple-600 pl-4 italic text-gray-700">
-                "The transcript was crystal clear: we gave the correct advice, the client
-                misunderstood. Case dismissed within 30 days. Word Is Bond just saved our practice."
+                &quot;The transcript was crystal clear: we gave the correct advice, the client
+                misunderstood. Case dismissed within 30 days. Word Is Bond just saved our
+                practice.&quot;
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Michael Rodriguez, Managing Partner</p>
             </div>
@@ -267,7 +269,7 @@ export default function CaseStudiesPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">•</span>
-                  <span>Maintenance request "I called 3 times!" conflicts</span>
+                  <span>Maintenance request &quot;I called 3 times!&quot; conflicts</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">•</span>
@@ -292,8 +294,8 @@ export default function CaseStudiesPage() {
               </ul>
 
               <blockquote className="border-l-4 border-green-600 pl-4 italic text-gray-700">
-                "Disputes resolve in minutes now. We pull the recording, show the tenant, done. No
-                more 3-hour back-and-forth arguments. This pays for itself monthly."
+                &quot;Disputes resolve in minutes now. We pull the recording, show the tenant, done.
+                No more 3-hour back-and-forth arguments. This pays for itself monthly.&quot;
               </blockquote>
               <p className="text-sm text-gray-600 mt-2">— Jennifer Martinez, Regional Manager</p>
             </div>

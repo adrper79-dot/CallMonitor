@@ -20,7 +20,7 @@ import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
-import { CheckoutSchema } from '../lib/schemas'
+import { CheckoutSchema, ChangePlanSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
@@ -307,8 +307,8 @@ billingRoutes.get('/invoices', async (c) => {
 
   const db = getDb(c.env)
   try {
-    const page = parseInt(c.req.query('page') || '1')
-    const limit = parseInt(c.req.query('limit') || '20')
+    const page = Math.max(1, parseInt(c.req.query('page') || '1'))
+    const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
     const offset = (page - 1) * limit
 
     const invoices = await db.query(
@@ -644,10 +644,9 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
     return c.json({ error: 'Stripe not configured' }, 503)
   }
 
-  const body = await c.req.json<{ priceId: string; planId?: string }>()
-  if (!body.priceId) {
-    return c.json({ error: 'priceId is required' }, 400)
-  }
+  const parsed = await validateBody(c, ChangePlanSchema)
+  if (!parsed.success) return parsed.response
+  const { priceId, planId } = parsed.data
 
   const db = getDb(c.env)
   try {
@@ -687,7 +686,7 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
       },
       body: new URLSearchParams({
         [`items[0][id]`]: itemId,
-        [`items[0][price]`]: body.priceId,
+        [`items[0][price]`]: priceId,
         proration_behavior: 'create_prorations',
       }),
     })
@@ -699,9 +698,9 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
     }
 
     // Update local plan_id
-    if (body.planId) {
+    if (planId) {
       await db.query('UPDATE organizations SET plan_id = $1 WHERE id = $2', [
-        body.planId,
+        planId,
         session.organization_id,
       ])
     }
@@ -713,7 +712,7 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
       resourceId: subscriptionId,
       action: AuditAction.SUBSCRIPTION_UPDATED,
       before: { plan_id: oldPlanId },
-      after: { plan_id: body.planId, price_id: body.priceId },
+      after: { plan_id: planId, price_id: priceId },
     })
 
     return c.json({ success: true, message: 'Plan changed successfully' })

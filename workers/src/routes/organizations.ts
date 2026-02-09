@@ -6,11 +6,12 @@ import { validateBody } from '../lib/validate'
 import { CreateOrgSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { orgRateLimit } from '../lib/rate-limit'
 
 export const organizationsRoutes = new Hono<AppEnv>()
 
 // Create a new organization
-organizationsRoutes.post('/', async (c) => {
+organizationsRoutes.post('/', orgRateLimit, async (c) => {
   // Authenticate
   const session = await requireAuth(c)
   if (!session) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -62,7 +62,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
   })
   const [newOption, setNewOption] = useState('')
 
-  const fetchSurveys = async () => {
+  const fetchSurveys = useCallback(async () => {
     if (!organizationId) return
 
     try {
@@ -84,11 +84,11 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     fetchSurveys()
-  }, [organizationId])
+  }, [fetchSurveys])
 
   const handleNewSurvey = () => {
     setEditingSurvey({
@@ -542,7 +542,7 @@ export default function SurveyBuilder({ organizationId }: SurveyBuilderProps) {
             <strong>Analytics:</strong> Results appear in call artifacts and dashboard
           </li>
           <li>
-            <strong>Scale Questions:</strong> "Rate 1 to 5" with voice recognition
+            <strong>Scale Questions:</strong> &quot;Rate 1 to 5&quot; with voice recognition
           </li>
           <li>
             <strong>Text Questions:</strong> Open-ended responses transcribed

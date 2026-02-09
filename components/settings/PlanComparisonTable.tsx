@@ -1,20 +1,20 @@
+'use client'
+
 /**
  * Plan Comparison Table Component
- * 
+ *
  * Interactive pricing table showing Free vs Pro plans with features.
  * Helps users understand benefits of upgrading.
- * 
+ *
  * Features:
  * - Side-by-side plan comparison
  * - Feature checkmarks and badges
  * - Upgrade CTA for free users
  * - Current plan indicator
  * - Responsive design
- * 
+ *
  * @module components/settings/PlanComparisonTable
  */
-
-'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -65,7 +65,7 @@ const features: PlanFeature[] = [
 export function PlanComparisonTable({
   currentPlan,
   organizationId,
-  role
+  role,
 }: PlanComparisonTableProps) {
   const router = useRouter()
   const [upgrading, setUpgrading] = useState(false)
@@ -83,7 +83,7 @@ export function PlanComparisonTable({
 
       const { url } = await apiPost<{ url: string }>('/api/billing/checkout', {
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
-        organizationId
+        organizationId,
       })
       window.location.href = url
     } catch (err: any) {
@@ -109,16 +109,12 @@ export function PlanComparisonTable({
     <Card>
       <CardHeader>
         <CardTitle>Compare Plans</CardTitle>
-        <CardDescription>
-          Choose the plan that best fits your needs
-        </CardDescription>
+        <CardDescription>Choose the plan that best fits your needs</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
 
           {/* Plan Headers */}
@@ -129,9 +125,7 @@ export function PlanComparisonTable({
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Free</CardTitle>
-                  {currentPlan === 'free' && (
-                    <Badge variant="secondary">Current</Badge>
-                  )}
+                  {currentPlan === 'free' && <Badge variant="secondary">Current</Badge>}
                 </div>
                 <div className="mt-2">
                   <div className="text-3xl font-bold">$0</div>
@@ -148,9 +142,7 @@ export function PlanComparisonTable({
                     <CardTitle className="text-lg">Pro</CardTitle>
                     <Crown className="h-5 w-5 text-yellow-500" />
                   </div>
-                  {currentPlan === 'pro' && (
-                    <Badge>Current</Badge>
-                  )}
+                  {currentPlan === 'pro' && <Badge>Current</Badge>}
                 </div>
                 <div className="mt-2">
                   <div className="text-3xl font-bold">$99</div>
@@ -164,10 +156,7 @@ export function PlanComparisonTable({
           <div className="rounded-lg border">
             <div className="divide-y">
               {features.map((feature, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-3 gap-4 p-4 hover:bg-muted/50"
-                >
+                <div key={index} className="grid grid-cols-3 gap-4 p-4 hover:bg-muted/50">
                   <div className="flex items-center">
                     <span className="text-sm font-medium">{feature.name}</span>
                   </div>
@@ -193,8 +182,8 @@ export function PlanComparisonTable({
                   <div className="flex-1">
                     <h3 className="font-semibold">Unlock Pro Features</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Upgrade to Pro for unlimited calls, advanced analytics, campaign
-                      management, and priority support.
+                      Upgrade to Pro for unlimited calls, advanced analytics, campaign management,
+                      and priority support.
                     </p>
                     <Button
                       onClick={handleUpgrade}

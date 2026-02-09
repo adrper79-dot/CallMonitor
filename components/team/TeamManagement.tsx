@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -61,11 +61,7 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
   const [inviting, setInviting] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchTeam()
-  }, [organizationId])
-
-  async function fetchTeam() {
+  const fetchTeam = useCallback(async () => {
     if (!organizationId) return
 
     try {
@@ -84,7 +80,11 @@ export default function TeamManagement({ organizationId }: TeamManagementProps) 
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchTeam()
+  }, [fetchTeam])
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()

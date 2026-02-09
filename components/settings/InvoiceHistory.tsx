@@ -1,29 +1,23 @@
+'use client'
+
 /**
  * Invoice History Component
- * 
+ *
  * Displays past invoices with download links.
  * RBAC: Owner/Admin only
- * 
+ *
  * Features:
  * - Paginated invoice list
  * - Status badges (paid, open, draft, void)
  * - Download PDF links
  * - Amount and date formatting
  * - Empty state for no invoices
- * 
+ *
  * @module components/settings/InvoiceHistory
  */
 
-'use client'
-
-import { useState, useEffect } from 'react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -65,18 +59,14 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
   const pageSize = 10
   const canView = role === 'owner' || role === 'admin'
 
-  useEffect(() => {
-    if (canView) {
-      fetchInvoices()
-    }
-  }, [organizationId, page, canView])
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const data = await apiGet(`/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`)
+      const data = await apiGet(
+        `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`
+      )
       setInvoices(data.invoices || [])
       setHasMore(data.hasMore || false)
     } catch (err) {
@@ -85,7 +75,13 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId, page, pageSize])
+
+  useEffect(() => {
+    if (canView) {
+      fetchInvoices()
+    }
+  }, [canView, fetchInvoices])
 
   const getStatusBadge = (status: Invoice['status']) => {
     const variants = {
@@ -110,7 +106,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
         <CardContent>
           <div className="rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              You don't have permission to view invoices
+              You don&apos;t have permission to view invoices
             </p>
           </div>
         </CardContent>
@@ -141,9 +137,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       <CardContent>
         <div className="space-y-4">
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
 
           {invoices.length === 0 ? (
@@ -177,7 +171,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
                           {formatDate(invoice.created, {
                             year: 'numeric',
                             month: 'short',
-                            day: 'numeric'
+                            day: 'numeric',
                           })}
                         </TableCell>
                         <TableCell>
@@ -186,11 +180,7 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
                         <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                         <TableCell className="text-right">
                           {invoice.invoice_pdf && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              asChild
-                            >
+                            <Button variant="ghost" size="sm" asChild>
                               <a
                                 href={invoice.invoice_pdf}
                                 target="_blank"

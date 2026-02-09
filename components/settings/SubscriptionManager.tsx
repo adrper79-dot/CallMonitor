@@ -1,22 +1,22 @@
+'use client'
+
 /**
  * Subscription Manager Component
- * 
+ *
  * Displays current subscription details with plan management.
  * RBAC: Owner/Admin only
- * 
+ *
  * Features:
  * - Subscription plan display
  * - Status badges (active, past_due, canceled, trialing)
  * - Renewal date or cancellation date
  * - Upgrade/downgrade actions
  * - Cancellation flow with confirmation
- * 
+ *
  * @module components/settings/SubscriptionManager
  */
 
-'use client'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -74,15 +74,13 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
 
   const canManage = role === 'owner' || role === 'admin'
 
-  useEffect(() => {
-    fetchSubscription()
-  }, [organizationId])
-
-  const fetchSubscription = async () => {
+  const fetchSubscription = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await apiGet<{ subscription: Subscription }>(`/api/billing/subscription?orgId=${organizationId}`)
+      const data = await apiGet<{ subscription: Subscription }>(
+        `/api/billing/subscription?orgId=${organizationId}`
+      )
       setSubscription(data.subscription)
     } catch (err: any) {
       if (err.status === 404) {
@@ -95,7 +93,11 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchSubscription()
+  }, [fetchSubscription])
 
   const handleUpgrade = async () => {
     if (!canManage) return
@@ -106,7 +108,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
 
       const { url } = await apiPost<{ url: string }>('/api/billing/checkout', {
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID,
-        organizationId
+        organizationId,
       })
       window.location.href = url
     } catch (err: any) {
@@ -193,16 +195,14 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
       <Card>
         <CardHeader>
           <CardTitle>Subscription</CardTitle>
-          <CardDescription>You're currently on the Free plan</CardDescription>
+          <CardDescription>You&apos;re currently on the Free plan</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold">Free Plan</p>
-                <p className="text-sm text-muted-foreground">
-                  10 calls/month • Basic features
-                </p>
+                <p className="text-sm text-muted-foreground">10 calls/month • Basic features</p>
               </div>
               <Badge variant="secondary">Free</Badge>
             </div>
@@ -215,11 +215,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
           </div>
         </CardContent>
         <CardFooter>
-          <Button
-            onClick={handleUpgrade}
-            disabled={!canManage || upgrading}
-            className="w-full"
-          >
+          <Button onClick={handleUpgrade} disabled={!canManage || upgrading} className="w-full">
             {upgrading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -258,8 +254,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Amount</span>
               <span className="text-sm font-semibold">
-                {formatCurrency(subscription.amount, subscription.currency)}/
-                {subscription.interval}
+                {formatCurrency(subscription.amount, subscription.currency)}/{subscription.interval}
               </span>
             </div>
           </div>
@@ -300,9 +295,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
           </div>
 
           {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
         </div>
       </CardContent>
@@ -329,10 +322,7 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
         {!subscription.cancel_at_period_end && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                variant="destructive"
-                disabled={!canManage || canceling}
-              >
+              <Button variant="destructive" disabled={!canManage || canceling}>
                 {canceling ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -347,9 +337,9 @@ export function SubscriptionManager({ organizationId, role }: SubscriptionManage
               <AlertDialogHeader>
                 <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to cancel your subscription? You'll continue to have
-                  access until {formatDate(subscription.current_period_end)}, then your plan
-                  will revert to Free.
+                  Are you sure you want to cancel your subscription? You&apos;ll continue to have
+                  access until {formatDate(subscription.current_period_end)}, then your plan will
+                  revert to Free.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
