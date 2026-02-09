@@ -119,6 +119,8 @@ export async function verifySession(
     }
   } catch (error: any) {
     // Don't throw - just return null so routes can return 401
+    // CRITICAL: Log the error so silent failures are visible in production
+    console.error('[verifySession] Session verification failed:', error?.message || error)
     return null
   } finally {
     await db.end()

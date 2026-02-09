@@ -656,7 +656,7 @@ authRoutes.post('/reset-password', forgotPasswordRateLimit, async (c) => {
 // Unlike raw SHA-256, PBKDF2 applies key stretching (120,000 rounds) making
 // brute-force attacks ~120,000x slower per guess.
 
-const PBKDF2_ITERATIONS = 120_000
+const PBKDF2_ITERATIONS = 100_000
 const PBKDF2_HASH = 'SHA-256'
 const SALT_BYTES = 32
 const KEY_BYTES = 32
