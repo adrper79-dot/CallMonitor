@@ -2,7 +2,62 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Applicable Versions:** v4.8 – v4.28
+**Applicable Versions:** v4.8 – v4.29
+
+---
+
+## 🔴 CRITICAL — Production DB Missing 22 Columns in `calls` Table (v4.29 — Silent Call Failure)
+
+**The `calls` table in production was created from an older schema missing 22 columns, so `POST /calls/start` INSERT silently failed — no call was ever recorded.**
+
+### The Bug
+
+The route handler in `calls.ts` uses `INSERT INTO calls (..., caller_id_used, ...)` and later `UPDATE calls SET call_control_id = $1 ...`. Neither column existed in the production `calls` table. The INSERT threw a Postgres error, the error was caught and returned as a generic 500, and the call was never recorded. Because no call record existed, Telnyx webhooks for transcription/translation couldn't match by `call_control_id`, so the entire downstream pipeline (recording, transcription, translation) was dead.
+
+### Why It's Insidious
+
+- The call placement to Telnyx may have actually succeeded (Telnyx got the API request), but the INSERT to record it failed → orphaned call with no DB record
+- The webhook fix from the prior session (fail-open on `TELNYX_WEBHOOK_SECRET`) was **necessary but not sufficient** — the root cause was upstream
+- 0 calls, 0 audit logs, 0 translations — everything looked "clean" but was actually completely broken
+- Missing columns were: `caller_id_used`, `call_control_id`, `recording_url`, `transcript`, `transcript_status`, `transcript_id`, `ai_summary`, `disposition_set_at`, `disposition_set_by`, `consent_method`, `consent_timestamp`, `consent_audio_offset_ms`, `disclosure_type`, `disclosure_given`, `disclosure_timestamp`, `disclosure_text`, `deleted_by`, `is_authoritative`, `immutability_policy`, `custody_status`, `retention_class`, `evidence_completeness`
+
+### Prevention
+
+1. **Always validate production schema against the INSERT/UPDATE statements** — if code references a column, it must exist in production
+2. Keep a master migration checklist: when adding columns to SQL in route handlers, add them to a migration file AND apply to production
+3. Use `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for safety in migrations
+4. After deploying any schema changes, make a **test call** immediately to confirm the full pipeline works
+
+### Resolution
+
+Applied migration `migrations/2026-02-09-calls-missing-columns.sql` — 22 `ALTER TABLE ADD COLUMN IF NOT EXISTS` statements + 2 indexes (`idx_calls_call_control_id`, `idx_calls_call_sid`).
+
+---
+
+## 🟡 IMPORTANT — Fixed Navigation Overlapping Full-Height Layouts (v4.29 — Desktop Overflow)
+
+**`Navigation.tsx` is `fixed top-0 h-20 z-40` (80px). Any page using `h-screen` without `pt-20` will have its bottom 80px clipped below the viewport.**
+
+### The Bug
+
+`VoiceOperationsClient` root div used `h-screen` (100vh) but the fixed navigation bar covers the top 80px. This meant the 3-column desktop layout's bottom 80px was pushed below the visible viewport. The Activity Feed and Call List scrollable areas were cut off. Prior fixes (shrink-0, min-w-0, max-w-3xl on the main area) addressed secondary issues but missed the primary cause.
+
+### Why It's Insidious
+
+- Other pages use `AppShell` (which has `lg:pl-64` sidebar layout with `min-h-screen`) and don't hit this bug
+- The Voice Operations page has its own custom layout (`h-screen` 3-column) and doesn't use `AppShell`
+- The overflow is exactly 80px, so most of the page looks fine — only the bottom is clipped
+- On smaller screens, the bottom nav covers the clipped area, masking the problem
+
+### Prevention
+
+1. Any page using `h-screen` or `100vh` MUST add `pt-20` to account for the fixed `Navigation` component
+2. Consider standardizing on `AppShell` for all authenticated pages to avoid this class of bug
+3. When a layout issue is reported, always check the relationship between fixed/sticky elements and the page container height first
+
+### Resolution
+
+Added `pt-20` to VoiceOperationsClient root div: `<div className="flex flex-col h-screen pt-20 bg-gray-50">`.
 
 ---
 

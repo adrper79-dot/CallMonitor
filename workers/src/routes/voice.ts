@@ -302,7 +302,7 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     }
 
     // Add webhook URL for call status updates
-    const webhookUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordisbond-api.adrper79.workers.dev'
+    const webhookUrl = c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'
     callPayload.webhook_url = `${webhookUrl}/api/webhooks/telnyx`
     callPayload.webhook_url_method = 'POST'
 

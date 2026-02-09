@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import React, { useEffect, useState } from 'react'
 import { useRealtime, usePolling } from '@/hooks/useRealtime'
@@ -25,15 +25,15 @@ export interface ActivityFeedEmbedProps {
 
 /**
  * ActivityFeedEmbed - Professional Design System v3.0
- * 
+ *
  * Clean activity feed with minimal decoration.
  * No emojis, subtle status indicators.
  */
-export default function ActivityFeedEmbed({ 
-  callId, 
-  organizationId, 
-  limit = 10, 
-  events: initialEvents 
+export default function ActivityFeedEmbed({
+  callId,
+  organizationId,
+  limit = 10,
+  events: initialEvents,
 }: ActivityFeedEmbedProps) {
   const [events, setEvents] = useState<ActivityEvent[]>(initialEvents || [])
   const [filter, setFilter] = useState<string>('all')
@@ -44,7 +44,9 @@ export default function ActivityFeedEmbed({
     async () => {
       if (!organizationId) return []
       try {
-        const data = await apiGet(`/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`)
+        const data = await apiGet(
+          `/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`
+        )
         return data.events || []
       } catch (error: any) {
         if (error.status === 401) return []
@@ -59,7 +61,12 @@ export default function ActivityFeedEmbed({
     if (!updates.length) return
 
     updates.forEach((update) => {
-      if (update.table === 'audit_logs' || update.table === 'calls' || update.table === 'recordings' || update.table === 'ai_runs') {
+      if (
+        update.table === 'audit_logs' ||
+        update.table === 'calls' ||
+        update.table === 'recordings' ||
+        update.table === 'ai_runs'
+      ) {
         const row = update.data as any
         const event: ActivityEvent = {
           id: row?.id || `event-${Date.now()}`,
@@ -99,8 +106,8 @@ export default function ActivityFeedEmbed({
   }
 
   return (
-    <section aria-label="Activity feed" className="w-full">
-      <div className="flex items-center justify-between mb-3">
+    <section aria-label="Activity feed" className="w-full h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <h3 className="text-sm font-semibold text-gray-900">Activity</h3>
         {!connected && (
           <span className="text-xs text-warning" aria-label="Real-time disconnected">
@@ -111,7 +118,7 @@ export default function ActivityFeedEmbed({
 
       {/* Filters */}
       {!callId && (
-        <div className="flex gap-1 mb-3">
+        <div className="flex gap-1 mb-3 shrink-0">
           <Button
             variant={filter === 'all' ? 'secondary' : 'ghost'}
             size="sm"
@@ -144,11 +151,9 @@ export default function ActivityFeedEmbed({
       </div>
 
       {/* Event List */}
-      <div className="max-h-[60vh] overflow-y-auto">
+      <div className="flex-1 overflow-y-auto">
         {filteredEvents.length === 0 ? (
-          <div className="py-8 text-center text-sm text-gray-400">
-            No recent activity
-          </div>
+          <div className="py-8 text-center text-sm text-gray-400">No recent activity</div>
         ) : (
           <ul className="space-y-2">
             {filteredEvents.map((evt) => (
@@ -173,10 +178,13 @@ export default function ActivityFeedEmbed({
                   </div>
                   <Badge
                     variant={
-                      evt.status === 'error' ? 'error' :
-                      evt.status === 'warning' ? 'warning' :
-                      evt.status === 'success' ? 'success' :
-                      'default'
+                      evt.status === 'error'
+                        ? 'error'
+                        : evt.status === 'warning'
+                          ? 'warning'
+                          : evt.status === 'success'
+                            ? 'success'
+                            : 'default'
                     }
                   >
                     {evt.status || 'info'}

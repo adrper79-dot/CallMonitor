@@ -170,8 +170,8 @@ export default function VoiceOperationsClient({
     <VoiceConfigProvider organizationId={organizationId}>
       <WebRTCProvider organizationId={organizationId}>
         <TargetNumberProvider>
-          <div className="flex flex-col h-screen bg-gray-50">
-            {/* Header */}
+          <div className="flex flex-col h-screen pt-20 bg-gray-50">
+            {/* Header — pt-20 offsets the fixed Navigation (h-20 / 80px) */}
             <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
 
             {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
@@ -312,7 +312,7 @@ export default function VoiceOperationsClient({
 
               {/* Right Rail - Activity Feed (280px) */}
               <aside
-                className="w-72 shrink-0 border-l border-gray-200 overflow-y-auto p-4 bg-white"
+                className="w-72 shrink-0 border-l border-gray-200 overflow-hidden flex flex-col p-4 bg-white"
                 data-tour="activity-feed"
               >
                 <ActivityFeedEmbed organizationId={organizationId} limit={20} />
