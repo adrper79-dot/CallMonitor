@@ -282,7 +282,10 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     }
 
     if (!c.env.TELNYX_CALL_CONTROL_APP_ID) {
-      return c.json({ error: 'Telnyx Call Control Application ID not configured (TELNYX_CALL_CONTROL_APP_ID)' }, 500)
+      return c.json(
+        { error: 'Telnyx Call Control Application ID not configured (TELNYX_CALL_CONTROL_APP_ID)' },
+        500
+      )
     }
 
     // Use Telnyx Call Control API to create the call
@@ -299,17 +302,33 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       answering_machine_detection: 'detect',
     }
 
-    // Check if live translation is enabled — enable Telnyx real-time transcription
-    const translationConfig = await getTranslationConfig(db, session.organization_id)
-    if (translationConfig?.live_translate) {
+    // Get voice config to determine recording and transcription settings
+    const voiceConfigResult = await db.query(
+      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+       FROM voice_configs
+       WHERE organization_id = $1
+       LIMIT 1`,
+      [session.organization_id]
+    )
+    const voiceConfig = voiceConfigResult.rows[0]
+
+    // Enable recording if configured
+    if (voiceConfig?.record) {
+      callPayload.record = 'record-from-answer'
+      logger.info('Call recording enabled')
+    }
+
+    // Enable transcription for live translation OR regular transcription
+    const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
+    if (enableTranscription) {
       callPayload.transcription = true
       callPayload.transcription_config = {
         transcription_engine: 'B',
         transcription_tracks: 'both',
       }
-      logger.info('Live translation enabled for voice call', {
-        from: translationConfig.translate_from,
-        to: translationConfig.translate_to,
+      logger.info('Transcription enabled for voice call', {
+        live_translate: voiceConfig?.live_translate,
+        transcribe: voiceConfig?.transcribe,
       })
     }
 
@@ -317,9 +336,12 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     if (flow_type === 'bridge' && from_number) {
       // Validate from_number E.164 format for bridge calls
       if (!/^\+[1-9]\d{1,14}$/.test(from_number)) {
-        return c.json({
-          error: `Invalid from_number format for bridge call (must be E.164): ${from_number}`,
-        }, 400)
+        return c.json(
+          {
+            error: `Invalid from_number format for bridge call (must be E.164): ${from_number}`,
+          },
+          400
+        )
       }
       // For bridge calls: call the agent first, webhook will bridge to customer on answer
       callPayload.to = from_number // Call the agent's phone first
@@ -399,7 +421,8 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     }
 
     const callData = (await callResponse.json()) as any
-    const telnyxCallId = callData.data?.call_control_id || callData.data?.id
+    const telnyxCallControlId = callData.data?.call_control_id
+    const telnyxCallSessionId = callData.data?.call_session_id || callData.data?.id
 
     // Insert call record into database
     // Check if calls table exists, create basic record
@@ -417,13 +440,14 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
         started_at,
         created_at
       ) VALUES (
-        $1, $2, 'initiating', $3, $3, $4, $5, $6, $7, NOW(), NOW()
+        $1, $2, 'initiating', $3, $4, $5, $6, $7, $8, NOW(), NOW()
       )
       RETURNING id`,
       [
         session.organization_id,
         session.user_id,
-        telnyxCallId,
+        telnyxCallSessionId,
+        telnyxCallControlId,
         destinationNumber,
         from_number || null,
         callerNumber,
@@ -551,4 +575,3 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
     await db.end()
   }
 })
-

@@ -21,7 +21,12 @@ import {
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
-import { callMutationRateLimit, aiSummaryRateLimit, emailRateLimit, telnyxVoiceRateLimit } from '../lib/rate-limit'
+import {
+  callMutationRateLimit,
+  aiSummaryRateLimit,
+  emailRateLimit,
+  telnyxVoiceRateLimit,
+} from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml } from '../lib/email'
 import { getTranslationConfig } from '../lib/translation-processor'
 
@@ -174,9 +179,15 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
 
     // BL-011: Trigger actual call via Telnyx Call Control v2
     try {
-      // Check if live translation is enabled — if so, enable Telnyx real-time transcription
-      const translationConfig = await getTranslationConfig(db, session.organization_id)
-      const enableTranscription = translationConfig?.live_translate === true
+      // Get voice config to determine recording and transcription settings
+      const voiceConfigResult = await db.query(
+        `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+         FROM voice_configs
+         WHERE organization_id = $1
+         LIMIT 1`,
+        [session.organization_id]
+      )
+      const voiceConfig = voiceConfigResult.rows[0]
 
       const callPayload: Record<string, unknown> = {
         connection_id: c.env.TELNYX_CONNECTION_ID,
@@ -185,17 +196,24 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
         webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
       }
 
-      // Enable Telnyx real-time transcription for live translation pipeline
+      // Enable recording if configured
+      if (voiceConfig?.record) {
+        callPayload.record = 'record-from-answer'
+        logger.info('Call recording enabled', { callId: call.id })
+      }
+
+      // Enable transcription for live translation OR regular transcription
+      const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
       if (enableTranscription) {
         callPayload.transcription = true
         callPayload.transcription_config = {
           transcription_engine: 'B',
           transcription_tracks: 'both',
         }
-        logger.info('Live translation enabled for call', {
+        logger.info('Transcription enabled for call', {
           callId: call.id,
-          from: translationConfig!.translate_from,
-          to: translationConfig!.translate_to,
+          live_translate: voiceConfig?.live_translate,
+          transcribe: voiceConfig?.transcribe,
         })
       }
 
@@ -1366,4 +1384,3 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
-

@@ -259,30 +259,42 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     const callId = callResult.rows[0].id
 
     // Initiate call via Telnyx Call Control API
-    // Check if live translation is enabled — if so, enable Telnyx real-time transcription
-    const translationConfig = await getTranslationConfig(db, session.organization_id)
-    const enableTranscription = translationConfig?.live_translate === true
+    // Get voice config to determine recording and transcription settings
+    const voiceConfigResult = await db.query(
+      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+       FROM voice_configs
+       WHERE organization_id = $1
+       LIMIT 1`,
+      [session.organization_id]
+    )
+    const voiceConfig = voiceConfigResult.rows[0]
 
     const callPayload: Record<string, unknown> = {
       connection_id: c.env.TELNYX_CONNECTION_ID,
       to: phone_number,
       from: c.env.TELNYX_NUMBER,
       webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}`,
-      record: 'record-from-answer',
       timeout_secs: 30,
     }
 
-    // Enable Telnyx real-time transcription for live translation pipeline
+    // Enable recording if configured
+    if (voiceConfig?.record) {
+      callPayload.record = 'record-from-answer'
+      logger.info('Call recording enabled for WebRTC call', { callId })
+    }
+
+    // Enable transcription for live translation OR regular transcription
+    const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
     if (enableTranscription) {
       callPayload.transcription = true
       callPayload.transcription_config = {
         transcription_engine: 'B',
         transcription_tracks: 'both',
       }
-      logger.info('Live translation enabled for WebRTC call', {
+      logger.info('Transcription enabled for WebRTC call', {
         callId,
-        from: translationConfig!.translate_from,
-        to: translationConfig!.translate_to,
+        live_translate: voiceConfig?.live_translate,
+        transcribe: voiceConfig?.transcribe,
       })
     }
 
@@ -340,16 +352,16 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     }
 
     const telnyxData = (await telnyxResponse.json()) as {
-      data: { call_control_id: string }
+      data: { call_control_id: string; call_session_id?: string }
     }
-    const callSid = telnyxData.data.call_control_id
+    const callControlId = telnyxData.data.call_control_id
+    const callSessionId = telnyxData.data.call_session_id || telnyxData.data.call_control_id
 
-    // Update call record with Telnyx call SID (column is call_sid, not external_id)
-    await db.query('UPDATE calls SET call_sid = $1, status = $2 WHERE id = $3', [
-      callSid,
-      'ringing',
-      callId,
-    ])
+    // Update call record with Telnyx call IDs
+    await db.query(
+      'UPDATE calls SET call_sid = $1, call_control_id = $2, status = $3 WHERE id = $4',
+      [callSessionId, callControlId, 'ringing', callId]
+    )
 
     writeAuditLog(db, {
       organizationId: session.organization_id,
@@ -374,4 +386,3 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     await db.end()
   }
 })
-

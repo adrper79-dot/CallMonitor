@@ -1,18 +1,31 @@
-
-> test
-> vitest --coverage --reporter=json
-
-{"numTotalTestSuites":0,"numPassedTestSuites":0,"numFailedTestSuites":0,"numPendingTestSuites":0,"numTotalTests":0,"numPassedTests":0,"numFailedTests":0,"numPendingTests":0,"numTodoTests":0,"snapshot":{"added":0,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0,"didUpdate":false},"startTime":1770664474191,"success":false,"testResults":[],"coverageMap":{}}
-[34m % [39m[2mCoverage report from [22m[33mv8[39m
-----------|---------|----------|---------|---------|-------------------
-File      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
-----------|---------|----------|---------|---------|-------------------
-All files |       0 |        0 |       0 |       0 |                   
-----------|---------|----------|---------|---------|-------------------
-{"numTotalTestSuites":0,"numPassedTestSuites":0,"numFailedTestSuites":0,"numPendingTestSuites":0,"numTotalTests":0,"numPassedTests":0,"numFailedTests":0,"numPendingTests":0,"numTodoTests":0,"snapshot":{"added":0,"failure":false,"filesAdded":0,"filesRemoved":0,"filesRemovedList":[],"filesUnmatched":0,"filesUpdated":0,"matched":0,"total":0,"unchecked":0,"uncheckedKeysByFile":[],"unmatched":0,"updated":0,"didUpdate":false},"startTime":1770664474191,"success":false,"testResults":[],"coverageMap":{}}
-[34m % [39m[2mCoverage report from [22m[33mv8[39m
-----------|---------|----------|---------|---------|-------------------
-File      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
-----------|---------|----------|---------|---------|-------------------
-All files |       0 |        0 |       0 |       0 |                   
-----------|---------|----------|---------|---------|-------------------
+{
+  "numTotalTestSuites": 0,
+  "numPassedTestSuites": 0,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 0,
+  "numPassedTests": 0,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1770664474191,
+  "success": false,
+  "testResults": [],
+  "coverageMap": {}
+}
