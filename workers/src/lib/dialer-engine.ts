@@ -90,8 +90,8 @@ export async function handleDialerAMD(
     action: AuditAction.DIALER_AMD_DETECTED,
     resourceType: 'campaign_call',
     resourceId: record.campaign_call_id,
-    before: null,
-    after: { amd_result: amdResult, call_control_id: callControlId },
+    oldValue: null,
+    newValue: { amd_result: amdResult, call_control_id: callControlId },
   })
 }
 
@@ -183,8 +183,8 @@ export async function startDialerQueue(
     action: AuditAction.DIALER_QUEUE_STARTED,
     resourceType: 'campaign',
     resourceId: campaignId,
-    before: null,
-    after: { dialed, total_pending: targets.rows.length },
+    oldValue: null,
+    newValue: { dialed, total_pending: targets.rows.length },
   })
 
   logger.info('Dialer queue started', { campaignId, dialed, agents: agents.rows.length })
@@ -213,8 +213,8 @@ export async function pauseDialerQueue(
     action: AuditAction.DIALER_QUEUE_PAUSED,
     resourceType: 'campaign',
     resourceId: campaignId,
-    before: null,
-    after: { status: 'paused' },
+    oldValue: null,
+    newValue: { status: 'paused' },
   })
 }
 
@@ -400,8 +400,8 @@ async function bridgeToAgent(
     action: AuditAction.DIALER_CALL_CONNECTED,
     resourceType: 'campaign_call',
     resourceId: record.campaign_call_id,
-    before: null,
-    after: { agent_user_id: agentResult.rows[0].user_id },
+    oldValue: null,
+    newValue: { agent_user_id: agentResult.rows[0].user_id },
   })
 
   logger.info('Dialer call bridged to agent', {
@@ -481,3 +481,4 @@ async function updateCampaignCallOutcome(
     [outcome, campaignCallId]
   )
 }
+

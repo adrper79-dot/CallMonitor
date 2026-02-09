@@ -84,8 +84,10 @@ export interface Env {
   RESEND_API_KEY: string
   STRIPE_SECRET_KEY: string
   TELNYX_API_KEY: string
-  TELNYX_CONNECTION_ID: string
+  TELNYX_CONNECTION_ID: string // Credential Connection for WebRTC
+  TELNYX_CALL_CONTROL_APP_ID: string // Call Control Application for bridge calls
   TELNYX_NUMBER: string
+  TELNYX_PUBLIC_KEY: string // Ed25519 public key for webhook signature verification (base64)
   ASSEMBLYAI_API_KEY: string
   ELEVENLABS_API_KEY: string
   STRIPE_WEBHOOK_SECRET: string
@@ -280,3 +282,4 @@ export default {
     ctx.waitUntil(handleScheduled(event, env))
   },
 }
+

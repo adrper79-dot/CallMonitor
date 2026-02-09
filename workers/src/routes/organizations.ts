@@ -67,7 +67,7 @@ organizationsRoutes.post('/', orgRateLimit, async (c) => {
       resourceType: 'organizations',
       resourceId: org.id,
       action: AuditAction.ORG_CREATED,
-      after: org,
+      newValue: org,
     })
 
     return c.json({
@@ -132,3 +132,4 @@ organizationsRoutes.get('/current', async (c) => {
     await db.end()
   }
 })
+

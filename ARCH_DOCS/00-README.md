@@ -27,13 +27,6 @@
 - **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - System overview, health metrics, known gaps
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
 
-### **Historical Context:**
-
-- **[SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md](01-CORE/SYSTEM_ARCHITECTURE_COMPLETE_WITH_VISUALS.md)** - Complete architecture (Jan 17, 2026) with visual diagrams
-- **[COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md](01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md)** - Previous architecture (Jan 16, 2026)
-- **[FULL_SYSTEM_ARCHITECTURE.md](01-CORE/FULL_SYSTEM_ARCHITECTURE.md)** - Complete architecture with site maps
-- **[GAP_ANALYSIS.md](01-CORE/GAP_ANALYSIS.md)** - Gap analysis and resolution plan
-
 ### **📁 Folder Structure:**
 
 ```
@@ -48,7 +41,7 @@ ARCH_DOCS/
 ├── 03-INFRASTRUCTURE/ - Infrastructure & deployment
 ├── 04-DESIGN/ - Design principles & UX guidelines
 ├── 05-REFERENCE/ - Reference materials & samples
-└── archive/ - Historical documents & resolved issues
+└── DECISIONS/ - Architecture decisions & migration history
 ```
 
 ---

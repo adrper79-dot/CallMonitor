@@ -17,6 +17,7 @@ import { validateBody } from '../lib/validate'
 import { UpdateAIConfigSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { aiConfigRateLimit } from '../lib/rate-limit'
 
 export const aiConfigRoutes = new Hono<AppEnv>()
 
@@ -64,7 +65,7 @@ aiConfigRoutes.get('/', async (c) => {
 })
 
 // PUT / — Update AI configuration
-aiConfigRoutes.put('/', async (c) => {
+aiConfigRoutes.put('/', aiConfigRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -91,7 +92,7 @@ aiConfigRoutes.put('/', async (c) => {
       resourceType: 'ai_config',
       resourceId: session.organization_id,
       action: AuditAction.AI_CONFIG_UPDATED,
-      after: result.rows[0].config,
+      newValue: result.rows[0].config,
     })
 
     return c.json({
@@ -106,3 +107,4 @@ aiConfigRoutes.put('/', async (c) => {
     await db.end()
   }
 })
+

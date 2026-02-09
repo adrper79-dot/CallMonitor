@@ -170,12 +170,13 @@ export default function VoiceOperationsClient({
     <VoiceConfigProvider organizationId={organizationId}>
       <WebRTCProvider organizationId={organizationId}>
         <TargetNumberProvider>
-          <div className="flex flex-col h-screen pt-20 bg-gray-50">
-            {/* Header — pt-20 offsets the fixed Navigation (h-20 / 80px) */}
+          <div className="flex flex-col h-screen bg-gray-50" style={{ paddingTop: '80px' }}>
+            {/* paddingTop offsets the fixed Navigation (h-20 / 80px) — uses inline style
+                so h-screen minus 80px = actual available height without overflow */}
             <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
 
             {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
-            <div className="hidden lg:flex flex-1 overflow-hidden">
+            <div className="hidden lg:flex flex-1 min-h-0">
               {/* Left Rail - Call List (280px) */}
               <aside
                 className="w-72 shrink-0 border-r border-gray-200 flex flex-col bg-white"

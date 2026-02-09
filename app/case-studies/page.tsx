@@ -53,7 +53,7 @@ export default function CaseStudiesPage() {
       {/* Hero */}
       <section className="pt-32 pb-16 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+          <h1 className="text-4xl md:text-5xl font-semibold text-gray-900 mb-6">
             Real Results from
             <br />
             <span className="text-primary-600">Real Customers</span>

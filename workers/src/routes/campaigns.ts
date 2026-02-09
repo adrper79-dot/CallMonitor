@@ -96,8 +96,8 @@ campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
       resourceType: 'campaigns',
       resourceId: result.rows[0].id,
       action: AuditAction.CAMPAIGN_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, campaign: result.rows[0] }, 201)
@@ -247,8 +247,8 @@ campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
       resourceType: 'campaigns',
       resourceId: campaignId,
       action: AuditAction.CAMPAIGN_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, campaign: result.rows[0] })
@@ -286,8 +286,8 @@ campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
       resourceType: 'campaigns',
       resourceId: campaignId,
       action: AuditAction.CAMPAIGN_DELETED,
-      before: { id: campaignId },
-      after: null,
+      oldValue: { id: campaignId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Campaign deleted' })
@@ -298,3 +298,4 @@ campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
     await db.end()
   }
 })
+

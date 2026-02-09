@@ -119,8 +119,8 @@ dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
       action: AuditAction.DIALER_QUEUE_PAUSED,
       resourceType: 'campaign',
       resourceId: campaignId,
-      before: null,
-      after: { status: 'completed' },
+      oldValue: null,
+      newValue: { status: 'completed' },
     })
 
     return c.json({ success: true, status: 'stopped' })
@@ -213,9 +213,9 @@ dialerRoutes.get('/agents', async (c) => {
   try {
     const params: any[] = [session.organization_id]
     let query = `
-      SELECT das.*, u.full_name, u.email
+      SELECT das.*, u.name as full_name, u.email
       FROM dialer_agent_status das
-      JOIN users u ON u.id = das.user_id
+      JOIN users u ON u.id = das.user_id::text
       WHERE das.organization_id = $1`
 
     if (campaignId) {
@@ -239,3 +239,4 @@ dialerRoutes.get('/agents', async (c) => {
     await db.end()
   }
 })
+

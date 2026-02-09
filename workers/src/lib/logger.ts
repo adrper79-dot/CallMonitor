@@ -50,3 +50,4 @@ export const logger = {
   warn: (msg: string, data?: LogPayload) => emit('WARN', msg, data),
   error: (msg: string, data?: LogPayload) => emit('ERROR', msg, data),
 }
+

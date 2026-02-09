@@ -98,8 +98,8 @@ sentimentRoutes.put('/config', sentimentRateLimit, async (c) => {
       action: AuditAction.SENTIMENT_ALERT_TRIGGERED,
       resourceType: 'sentiment_alert_configs',
       resourceId: result.rows[0]?.id || session.organization_id,
-      before: null,
-      after: parsed.data,
+      oldValue: null,
+      newValue: parsed.data,
     })
 
     return c.json({ success: true, config: result.rows[0] })
@@ -219,3 +219,4 @@ sentimentRoutes.get('/history', async (c) => {
     await db.end()
   }
 })
+

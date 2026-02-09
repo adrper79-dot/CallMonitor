@@ -12,7 +12,7 @@ import { adminRateLimit } from '../lib/rate-limit'
 
 export const adminMetricsRoutes = new Hono<AppEnv>()
 
-adminMetricsRoutes.get('/metrics', adminRateLimit, async (c) => {
+adminMetricsRoutes.get('/', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
   if (session.platform_role !== 'platform-admin')
@@ -72,3 +72,4 @@ adminMetricsRoutes.get('/metrics', adminRateLimit, async (c) => {
     await db.end()
   }
 })
+

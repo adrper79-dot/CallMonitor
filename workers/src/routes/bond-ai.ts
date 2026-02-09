@@ -100,8 +100,8 @@ bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_conversations',
       resourceId: result.rows[0].id,
       action: AuditAction.AI_CONVERSATION_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, conversation: result.rows[0] }, 201)
@@ -341,8 +341,8 @@ bondAiRoutes.delete('/conversations/:id', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_conversations',
       resourceId: conversationId,
       action: AuditAction.AI_CONVERSATION_DELETED,
-      before: { status: 'active' },
-      after: { status: 'deleted' },
+      oldValue: { status: 'active' },
+      newValue: { status: 'deleted' },
     })
 
     return c.json({ success: true })
@@ -434,8 +434,8 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
       resourceType: 'bond_ai_alerts',
       resourceId: alertId,
       action: AuditAction.AI_ALERT_ACKNOWLEDGED,
-      before: null,
-      after: { status },
+      oldValue: null,
+      newValue: { status },
     })
 
     return c.json({ success: true })
@@ -471,8 +471,8 @@ bondAiRoutes.post('/alerts/bulk-action', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_alerts',
       resourceId: alert_ids.join(','),
       action: AuditAction.AI_ALERTS_BULK_UPDATED,
-      before: null,
-      after: { alert_ids, action },
+      oldValue: null,
+      newValue: { alert_ids, action },
     })
 
     return c.json({ success: true, updated: alert_ids.length })
@@ -556,8 +556,8 @@ bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_alert_rules',
       resourceId: result.rows[0].id,
       action: AuditAction.AI_ALERT_RULE_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, rule: result.rows[0] }, 201)
@@ -621,8 +621,8 @@ bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_alert_rules',
       resourceId: ruleId,
       action: AuditAction.AI_ALERT_RULE_UPDATED,
-      before: null,
-      after: {
+      oldValue: null,
+      newValue: {
         name,
         description,
         rule_config,
@@ -665,8 +665,8 @@ bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
       resourceType: 'bond_ai_alert_rules',
       resourceId: ruleId,
       action: AuditAction.AI_ALERT_RULE_DELETED,
-      before: { id: ruleId },
-      after: null,
+      oldValue: { id: ruleId },
+      newValue: null,
     })
 
     return c.json({ success: true })
@@ -828,3 +828,4 @@ bondAiRoutes.get('/insights', async (c) => {
     return c.json({ error: 'Failed to get insights' }, 500)
   }
 })
+

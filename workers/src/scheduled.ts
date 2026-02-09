@@ -173,3 +173,4 @@ async function aggregateUsage(env: Env): Promise<void> {
     await db.end()
   }
 }
+

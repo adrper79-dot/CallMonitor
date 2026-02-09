@@ -318,3 +318,29 @@ export const aiToggleRateLimit = rateLimit({ limit: 10, windowSeconds: 60, prefi
 
 /** DTMF gather operations: 20 per minute per IP */
 export const gatherRateLimit = rateLimit({ limit: 20, windowSeconds: 60, prefix: 'rl:gather' })
+
+// ─── PAID API RATE LIMITERS (BL-107) ────────────────────────────────────────
+
+/** ElevenLabs TTS: 10 requests per 5 minutes per IP (cost control - ~$0.30/1K chars) */
+export const elevenLabsTtsRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:elevenlabs-tts',
+})
+
+/** Telnyx Voice API: 20 requests per 5 minutes per IP (API quota + cost protection) */
+export const telnyxVoiceRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:telnyx-voice',
+})
+
+// ─── MUTATION ENDPOINT RATE LIMITERS (BL-108) ─────────────────────────────
+
+/** AI Config mutations: 10 requests per 15 minutes per IP (configuration changes) */
+export const aiConfigRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:ai-config',
+})
+

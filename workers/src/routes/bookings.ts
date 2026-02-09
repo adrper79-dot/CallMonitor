@@ -119,7 +119,7 @@ bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
       resourceType: 'bookings',
       resourceId: booking.id,
       action: AuditAction.BOOKING_CREATED,
-      after: { title, status: status || 'pending', start_time, attendee_phone },
+      newValue: { title, status: status || 'pending', start_time, attendee_phone },
     })
 
     return c.json({ success: true, booking }, 201)
@@ -169,7 +169,7 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
       resourceType: 'bookings',
       resourceId: bookingId,
       action: AuditAction.BOOKING_UPDATED,
-      after: { status, title, description, start_time },
+      newValue: { status, title, description, start_time },
     })
 
     return c.json({ success: true, booking: result.rows[0] })
@@ -217,3 +217,4 @@ bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
     await db.end()
   }
 })
+

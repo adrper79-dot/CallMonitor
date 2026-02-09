@@ -88,8 +88,8 @@ reportsRoutes.post('/', authMiddleware, requirePlan('business'), reportRateLimit
       resourceType: 'reports',
       resourceId: result.rows[0].id,
       action: AuditAction.REPORT_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, report: result.rows[0] })
@@ -209,8 +209,8 @@ reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
       resourceType: 'report_schedules',
       resourceId: result.rows[0].id,
       action: AuditAction.REPORT_SCHEDULE_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, schedule: result.rows[0] })
@@ -254,8 +254,8 @@ reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
       resourceType: 'report_schedules',
       resourceId: scheduleId,
       action: AuditAction.REPORT_SCHEDULE_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, schedule: result.rows[0] })
@@ -291,8 +291,8 @@ reportsRoutes.delete('/schedules/:id', reportRateLimit, async (c) => {
       resourceType: 'report_schedules',
       resourceId: scheduleId,
       action: AuditAction.REPORT_SCHEDULE_DELETED,
-      before: { id: scheduleId },
-      after: null,
+      oldValue: { id: scheduleId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Schedule deleted' })
@@ -303,3 +303,4 @@ reportsRoutes.delete('/schedules/:id', reportRateLimit, async (c) => {
     await db.end()
   }
 })
+

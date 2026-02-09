@@ -36,19 +36,16 @@ describe('v5.0 Sentiment Analysis Routes', () => {
   })
 
   test('GET /api/sentiment/config returns default config when none exists', async () => {
-    const res = await apiCall('GET', '/api/sentiment/config', null, sessionToken)
+    const res = await apiCall('GET', '/api/sentiment/config', { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(body.config).toBeDefined()
-    expect(typeof body.config.enabled).toBe('boolean')
+    expect(res.data.success).toBe(true)
+    expect(res.data.config).toBeDefined()
+    expect(typeof res.data.config.enabled).toBe('boolean')
   })
 
   test('PUT /api/sentiment/config creates/updates config', async () => {
-    const res = await apiCall(
-      'PUT',
-      '/api/sentiment/config',
-      {
+    const res = await apiCall('PUT', '/api/sentiment/config', {
+      body: {
         enabled: true,
         alert_threshold: -0.3,
         objection_keywords: ['cancel', 'refund', 'lawsuit'],
@@ -56,56 +53,50 @@ describe('v5.0 Sentiment Analysis Routes', () => {
         webhook_url: null,
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(body.config.enabled).toBe(true)
+    expect(res.data.success).toBe(true)
+    expect(res.data.config.enabled).toBe(true)
   })
 
   test('PUT /api/sentiment/config validates threshold range', async () => {
-    const res = await apiCall(
-      'PUT',
-      '/api/sentiment/config',
-      {
+    const res = await apiCall('PUT', '/api/sentiment/config', {
+      body: {
         enabled: true,
         alert_threshold: -5, // out of range
         alert_channels: ['dashboard'],
       },
       sessionToken
-    )
+    })
     // Should fail validation
     expect(res.status).toBe(400)
   })
 
   test('GET /api/sentiment/live/:callId returns empty for non-existent call', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await apiCall('GET', `/api/sentiment/live/${fakeId}`, null, sessionToken)
+    const res = await apiCall('GET', `/api/sentiment/live/${fakeId}`, { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(body.scores).toEqual([])
+    expect(res.data.success).toBe(true)
+    expect(res.data.scores).toEqual([])
   })
 
   test('GET /api/sentiment/summary/:callId returns null for non-existent call', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await apiCall('GET', `/api/sentiment/summary/${fakeId}`, null, sessionToken)
+    const res = await apiCall('GET', `/api/sentiment/summary/${fakeId}`, { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(body.summary).toBeNull()
+    expect(res.data.success).toBe(true)
+    expect(res.data.summary).toBeNull()
   })
 
   test('GET /api/sentiment/history returns empty list initially', async () => {
-    const res = await apiCall('GET', '/api/sentiment/history?limit=5', null, sessionToken)
+    const res = await apiCall('GET', '/api/sentiment/history?limit=5', { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(Array.isArray(body.history)).toBe(true)
+    expect(res.data.success).toBe(true)
+    expect(Array.isArray(res.data.history)).toBe(true)
   })
 
   test('GET /api/sentiment/config requires auth', async () => {
-    const res = await apiCall('GET', '/api/sentiment/config', null, null)
+    const res = await apiCall('GET', '/api/sentiment/config')
     expect(res.status).toBe(401)
   })
 })
@@ -118,79 +109,69 @@ describe('v5.0 AI Toggle Routes', () => {
   })
 
   test('GET /api/ai-toggle/prompt-config returns default config', async () => {
-    const res = await apiCall('GET', '/api/ai-toggle/prompt-config', null, sessionToken)
+    const res = await apiCall('GET', '/api/ai-toggle/prompt-config', { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(body.config).toBeDefined()
+    expect(res.data.success).toBe(true)
+    expect(res.data.config).toBeDefined()
   })
 
   test('PUT /api/ai-toggle/prompt-config updates AI prompt', async () => {
-    const res = await apiCall(
-      'PUT',
-      '/api/ai-toggle/prompt-config',
-      {
+    const res = await apiCall('PUT', '/api/ai-toggle/prompt-config', {
+      body: {
         ai_agent_prompt: 'You are a test prompt. Be helpful.',
         ai_agent_model: 'gpt-4o-mini',
         ai_agent_temperature: 0.5,
         ai_features_enabled: true,
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
+    expect(res.data.success).toBe(true)
   })
 
   test('POST /api/ai-toggle/activate fails for non-existent call', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/ai-toggle/activate',
-      {
+    const res = await apiCall('POST', '/api/ai-toggle/activate', {
+      body: {
         call_id: '00000000-0000-0000-0000-000000000000',
         mode: 'ai',
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(404)
   })
 
   test('POST /api/ai-toggle/deactivate fails for non-existent call', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/ai-toggle/deactivate',
-      {
+    const res = await apiCall('POST', '/api/ai-toggle/deactivate', {
+      body: {
         call_id: '00000000-0000-0000-0000-000000000000',
         mode: 'human',
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(404)
   })
 
   test('GET /api/ai-toggle/status/:callId fails for non-existent call', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await apiCall('GET', `/api/ai-toggle/status/${fakeId}`, null, sessionToken)
+    const res = await apiCall('GET', `/api/ai-toggle/status/${fakeId}`, { sessionToken })
     expect(res.status).toBe(404)
   })
 
   test('PUT /api/ai-toggle/prompt-config validates model enum', async () => {
-    const res = await apiCall(
-      'PUT',
-      '/api/ai-toggle/prompt-config',
-      {
+    const res = await apiCall('PUT', '/api/ai-toggle/prompt-config', {
+      body: {
         ai_agent_prompt: 'Test',
         ai_agent_model: 'invalid-model',
         ai_agent_temperature: 0.5,
         ai_features_enabled: true,
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(400)
   })
 
   test('AI toggle routes require auth', async () => {
-    const res = await apiCall('GET', '/api/ai-toggle/prompt-config', null, null)
+    const res = await apiCall('GET', '/api/ai-toggle/prompt-config')
     expect(res.status).toBe(401)
   })
 })
@@ -203,71 +184,64 @@ describe('v5.0 Dialer Routes', () => {
   })
 
   test('POST /api/dialer/start fails for non-existent campaign', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/dialer/start',
-      {
+    const res = await apiCall('POST', '/api/dialer/start', {
+      body: {
         campaign_id: '00000000-0000-0000-0000-000000000000',
         pacing_mode: 'progressive',
         max_concurrent: 5,
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(404)
   })
 
   test('POST /api/dialer/pause requires campaign_id', async () => {
-    const res = await apiCall('POST', '/api/dialer/pause', {}, sessionToken)
+    const res = await apiCall('POST', '/api/dialer/pause', { body: {}, sessionToken })
     expect(res.status).toBe(400)
   })
 
   test('POST /api/dialer/stop requires campaign_id', async () => {
-    const res = await apiCall('POST', '/api/dialer/stop', {}, sessionToken)
+    const res = await apiCall('POST', '/api/dialer/stop', { body: {}, sessionToken })
     expect(res.status).toBe(400)
   })
 
   test('GET /api/dialer/stats/:campaignId fails for non-existent campaign', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await apiCall('GET', `/api/dialer/stats/${fakeId}`, null, sessionToken)
+    const res = await apiCall('GET', `/api/dialer/stats/${fakeId}`, { sessionToken })
     expect(res.status).toBe(404)
   })
 
   test('PUT /api/dialer/agent-status updates agent status', async () => {
-    const res = await apiCall(
-      'PUT',
-      '/api/dialer/agent-status',
-      {
+    const res = await apiCall('PUT', '/api/dialer/agent-status', {
+      body: {
         status: 'available',
       },
       sessionToken
-    )
+    })
     // May succeed or fail depending on DB constraints, but should not 500
     expect([200, 400, 500]).toContain(res.status)
   })
 
   test('GET /api/dialer/agents returns agent list', async () => {
-    const res = await apiCall('GET', '/api/dialer/agents', null, sessionToken)
+    const res = await apiCall('GET', '/api/dialer/agents', { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
-    expect(Array.isArray(body.agents)).toBe(true)
+    expect(res.data.success).toBe(true)
+    expect(Array.isArray(res.data.agents)).toBe(true)
   })
 
   test('POST /api/dialer/start validates body schema', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/dialer/start',
-      {
+    const res = await apiCall('POST', '/api/dialer/start', {
+      body: {
         // missing campaign_id
         pacing_mode: 'progressive',
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(400)
   })
 
   test('Dialer routes require auth', async () => {
-    const res = await apiCall('GET', '/api/dialer/agents', null, null)
+    const res = await apiCall('GET', '/api/dialer/agents')
     expect(res.status).toBe(401)
   })
 })
@@ -280,41 +254,36 @@ describe('v5.0 IVR Routes', () => {
   })
 
   test('POST /api/ivr/start validates body schema', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/ivr/start',
-      {
+    const res = await apiCall('POST', '/api/ivr/start', {
+      body: {
         // missing account_id
         flow_type: 'payment',
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(400)
   })
 
   test('POST /api/ivr/start fails for non-existent account', async () => {
-    const res = await apiCall(
-      'POST',
-      '/api/ivr/start',
-      {
+    const res = await apiCall('POST', '/api/ivr/start', {
+      body: {
         account_id: '00000000-0000-0000-0000-000000000000',
         flow_type: 'payment',
       },
       sessionToken
-    )
+    })
     expect(res.status).toBe(404)
   })
 
   test('GET /api/ivr/status/:callId returns status', async () => {
     const fakeId = '00000000-0000-0000-0000-000000000000'
-    const res = await apiCall('GET', `/api/ivr/status/${fakeId}`, null, sessionToken)
+    const res = await apiCall('GET', `/api/ivr/status/${fakeId}`, { sessionToken })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.success).toBe(true)
+    expect(res.data.success).toBe(true)
   })
 
   test('IVR routes require auth', async () => {
-    const res = await apiCall('GET', '/api/ivr/status/fake-id', null, null)
+    const res = await apiCall('GET', '/api/ivr/status/fake-id')
     expect(res.status).toBe(401)
   })
 })
@@ -381,8 +350,8 @@ describe('v5.0 Database Migration Tables', () => {
         `SELECT column_name FROM information_schema.columns
          WHERE table_name = 'call_sentiment_summary' ORDER BY ordinal_position`
       )
-      if (result.rows.length > 0) {
-        const columns = result.rows.map((r: any) => r.column_name)
+      if (result.length > 0) {
+        const columns = result.map((r: any) => r.column_name)
         expect(columns).toContain('call_id')
         expect(columns).toContain('avg_score')
         expect(columns).toContain('escalation_triggered')
@@ -398,8 +367,8 @@ describe('v5.0 Database Migration Tables', () => {
         `SELECT column_name FROM information_schema.columns
          WHERE table_name = 'dialer_agent_status' ORDER BY ordinal_position`
       )
-      if (result.rows.length > 0) {
-        const columns = result.rows.map((r: any) => r.column_name)
+      if (result.length > 0) {
+        const columns = result.map((r: any) => r.column_name)
         expect(columns).toContain('id')
         expect(columns).toContain('organization_id')
         expect(columns).toContain('user_id')
@@ -416,8 +385,8 @@ describe('v5.0 Database Migration Tables', () => {
         `SELECT column_name FROM information_schema.columns
          WHERE table_name = 'sentiment_alert_configs' ORDER BY ordinal_position`
       )
-      if (result.rows.length > 0) {
-        const columns = result.rows.map((r: any) => r.column_name)
+      if (result.length > 0) {
+        const columns = result.map((r: any) => r.column_name)
         expect(columns).toContain('id')
         expect(columns).toContain('organization_id')
         expect(columns).toContain('enabled')

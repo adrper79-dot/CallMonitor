@@ -153,10 +153,10 @@ export const VoiceConfigSchema = z.object({
 
 export const CreateCallSchema = z.object({
   to_number: e164Phone.optional(),
-  from_number: z.string().max(50).optional(),
+  from_number: z.string().max(50).nullable().optional(),
   organization_id: uuid.optional(),
-  target_id: z.string().max(200).optional(),
-  campaign_id: z.string().max(200).optional(),
+  target_id: z.string().max(200).nullable().optional(),
+  campaign_id: z.string().max(200).nullable().optional(),
   modulations: z.record(z.string(), z.unknown()).optional(),
   flow_type: z.string().max(50).optional(),
 })
@@ -656,3 +656,4 @@ export const LanguageDetectionSchema = z.object({
   auto_detect: z.boolean().default(true),
   preferred_language: z.string().max(5).optional(),
 })
+

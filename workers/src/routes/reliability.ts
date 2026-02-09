@@ -128,7 +128,7 @@ reliabilityRoutes.put('/webhooks', async (c) => {
             resourceType: 'webhook_failures',
             resourceId: failure_id,
             action: AuditAction.WEBHOOK_ACTION_TAKEN,
-            after: { action: 'retry', status: 'resolved', http_status: resp.status },
+            newValue: { action: 'retry', status: 'resolved', http_status: resp.status },
           })
 
           return c.json({ success: true, status: 'resolved', message: 'Retry succeeded' })
@@ -177,7 +177,7 @@ reliabilityRoutes.put('/webhooks', async (c) => {
         resourceType: 'webhook_failures',
         resourceId: failure_id,
         action: AuditAction.WEBHOOK_ACTION_TAKEN,
-        after: { action: 'discard', status: 'discarded' },
+        newValue: { action: 'discard', status: 'discarded' },
       })
 
       return c.json({ success: true, status: 'discarded' })
@@ -198,7 +198,7 @@ reliabilityRoutes.put('/webhooks', async (c) => {
         resourceType: 'webhook_failures',
         resourceId: failure_id,
         action: AuditAction.WEBHOOK_ACTION_TAKEN,
-        after: { action: 'manual_review', status: 'under_review' },
+        newValue: { action: 'manual_review', status: 'under_review' },
       })
 
       return c.json({ success: true, status: 'under_review' })
@@ -212,3 +212,4 @@ reliabilityRoutes.put('/webhooks', async (c) => {
     await db.end()
   }
 })
+

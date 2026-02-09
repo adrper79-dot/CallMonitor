@@ -70,7 +70,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
         resourceType: 'call_translations',
         resourceId: callId,
         action: AuditAction.LIVE_TRANSLATION_STARTED,
-        after: { call_id: callId },
+        newValue: { call_id: callId },
       })
     } finally {
       await db.end()
@@ -174,7 +174,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
         resourceType: 'call_translations',
         resourceId: callId,
         action: AuditAction.LIVE_TRANSLATION_COMPLETED,
-        after: { call_id: callId, segments_delivered: lastSegmentIndex + 1 },
+        newValue: { call_id: callId, segments_delivered: lastSegmentIndex + 1 },
       })
     } finally {
       await auditDb.end()
@@ -219,3 +219,4 @@ liveTranslationRoutes.get('/history', voiceRateLimit, async (c) => {
     await db.end()
   }
 })
+

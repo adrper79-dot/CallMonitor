@@ -1169,3 +1169,133 @@ The caller-id PUT /verify endpoint accepted a 6-digit code with no rate limiting
 2. General mutation endpoints: Standard limits (20–30/5min)
 3. Read-only endpoints: Relaxed limits (60/5min) or no rate limiting
 4. Always consider the attack surface when setting rate limit tiers
+
+---
+
+## 🔴 CRITICAL — Always Surface Third-Party Provider Errors (v4.29 — Session 6, Feb 9, 2026)
+
+**Generic error messages hide the actual issue, delaying diagnosis and wasting developer time.**
+
+### The Bug
+
+Bridge calls to Telnyx were failing with HTTP 500 "Failed to place call". The actual error from Telnyx was "You have exceeded the number of dials per hour allowed for your account" (HTTP 429 rate limit). The catch block in `voice.ts` logged the error but returned a generic message to the client, making it impossible to diagnose without live tail logs.
+
+### Why It's Insidious
+
+- Trial Telnyx accounts have strict dial limits (~10-20/hour, unconfirmed)
+- The error was logged server-side but not surfaced to the user or in API responses
+- Multiple fixes were attempted (schema validation, connection IDs, webhook implementation) before discovering the real issue
+- Without specific error codes (429 vs 402 vs 500), the client couldn't implement proper retry logic
+
+### Prevention
+
+**Bad:**
+```typescript
+if (!callResponse.ok) {
+  logger.error('Telnyx call creation failed', { error })
+  return c.json({ error: 'Failed to create call' }, 500) // ❌ Generic
+}
+```
+
+**Good:**
+```typescript
+const detail = errorJson.errors?.[0]?.detail || errorJson.message
+return c.json({ error: detail }, status) // ✅ Actual error message
+```
+
+**Best:**
+```typescript
+// Handle specific error codes first
+if (status === 429) {
+  return c.json(
+    {
+      error: 'Call service rate limit exceeded. Please try again in 1 minute.',
+      code: 'TELNYX_RATE_LIMIT',
+      retry_after: 60,
+    },
+    429
+  )
+}
+if (status === 402) {
+  return c.json(
+    {
+      error: 'Voice service temporarily unavailable. Please contact support.',
+      code: 'TELNYX_PAYMENT_REQUIRED',
+    },
+    503
+  )
+}
+// Then return actual error message for unhandled cases
+return c.json({ error: detail }, 500)
+```
+
+### Resolution
+
+- Added HTTP 429/402 detection in `voice.ts` and `webrtc.ts`
+- Returns structured error with `code` and `retry_after` fields
+- Created [TELNYX_ACCOUNT_TIER.md](03-INFRASTRUCTURE/TELNYX_ACCOUNT_TIER.md) to document account limits
+
+### Lesson for Future Integrations
+
+**Checklist:**
+- [ ] Document third-party account tier and limits BEFORE coding
+- [ ] Add specific error handling for provider's error codes (429, 402, 403, etc.)
+- [ ] Test with real API calls, not just unit tests
+- [ ] Set up monitoring for quota exhaustion
+- [ ] Create runbook for quota/payment emergencies
+
+---
+
+## 🔴 CRITICAL — Telnyx API Transcription Parameter Structure (v4.35 — Silent API Failures)
+
+**The Telnyx Call Control v2 `POST /v2/calls` endpoint expects `transcription` as a boolean (`true`) and configuration in a separate `transcription_config` object. We were passing an object directly to `transcription`, which Telnyx rejected as invalid.**
+
+### The Bug
+
+Voice calls with live translation enabled were failing immediately with HTTP 500 and the error message `"The 'transcription' parameter is invalid. Please consult the documentation."` The issue was discovered during production testing when users reported that calls wouldn't connect.
+
+### Why It's Insidious
+
+- The error message was generic — "parameter is invalid" could mean wrong name, wrong type, or wrong value
+- Previous code was passing an object where Telnyx expected a boolean
+- Calls without live translation worked fine, masking the problem
+- Multiple fix attempts failed because the root cause (wrong type, not wrong property names) wasn't immediately clear
+
+### Technical Details
+
+**Before (Broken):**
+```typescript
+callPayload.transcription = {
+  transcription_engine: 'B',    // ❌ Wrong — transcription must be boolean
+  transcription_tracks: 'both', // ❌ Config belongs in transcription_config
+}
+```
+
+**After (Fixed):**
+```typescript
+callPayload.transcription = true  // ✅ Boolean to enable transcription
+callPayload.transcription_config = {
+  transcription_engine: 'B',      // ✅ Engine config in transcription_config
+  transcription_tracks: 'both',   // ✅ Tracks config in transcription_config
+}
+```
+
+### Prevention
+
+1. **SDK Type Definitions as Truth:** Always check the official `telnyx-node` SDK type definitions for parameter shapes
+2. **API Contract Testing:** Implement automated tests that validate API parameter formats against live endpoints
+3. **Error Message Enhancement:** Parse and surface specific API error details instead of generic 500s
+4. **Parameter Type Awareness:** "parameter is invalid" often means wrong type (object vs boolean), not just wrong value
+
+### Resolution
+
+Updated parameter structure in `workers/src/routes/voice.ts`, `workers/src/routes/calls.ts`, and `workers/src/routes/webrtc.ts` — split `transcription` (boolean) from `transcription_config` (object).
+
+---
+
+## Related Documentation
+
+- [Database Connection Standard](DATABASE_CONNECTION_STANDARD.md)
+- [Error Handling Best Practices](01-CORE/ERROR_HANDLING.md)
+- [Rate Limiting](03-INFRASTRUCTURE/RATE_LIMITING.md)
+- [Telnyx Integration](03-INFRASTRUCTURE/TELNYX_ACCOUNT_TIER.md)

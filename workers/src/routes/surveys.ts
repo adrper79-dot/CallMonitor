@@ -119,8 +119,8 @@ surveysRoutes.post('/', surveyRateLimit, async (c) => {
       resourceType: 'surveys',
       resourceId: survey.id,
       action: AuditAction.SURVEY_CREATED,
-      before: null,
-      after: survey,
+      oldValue: null,
+      newValue: survey,
     })
 
     return c.json({ success: true, survey }, 201)
@@ -156,8 +156,8 @@ surveysRoutes.delete('/:id', surveyRateLimit, async (c) => {
       resourceType: 'surveys',
       resourceId: id,
       action: AuditAction.SURVEY_DELETED,
-      before: { id },
-      after: null,
+      oldValue: { id },
+      newValue: null,
     })
 
     return c.json({ success: true, deleted: id })
@@ -168,3 +168,4 @@ surveysRoutes.delete('/:id', surveyRateLimit, async (c) => {
     await db.end()
   }
 })
+

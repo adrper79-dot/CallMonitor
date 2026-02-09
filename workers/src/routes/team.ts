@@ -157,7 +157,7 @@ teamRoutes.post('/invites', teamRateLimit, async (c) => {
       resourceType: 'team_invites',
       resourceId: token,
       action: AuditAction.MEMBER_INVITED,
-      after: { email: email.toLowerCase(), role, expires_at: expiresAt.toISOString() },
+      newValue: { email: email.toLowerCase(), role, expires_at: expiresAt.toISOString() },
     })
 
     // Send invite email via Resend (fire-and-forget — don't block response)
@@ -334,7 +334,7 @@ teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
       resourceType: 'team_invites',
       resourceId: inviteId,
       action: AuditAction.MEMBER_REMOVED,
-      after: { status: 'cancelled' },
+      newValue: { status: 'cancelled' },
     })
 
     return c.json({ success: true })
@@ -413,3 +413,4 @@ teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
     await db.end()
   }
 })
+

@@ -419,10 +419,10 @@ that it is for **internal QA purposes only** and cannot be used for customer agr
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| `shopperSwmlBuilder.ts` | `lib/signalwire/` | SWML with QA disclosure |
+| `shopperScriptBuilder.ts` | `lib/voice/` | Script generation with QA disclosure |
 | `complianceUtils.ts` | `lib/compliance/` | Feature conflict detection |
 | `ShopperScriptManager.tsx` | `components/voice/` | Script management UI |
-| Migration | `supabase/migrations/20260127_ai_quality_evaluation.sql` | Compliance tracking |
+| Migration | `migrations/2026-01-27-ai-quality-evaluation.sql` | Compliance tracking |
 
 ### Compliance Restrictions
 

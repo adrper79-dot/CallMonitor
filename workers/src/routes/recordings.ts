@@ -108,7 +108,7 @@ recordingsRoutes.get('/:id', async (c) => {
       resourceType: 'recordings',
       resourceId: recordingId,
       action: AuditAction.RECORDING_ACCESSED,
-      after: { accessed_at: new Date().toISOString() },
+      newValue: { accessed_at: new Date().toISOString() },
     })
 
     // BL-014: Generate time-limited R2 signed URL (1 hour TTL)
@@ -176,7 +176,7 @@ recordingsRoutes.delete('/:id', recordingRateLimit, async (c) => {
       resourceType: 'recordings',
       resourceId: recordingId,
       action: AuditAction.RECORDING_DELETED,
-      after: { deleted_at: new Date().toISOString() },
+      newValue: { deleted_at: new Date().toISOString() },
     })
 
     return c.json({ success: true, message: 'Recording deleted' })
@@ -187,3 +187,4 @@ recordingsRoutes.delete('/:id', recordingRateLimit, async (c) => {
     await db.end()
   }
 })
+

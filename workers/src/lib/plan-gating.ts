@@ -64,6 +64,7 @@ export const PLAN_LIMITS: Record<
     max_users: number
     max_call_duration_seconds: number
     retention_days: number
+    max_storage_gb: number
   }
 > = {
   free: {
@@ -71,30 +72,35 @@ export const PLAN_LIMITS: Record<
     max_users: 1,
     max_call_duration_seconds: 600, // 10 min
     retention_days: 7,
+    max_storage_gb: 1,
   },
   starter: {
     max_calls_per_month: 1000,
     max_users: 5,
     max_call_duration_seconds: 1800, // 30 min
     retention_days: 30,
+    max_storage_gb: 5,
   },
   pro: {
     max_calls_per_month: 5000,
     max_users: 20,
     max_call_duration_seconds: 3600, // 1 hour
     retention_days: 90,
+    max_storage_gb: 25,
   },
   business: {
     max_calls_per_month: 20000,
     max_users: 100,
     max_call_duration_seconds: 7200, // 2 hours
     retention_days: 365,
+    max_storage_gb: 100,
   },
   enterprise: {
     max_calls_per_month: -1, // unlimited
     max_users: -1, // unlimited
     max_call_duration_seconds: 14400, // 4 hours
     retention_days: 2555, // 7 years (legal compliance)
+    max_storage_gb: -1, // unlimited
   },
 }
 
@@ -303,9 +309,16 @@ export async function checkUsageLimit(
         break
 
       case 'storage_gb':
-        // TODO: Implement storage calculation
-        current = 0
-        limit = 100 // Placeholder
+        limit = limits.max_storage_gb || 100 // Default 100GB if not specified
+        if (limit === -1) return { exceeded: false, current: 0, limit: -1 } // Unlimited
+
+        const storageResult = await db.query(
+          `SELECT COALESCE(SUM(size_bytes), 0) / (1024 * 1024 * 1024.0) as storage_gb
+           FROM audio_files
+           WHERE organization_id = $1`,
+          [orgId]
+        )
+        current = parseFloat(storageResult.rows[0]?.storage_gb || '0')
         break
     }
 
@@ -336,3 +349,4 @@ export async function invalidatePlanCache(env: Env, orgId: string): Promise<void
     logger.warn('Failed to invalidate plan cache', { error: err?.message })
   }
 }
+

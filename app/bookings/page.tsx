@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
+import { AppShell } from '@/components/layout/AppShell'
 import { BookingModal } from '@/components/voice/BookingModal'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { logger } from '@/lib/logger'
@@ -78,19 +79,19 @@ export default function BookingsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500'
+        return 'bg-yellow-100 text-yellow-700 border-yellow-300'
       case 'confirmed':
-        return 'bg-green-500/20 text-green-400 border-green-500'
+        return 'bg-green-100 text-green-700 border-green-300'
       case 'calling':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500'
+        return 'bg-blue-100 text-blue-700 border-blue-300'
       case 'completed':
-        return 'bg-slate-500/20 text-slate-400 border-slate-500'
+        return 'bg-gray-100 text-gray-700 border-gray-300'
       case 'cancelled':
-        return 'bg-red-500/20 text-red-400 border-red-500'
+        return 'bg-red-100 text-red-700 border-red-300'
       case 'failed':
-        return 'bg-red-500/20 text-red-400 border-red-500'
+        return 'bg-red-100 text-red-700 border-red-300'
       default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500'
+        return 'bg-gray-100 text-gray-700 border-gray-300'
     }
   }
 
@@ -125,21 +126,21 @@ export default function BookingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <AppShell>
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
               📅 Scheduled Calls
             </h1>
-            <p className="text-sm text-slate-400 mt-1">View and manage all your scheduled calls</p>
+            <p className="text-sm text-gray-500 mt-1">View and manage all your scheduled calls</p>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => (window.location.href = '/voice-operations')}>
               ← Back to Voice
             </Button>
-            <Button onClick={() => setShowModal(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowModal(true)}>
               + Schedule New Call
             </Button>
           </div>
@@ -147,7 +148,7 @@ export default function BookingsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Filters */}
         <div className="flex gap-2 mb-6">
           {(['all', 'pending', 'completed', 'cancelled'] as const).map((f) => (
@@ -156,8 +157,8 @@ export default function BookingsPage() {
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filter === f
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -167,12 +168,12 @@ export default function BookingsPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="text-center py-12 text-slate-400">Loading scheduled calls...</div>
+          <div className="text-center py-12 text-gray-500">Loading scheduled calls...</div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-red-900/20 border border-red-800 rounded-lg text-red-400 mb-6">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 mb-6">
             {error}
           </div>
         )}
@@ -181,8 +182,8 @@ export default function BookingsPage() {
         {!loading && !error && bookings.length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📅</div>
-            <h3 className="text-xl font-medium text-slate-300 mb-2">No scheduled calls</h3>
-            <p className="text-slate-400 mb-6">
+            <h3 className="text-xl font-medium text-gray-700 mb-2">No scheduled calls</h3>
+            <p className="text-gray-500 mb-6">
               {filter === 'all'
                 ? "You haven't scheduled any calls yet."
                 : `No ${filter} calls found.`}
@@ -199,12 +200,12 @@ export default function BookingsPage() {
             {bookings.map((booking) => (
               <div
                 key={booking.id}
-                className="p-5 bg-slate-800/50 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors"
+                className="p-5 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-colors shadow-sm"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-medium text-white">{booking.title}</h3>
+                      <h3 className="text-lg font-medium text-gray-900">{booking.title}</h3>
                       <span
                         className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(booking.status)}`}
                       >
@@ -214,43 +215,43 @@ export default function BookingsPage() {
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-slate-400">Contact:</span>
-                        <span className="text-slate-200 ml-2">
+                        <span className="text-gray-500">Contact:</span>
+                        <span className="text-gray-900 ml-2">
                           {booking.attendee_name || booking.attendee_phone}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400">Phone:</span>
-                        <span className="text-slate-200 ml-2 font-mono">
+                        <span className="text-gray-500">Phone:</span>
+                        <span className="text-gray-900 ml-2 font-mono">
                           {booking.attendee_phone}
                         </span>
                       </div>
                       {booking.from_number && (
                         <div>
-                          <span className="text-slate-400">Your Number:</span>
-                          <span className="text-slate-200 ml-2 font-mono">
+                          <span className="text-gray-500">Your Number:</span>
+                          <span className="text-gray-900 ml-2 font-mono">
                             {booking.from_number}
                           </span>
                         </div>
                       )}
                       <div>
-                        <span className="text-slate-400">Scheduled:</span>
-                        <span className="text-slate-200 ml-2">
+                        <span className="text-gray-500">Scheduled:</span>
+                        <span className="text-gray-900 ml-2">
                           <ClientDate date={booking.start_time} format="short" />
                         </span>
                       </div>
                     </div>
 
                     {booking.description && (
-                      <p className="text-sm text-slate-400 mt-3">{booking.description}</p>
+                      <p className="text-sm text-gray-500 mt-3">{booking.description}</p>
                     )}
 
                     {booking.calls && (
-                      <div className="mt-3 p-3 bg-slate-700/50 rounded-lg text-sm">
-                        <span className="text-slate-400">Call Status:</span>
-                        <span className="text-slate-200 ml-2">{booking.calls.status}</span>
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm">
+                        <span className="text-gray-500">Call Status:</span>
+                        <span className="text-gray-900 ml-2">{booking.calls.status}</span>
                         {booking.calls.started_at && (
-                          <span className="text-slate-400 ml-4">
+                          <span className="text-gray-500 ml-4">
                             Started: <ClientDate date={booking.calls.started_at} format="time" />
                           </span>
                         )}
@@ -275,7 +276,7 @@ export default function BookingsPage() {
             ))}
           </div>
         )}
-      </main>
+      </div>
 
       {/* Booking Modal */}
       <BookingModal
@@ -286,6 +287,6 @@ export default function BookingsPage() {
           fetchBookings()
         }}
       />
-    </div>
+    </AppShell>
   )
 }

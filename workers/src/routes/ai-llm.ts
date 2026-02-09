@@ -184,8 +184,8 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, authMiddleware, requirePlan('star
         resourceType: 'ai_summaries',
         resourceId: body.call_id,
         action: AuditAction.AI_SUMMARIZE_COMPLETED,
-        before: null,
-        after: { call_id: body.call_id, provider: 'openai', status: 'completed' },
+        oldValue: null,
+        newValue: { call_id: body.call_id, provider: 'openai', status: 'completed' },
       })
     }
 
@@ -283,3 +283,4 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
     return c.json({ error: 'Analysis failed' }, 500)
   }
 })
+

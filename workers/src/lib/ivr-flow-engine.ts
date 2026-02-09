@@ -83,8 +83,8 @@ export async function startIVRFlow(
     action: AuditAction.IVR_FLOW_STARTED,
     resourceType: 'collection_account',
     resourceId: accountId,
-    before: null,
-    after: { call_id: callId },
+    oldValue: null,
+    newValue: { call_id: callId },
   })
 
   // Speak the welcome message
@@ -398,8 +398,8 @@ async function handlePaymentConfirm(
         action: AuditAction.IVR_PAYMENT_FAILED,
         resourceType: 'collection_account',
         resourceId: ctx.accountId!,
-        before: null,
-        after: { error: err?.message, amount: ctx.paymentAmount },
+        oldValue: null,
+        newValue: { error: err?.message, amount: ctx.paymentAmount },
       })
     }
   } else if (digits === '2') {
@@ -513,8 +513,8 @@ async function processPayment(env: Env, db: DbClient, ctx: IVRFlowContext): Prom
     action: AuditAction.IVR_PAYMENT_COMPLETED,
     resourceType: 'collection_payment',
     resourceId: paymentIntent.id,
-    before: null,
-    after: {
+    oldValue: null,
+    newValue: {
       amount: ctx.paymentAmount,
       account_id: ctx.accountId,
       stripe_payment_id: paymentIntent.id,
@@ -602,3 +602,4 @@ async function telnyxGatherDTMF(
     })
   }
 }
+

@@ -89,76 +89,104 @@ async function verifyStripeSignature(
 }
 
 /**
- * Verify Telnyx webhook signature (HMAC-SHA256)
- * Telnyx V2 signs payloads with telnyx-signature-ed25519 header
- * For simplicity, we verify using a shared signing secret (TELNYX_WEBHOOK_SECRET)
+ * Verify Telnyx webhook signature (Ed25519)
+ * Telnyx V2 signs payloads with Ed25519: signature = sign(timestamp || "." || body, public_key)
+ * The public key is provided by Telnyx in your webhook settings.
  */
 async function verifyTelnyxSignature(
   payload: string,
   timestampHeader: string,
   signatureHeader: string,
-  secret: string,
+  publicKey: string,
   toleranceSeconds = 300
 ): Promise<boolean> {
-  if (!timestampHeader || !signatureHeader || !secret) return false
+  if (!timestampHeader || !signatureHeader || !publicKey) return false
 
-  // Reject stale timestamps
+  // Reject stale timestamps (replay protection)
   const age = Math.floor(Date.now() / 1000) - parseInt(timestampHeader, 10)
   if (isNaN(age) || age > toleranceSeconds) return false
 
-  // Compute HMAC-SHA256 of "timestamp.payload"
-  const encoder = new TextEncoder()
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  const signed = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(`${timestampHeader}.${payload}`)
-  )
-  const computedSig = Array.from(new Uint8Array(signed))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
+  try {
+    // Decode base64 signature and public key
+    const signatureBytes = Uint8Array.from(atob(signatureHeader), (c) => c.charCodeAt(0))
+    const publicKeyBytes = Uint8Array.from(atob(publicKey), (c) => c.charCodeAt(0))
 
-  // Constant-time comparison
-  if (computedSig.length !== signatureHeader.length) return false
-  let mismatch = 0
-  for (let i = 0; i < computedSig.length; i++) {
-    mismatch |= computedSig.charCodeAt(i) ^ signatureHeader.charCodeAt(i)
+    // Message to verify: "timestamp.payload"
+    const encoder = new TextEncoder()
+    const message = encoder.encode(`${timestampHeader}.${payload}`)
+
+    // Import Ed25519 public key
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      publicKeyBytes,
+      { name: 'Ed25519', namedCurve: 'Ed25519' },
+      false,
+      ['verify']
+    )
+
+    // Verify Ed25519 signature
+    const valid = await crypto.subtle.verify('Ed25519', cryptoKey, signatureBytes, message)
+    return valid
+  } catch (err) {
+    logger.error('Ed25519 signature verification failed', { error: (err as Error).message })
+    return false
   }
-  return mismatch === 0
 }
 
-// Telnyx call events — verified via HMAC signature
+// Telnyx call events — verified via Ed25519 signature
 webhooksRoutes.post('/telnyx', async (c) => {
   try {
     const rawBody = await c.req.text()
 
-    // Verify Telnyx signature — fail-open with warning when secret not configured
-    // NOTE: Telnyx V2 actually uses ed25519 signatures, not HMAC-SHA256.
-    // Until proper ed25519 verification is implemented, signature check is
-    // skipped when TELNYX_WEBHOOK_SECRET is not set (most deployments).
-    const telnyxSecret = (c.env as any).TELNYX_WEBHOOK_SECRET
-    if (telnyxSecret) {
-      const timestamp = c.req.header('telnyx-timestamp') || ''
+    // Validate body is not empty
+    if (!rawBody || rawBody.trim() === '') {
+      logger.warn('Telnyx webhook received empty body')
+      return c.json({ error: 'Empty body not allowed' }, 400)
+    }
+
+    // Verify Telnyx Ed25519 signature
+    // Get the public key from environment (base64-encoded)
+    const telnyxPublicKey = c.env.TELNYX_PUBLIC_KEY
+    if (telnyxPublicKey) {
+      const timestamp = c.req.header('telnyx-timestamp') || c.req.header('webhook-timestamp') || ''
       const signature =
-        c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
-      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
+        c.req.header('telnyx-signature-ed25519') || c.req.header('webhook-signature') || ''
+
+      if (!timestamp || !signature) {
+        logger.warn('Telnyx webhook missing timestamp or signature headers')
+        return c.json({ error: 'Missing signature headers' }, 401)
+      }
+
+      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxPublicKey)
       if (!valid) {
+        logger.error('Telnyx webhook signature verification failed', {
+          timestamp,
+          signatureLength: signature.length,
+        })
         return c.json({ error: 'Invalid webhook signature' }, 401)
       }
+      logger.info('Telnyx webhook signature verified successfully')
     } else {
       logger.warn(
-        'TELNYX_WEBHOOK_SECRET not configured — accepting unverified webhook (set secret for production)'
+        'TELNYX_PUBLIC_KEY not configured — accepting unverified webhook (set public key for production)'
       )
     }
 
-    const body = JSON.parse(rawBody)
-    const eventType = body.data?.event_type
+    let body: any
+    try {
+      body = JSON.parse(rawBody)
+    } catch (parseErr) {
+      logger.warn('Telnyx webhook received invalid JSON', { error: (parseErr as Error).message })
+      return c.json({ error: 'Invalid JSON body' }, 400)
+    }
+
+    // Validate required structure
+    if (!body || typeof body !== 'object' || !body.data || !body.data.event_type) {
+      logger.warn('Telnyx webhook received invalid body structure', { hasData: !!body?.data, eventType: body?.data?.event_type })
+      return c.json({ error: 'Invalid webhook body structure' }, 400)
+    }
+
+    const eventType = body.data.event_type
 
     const db = getDb(c.env)
 
@@ -208,7 +236,7 @@ webhooksRoutes.post('/telnyx', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    logger.error('Telnyx webhook processing error')
+    logger.error('Telnyx webhook processing error', { error: err?.message, stack: err?.stack })
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -323,28 +351,168 @@ webhooksRoutes.post('/stripe', async (c) => {
 async function handleCallInitiated(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, from, to } = payload
 
-  const result = await db.query(
-    `UPDATE calls 
+  // First try to update existing call
+  const updateResult = await db.query(
+    `UPDATE calls
      SET call_sid = $1, status = 'initiated'
      WHERE call_control_id = $2 AND organization_id IS NOT NULL`,
     [call_session_id, call_control_id]
   )
-  if (result.rowCount === 0) {
-    logger.warn('webhook-update-no-match', { call_control_id, handler: 'handleCallInitiated' })
+
+  if (updateResult.rowCount > 0) {
+    // Successfully updated existing call
+    return
+  }
+
+  // No existing call found - this might be a programmatically created call (e.g., bridge customer call)
+  // Try to find the organization from an active bridge call with matching numbers
+  const bridgeCallResult = await db.query(
+    `SELECT organization_id, id as bridge_call_id
+     FROM calls
+     WHERE flow_type = 'bridge'
+     AND status IN ('in_progress', 'answered', 'initiated')
+     AND ((from_number = $1 AND to_number = $2) OR (from_number = $2 AND to_number = $1))
+     AND organization_id IS NOT NULL
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [from, to]
+  )
+
+  if (bridgeCallResult.rows.length > 0) {
+    const { organization_id, bridge_call_id } = bridgeCallResult.rows[0]
+
+    // Create a record for this programmatically created call
+    // Link it to the bridge call for transcription purposes
+    await db.query(
+      `INSERT INTO calls (
+        organization_id,
+        call_sid,
+        call_control_id,
+        status,
+        from_number,
+        to_number,
+        flow_type,
+        created_at
+      ) VALUES ($1, $2, $3, 'initiated', $4, $5, 'bridge_customer', NOW())`,
+      [organization_id, call_session_id, call_control_id, from, to]
+    )
+
+    logger.info('Created database record for bridge customer call', {
+      call_control_id,
+      bridge_call_id,
+      from,
+      to
+    })
+  } else {
+    logger.warn('webhook-update-no-match and no bridge call found', {
+      call_control_id,
+      from,
+      to
+    })
   }
 }
 
 async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
   const { call_control_id, call_session_id } = payload
 
+  logger.info('handleCallAnswered called', { call_control_id, call_session_id })
+
   const result = await db.query(
     `UPDATE calls 
      SET status = 'in_progress', answered_at = NOW()
-     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL`,
+     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL
+     RETURNING flow_type, to_number`,
     [call_session_id, call_control_id]
   )
   if (result.rowCount === 0) {
     logger.warn('webhook-update-no-match', { call_control_id, handler: 'handleCallAnswered' })
+    return
+  }
+
+  const call = result.rows[0]
+
+  // Handle bridge calls: when agent answers, create customer call and bridge
+  if (call.flow_type === 'bridge' && call.to_number && env.TELNYX_API_KEY) {
+    logger.info('Bridge call: agent answered, creating customer call and bridging', {
+      callControlId: call_control_id,
+      customerNumber: call.to_number,
+      agentNumber: call.from_number,
+      hasApiKey: !!env.TELNYX_API_KEY,
+      telnyxConnectionId: !!env.TELNYX_CONNECTION_ID,
+      telnyxAppId: !!env.TELNYX_CALL_CONTROL_APP_ID,
+      telnyxNumber: !!env.TELNYX_NUMBER,
+    })
+    try {
+      // Create a new call to the customer
+      const customerCallPayload = {
+        to: call.to_number,
+        from: call.from_number || env.TELNYX_NUMBER,
+        connection_id: env.TELNYX_CALL_CONTROL_APP_ID,  // Use Call Control App ID for programmatic calls
+        timeout_secs: 30,
+        webhook_url: `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
+        webhook_url_method: 'POST',
+        transcription: true,
+        transcription_config: {
+          transcription_engine: 'B',
+          transcription_tracks: 'both',
+        },
+      }
+      logger.info('Bridge customer call payload', { payload: customerCallPayload })
+
+      const createCallResponse = await fetch('https://api.telnyx.com/v2/calls', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(customerCallPayload),
+      })
+
+      if (createCallResponse.ok) {
+        const customerCallData = await createCallResponse.json()
+        const customerCallControlId = customerCallData.data.call_control_id
+        logger.info('Customer call created successfully', { customerCallControlId })
+
+        // Now bridge the agent call to the customer call
+        const bridgeResponse = await fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/bridge`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            call_control_id: customerCallControlId,
+          }),
+        })
+
+        if (bridgeResponse.ok) {
+          logger.info('Bridge call initiated successfully', {
+            agentCallControlId: call_control_id,
+            customerCallControlId,
+          })
+        } else {
+          const bridgeErrorText = await bridgeResponse.text()
+          logger.error('Bridge action failed', {
+            status: bridgeResponse.status,
+            response: bridgeErrorText.slice(0, 500)
+          })
+        }
+      } else {
+        const errorText = await createCallResponse.text()
+        logger.error('Customer call creation failed', {
+          status: createCallResponse.status,
+          response: errorText.slice(0, 500)
+        })
+      }
+    } catch (err) {
+      logger.error('Bridge call failed with exception', { error: (err as Error)?.message, stack: (err as Error)?.stack })
+    }
+  } else {
+    logger.warn('Bridge call conditions not met', {
+      flowType: call.flow_type,
+      hasToNumber: !!call.to_number,
+      hasApiKey: !!env.TELNYX_API_KEY,
+    })
   }
 
   // AI Role Policy: Disclose AI-assisted features at call start
@@ -425,7 +593,7 @@ async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
  * Handle Telnyx call.transcription event — real-time live translation pipeline.
  *
  * Telnyx Call Control v2 sends `call.transcription` events when
- * `transcription: { transcription_engine: 'B' }` is enabled on the call.
+ * `transcription: true` + `transcription_config: { transcription_engine: 'B' }` is enabled on the call.
  * Each event contains a transcription segment for a single utterance.
  *
  * Pipeline: Telnyx transcription → OpenAI translation → call_translations INSERT → SSE delivery
@@ -451,7 +619,7 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
 
   // Look up the call record to get organization_id and call id
   const callResult = await db.query(
-    `SELECT id, organization_id FROM calls
+    `SELECT id, organization_id, flow_type, from_number, to_number FROM calls
      WHERE (call_control_id = $1 OR call_sid = $2)
      AND organization_id IS NOT NULL
      LIMIT 1`,
@@ -466,7 +634,29 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     return
   }
 
-  const { id: callId, organization_id: orgId } = callResult.rows[0]
+  let { id: callId, organization_id: orgId, flow_type } = callResult.rows[0]
+
+  // If this is a bridge customer call, associate transcription with the main bridge call
+  if (flow_type === 'bridge_customer') {
+    const bridgeCallResult = await db.query(
+      `SELECT id FROM calls
+       WHERE flow_type = 'bridge'
+       AND status IN ('in_progress', 'answered', 'completed')
+       AND ((from_number = $1 AND to_number = $2) OR (from_number = $2 AND to_number = $1))
+       AND organization_id = $3
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [callResult.rows[0].from_number, callResult.rows[0].to_number, orgId]
+    )
+
+    if (bridgeCallResult.rows.length > 0) {
+      callId = bridgeCallResult.rows[0].id
+      logger.info('Associating bridge customer transcription with main call', {
+        customerCallId: callResult.rows[0].id,
+        mainCallId: callId
+      })
+    }
+  }
 
   // Get translation config for this org
   const translationConfig = await getTranslationConfig(db, orgId)
@@ -687,8 +877,8 @@ async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
       action: AuditAction.SUBSCRIPTION_UPDATED,
       resourceType: 'subscription',
       resourceId: subscription.id,
-      before: null,
-      after: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
+      oldValue: null,
+      newValue: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
     })
   }
 }
@@ -713,8 +903,8 @@ async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
       action: AuditAction.SUBSCRIPTION_CANCELLED,
       resourceType: 'subscription',
       resourceId: subscription.id,
-      before: null,
-      after: { status: 'canceled' },
+      oldValue: null,
+      newValue: { status: 'canceled' },
     })
   }
 }
@@ -736,8 +926,8 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
       action: AuditAction.PAYMENT_RECEIVED,
       resourceType: 'invoice',
       resourceId: invoice.id,
-      before: null,
-      after: { amount: invoice.amount_paid, status: 'paid' },
+      oldValue: null,
+      newValue: { amount: invoice.amount_paid, status: 'paid' },
     })
   }
 }
@@ -779,8 +969,8 @@ async function handleInvoiceFailed(db: DbClient, invoice: any) {
       action: AuditAction.PAYMENT_FAILED,
       resourceType: 'invoice',
       resourceId: invoice.id,
-      before: null,
-      after: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
+      oldValue: null,
+      newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
     })
   }
 }
@@ -1109,3 +1299,4 @@ webhooksRoutes.post('/:id/test', webhookRateLimit, async (c) => {
     return c.json({ error: 'Failed to test webhook' }, 500)
   }
 })
+

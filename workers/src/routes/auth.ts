@@ -91,7 +91,7 @@ authRoutes.post('/validate-key', async (c) => {
       resourceType: 'api_key',
       resourceId: keyRecord.id,
       action: AuditAction.API_KEY_VALIDATED,
-      after: { organization_name: keyRecord.organization_name },
+      newValue: { organization_name: keyRecord.organization_name },
     })
 
     return c.json({
@@ -208,7 +208,7 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
       resourceType: 'user',
       resourceId: user.id,
       action: AuditAction.USER_SIGNUP,
-      after: { email: user.email, name: user.name },
+      newValue: { email: user.email, name: user.name },
     })
 
     return c.json({
@@ -379,7 +379,7 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
       resourceType: 'session',
       resourceId: sessionId,
       action: AuditAction.SESSION_CREATED,
-      after: { email: user.email, role: org?.role || null },
+      newValue: { email: user.email, role: org?.role || null },
     })
 
     return c.json({
@@ -466,7 +466,7 @@ authRoutes.post('/refresh', async (c) => {
         resourceType: 'session',
         resourceId: token,
         action: AuditAction.SESSION_REFRESHED,
-        after: { expires: newExpires.toISOString() },
+        newValue: { expires: newExpires.toISOString() },
       })
 
       return c.json({
@@ -588,7 +588,7 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
       resourceType: 'user',
       resourceId: userId,
       action: AuditAction.PASSWORD_RESET_REQUESTED,
-      after: { email: email.toLowerCase() },
+      newValue: { email: email.toLowerCase() },
     })
 
     return c.json({
@@ -639,7 +639,7 @@ authRoutes.post('/reset-password', forgotPasswordRateLimit, async (c) => {
       resourceType: 'user',
       resourceId: userId,
       action: AuditAction.PASSWORD_RESET_COMPLETED,
-      after: { email: result.rows[0].email },
+      newValue: { email: result.rows[0].email },
     })
 
     return c.json({ message: 'Password has been reset successfully' })
@@ -755,3 +755,4 @@ async function verifyPassword(
 
   return { valid: false, needsRehash: false }
 }
+

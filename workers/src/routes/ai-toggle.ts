@@ -80,8 +80,8 @@ aiToggleRoutes.post('/activate', aiToggleRateLimit, async (c) => {
       action: AuditAction.AI_MODE_ACTIVATED,
       resourceType: 'call',
       resourceId: call.id,
-      before: { mode: 'human' },
-      after: { mode: 'ai', model: call.ai_agent_model || 'gpt-4o-mini' },
+      oldValue: { mode: 'human' },
+      newValue: { mode: 'ai', model: call.ai_agent_model || 'gpt-4o-mini' },
     })
 
     return c.json({ success: true, mode: 'ai', call_id: call.id })
@@ -125,8 +125,8 @@ aiToggleRoutes.post('/deactivate', aiToggleRateLimit, async (c) => {
       action: AuditAction.AI_MODE_HUMAN_TAKEOVER,
       resourceType: 'call',
       resourceId: call.id,
-      before: { mode: 'ai' },
-      after: { mode: 'human', reason: parsed.data.reason },
+      oldValue: { mode: 'ai' },
+      newValue: { mode: 'human', reason: parsed.data.reason },
     })
 
     return c.json({ success: true, mode: 'human', call_id: call.id })
@@ -236,8 +236,8 @@ aiToggleRoutes.put('/prompt-config', aiToggleRateLimit, async (c) => {
       action: AuditAction.AI_SCRIPT_EXECUTED,
       resourceType: 'voice_configs',
       resourceId: session.organization_id,
-      before: null,
-      after: parsed.data,
+      oldValue: null,
+      newValue: parsed.data,
     })
 
     return c.json({ success: true, config: parsed.data })
@@ -280,3 +280,4 @@ aiToggleRoutes.get('/prompt-config', async (c) => {
     await db.end()
   }
 })
+

@@ -85,6 +85,23 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
     fetchData()
   }, [organizationId])
 
+  // Initialize target number from config when it loads
+  useEffect(() => {
+    if (config && !configLoading && !targetNumber) {
+      // Initialize from quick_dial_number if set
+      if (config.quick_dial_number) {
+        setTargetNumber(config.quick_dial_number)
+      }
+      // Or from selected target
+      else if (config.target_id && targets.length > 0) {
+        const selectedTarget = targets.find(t => t.id === config.target_id)
+        if (selectedTarget) {
+          setTargetNumber(selectedTarget.phone_number)
+        }
+      }
+    }
+  }, [config, configLoading, targetNumber, targets, setTargetNumber])
+
   // Close suggestions when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -175,9 +192,26 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
 
   // Handle from number change
   const handleFromNumberChange = (value: string) => {
-    setFromNumber(value)
-    if (!value || isValidE164(value)) {
-      updateConfig({ from_number: value || null })
+    // Auto-format if it looks like a raw phone number (10+ digits, no +)
+    let formattedValue = value
+    if (/^\d{10,}$/.test(value.replace(/\D/g, '')) && !value.startsWith('+')) {
+      formattedValue = autoFormatPhone(value)
+    }
+    
+    setFromNumber(formattedValue)
+    if (!formattedValue || isValidE164(formattedValue)) {
+      updateConfig({ from_number: formattedValue || null })
+    }
+  }
+
+  // Handle blur on from_number to auto-format incomplete numbers
+  const handleFromNumberBlur = () => {
+    if (fromNumber && !fromNumber.startsWith('+')) {
+      const formatted = autoFormatPhone(fromNumber)
+      setFromNumber(formatted)
+      if (!formatted || isValidE164(formatted)) {
+        updateConfig({ from_number: formatted || null })
+      }
     }
   }
 
@@ -393,6 +427,7 @@ export default function TargetCampaignSelector({ organizationId }: TargetCampaig
                 autoComplete="off"
                 value={fromNumber}
                 onChange={(e) => handleFromNumberChange(e.target.value)}
+                onBlur={handleFromNumberBlur}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()

@@ -21,7 +21,7 @@ import {
 import { logger } from '../lib/logger'
 import { idempotent } from '../lib/idempotency'
 import { writeAuditLog, AuditAction } from '../lib/audit'
-import { callMutationRateLimit, aiSummaryRateLimit, emailRateLimit } from '../lib/rate-limit'
+import { callMutationRateLimit, aiSummaryRateLimit, emailRateLimit, telnyxVoiceRateLimit } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml } from '../lib/email'
 import { getTranslationConfig } from '../lib/translation-processor'
 
@@ -139,7 +139,7 @@ callsRoutes.get('/:id', async (c) => {
 })
 
 // Start a new call
-callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
+callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempotent(), async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -169,7 +169,7 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
       resourceType: 'calls',
       resourceId: call.id,
       action: AuditAction.CALL_STARTED,
-      after: { phone: caller_id || phone_number, system_id, status: 'pending' },
+      newValue: { phone: caller_id || phone_number, system_id, status: 'pending' },
     })
 
     // BL-011: Trigger actual call via Telnyx Call Control v2
@@ -187,7 +187,8 @@ callsRoutes.post('/start', callMutationRateLimit, idempotent(), async (c) => {
 
       // Enable Telnyx real-time transcription for live translation pipeline
       if (enableTranscription) {
-        callPayload.transcription = {
+        callPayload.transcription = true
+        callPayload.transcription_config = {
           transcription_engine: 'B',
           transcription_tracks: 'both',
         }
@@ -279,7 +280,7 @@ callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
       resourceType: 'calls',
       resourceId: callId,
       action: AuditAction.CALL_ENDED,
-      after: { status: 'completed', ended_at: endedCall.ended_at },
+      newValue: { status: 'completed', ended_at: endedCall.ended_at },
     })
 
     // BL-012: Trigger actual call hangup via Telnyx Call Control v2
@@ -547,7 +548,7 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
       resourceType: 'call_outcomes',
       resourceId: outcome.id,
       action: AuditAction.CALL_OUTCOME_DECLARED,
-      after: { call_id: callId, outcome_status, confidence_level },
+      newValue: { call_id: callId, outcome_status, confidence_level },
     })
 
     return c.json(
@@ -695,11 +696,11 @@ callsRoutes.put('/:id/outcome', async (c) => {
       resourceType: 'call_outcomes',
       resourceId: outcome.id,
       action: AuditAction.CALL_OUTCOME_UPDATED,
-      before: {
+      oldValue: {
         outcome_status: existingOutcome.outcome_status,
         confidence_level: existingOutcome.confidence_level,
       },
-      after: {
+      newValue: {
         outcome_status: outcome.outcome_status,
         confidence_level: outcome.confidence_level,
         revision: outcome.revision_number,
@@ -964,7 +965,7 @@ IMPORTANT: You are analyzing, not deciding. The human operator will review and c
       resourceType: 'ai_summaries',
       resourceId: aiSummary?.id || callId,
       action: AuditAction.CALL_AI_SUMMARY_GENERATED,
-      after: { call_id: callId, model: 'gpt-4-turbo-preview', review_status: 'pending' },
+      newValue: { call_id: callId, model: 'gpt-4-turbo-preview', review_status: 'pending' },
     })
 
     return c.json({
@@ -1104,7 +1105,7 @@ callsRoutes.post('/:id/notes', async (c) => {
       resourceType: 'call_notes',
       resourceId: inserted[0].id,
       action: AuditAction.CALL_NOTE_CREATED,
-      after: { call_id: callId, content_length: content.trim().length },
+      newValue: { call_id: callId, content_length: content.trim().length },
     })
 
     return c.json({ success: true, note: inserted[0] }, 201)
@@ -1151,7 +1152,7 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
       resourceType: 'calls',
       resourceId: callId,
       action: AuditAction.CALL_DISPOSITION_SET,
-      after: { disposition, disposition_notes },
+      newValue: { disposition, disposition_notes },
     })
 
     return c.json({ success: true, call: updated[0] })
@@ -1164,7 +1165,7 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
 })
 
 // POST /api/calls/:id/confirmations — record an in-call confirmation event
-callsRoutes.post('/:id/confirmations', async (c) => {
+callsRoutes.post('/:id/confirmations', callMutationRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 
@@ -1200,7 +1201,7 @@ callsRoutes.post('/:id/confirmations', async (c) => {
       resourceType: 'call_confirmations',
       resourceId: inserted[0].id,
       action: AuditAction.CALL_CONFIRMATION_CREATED,
-      after: { call_id: callId, confirmation_type },
+      newValue: { call_id: callId, confirmation_type },
     })
 
     return c.json({ success: true, confirmation: inserted[0] }, 201)
@@ -1349,7 +1350,7 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
         resourceType: 'calls',
         resourceId: callId,
         action: AuditAction.CALL_EMAILED,
-        after: { recipients, recipient_count: recipients.length },
+        newValue: { recipients, recipient_count: recipients.length },
       })
 
       return c.json({
@@ -1365,3 +1366,4 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
     return c.json({ success: false, error: 'Internal server error' }, 500)
   }
 })
+

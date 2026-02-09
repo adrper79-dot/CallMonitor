@@ -95,8 +95,8 @@ aiTranscribeRoutes.post(
         action: 'transcription:submitted',
         resourceType: 'transcription',
         resourceId: aaiResult.id,
-        before: null,
-        after: { audio_url: body.audio_url, call_id: body.call_id },
+        oldValue: null,
+        newValue: { audio_url: body.audio_url, call_id: body.call_id },
       })
 
       return c.json(
@@ -211,3 +211,4 @@ aiTranscribeRoutes.get('/result/:id', aiTranscriptionRateLimit, async (c) => {
     await db.end()
   }
 })
+

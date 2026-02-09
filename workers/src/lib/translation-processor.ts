@@ -266,3 +266,4 @@ export async function getTranslationConfig(
     live_translate: config.live_translate ?? false,
   }
 }
+

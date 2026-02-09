@@ -11,6 +11,7 @@ import { DurationChart } from '@/components/analytics/DurationChart'
 import { PerformanceMetrics } from '@/components/analytics/PerformanceMetrics'
 import { MetricCard } from '@/components/tableau/MetricCard'
 import { SurveyAnalyticsWidget } from '@/components/dashboard/SurveyAnalyticsWidget'
+import { AppShell } from '@/components/layout/AppShell'
 import { logger } from '@/lib/logger'
 import { apiGet } from '@/lib/apiClient'
 
@@ -161,38 +162,46 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-10 bg-gray-200 rounded w-1/4" />
-          <div className="grid grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded" />
-            ))}
+      <AppShell>
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-10 bg-gray-200 rounded w-1/4" />
+            <div className="grid grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-24 bg-gray-200 rounded" />
+              ))}
+            </div>
+            <div className="h-80 bg-gray-200 rounded" />
           </div>
-          <div className="h-80 bg-gray-200 rounded" />
         </div>
-      </div>
+      </AppShell>
     )
   }
 
   if (error) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-error-light border border-error text-error rounded-md p-4">
-          <p className="font-medium">Error</p>
-          <p className="text-sm">{error}</p>
+      <AppShell>
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="bg-error-light border border-error text-error rounded-md p-4">
+            <p className="font-medium">Error</p>
+            <p className="text-sm">{error}</p>
+          </div>
         </div>
-      </div>
+      </AppShell>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold text-gray-900">Analytics</h1>
-        <p className="text-gray-600 mt-1">Insights and performance metrics</p>
-      </div>
+    <AppShell>
+      {/* Page Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Analytics</h1>
+          <p className="text-sm text-gray-500 mt-1">Insights and performance metrics</p>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
       {/* Date Range Picker */}
       <div className="mb-6">
@@ -342,6 +351,7 @@ export default function AnalyticsPage() {
           <SurveyAnalyticsWidget organizationId={organizationId} />
         </div>
       )}
-    </div>
+      </div>
+    </AppShell>
   )
 }

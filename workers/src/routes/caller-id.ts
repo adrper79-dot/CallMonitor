@@ -98,8 +98,8 @@ async function initiateVerification(c: any) {
       resourceType: 'caller_ids',
       resourceId: phone_number,
       action: AuditAction.CALLER_ID_VERIFY_INITIATED,
-      before: null,
-      after: { phone_number },
+      oldValue: null,
+      newValue: { phone_number },
     })
 
     return c.json({
@@ -230,8 +230,8 @@ callerIdRoutes.delete('/:id', callerIdRateLimit, async (c) => {
       resourceType: 'caller_ids',
       resourceId: callerId,
       action: AuditAction.CALLER_ID_DELETED,
-      before: { id: callerId },
-      after: null,
+      oldValue: { id: callerId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Caller ID removed' })
@@ -242,3 +242,4 @@ callerIdRoutes.delete('/:id', callerIdRateLimit, async (c) => {
     await db.end()
   }
 })
+

@@ -114,7 +114,7 @@ adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
       resourceType: 'auth_providers',
       resourceId: row.id,
       action: AuditAction.AUTH_PROVIDER_UPDATED,
-      after: { provider: row.provider, enabled: row.enabled },
+      newValue: { provider: row.provider, enabled: row.enabled },
     })
 
     return c.json({
@@ -131,3 +131,13 @@ adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
     await db.end()
   }
 })
+
+// Catch-all route for admin endpoints — require authentication
+adminRoutes.all('*', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  return c.json({ error: 'Endpoint not found' }, 404)
+})
+
+

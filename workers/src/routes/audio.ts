@@ -62,8 +62,8 @@ audioRoutes.post('/upload', audioRateLimit, async (c) => {
       resourceType: 'audio_files',
       resourceId: result.rows[0].id,
       action: AuditAction.AUDIO_UPLOADED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, file: result.rows[0] })
@@ -107,8 +107,8 @@ audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
       resourceType: 'transcriptions',
       resourceId: transcription.id,
       action: AuditAction.AUDIO_TRANSCRIPTION_STARTED,
-      before: null,
-      after: { id: transcription.id, status: 'processing', language: transcription.language },
+      oldValue: null,
+      newValue: { id: transcription.id, status: 'processing', language: transcription.language },
     })
 
     // BL-015: Submit to AssemblyAI for real transcription
@@ -211,3 +211,4 @@ audioRoutes.get('/transcriptions/:id', async (c) => {
     await db.end()
   }
 })
+

@@ -88,7 +88,7 @@ ivrRoutes.get('/status/:callId', async (c) => {
   try {
     // Get recent collection payments for this call
     const paymentResult = await db.query(
-      `SELECT cp.id, cp.amount, cp.method, cp.status, cp.stripe_payment_id, cp.created_at
+      `SELECT cp.id, cp.amount, cp.method, cp.stripe_payment_id, cp.created_at
        FROM collection_payments cp
        WHERE cp.organization_id = $1
          AND EXISTS (
@@ -119,3 +119,4 @@ ivrRoutes.get('/status/:callId', async (c) => {
     await db.end()
   }
 })
+

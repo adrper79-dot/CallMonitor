@@ -13,6 +13,7 @@ import { WebRTCDialSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { getTranslationConfig } from '../lib/translation-processor'
+import { telnyxVoiceRateLimit } from '../lib/rate-limit'
 
 export const webrtcRoutes = new Hono<AppEnv>()
 
@@ -230,7 +231,7 @@ webrtcRoutes.get('/token', async (c) => {
 })
 
 // Initiate outbound call via Telnyx Call Control API
-webrtcRoutes.post('/dial', async (c) => {
+webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -273,7 +274,8 @@ webrtcRoutes.post('/dial', async (c) => {
 
     // Enable Telnyx real-time transcription for live translation pipeline
     if (enableTranscription) {
-      callPayload.transcription = {
+      callPayload.transcription = true
+      callPayload.transcription_config = {
         transcription_engine: 'B',
         transcription_tracks: 'both',
       }
@@ -295,7 +297,41 @@ webrtcRoutes.post('/dial', async (c) => {
 
     if (!telnyxResponse.ok) {
       const error = await telnyxResponse.text()
-      logger.error('Telnyx call initiation error', { error: (error as any)?.message })
+      const status = telnyxResponse.status
+
+      // Handle Telnyx rate limiting
+      if (status === 429) {
+        logger.warn('Telnyx WebRTC rate limit exceeded', {
+          endpoint: '/v2/calls',
+          connectionId: c.env.TELNYX_CONNECTION_ID?.slice(0, 8) + '...',
+        })
+        await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
+        return c.json(
+          {
+            error: 'Call service rate limit exceeded. Please try again in 1 minute.',
+            code: 'TELNYX_RATE_LIMIT',
+            retry_after: 60,
+          },
+          429
+        )
+      }
+
+      // Handle insufficient balance or account issues
+      if (status === 402) {
+        logger.error('Telnyx account payment issue (WebRTC)', {
+          response: error.slice(0, 200),
+        })
+        await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
+        return c.json(
+          {
+            error: 'Voice service temporarily unavailable. Please contact support.',
+            code: 'TELNYX_PAYMENT_REQUIRED',
+          },
+          503
+        )
+      }
+
+      logger.error('Telnyx call initiation error', { status, error: (error as any)?.message })
 
       // Update call status to failed
       await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
@@ -321,8 +357,8 @@ webrtcRoutes.post('/dial', async (c) => {
       resourceType: 'calls',
       resourceId: callId,
       action: AuditAction.CALL_STARTED,
-      before: null,
-      after: { call_id: callId, call_sid: callSid, phone_number, direction: 'outbound' },
+      oldValue: null,
+      newValue: { call_id: callId, call_sid: callSid, phone_number, direction: 'outbound' },
     })
 
     return c.json({
@@ -338,3 +374,4 @@ webrtcRoutes.post('/dial', async (c) => {
     await db.end()
   }
 })
+

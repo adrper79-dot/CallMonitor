@@ -132,7 +132,7 @@ sequenceDiagram
 - **Files:** `workers/src/routes/calls.ts`, `workers/src/routes/webrtc.ts`, `workers/src/routes/voice.ts`
 - **Service:** Telnyx Call Control v2 `POST /v2/calls`
 - **Function:** Originates calls with `transcription` config when `live_translate=true`
-- **Transcription Config:** `{ transcription_engine: 'B', transcription_tracks: 'both' }`
+- **Transcription Config:** `transcription: true` + `transcription_config: { transcription_engine: 'B', transcription_tracks: 'both' }`
 - **AI Disclosure:** `handleCallAnswered()` plays disclosure message via Telnyx `speak` action
 
 ### G. Frontend Components

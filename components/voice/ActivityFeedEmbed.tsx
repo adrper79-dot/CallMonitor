@@ -166,7 +166,7 @@ export default function ActivityFeedEmbed({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">{evt.title}</p>
+                    <p className={`text-sm font-semibold ${evt.title === 'Call Completed' ? 'text-red-500' : 'text-gray-900'}`}>{evt.title}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {new Date(evt.timestamp).toLocaleString()}
                     </p>
@@ -216,7 +216,7 @@ function mapTableToEventType(table: string, data: any): string {
 
 function mapTableToEventTitle(table: string, data: any): string {
   if (table === 'calls') {
-    if (data.status === 'completed') return 'Call completed'
+    if (data.status === 'completed') return 'Call Completed'
     if (data.status === 'failed') return 'Call failed'
     return 'Call started'
   }

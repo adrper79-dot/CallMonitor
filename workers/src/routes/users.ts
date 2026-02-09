@@ -110,3 +110,4 @@ userRoutes.get('/:id/organization', async (c) => {
     await db.end()
   }
 })
+

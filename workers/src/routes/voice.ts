@@ -10,7 +10,7 @@ import { validateBody } from '../lib/validate'
 import { VoiceConfigSchema, CreateCallSchema, VoiceTargetSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
-import { voiceRateLimit } from '../lib/rate-limit'
+import { voiceRateLimit, telnyxVoiceRateLimit } from '../lib/rate-limit'
 import { getTranslationConfig } from '../lib/translation-processor'
 
 export const voiceRoutes = new Hono<AppEnv>()
@@ -189,7 +189,7 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       resourceType: 'voice_configs',
       resourceId: session.organization_id,
       action: AuditAction.VOICE_CONFIG_UPDATED,
-      after: modulations,
+      newValue: modulations,
     })
 
     // Map live_translate boolean back to translate_mode for frontend
@@ -213,7 +213,7 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
 })
 
 // Place a voice call via Telnyx Call Control API
-voiceRoutes.post('/call', voiceRateLimit, async (c) => {
+voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -233,6 +233,14 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
       flow_type,
     } = parsed.data
 
+    logger.info('POST /api/voice/call request', {
+      to_number: to_number || '(empty)',
+      from_number: from_number || '(empty)',
+      target_id: target_id || '(empty)',
+      flow_type: flow_type || '(empty)',
+      has_modulations: !!modulations,
+    })
+
     if (organization_id && organization_id !== session.organization_id) {
       return c.json({ error: 'Invalid organization' }, 400)
     }
@@ -251,6 +259,11 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     }
 
     if (!destinationNumber) {
+      logger.warn('No destination number - to_number and target_id both empty', {
+        to_number: to_number || '(empty)',
+        target_id: target_id || '(empty)',
+        from_number: from_number || '(empty)',
+      })
       return c.json({ error: 'No destination number specified' }, 400)
     }
 
@@ -268,11 +281,19 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
       return c.json({ error: 'Telnyx API key not configured' }, 500)
     }
 
+    if (!c.env.TELNYX_CALL_CONTROL_APP_ID) {
+      return c.json({ error: 'Telnyx Call Control Application ID not configured (TELNYX_CALL_CONTROL_APP_ID)' }, 500)
+    }
+
     // Use Telnyx Call Control API to create the call
-    logger.info('Creating call', { flow_type: flow_type || 'direct' })
+    logger.info('Creating call', {
+      flow_type: flow_type || 'direct',
+      appId: c.env.TELNYX_CALL_CONTROL_APP_ID?.slice(0, 8) + '...',
+      destination: destinationNumber,
+    })
 
     const callPayload: Record<string, any> = {
-      connection_id: c.env.TELNYX_CONNECTION_ID,
+      connection_id: c.env.TELNYX_CALL_CONTROL_APP_ID,
       to: destinationNumber,
       from: callerNumber,
       answering_machine_detection: 'detect',
@@ -281,7 +302,8 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
     // Check if live translation is enabled — enable Telnyx real-time transcription
     const translationConfig = await getTranslationConfig(db, session.organization_id)
     if (translationConfig?.live_translate) {
-      callPayload.transcription = {
+      callPayload.transcription = true
+      callPayload.transcription_config = {
         transcription_engine: 'B',
         transcription_tracks: 'both',
       }
@@ -293,12 +315,18 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
 
     // If bridge call, the from_number is the agent's phone that gets called first
     if (flow_type === 'bridge' && from_number) {
-      // For bridge calls: call the agent first, then bridge to the target
+      // Validate from_number E.164 format for bridge calls
+      if (!/^\+[1-9]\d{1,14}$/.test(from_number)) {
+        return c.json({
+          error: `Invalid from_number format for bridge call (must be E.164): ${from_number}`,
+        }, 400)
+      }
+      // For bridge calls: call the agent first, webhook will bridge to customer on answer
       callPayload.to = from_number // Call the agent's phone first
-      callPayload.custom_headers = [
-        { name: 'X-Bridge-To', value: destinationNumber },
-        { name: 'X-Flow-Type', value: 'bridge' },
-      ]
+      logger.info('Bridge call: calling agent first', {
+        agentNumber: from_number,
+        customerNumber: destinationNumber,
+      })
     }
 
     // Add webhook URL for call status updates
@@ -317,11 +345,53 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
 
     if (!callResponse.ok) {
       const errorText = await callResponse.text()
-      logger.error('Telnyx call creation failed', { status: callResponse.status })
+      const status = callResponse.status
+
+      // Handle Telnyx rate limiting
+      if (status === 429) {
+        logger.warn('Telnyx rate limit exceeded', {
+          endpoint: '/v2/calls',
+          appId: c.env.TELNYX_CALL_CONTROL_APP_ID?.slice(0, 8) + '...',
+        })
+        return c.json(
+          {
+            error: 'Call service rate limit exceeded. Please try again in 1 minute.',
+            code: 'TELNYX_RATE_LIMIT',
+            retry_after: 60,
+          },
+          429
+        )
+      }
+
+      // Handle insufficient balance or account issues
+      if (status === 402) {
+        logger.error('Telnyx account payment issue', {
+          response: errorText.slice(0, 200),
+        })
+        return c.json(
+          {
+            error: 'Voice service temporarily unavailable. Please contact support.',
+            code: 'TELNYX_PAYMENT_REQUIRED',
+          },
+          503
+        )
+      }
+
+      logger.error('Telnyx call creation failed', {
+        status: callResponse.status,
+        appId: c.env.TELNYX_CALL_CONTROL_APP_ID?.slice(0, 8) + '...',
+        response: errorText.slice(0, 300),
+      })
       let errorMessage = 'Failed to create call'
       try {
         const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.errors?.[0]?.detail || errorJson.message || errorText
+        const detail = errorJson.errors?.[0]?.detail || errorJson.message || errorText
+        // Add guidance if connection_id is the problem
+        if (detail.includes('connection_id') || detail.includes('Call Control App')) {
+          errorMessage = `Invalid TELNYX_CALL_CONTROL_APP_ID — verify the Application ID in Telnyx Portal > Call Control > Applications. Current ID starts with: ${c.env.TELNYX_CALL_CONTROL_APP_ID?.slice(0, 8)}...`
+        } else {
+          errorMessage = detail
+        }
       } catch {
         errorMessage = errorText
       }
@@ -339,13 +409,26 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
         created_by, 
         status, 
         call_sid,
+        call_control_id,
+        to_number,
+        from_number,
+        caller_id_used,
+        flow_type,
         started_at,
         created_at
       ) VALUES (
-        $1, $2, 'initiating', $3, NOW(), NOW()
+        $1, $2, 'initiating', $3, $3, $4, $5, $6, $7, NOW(), NOW()
       )
       RETURNING id`,
-      [session.organization_id, session.user_id, telnyxCallId]
+      [
+        session.organization_id,
+        session.user_id,
+        telnyxCallId,
+        destinationNumber,
+        from_number || null,
+        callerNumber,
+        flow_type || 'direct',
+      ]
     )
 
     const callId = callRecord.rows[0]?.id
@@ -358,8 +441,9 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
       resourceType: 'calls',
       resourceId: callId,
       action: AuditAction.CALL_STARTED,
-      after: {
+      newValue: {
         to: destinationNumber,
+        from: callerNumber,
         telnyx_call_id: telnyxCallId,
         flow_type: flow_type || 'direct',
       },
@@ -374,8 +458,8 @@ voiceRoutes.post('/call', voiceRateLimit, async (c) => {
       flow_type: flow_type || 'direct',
     })
   } catch (err: any) {
-    logger.error('POST /api/voice/call error', { error: err?.message })
-    return c.json({ error: 'Failed to place call' }, 500)
+    logger.error('POST /api/voice/call error', { error: err?.message, stack: err?.stack })
+    return c.json({ error: err?.message || 'Failed to place call' }, 500)
   } finally {
     await db.end()
   }
@@ -413,7 +497,7 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
       resourceType: 'voice_targets',
       resourceId: result.rows[0].id,
       action: AuditAction.VOICE_TARGET_CREATED,
-      after: { phone_number, name },
+      newValue: { phone_number, name },
     })
 
     return c.json({
@@ -456,7 +540,7 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
       resourceType: 'voice_targets',
       resourceId: targetId,
       action: AuditAction.VOICE_TARGET_DELETED,
-      before: result.rows[0],
+      oldValue: result.rows[0],
     })
 
     return c.json({ success: true, message: 'Target deleted' })
@@ -467,3 +551,4 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
     await db.end()
   }
 })
+

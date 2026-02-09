@@ -100,6 +100,11 @@ export async function apiPost<T = any>(
 
   if (!res.ok) {
     const error: any = await res.json().catch(() => ({ message: res.statusText }))
+    console.error('[apiPost] Request failed:', {
+      url: resolveApiUrl(url),
+      status: res.status,
+      error,
+    })
     throw new ApiError(res.status, error.error?.message || error.message || 'Request failed')
   }
 

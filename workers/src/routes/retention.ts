@@ -102,8 +102,8 @@ retentionRoutes.put('/', retentionRateLimit, async (c) => {
       resourceType: 'retention_policies',
       resourceId: result.rows[0].id,
       action: AuditAction.RETENTION_POLICY_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, policy: result.rows[0] })
@@ -172,8 +172,8 @@ retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
       resourceType: 'legal_holds',
       resourceId: result.rows[0].id,
       action: AuditAction.LEGAL_HOLD_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, legalHold: result.rows[0] })
@@ -210,8 +210,8 @@ retentionRoutes.delete('/legal-holds/:id', retentionRateLimit, async (c) => {
       resourceType: 'legal_holds',
       resourceId: holdId,
       action: AuditAction.LEGAL_HOLD_RELEASED,
-      before: { id: holdId },
-      after: null,
+      oldValue: { id: holdId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Legal hold released' })
@@ -222,3 +222,4 @@ retentionRoutes.delete('/legal-holds/:id', retentionRateLimit, async (c) => {
     await db.end()
   }
 })
+

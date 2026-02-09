@@ -6,7 +6,7 @@
  *
  * Schema:
  *   audit_logs (id, organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)
- *   Note: Interface uses `before`/`after` properties which map to `old_value`/`new_value` DB columns.
+ *   Note: Interface uses `oldValue`/`newValue` properties which map to `old_value`/`new_value` DB columns.
  *
  * Usage:
  * ```ts
@@ -18,7 +18,7 @@
  *   resourceType: 'calls',
  *   resourceId: call.id,
  *   action: 'call:started',
- *   after: { phone: call.phone_number, status: 'pending' },
+ *   newValue: { phone: call.phone_number, status: 'pending' },
  * })
  * ```
  *
@@ -37,9 +37,9 @@ export interface AuditLogEntry {
   resourceId: string
   action: string
   /** State before mutation (optional — null for creates) */
-  before?: Record<string, unknown> | null
+  oldValue?: Record<string, unknown> | null
   /** State after mutation */
-  after?: Record<string, unknown> | null
+  newValue?: Record<string, unknown> | null
 }
 
 /**
@@ -59,8 +59,8 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
     resourceType,
     resourceId,
     action,
-    before = null,
-    after = null,
+    oldValue = null,
+    newValue = null,
   } = entry
 
   void db
@@ -73,8 +73,8 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
         resourceType,
         resourceId,
         action,
-        before ? JSON.stringify(before) : null,
-        after ? JSON.stringify(after) : null,
+        oldValue ? JSON.stringify(oldValue) : null,
+        newValue ? JSON.stringify(newValue) : null,
       ]
     )
     .catch((err) =>
@@ -247,3 +247,4 @@ export const AuditAction = {
   LANGUAGE_DETECTED: 'language:detected',
   TRANSLATION_CONFIG_UPDATED: 'translation:config_updated',
 } as const
+

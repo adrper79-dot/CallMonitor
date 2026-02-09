@@ -56,7 +56,7 @@ export default function ComparePage() {
       {/* Hero */}
       <section className="pt-32 pb-20 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+          <h1 className="text-4xl md:text-5xl font-semibold text-gray-900 mb-6">
             Not All Call Solutions
             <br />
             Are Created <span className="text-primary-600">Equal</span>

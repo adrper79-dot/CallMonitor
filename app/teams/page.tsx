@@ -12,10 +12,10 @@ export default function TeamsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Page Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Team Management</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage teams, departments, and member roles across your organization.
           </p>

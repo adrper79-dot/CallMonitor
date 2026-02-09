@@ -86,7 +86,7 @@ scorecardsRoutes.post('/', scorecardsRateLimit, async (c) => {
       resourceType: 'scorecards',
       resourceId: result.rows[0].id,
       action: AuditAction.SCORECARD_CREATED,
-      after: result.rows[0],
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, scorecard: result.rows[0], scorecardId: result.rows[0].id }, 201)
@@ -161,3 +161,4 @@ scorecardsRoutes.get('/:id', async (c) => {
     await db.end()
   }
 })
+

@@ -68,3 +68,4 @@ capabilitiesRoutes.get('/plan', analyticsRateLimit, async (c) => {
     ...details,
   })
 })
+

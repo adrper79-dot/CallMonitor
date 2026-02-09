@@ -19,6 +19,7 @@ import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TTSGenerateSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
+import { elevenLabsTtsRateLimit } from '../lib/rate-limit'
 
 export const ttsRoutes = new Hono<AppEnv>()
 
@@ -39,7 +40,7 @@ async function ttsCacheKey(text: string, voiceId: string): Promise<string> {
 }
 
 // POST /generate — Generate TTS audio
-ttsRoutes.post('/generate', async (c) => {
+ttsRoutes.post('/generate', elevenLabsTtsRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -155,3 +156,4 @@ ttsRoutes.post('/generate', async (c) => {
     await db.end()
   }
 })
+

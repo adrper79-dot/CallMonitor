@@ -104,8 +104,8 @@ teamsRoutes.post('/', authMiddleware, requirePlan('pro'), teamRateLimit, async (
       resourceType: 'teams',
       resourceId: result.rows[0].id,
       action: AuditAction.TEAM_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, team: result.rows[0] }, 201)
@@ -163,8 +163,8 @@ teamsRoutes.put('/:id', teamRateLimit, async (c) => {
       resourceType: 'teams',
       resourceId: teamId,
       action: AuditAction.TEAM_UPDATED,
-      before: null,
-      after: { name, description, team_type, parent_team_id, manager_user_id, is_active },
+      oldValue: null,
+      newValue: { name, description, team_type, parent_team_id, manager_user_id, is_active },
     })
 
     return c.json({ success: true })
@@ -201,8 +201,8 @@ teamsRoutes.delete('/:id', teamRateLimit, async (c) => {
       resourceType: 'teams',
       resourceId: teamId,
       action: AuditAction.TEAM_DELETED,
-      before: { is_active: true },
-      after: { is_active: false },
+      oldValue: { is_active: true },
+      newValue: { is_active: false },
     })
 
     return c.json({ success: true })
@@ -304,8 +304,8 @@ teamsRoutes.post('/:id/members', teamRateLimit, async (c) => {
       resourceType: 'team_members',
       resourceId: result.rows[0].id,
       action: AuditAction.MEMBER_INVITED,
-      before: null,
-      after: { team_id: teamId, user_id, team_role },
+      oldValue: null,
+      newValue: { team_id: teamId, user_id, team_role },
     })
 
     return c.json({ success: true, membership: result.rows[0] }, 201)
@@ -348,8 +348,8 @@ teamsRoutes.delete('/:id/members/:userId', teamRateLimit, async (c) => {
       resourceType: 'team_members',
       resourceId: userId,
       action: AuditAction.MEMBER_REMOVED,
-      before: { team_id: teamId, user_id: userId },
-      after: null,
+      oldValue: { team_id: teamId, user_id: userId },
+      newValue: null,
     })
 
     return c.json({ success: true })
@@ -429,8 +429,8 @@ teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
       resourceType: 'organizations',
       resourceId: organization_id,
       action: AuditAction.ORG_SWITCHED,
-      before: { organization_id: session.organization_id },
-      after: { organization_id, org_name: member.org_name, role: member.role },
+      oldValue: { organization_id: session.organization_id },
+      newValue: { organization_id, org_name: member.org_name, role: member.role },
     })
 
     return c.json({
@@ -500,8 +500,8 @@ teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
       resourceType: 'team_members',
       resourceId: userId,
       action: AuditAction.ROLE_CHANGED,
-      before: null,
-      after: { user_id: userId, new_role: role },
+      oldValue: null,
+      newValue: { user_id: userId, new_role: role },
     })
 
     return c.json({ success: true, user_id: userId, new_role: role })
@@ -511,3 +511,4 @@ teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
     await db.end()
   }
 })
+

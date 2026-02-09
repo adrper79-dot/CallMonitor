@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
+import { AppShell } from '@/components/layout/AppShell'
 import { apiPost, apiGet, apiFetch, API_BASE } from '@/lib/apiClient'
 
 type TestStatus = 'idle' | 'running' | 'passed' | 'failed' | 'warning' | 'service_down'
@@ -140,22 +141,22 @@ export default function TestPage() {
 
   const getStatusColor = (status: TestStatus) => {
     switch (status) {
-      case 'passed': return 'text-green-400'
-      case 'failed': return 'text-red-400'
-      case 'warning': return 'text-yellow-400'
-      case 'running': return 'text-blue-400'
-      case 'service_down': return 'text-orange-400'
-      default: return 'text-slate-500'
+      case 'passed': return 'text-green-600'
+      case 'failed': return 'text-red-600'
+      case 'warning': return 'text-yellow-600'
+      case 'running': return 'text-blue-600'
+      case 'service_down': return 'text-orange-600'
+      default: return 'text-gray-500'
     }
   }
 
   const getStatusBorder = (status: TestStatus) => {
     switch (status) {
-      case 'passed': return 'border-green-800/50'
-      case 'failed': return 'border-red-800/50'
-      case 'warning': return 'border-yellow-800/50'
-      case 'service_down': return 'border-orange-800/50'
-      default: return 'border-slate-800'
+      case 'passed': return 'border-green-300'
+      case 'failed': return 'border-red-300'
+      case 'warning': return 'border-yellow-300'
+      case 'service_down': return 'border-orange-300'
+      default: return 'border-gray-200'
     }
   }
 
@@ -283,23 +284,23 @@ export default function TestPage() {
     counts.passed === counts.total ? 'passed' : 'idle'
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <AppShell>
+      {/* Page Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">🧪 Live Test Dashboard</h1>
-            <p className="text-slate-400 mt-1">
+            <h1 className="text-2xl font-semibold text-gray-900">🧪 Live Test Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">
               Real integration tests — zero mocks — every test hits live services
             </p>
-            <div className="flex items-center gap-3 mt-2 text-sm text-slate-500">
-              <span>API: <span className={apiStatus === 'up' ? 'text-green-400' : apiStatus === 'down' ? 'text-red-400' : 'text-slate-400'}>{apiStatus.toUpperCase()}</span></span>
+            <div className="flex items-center gap-3 mt-2 text-sm text-gray-400">
+              <span>API: <span className={apiStatus === 'up' ? 'text-green-600' : apiStatus === 'down' ? 'text-red-600' : 'text-gray-400'}>{apiStatus.toUpperCase()}</span></span>
               {lastRunTime && <span>Last run: {lastRunTime.toLocaleString()}</span>}
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right mr-2">
-              <div className="text-xs text-slate-500 uppercase tracking-wide">Status</div>
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Status</div>
               <div className={`text-xl font-bold ${getStatusColor(overallStatus)}`}>
                 {getStatusIcon(overallStatus)} {overallStatus === 'idle' ? 'Ready' : overallStatus.replace('_', ' ').toUpperCase()}
               </div>
@@ -307,27 +308,29 @@ export default function TestPage() {
             <Button
               onClick={runAllTests}
               disabled={isRunningAll}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isRunningAll ? '⏳ Running...' : '▶️ Run All'}
             </Button>
-            <Button onClick={resetAll} variant="outline" className="border-slate-700">
+            <Button onClick={resetAll} variant="outline">
               🔄 Reset
             </Button>
           </div>
-        </header>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
 
         {/* Summary Stats */}
         <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: 'Total', value: counts.total, color: 'text-slate-300' },
-            { label: 'Passed', value: counts.passed, color: 'text-green-400' },
-            { label: 'Failed', value: counts.failed, color: 'text-red-400' },
-            { label: 'Warnings', value: counts.warnings, color: 'text-yellow-400' },
-            { label: 'Down', value: counts.down, color: 'text-orange-400' },
+            { label: 'Total', value: counts.total, color: 'text-gray-700' },
+            { label: 'Passed', value: counts.passed, color: 'text-green-600' },
+            { label: 'Failed', value: counts.failed, color: 'text-red-600' },
+            { label: 'Warnings', value: counts.warnings, color: 'text-yellow-600' },
+            { label: 'Down', value: counts.down, color: 'text-orange-600' },
           ].map((stat) => (
-            <div key={stat.label} className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-center">
-              <div className="text-xs text-slate-500 uppercase tracking-wide">{stat.label}</div>
+            <div key={stat.label} className="bg-white p-3 rounded-lg border border-gray-200 text-center shadow-sm">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">{stat.label}</div>
               <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
             </div>
           ))}
@@ -335,10 +338,10 @@ export default function TestPage() {
 
         {/* Suite Result Banner */}
         {suiteResult && (
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Full Suite Complete</h3>
-              <span className="text-sm text-slate-400">{suiteResult.suite_duration_ms}ms</span>
+              <h3 className="font-semibold text-gray-900">Full Suite Complete</h3>
+              <span className="text-sm text-gray-500">{suiteResult.suite_duration_ms}ms</span>
             </div>
             <div className="grid grid-cols-4 gap-4 mt-3 text-sm">
               <div>✅ {suiteResult.passed} passed</div>
@@ -355,19 +358,19 @@ export default function TestPage() {
             const catPassed = category.tests.filter(t => t.status === 'passed').length
             const catTotal = category.tests.length
             return (
-              <div key={category.id} className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
+              <div key={category.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
                 {/* Category Header */}
-                <div className="bg-slate-800/50 px-5 py-3 border-b border-slate-700 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
+                <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">
                     {category.icon} {category.name}
                   </h2>
-                  <span className="text-sm text-slate-400">
+                  <span className="text-sm text-gray-500">
                     {catPassed}/{catTotal} passed
                   </span>
                 </div>
 
                 {/* Tests */}
-                <div className="divide-y divide-slate-800/50">
+                <div className="divide-y divide-gray-100">
                   {category.tests.map((test) => (
                     <div key={test.id} className={`p-4 border-l-2 ${getStatusBorder(test.status)} transition-colors`}>
                       <div className="flex items-start justify-between">
@@ -375,8 +378,8 @@ export default function TestPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{getStatusIcon(test.status)}</span>
                             <div>
-                              <h3 className="font-medium">{test.name}</h3>
-                              <p className="text-xs text-slate-500">{test.description}</p>
+                              <h3 className="font-medium text-gray-900">{test.name}</h3>
+                              <p className="text-xs text-gray-500">{test.description}</p>
                             </div>
                           </div>
 
@@ -384,31 +387,31 @@ export default function TestPage() {
                           {test.status !== 'idle' && test.status !== 'running' && (
                             <div className="ml-8 mt-2 space-y-1.5 text-sm">
                               {test.duration !== undefined && (
-                                <span className="text-slate-500">⏱️ {test.duration}ms</span>
+                                <span className="text-gray-500">⏱️ {test.duration}ms</span>
                               )}
                               {test.details && (
-                                <div className="bg-slate-800/50 p-2 rounded text-slate-300 text-xs font-mono">
+                                <div className="bg-gray-50 p-2 rounded text-gray-700 text-xs font-mono">
                                   {test.details}
                                 </div>
                               )}
                               {test.error && (
-                                <div className="bg-red-900/20 border border-red-900/30 p-2 rounded text-xs">
-                                  <span className="text-red-400 font-semibold">Error: </span>
-                                  <span className="text-red-300">{test.error}</span>
+                                <div className="bg-red-50 border border-red-200 p-2 rounded text-xs">
+                                  <span className="text-red-600 font-semibold">Error: </span>
+                                  <span className="text-red-500">{test.error}</span>
                                 </div>
                               )}
                               {test.differential && (
-                                <div className="bg-amber-900/20 border border-amber-900/30 p-2 rounded text-xs font-mono">
-                                  <div className="text-amber-400">Differential:</div>
-                                  <div className="text-green-400">  Expected: {test.differential.expected}</div>
-                                  <div className="text-red-400">  Actual:   {test.differential.actual}</div>
+                                <div className="bg-amber-50 border border-amber-200 p-2 rounded text-xs font-mono">
+                                  <div className="text-amber-700">Differential:</div>
+                                  <div className="text-green-600">  Expected: {test.differential.expected}</div>
+                                  <div className="text-red-600">  Actual:   {test.differential.actual}</div>
                                   {test.differential.context && (
-                                    <div className="text-slate-400">  Context:  {test.differential.context}</div>
+                                    <div className="text-gray-500">  Context:  {test.differential.context}</div>
                                   )}
                                 </div>
                               )}
                               {test.correlation_id && (
-                                <div className="text-slate-600 text-xs">ID: {test.correlation_id}</div>
+                                <div className="text-gray-400 text-xs">ID: {test.correlation_id}</div>
                               )}
                             </div>
                           )}
@@ -419,7 +422,7 @@ export default function TestPage() {
                           disabled={test.status === 'running' || isRunningAll}
                           variant="outline"
                           size="sm"
-                          className="ml-3 shrink-0 border-slate-700 text-xs"
+                          className="ml-3 shrink-0 text-xs"
                         >
                           {test.status === 'running' ? '⏳' : '▶️'}
                         </Button>
@@ -433,11 +436,11 @@ export default function TestPage() {
         </section>
 
         {/* Footer */}
-        <footer className="text-xs text-slate-600 text-center border-t border-slate-800 pt-4 space-y-1">
+        <footer className="text-xs text-gray-400 text-center border-t border-gray-200 pt-4 space-y-1">
           <p>Live Test Dashboard — every test hits production services, zero mocks</p>
-          <p>CLI: <code className="bg-slate-800 px-1.5 py-0.5 rounded">npm run test:live</code> | API: <code className="bg-slate-800 px-1.5 py-0.5 rounded">{API_BASE}/api/test/catalog</code></p>
+          <p>CLI: <code className="bg-gray-100 px-1.5 py-0.5 rounded">npm run test:live</code> | API: <code className="bg-gray-100 px-1.5 py-0.5 rounded">{API_BASE}/api/test/catalog</code></p>
         </footer>
       </div>
-    </main>
+    </AppShell>
   )
 }

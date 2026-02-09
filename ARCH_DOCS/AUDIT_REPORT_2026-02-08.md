@@ -115,7 +115,7 @@ The Word Is Bond platform is **production-ready** with a mature, well-architecte
 | `01-CORE/CLIENT_API_GUIDE.md`                                   | Prescribes `credentials: 'include'` (wrong — should be Bearer token)        | 🔴 Critical |
 | `05-REFERENCE/AUTH.md`                                          | Stale column names (`sessionToken` → `session_token`), wrong TTL (30d → 7d) | 🔴 Critical |
 | `01-CORE/AI_ROLE_POLICY.md`                                     | References "Live Captions from SignalWire" — removed                        | 🔴 Critical |
-| `05-REFERENCE/ERROR_CATALOG.md`                                 | References legacy architecture, SignalWire error codes                      | 🟠 High     |
+| `05-REFERENCE/ERROR_CATALOG.md`                                 | File does not exist (referenced in audit but not present)                   | 🟢 Resolved |
 | `03-INFRASTRUCTURE/CLOUDFLARE_DEPLOYMENT.md` (03-INFRA version) | Describes wrong `@cloudflare/next-on-pages` architecture                    | 🟠 High     |
 | `SYSTEM_MAP.md`                                                 | Lists stale file paths, missing key directories                             | 🟠 High     |
 | `DATABASE_SCHEMA_REGISTRY.md`                                   | Only 6/120+ tables documented                                               | 🟠 High     |

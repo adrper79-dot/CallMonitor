@@ -80,6 +80,27 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Load transient fields from localStorage
+  const loadTransientFields = (): Partial<VoiceConfig> => {
+    if (!organizationId) return {}
+    try {
+      const stored = localStorage.getItem(`voice-config-transient-${organizationId}`)
+      return stored ? JSON.parse(stored) : {}
+    } catch {
+      return {}
+    }
+  }
+
+  // Save transient fields to localStorage
+  const saveTransientFields = (fields: Partial<VoiceConfig>) => {
+    if (!organizationId) return
+    try {
+      localStorage.setItem(`voice-config-transient-${organizationId}`, JSON.stringify(fields))
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
   useEffect(() => {
     if (!organizationId) {
       setConfig(null)
@@ -93,7 +114,9 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
         setLoading(true)
         setError(null)
         const data = await apiGet(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
-        setConfig(data.config || {})
+        // Merge with transient fields from localStorage
+        const transientFields = loadTransientFields()
+        setConfig({ ...(data.config || {}), ...transientFields })
       } catch (err: any) {
         setError(err?.message || 'Failed to load config')
         setConfig(null)
@@ -141,6 +164,8 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
         if (Object.keys(transientUpdates).length > 0) {
           setConfig((prev) => {
             const newConfig = { ...(prev || {}), ...transientUpdates }
+            // Save transient fields to localStorage
+            saveTransientFields({ ...prev, ...transientUpdates })
             return newConfig
           })
         }
@@ -210,7 +235,15 @@ export function useVoiceConfig(organizationId?: string | null) {
         setLoading(true)
         setError(null)
         const data = await apiGet(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
-        setConfig(data.config || {})
+        // Merge with transient fields from localStorage
+        let transientFields = {}
+        try {
+          const stored = localStorage.getItem(`voice-config-transient-${organizationId}`)
+          transientFields = stored ? JSON.parse(stored) : {}
+        } catch {
+          // Ignore localStorage errors
+        }
+        setConfig({ ...(data.config || {}), ...transientFields })
       } catch (err: any) {
         setError(err?.message || 'Failed to load config')
         setConfig(null)
@@ -255,7 +288,16 @@ export function useVoiceConfig(organizationId?: string | null) {
       }
 
       if (Object.keys(transientUpdates).length > 0) {
-        setConfig((prev) => ({ ...(prev || {}), ...transientUpdates }))
+        setConfig((prev) => {
+          const newConfig = { ...(prev || {}), ...transientUpdates }
+          // Save transient fields to localStorage
+          try {
+            localStorage.setItem(`voice-config-transient-${organizationId}`, JSON.stringify(newConfig))
+          } catch {
+            // Ignore localStorage errors
+          }
+          return newConfig
+        })
       }
 
       if (Object.keys(persistentUpdates).length === 0) {

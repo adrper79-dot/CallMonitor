@@ -56,7 +56,7 @@ complianceRoutes.post('/violations', complianceRateLimit, async (c) => {
       resourceType: 'compliance_violations',
       resourceId: result.rows[0].id,
       action: AuditAction.COMPLIANCE_VIOLATION_LOGGED,
-      after: result.rows[0],
+      newValue: result.rows[0],
     })
 
     return c.json(
@@ -201,7 +201,7 @@ complianceRoutes.patch('/violations/:id', complianceRateLimit, async (c) => {
       resourceType: 'compliance_violations',
       resourceId: result.rows[0].id,
       action: AuditAction.COMPLIANCE_VIOLATION_RESOLVED,
-      after: result.rows[0],
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, violation: result.rows[0] })
@@ -212,3 +212,4 @@ complianceRoutes.patch('/violations/:id', complianceRateLimit, async (c) => {
     await db.end()
   }
 })
+

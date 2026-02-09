@@ -83,8 +83,8 @@ async function upsertScript(c: any) {
         resourceType: 'shopper_scripts',
         resourceId: result.rows[0].id,
         action: AuditAction.SHOPPER_SCRIPT_UPDATED,
-        before: null,
-        after: result.rows[0],
+        oldValue: null,
+        newValue: result.rows[0],
       })
       return c.json({ success: true, script: result.rows[0] })
     }
@@ -103,8 +103,8 @@ async function upsertScript(c: any) {
       resourceType: 'shopper_scripts',
       resourceId: result.rows[0].id,
       action: AuditAction.SHOPPER_SCRIPT_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, script: result.rows[0] }, 201)
@@ -188,8 +188,8 @@ shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
       resourceType: 'shopper_scripts',
       resourceId: scriptId,
       action: AuditAction.SHOPPER_SCRIPT_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, script: result.rows[0] })
@@ -229,8 +229,8 @@ shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
       resourceType: 'shopper_scripts',
       resourceId: scriptId,
       action: AuditAction.SHOPPER_SCRIPT_DELETED,
-      before: { id: scriptId },
-      after: null,
+      oldValue: { id: scriptId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Script deleted' })
@@ -283,8 +283,8 @@ shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
       resourceType: 'shopper_scripts',
       resourceId: scriptId,
       action: AuditAction.SHOPPER_SCRIPT_DELETED,
-      before: { id: scriptId },
-      after: null,
+      oldValue: { id: scriptId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Script deleted' })
@@ -295,3 +295,4 @@ shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
     await db.end()
   }
 })
+

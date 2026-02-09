@@ -964,9 +964,10 @@ function probeToResult(id: string, name: string, category: string, probe: ProbeR
 // GET /api/test/catalog — List all available tests
 testRoutes.get('/catalog', async (c) => {
   const catalog = Object.entries(TEST_REGISTRY).map(([categoryId, tests]) => ({
-    category_id: categoryId,
+    id: categoryId,
+    name: categoryId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Human-readable name
     tests: Object.entries(tests).map(([testId, _fn]) => ({
-      test_id: testId,
+      id: testId,
       category: categoryId,
     })),
   }))
@@ -1106,3 +1107,4 @@ testRoutes.get('/health', async (c) => {
   const healthData = await probeAll(c.env)
   return c.json(healthData, healthData.overall === 'down' ? 503 : 200)
 })
+

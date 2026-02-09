@@ -18,6 +18,9 @@
 -- Core columns needed by calls.ts and webhooks.ts
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS caller_id_used TEXT;
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS call_control_id TEXT;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS to_number TEXT;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS from_number TEXT;
+ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS flow_type TEXT DEFAULT 'direct';
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS recording_url TEXT;
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS transcript TEXT;
 ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS transcript_status TEXT DEFAULT 'none';

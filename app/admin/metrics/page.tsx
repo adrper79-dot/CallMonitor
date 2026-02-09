@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useSession } from '@/components/AuthProvider'
+import { AppShell } from '@/components/layout/AppShell'
 import { useRBAC } from '@/hooks/useRBAC'
 import { apiGet } from '@/lib/apiClient'
 import { formatCurrency, formatNumber } from '@/lib/utils'
@@ -51,36 +52,51 @@ export default function AdminMetricsPage() {
   }, [isAuthorized])
 
   if (!isAuthorized) {
-    return <div className="p-8 text-center text-destructive">Super-admin access required.</div>
+    return (
+      <AppShell>
+        <div className="max-w-7xl mx-auto px-6 py-8 text-center text-destructive">
+          Super-admin access required.
+        </div>
+      </AppShell>
+    )
   }
 
   if (error) {
     return (
-      <div className="p-8 space-y-4">
-        <h1 className="text-2xl font-bold">Platform Metrics</h1>
+      <AppShell>
+        <div className="max-w-7xl mx-auto px-6 py-8 space-y-4">
+          <h1 className="text-2xl font-semibold text-gray-900">Platform Metrics</h1>
         <div className="text-destructive">{error}</div>
         <button
           onClick={fetchMetrics}
           className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
         >
-          <RefreshCw className="w-4 h-4 mr-2 h-4 w-4" /> Retry
+          <RefreshCw className="w-4 h-4 mr-2" /> Retry
         </button>
-      </div>
+        </div>
+      </AppShell>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Platform Metrics</h1>
-          <p className="text-muted-foreground">Realtime dashboard. Refreshes every 10s.</p>
+    <AppShell>
+      {/* Page Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Platform Metrics</h1>
+              <p className="text-sm text-gray-500 mt-1">Realtime dashboard. Refreshes every 10s.</p>
+            </div>
+            <Badge variant="secondary">
+              Last update:{' '}
+              {metrics?.timestamp ? new Date(metrics.timestamp).toLocaleTimeString() : 'N/A'}
+            </Badge>
+          </div>
         </div>
-        <Badge variant="secondary">
-          Last update:{' '}
-          {metrics?.timestamp ? new Date(metrics.timestamp).toLocaleTimeString() : 'N/A'}
-        </Badge>
-      </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
@@ -153,6 +169,7 @@ export default function AdminMetricsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </AppShell>
   )
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRBAC, usePermission } from '@/hooks/useRBAC'
 import { useVoiceConfig } from '@/hooks/useVoiceConfig'
+import { useTargetNumber } from '@/hooks/TargetNumberProvider'
 import { useRealtime } from '@/hooks/useRealtime'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +28,7 @@ export default function ExecutionControls({
   const { role } = useRBAC(organizationId)
   const canPlaceCall = usePermission(organizationId, 'call', 'execute')
   const { config, updateConfig } = useVoiceConfig(organizationId)
+  const { targetNumber } = useTargetNumber()
   const { toast } = useToast()
   const { updates, connected } = useRealtime(organizationId)
 
@@ -110,9 +112,11 @@ export default function ExecutionControls({
     return () => clearInterval(interval)
   }, [activeCallId, callStatus])
 
-  const hasDialTarget = config?.target_id || config?.quick_dial_number
+  // Resolve dial target: prefer config fields, fall back to TargetNumberProvider context
+  const resolvedQuickDial = config?.quick_dial_number || (targetNumber && /^\+[1-9]\d{1,14}$/.test(targetNumber) ? targetNumber : null)
+  const hasDialTarget = config?.target_id || resolvedQuickDial
   const dialTargetDisplay =
-    config?.quick_dial_number ||
+    resolvedQuickDial ||
     (config?.target_id ? `Target: ${config.target_id.slice(0, 8)}...` : null)
   const fromNumberDisplay = config?.from_number || null
   const isBridgeCall = !!config?.from_number
@@ -136,26 +140,61 @@ export default function ExecutionControls({
 
       const requestBody: Record<string, any> = {
         organization_id: organizationId,
-        campaign_id: config.campaign_id || null,
+        campaign_id: config?.campaign_id || null,
         modulations: {
-          record: config.record || false,
-          transcribe: config.transcribe || false,
-          translate: config.translate || false,
-          survey: config.survey || false,
-          synthetic_caller: config.synthetic_caller || false,
+          record: config?.record || false,
+          transcribe: config?.transcribe || false,
+          translate: config?.translate || false,
+          survey: config?.survey || false,
+          synthetic_caller: config?.synthetic_caller || false,
         },
       }
 
-      if (config.quick_dial_number) {
+      if (config?.quick_dial_number) {
         requestBody.to_number = config.quick_dial_number
-      } else if (config.target_id) {
+      } else if (resolvedQuickDial) {
+        requestBody.to_number = resolvedQuickDial
+      } else if (config?.target_id) {
         requestBody.target_id = config.target_id
       }
 
-      if (config.from_number) {
+      // Failsafe: if still no destination, try reading directly from localStorage
+      if (!requestBody.to_number && !requestBody.target_id) {
+        const storedNumber = localStorage.getItem('voice-target-number')
+        if (storedNumber && /^\+[1-9]\d{1,14}$/.test(storedNumber)) {
+          requestBody.to_number = storedNumber
+          console.log('[ExecutionControls] Failsafe: used localStorage target number:', storedNumber)
+        }
+      }
+
+      // Final check — abort if still no destination
+      if (!requestBody.to_number && !requestBody.target_id) {
+        toast({
+          title: 'No destination number',
+          description: 'Enter a phone number or select a target first',
+          variant: 'destructive',
+        })
+        setPlacing(false)
+        setCallStatus(null)
+        isPlacingCallRef.current = false
+        return
+      }
+
+      if (config?.from_number) {
         requestBody.from_number = config.from_number
         requestBody.flow_type = 'bridge'
       }
+
+      console.log('[ExecutionControls] Placing call with:', {
+        to_number: requestBody.to_number || '(not set)',
+        target_id: requestBody.target_id || '(not set)',
+        from_number: requestBody.from_number || '(not set)',
+        flow_type: requestBody.flow_type || 'direct',
+        configQuickDial: config?.quick_dial_number || '(not set)',
+        configTargetId: config?.target_id || '(not set)',
+        resolvedQuickDial: resolvedQuickDial || '(not set)',
+        targetNumberContext: targetNumber || '(empty)',
+      })
 
       const data = await apiPost('/api/voice/call', requestBody)
       const callId = data.call_id
@@ -170,6 +209,7 @@ export default function ExecutionControls({
         description: `Call ${callId.slice(0, 8)}... is being initiated`,
       })
     } catch (err: any) {
+      console.error('[ExecutionControls] Call failed:', err)
       setCallStatus(null)
       toast({
         title: 'Error',

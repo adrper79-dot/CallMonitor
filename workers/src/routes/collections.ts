@@ -211,8 +211,8 @@ collectionsRoutes.post('/', collectionsRateLimit, async (c) => {
       resourceType: 'collection_accounts',
       resourceId: result.rows[0].id,
       action: AuditAction.COLLECTION_ACCOUNT_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, account: result.rows[0] }, 201)
@@ -310,8 +310,8 @@ collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
       resourceType: 'collection_csv_imports',
       resourceId: importId,
       action: AuditAction.COLLECTION_CSV_IMPORTED,
-      before: null,
-      after: { file_name, imported, skipped, total: accounts.length },
+      oldValue: null,
+      newValue: { file_name, imported, skipped, total: accounts.length },
     })
 
     return c.json(
@@ -426,8 +426,8 @@ collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
       resourceType: 'collection_accounts',
       resourceId: accountId,
       action: AuditAction.COLLECTION_ACCOUNT_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, account: result.rows[0] })
@@ -466,8 +466,8 @@ collectionsRoutes.delete('/:id', collectionsRateLimit, async (c) => {
       resourceType: 'collection_accounts',
       resourceId: accountId,
       action: AuditAction.COLLECTION_ACCOUNT_DELETED,
-      before: { id: accountId },
-      after: null,
+      oldValue: { id: accountId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Account deleted' })
@@ -567,8 +567,8 @@ collectionsRoutes.post('/:id/payments', collectionsRateLimit, async (c) => {
       resourceType: 'collection_payments',
       resourceId: result.rows[0].id,
       action: AuditAction.COLLECTION_PAYMENT_CREATED,
-      before: { balance_due: currentBalance },
-      after: { ...result.rows[0], new_balance: newBalance },
+      oldValue: { balance_due: currentBalance },
+      newValue: { ...result.rows[0], new_balance: newBalance },
     })
 
     return c.json({ success: true, payment: result.rows[0], new_balance: newBalance }, 201)
@@ -653,8 +653,8 @@ collectionsRoutes.post('/:id/tasks', collectionsRateLimit, async (c) => {
       resourceType: 'collection_tasks',
       resourceId: result.rows[0].id,
       action: AuditAction.COLLECTION_TASK_CREATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, task: result.rows[0] }, 201)
@@ -713,8 +713,8 @@ collectionsRoutes.put('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
       resourceType: 'collection_tasks',
       resourceId: taskId,
       action: AuditAction.COLLECTION_TASK_UPDATED,
-      before: null,
-      after: result.rows[0],
+      oldValue: null,
+      newValue: result.rows[0],
     })
 
     return c.json({ success: true, task: result.rows[0] })
@@ -753,8 +753,8 @@ collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) =
       resourceType: 'collection_tasks',
       resourceId: taskId,
       action: AuditAction.COLLECTION_TASK_DELETED,
-      before: { id: taskId },
-      after: null,
+      oldValue: { id: taskId },
+      newValue: null,
     })
 
     return c.json({ success: true, message: 'Task deleted' })
@@ -765,3 +765,4 @@ collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) =
     await db.end()
   }
 })
+

@@ -205,7 +205,7 @@ describe('Bond AI Tables', () => {
     if (!(await tableExists('bond_ai_alert_rules'))) return
     const cols = await getColumns('bond_ai_alert_rules')
     const colNames = cols.map((c) => c.column_name)
-    const required = ['id', 'organization_id', 'name', 'enabled']
+    const required = ['id', 'organization_id', 'name', 'is_enabled']
     for (const col of required) {
       expect(colNames, `bond_ai_alert_rules missing: ${col}`).toContain(col)
     }
