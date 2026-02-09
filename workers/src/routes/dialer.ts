@@ -109,8 +109,8 @@ dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
     // Cancel all pending calls
     await db.query(
       `UPDATE campaign_calls SET status = 'canceled', updated_at = NOW()
-       WHERE campaign_id = $1 AND status IN ('pending', 'calling')`,
-      [campaignId]
+       WHERE campaign_id = $1 AND organization_id = $2 AND status IN ('pending', 'calling')`,
+      [campaignId, session.organization_id]
     )
 
     writeAuditLog(db, {

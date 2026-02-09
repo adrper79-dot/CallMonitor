@@ -8,7 +8,7 @@
  */
 
 import type { Context, Next } from 'hono'
-import type { Env } from '../index'
+import type { Env, AppEnv } from '../index'
 import { getDb } from './db'
 import { logger } from './logger'
 
@@ -16,7 +16,7 @@ import { logger } from './logger'
  * Plan hierarchy (ascending order of access)
  */
 export const PLAN_HIERARCHY = ['free', 'starter', 'pro', 'business', 'enterprise'] as const
-export type PlanName = typeof PLAN_HIERARCHY[number]
+export type PlanName = (typeof PLAN_HIERARCHY)[number]
 
 /**
  * Feature capabilities mapped to minimum required plan
@@ -57,12 +57,15 @@ export const FEATURE_PLAN_REQUIREMENTS: Record<string, PlanName> = {
 /**
  * Plan capability limits (for usage-based enforcement)
  */
-export const PLAN_LIMITS: Record<PlanName, {
-  max_calls_per_month: number
-  max_users: number
-  max_call_duration_seconds: number
-  retention_days: number
-}> = {
+export const PLAN_LIMITS: Record<
+  PlanName,
+  {
+    max_calls_per_month: number
+    max_users: number
+    max_call_duration_seconds: number
+    retention_days: number
+  }
+> = {
   free: {
     max_calls_per_month: 100,
     max_users: 1,
@@ -108,8 +111,8 @@ export async function getOrgPlan(env: Env, orgId: string): Promise<PlanName> {
 
   try {
     // Try KV cache first (fail-open if unavailable)
-    if (env.SESSION_KV) {
-      const cached = await env.SESSION_KV.get(cacheKey)
+    if (env.KV) {
+      const cached = await env.KV.get(cacheKey)
       if (cached) {
         logger.info('Plan cache hit', { org_id: orgId, plan: cached })
         return cached as PlanName
@@ -157,10 +160,9 @@ export async function getOrgPlan(env: Env, orgId: string): Promise<PlanName> {
     }
 
     // Cache result in KV (fire-and-forget)
-    if (env.SESSION_KV) {
-      env.SESSION_KV.put(cacheKey, plan, { expirationTtl: PLAN_CACHE_TTL }).catch(() => {})
+    if (env.KV) {
+      env.KV.put(cacheKey, plan, { expirationTtl: PLAN_CACHE_TTL }).catch(() => {})
     }
-
   } catch (dbErr: any) {
     // Database error → fail open (allow request but log)
     logger.error('Database error during plan lookup - FAILING OPEN', {
@@ -194,16 +196,19 @@ export function hasAccess(currentPlan: PlanName, requiredPlan: PlanName): boolea
  * router.post('/api/voice/translation', requirePlan('pro'), async (c) => { ... })
  */
 export function requirePlan(minPlan: PlanName) {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
+  return async (c: Context<AppEnv>, next: Next) => {
     try {
       // Get session from context (set by requireAuth middleware)
       const session = c.get('session')
 
       if (!session || !session.organization_id) {
-        return c.json({
-          error: 'Authentication required',
-          code: 'AUTH_REQUIRED',
-        }, 401)
+        return c.json(
+          {
+            error: 'Authentication required',
+            code: 'AUTH_REQUIRED',
+          },
+          401
+        )
       }
 
       // Get organization plan
@@ -218,20 +223,19 @@ export function requirePlan(minPlan: PlanName) {
           path: c.req.path,
         })
 
-        return c.json({
-          error: 'Upgrade required',
-          code: 'PLAN_UPGRADE_REQUIRED',
-          current_plan: orgPlan,
-          required_plan: minPlan,
-          upgrade_url: `/settings?tab=billing&upgrade_to=${minPlan}`,
-        }, 402) // 402 Payment Required
+        return c.json(
+          {
+            error: 'Upgrade required',
+            code: 'PLAN_UPGRADE_REQUIRED',
+            current_plan: orgPlan,
+            required_plan: minPlan,
+            upgrade_url: `/settings?tab=billing&upgrade_to=${minPlan}`,
+          },
+          402
+        ) // 402 Payment Required
       }
 
-      // Set plan in context for downstream use
-      c.set('plan', orgPlan)
-
       await next()
-
     } catch (err: any) {
       // Unexpected error → fail open (allow request but log)
       logger.error('Plan gating middleware error - FAILING OPEN', {
@@ -306,7 +310,6 @@ export async function checkUsageLimit(
     }
 
     await db.end()
-
   } catch (err: any) {
     logger.error('Usage limit check error', { error: err?.message, metric })
   }
@@ -325,8 +328,8 @@ export async function invalidatePlanCache(env: Env, orgId: string): Promise<void
   const cacheKey = `plan:${orgId}`
 
   try {
-    if (env.SESSION_KV) {
-      await env.SESSION_KV.delete(cacheKey)
+    if (env.KV) {
+      await env.KV.delete(cacheKey)
       logger.info('Plan cache invalidated', { org_id: orgId })
     }
   } catch (err: any) {

@@ -1,7 +1,8 @@
 # Word Is Bond — Master Backlog
 
 **Created:** February 7, 2026  
-**Last Updated:** February 9, 2026  
+**Last Updated:** February 9, 2026 (Session 6, Turn 8)  
+**Total Items:** 109 | **Resolved:** 100 (92%) | **Open:** 5 | **Deferred:** 4  
 **Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan  
 **Format:** Priority-ordered, sequentially consumable by agents
 
@@ -846,7 +847,116 @@
 
 ---
 
-## Recommended Triage Order (Session 4 Items)
+## Session 6, Turn 8 — Defect Scan Findings (February 9, 2026)
+
+### BL-096: `plan-gating.ts` — 11 compile errors (SESSION_KV binding + Hono types)
+
+- **Files:** `workers/src/lib/plan-gating.ts`
+- **Root Cause:** Used `SESSION_KV` instead of `KV` (actual binding name); used `{ Bindings: Env }` instead of `AppEnv`; set `plan` variable not declared in AppEnv
+- **Impact:** Workers TypeScript compile failure
+- **Fix:** Changed SESSION_KV→KV (6 places), Context type→AppEnv, removed unused c.set('plan')
+- **Status:** `[x]` ✅ Fixed
+
+### BL-097: Multi-tenant isolation — `call_timeline_events` query missing org_id
+
+- **Files:** `workers/src/routes/calls.ts` (~line 1013)
+- **Root Cause:** Query `WHERE call_id = $1` without `AND organization_id = $2`
+- **Impact:** Critical — potential cross-tenant data leak via guessed call IDs
+- **Fix:** Added `AND organization_id = $2` to query
+- **Status:** `[x]` ✅ Fixed
+
+### BL-098: Multi-tenant isolation — `call_notes` GET query missing org_id
+
+- **Files:** `workers/src/routes/calls.ts` (~line 1052)
+- **Root Cause:** Query `WHERE cn.call_id = $1` without org_id filter
+- **Impact:** High — potential cross-tenant data leak
+- **Fix:** Added `AND cn.organization_id = $2` to query
+- **Status:** `[x]` ✅ Fixed
+
+### BL-099: Multi-tenant isolation — `call_notes` INSERT missing organization_id column
+
+- **Files:** `workers/src/routes/calls.ts` (~line 1096)
+- **Root Cause:** INSERT didn't include organization_id; would be NULL, breaking org-scoped queries
+- **Impact:** High — notes created without org affiliation
+- **Fix:** Added organization_id to INSERT values
+- **Status:** `[x]` ✅ Fixed
+
+### BL-100: Multi-tenant isolation — `campaign_calls` UPDATE missing org_id
+
+- **Files:** `workers/src/routes/dialer.ts` (~line 111)
+- **Root Cause:** UPDATE `WHERE campaign_id = $1` without org_id defense-in-depth
+- **Impact:** Critical — could cancel other tenant's campaign calls
+- **Fix:** Added `AND organization_id = $2` to UPDATE
+- **Status:** `[x]` ✅ Fixed
+
+### BL-101: Multi-tenant isolation — `call_outcome_history` query missing org_id
+
+- **Files:** `workers/src/routes/calls.ts` (~line 403)
+- **Root Cause:** Query `WHERE call_outcome_id = $1` without org_id (parent is org-verified but defense-in-depth missing)
+- **Impact:** Medium — indirect access via verified parent
+- **Fix:** Added `AND organization_id = $2` to query
+- **Status:** `[x]` ✅ Fixed
+
+### BL-102: Connection leak — webhooks `/subscriptions/:id/deliveries` missing db.end()
+
+- **Files:** `workers/src/routes/webhooks.ts` (~line 1023)
+- **Root Cause:** `getDb()` called but no `finally { await db.end() }` — connection leaked on every request
+- **Impact:** High — DB pool exhaustion under load
+- **Fix:** Moved getDb() before try block, added finally with db.end()
+- **Status:** `[x]` ✅ Fixed
+
+### BL-103: Test defects — database-live.test.ts wrong table/column names (6 mismatches)
+
+- **Files:** `tests/production/database-live.test.ts`
+- **Root Cause:** Tests used `organization_members` (actual: `org_members`), `call_recordings` (actual: `recordings`), `token`/`expires_at` (actual: `session_token`/`expires`), `role` (actual: `team_role`), non-existent `bond_ai_alert_rules`
+- **Impact:** 6 false-negative test failures
+- **Fix:** Corrected all table/column names to match production schema
+- **Status:** `[x]` ✅ Fixed
+
+### BL-104: Test defects — api-live.test.ts + voice-live.test.ts route paths hit non-existent root handlers
+
+- **Files:** `tests/production/api-live.test.ts`, `tests/production/voice-live.test.ts`
+- **Root Cause:** Tests hit `/api/analytics`, `/api/voice`, `/api/users`, `/api/shopper` — routes with no root GET handler (404)
+- **Impact:** 5 false-negative failures
+- **Fix:** Changed to valid sub-paths: `/api/analytics/kpis`, `/api/voice/targets`, `/api/users/me`, `/api/shopper/scripts`
+- **Status:** `[x]` ✅ Fixed
+
+### BL-105: Test defects — database.test.ts references non-existent `authjs` schema
+
+- **Files:** `tests/production/database.test.ts`
+- **Root Cause:** Platform uses custom auth (public.sessions), NOT Auth.js. Tests query `authjs.sessions`, `authjs.users`, `authjs.accounts` — none exist
+- **Impact:** 2 false-negative failures
+- **Fix:** Rewrote Session Management tests to use public.sessions with correct column names
+- **Status:** `[x]` ✅ Fixed
+
+### BL-106: Test defects — functional-validation.test.ts security test includes non-existent routes
+
+- **Files:** `tests/production/functional-validation.test.ts`
+- **Root Cause:** Security test checks `/api/users` (no root handler) and `/api/_admin` (not a real route) — both 404, test expects 401/403
+- **Impact:** 1 false-negative failure (2 endpoints bundled)
+- **Fix:** Changed to `/api/users/me` and `/api/admin/metrics`
+- **Status:** `[x]` ✅ Fixed
+
+### BL-107: Missing rate limiters on paid third-party API endpoints
+
+- **Files:** `workers/src/routes/voice.ts` (POST /generate TTS, POST /dial WebRTC)
+- **Root Cause:** ElevenLabs TTS generation and Telnyx call initiation have no rate limiting
+- **Impact:** High — abuse could cause unexpected billing on ElevenLabs and Telnyx accounts
+- **Status:** `[ ]` — Open (needs dedicated rate limiters for paid APIs)
+
+### BL-108: Missing rate limiters on 6 additional mutation endpoints
+
+- **Files:** Various route files (ai-config PUT, retention POST confirmations, sentiment PUT config, collections POST, webhooks POST retry)
+- **Root Cause:** Mutation endpoints missing rate limiting middleware
+- **Impact:** Medium — potential abuse vectors
+- **Status:** `[ ]` — Open (batch with BL-090)
+
+### BL-109: V5 migration not applied to production database
+
+- **Files:** `migrations/2026-02-09-v5-features.sql`
+- **Root Cause:** Migration SQL file exists but psql execution failed (exit code 1). Tables for sentiment, dialer, IVR, AI toggle not created in production.
+- **Impact:** All v5 feature routes return errors in production; 20 test failures
+- **Status:** `[ ]` — Open (manual: apply migration via Neon console or psql)
 
 ### Immediate (P0 — fix before next deploy)
 

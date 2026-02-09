@@ -246,9 +246,9 @@ describe('Live Workers API Tests', () => {
 
   describe('Feature Route Reachability', () => {
     const routes = [
-      { path: '/api/analytics', name: 'Analytics' },
+      { path: '/api/analytics/kpis', name: 'Analytics' },
       { path: '/api/campaigns', name: 'Campaigns' },
-      { path: '/api/voice', name: 'Voice' },
+      { path: '/api/voice/targets', name: 'Voice' },
       { path: '/api/billing', name: 'Billing' },
       { path: '/api/surveys', name: 'Surveys' },
       { path: '/api/caller-id', name: 'Caller ID' },
@@ -257,8 +257,8 @@ describe('Live Workers API Tests', () => {
       { path: '/api/recordings', name: 'Recordings' },
       { path: '/api/scorecards', name: 'Scorecards' },
       { path: '/api/bookings', name: 'Bookings' },
-      { path: '/api/users', name: 'Users' },
-      { path: '/api/shopper', name: 'Mystery Shopper' },
+      { path: '/api/users/me', name: 'Users' },
+      { path: '/api/shopper/scripts', name: 'Mystery Shopper' },
     ]
 
     for (const route of routes) {

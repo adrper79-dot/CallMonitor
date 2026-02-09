@@ -28,7 +28,7 @@ import { apiCall, createTestSession, query, API_URL, TEST_ORG_ID, pool } from '.
 
 // ─── Session Management ─────────────────────────────────────────────────────
 
-let sessionToken: string | null | undefined = null
+let sessionToken: string | undefined
 let REAL_ORG_ID: string = TEST_ORG_ID
 
 /** IDs of resources created during tests — cleaned up in afterAll */
@@ -44,7 +44,7 @@ const cleanup = {
 beforeAll(async () => {
   console.log(`\n🔬 Deep Functional Validation — hitting ${API_URL}`)
 
-  sessionToken = await createTestSession()
+  sessionToken = (await createTestSession()) ?? undefined
   if (!sessionToken) {
     console.error('❌ FATAL: Could not create test session')
     return

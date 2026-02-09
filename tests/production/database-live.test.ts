@@ -68,7 +68,7 @@ async function getConstraints(
 // ─── CORE TABLES ────────────────────────────────────────────────────────────
 
 describe('Core Tables', () => {
-  const requiredCoreTables = ['users', 'sessions', 'organizations', 'organization_members']
+  const requiredCoreTables = ['users', 'sessions', 'organizations', 'org_members']
 
   for (const table of requiredCoreTables) {
     test(`Table "${table}" exists`, async () => {
@@ -107,7 +107,7 @@ describe('Core Tables', () => {
     if (!dbReachable) return
     const cols = await getColumns('sessions')
     const colNames = cols.map((c) => c.column_name)
-    const required = ['id', 'user_id', 'token', 'expires_at']
+    const required = ['id', 'user_id', 'session_token', 'expires']
     for (const col of required) {
       expect(colNames, `sessions table missing column: ${col}`).toContain(col)
     }
@@ -117,7 +117,7 @@ describe('Core Tables', () => {
 // ─── VOICE / CALLS TABLES ───────────────────────────────────────────────────
 
 describe('Voice & Calls Tables', () => {
-  const voiceTables = ['calls', 'voice_configs', 'call_recordings']
+  const voiceTables = ['calls', 'voice_configs', 'recordings']
 
   for (const table of voiceTables) {
     test(`Table "${table}" exists`, async () => {
@@ -158,12 +158,7 @@ describe('Voice & Calls Tables', () => {
 // ─── BOND AI TABLES ─────────────────────────────────────────────────────────
 
 describe('Bond AI Tables', () => {
-  const bondTables = [
-    'bond_ai_conversations',
-    'bond_ai_messages',
-    'bond_ai_alerts',
-    'bond_ai_alert_rules',
-  ]
+  const bondTables = ['bond_ai_conversations', 'bond_ai_messages', 'bond_ai_alerts']
 
   for (const table of bondTables) {
     test(`Table "${table}" exists`, async () => {
@@ -220,7 +215,7 @@ describe('Bond AI Tables', () => {
 // ─── TEAMS TABLES ───────────────────────────────────────────────────────────
 
 describe('Teams & RBAC Tables', () => {
-  const teamsTables = ['teams', 'team_members', 'organization_members']
+  const teamsTables = ['teams', 'team_members', 'org_members']
 
   for (const table of teamsTables) {
     test(`Table "${table}" exists`, async () => {
@@ -245,7 +240,7 @@ describe('Teams & RBAC Tables', () => {
     if (!(await tableExists('team_members'))) return
     const cols = await getColumns('team_members')
     const colNames = cols.map((c) => c.column_name)
-    const required = ['id', 'team_id', 'user_id', 'role']
+    const required = ['id', 'team_id', 'user_id', 'team_role']
     for (const col of required) {
       expect(colNames, `team_members missing: ${col}`).toContain(col)
     }
@@ -253,8 +248,8 @@ describe('Teams & RBAC Tables', () => {
 
   test('Organization members has role column for RBAC', async () => {
     if (!dbReachable) return
-    if (!(await tableExists('organization_members'))) return
-    const cols = await getColumns('organization_members')
+    if (!(await tableExists('org_members'))) return
+    const cols = await getColumns('org_members')
     const colNames = cols.map((c) => c.column_name)
     expect(colNames, 'org members missing role column for RBAC').toContain('role')
   })

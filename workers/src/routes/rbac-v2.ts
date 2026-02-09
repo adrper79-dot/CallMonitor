@@ -55,6 +55,17 @@ rbacRoutes.get('/context', async (c) => {
       inheritedRoles
     )
 
+    // Fetch organization plan
+    let plan = 'base'
+    if (orgId) {
+      const planResult = await db.query(`SELECT plan FROM organizations WHERE id = $1 LIMIT 1`, [
+        orgId,
+      ])
+      if (planResult.rows[0]?.plan) {
+        plan = planResult.rows[0].plan
+      }
+    }
+
     // Group permissions by resource
     const permissionsByResource: Record<string, string[]> = {}
     const permissionsList: string[] = []
@@ -75,6 +86,7 @@ rbacRoutes.get('/context', async (c) => {
     return c.json({
       success: true,
       role: userRole,
+      plan,
       role_level: ROLE_HIERARCHY[userRole] || 0,
       inherited_roles: inheritedRoles,
       permissions: permissionsList,

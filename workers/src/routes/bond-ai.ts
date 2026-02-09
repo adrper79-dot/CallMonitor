@@ -741,8 +741,8 @@ bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
       256 // Short responses for real-time use
     )
 
-    // Log co-pilot usage for audit
-    await db.query(
+    // Log co-pilot usage for audit (non-blocking, best-effort)
+    db.query(
       `INSERT INTO ai_agent_audit_log (id, organization_id, action, details, performed_by, created_at)
        VALUES (gen_random_uuid(), $1, 'copilot_assist', $2, $3, NOW())`,
       [
@@ -750,7 +750,9 @@ bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
         JSON.stringify({ call_id, model: aiResponse.model, latency_ms: aiResponse.latencyMs }),
         session.user_id,
       ]
-    )
+    ).catch((auditErr: any) => {
+      logger.warn('Failed to log copilot audit', { error: auditErr?.message })
+    })
 
     return c.json({
       success: true,
@@ -774,11 +776,25 @@ bondAiRoutes.get('/insights', async (c) => {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-    const [stats, alerts, kpiData] = await Promise.all([
+    const [statsResult, alertsResult, kpiResult] = await Promise.allSettled([
       fetchOrgStats(c.env, session.organization_id),
       fetchRecentAlerts(c.env, session.organization_id, 5),
       fetchKpiSummary(c.env, session.organization_id),
     ])
+
+    const stats =
+      statsResult.status === 'fulfilled'
+        ? statsResult.value
+        : {
+            calls: { total: 0, last_7d: 0, last_24h: 0 },
+            tests: { total: 0, passed: 0, failed: 0 },
+            scorecards: { total: 0 },
+          }
+    const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : []
+    const kpiData =
+      kpiResult.status === 'fulfilled'
+        ? kpiResult.value
+        : { settings: null, recentPerformance: null }
 
     // KPI breach detection — check if avg response time exceeds warning threshold
     const breaches: Array<{ metric: string; value: number; threshold: number }> = []

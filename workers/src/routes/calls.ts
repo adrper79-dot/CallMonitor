@@ -401,10 +401,10 @@ callsRoutes.get('/:id/outcome', async (c) => {
       const { rows: historyRows } = await db.query(
         `SELECT id, outcome_status, summary_text, revision_number, created_at, changed_by_user_id
          FROM call_outcome_history
-         WHERE call_outcome_id = $1
+         WHERE call_outcome_id = $1 AND organization_id = $2
          ORDER BY revision_number DESC
          LIMIT 10`,
-        [outcome.id]
+        [outcome.id, organization_id]
       )
       history = historyRows || []
     }
@@ -1011,9 +1011,9 @@ callsRoutes.get('/:id/timeline', async (c) => {
     const { rows: events } = await db.query(
       `SELECT id, call_id, event_type, event_data, created_at
        FROM call_timeline_events
-       WHERE call_id = $1
+       WHERE call_id = $1 AND organization_id = $2
        ORDER BY created_at ASC`,
-      [callId]
+      [callId, session.organization_id]
     )
 
     return c.json({ success: true, events })
@@ -1051,9 +1051,9 @@ callsRoutes.get('/:id/notes', async (c) => {
               u.email as author_email, u.name as author_name
        FROM call_notes cn
        LEFT JOIN users u ON u.id = cn.created_by
-       WHERE cn.call_id = $1
+       WHERE cn.call_id = $1 AND cn.organization_id = $2
        ORDER BY cn.created_at DESC`,
-      [callId]
+      [callId, session.organization_id]
     )
 
     return c.json({ success: true, notes })
@@ -1093,8 +1093,8 @@ callsRoutes.post('/:id/notes', async (c) => {
 
     // call_notes table must exist via migrations — no DDL in request handlers
     const { rows: inserted } = await db.query(
-      `INSERT INTO call_notes (call_id, content, created_by) VALUES ($1, $2, $3) RETURNING *`,
-      [callId, content.trim(), session.user_id]
+      `INSERT INTO call_notes (call_id, organization_id, content, created_by) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [callId, session.organization_id, content.trim(), session.user_id]
     )
 
     // Audit log: note created

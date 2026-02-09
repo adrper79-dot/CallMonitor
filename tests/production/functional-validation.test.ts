@@ -316,14 +316,14 @@ describe('L3 — Functional Integration Tests', () => {
     const sensitiveEndpoints = [
       { method: 'GET' as const, path: '/api/calls' },
       { method: 'GET' as const, path: '/api/organizations/current' },
-      { method: 'GET' as const, path: '/api/users' },
+      { method: 'GET' as const, path: '/api/users/me' },
       { method: 'GET' as const, path: '/api/analytics/kpis' },
       { method: 'GET' as const, path: '/api/billing' },
       { method: 'GET' as const, path: '/api/compliance/violations' },
       { method: 'GET' as const, path: '/api/recordings' },
       { method: 'GET' as const, path: '/api/audit' },
       { method: 'GET' as const, path: '/api/reports' },
-      { method: 'GET' as const, path: '/api/_admin' },
+      { method: 'GET' as const, path: '/api/admin/metrics' },
     ]
 
     test('All sensitive endpoints reject unauthenticated requests', async () => {

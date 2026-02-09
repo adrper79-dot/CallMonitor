@@ -37,7 +37,7 @@ describe('Live Voice & Telnyx Tests', () => {
 
     test('Voice endpoint is mounted', async () => {
       if (apiHealth.status === 'down') return
-      const { status, service_reachable } = await apiCall('GET', '/api/voice')
+      const { status, service_reachable } = await apiCall('GET', '/api/voice/targets')
       expect(service_reachable, 'VOICE SERVICE DOWN').toBe(true)
       expect(status, 'Voice route not found').not.toBe(404)
     })

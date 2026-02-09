@@ -161,9 +161,13 @@ aiToggleRoutes.get('/status/:callId', async (c) => {
 
     // Check KV for AI state
     let aiActive = false
-    if (call.call_control_id) {
-      const stateRaw = await c.env.KV.get(`AI_CALL_STATE:${call.call_control_id}`)
-      aiActive = !!stateRaw
+    if (call.call_control_id && c.env.KV) {
+      try {
+        const stateRaw = await c.env.KV.get(`AI_CALL_STATE:${call.call_control_id}`)
+        aiActive = !!stateRaw
+      } catch {
+        // KV read failure is non-critical — default to human mode
+      }
     }
 
     return c.json({

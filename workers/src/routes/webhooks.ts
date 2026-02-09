@@ -502,7 +502,7 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     organizationId: orgId,
     transcript,
     segmentIndex,
-  }).catch((err) => {
+  }).catch((err: unknown) => {
     logger.warn('Sentiment analysis failed (non-fatal)', { error: (err as Error)?.message })
   })
 }
@@ -1011,6 +1011,7 @@ webhooksRoutes.post('/subscriptions/:id/test', webhookRateLimit, async (c) => {
 })
 
 webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
+  const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
     if (!session) return c.json({ error: 'Unauthorized' }, 401)
@@ -1019,8 +1020,6 @@ webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
     const page = parseInt(c.req.query('page') || '1')
     const limit = Math.min(parseInt(c.req.query('limit') || '20', 10), 200)
     const offset = (page - 1) * limit
-
-    const db = getDb(c.env)
 
     // Verify webhook belongs to org
     const webhookCheck = await db.query(
@@ -1052,6 +1051,8 @@ webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
   } catch (err: any) {
     logger.error('GET /webhooks/subscriptions deliveries error', { error: err?.message })
     return c.json({ error: 'Failed to get deliveries' }, 500)
+  } finally {
+    await db.end()
   }
 })
 

@@ -23,7 +23,7 @@ const CONNECTION_TIMEOUT_MS = 10_000
 const STATEMENT_TIMEOUT_MS = 30_000
 
 export interface DbClient {
-  query: (sql: string, params?: any[]) => Promise<{ rows: any[] }>
+  query: (sql: string, params?: any[]) => Promise<{ rows: any[]; rowCount?: number }>
   /** End the pool — call via ctx.waitUntil(db.end()) in middleware or at request end */
   end: () => Promise<void>
 }

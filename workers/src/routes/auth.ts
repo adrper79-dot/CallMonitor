@@ -225,16 +225,26 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
 
 // CSRF token endpoint (used by auth client)
 authRoutes.get('/csrf', async (c) => {
-  // Generate a CSRF token and store in KV for server-side validation
-  const csrf_token = crypto.randomUUID()
+  try {
+    // Generate a CSRF token and store in KV for server-side validation
+    const csrf_token = crypto.randomUUID()
 
-  // Store token in KV with 10-minute TTL — will be validated on login
-  await c.env.KV.put(`csrf:${csrf_token}`, '1', { expirationTtl: 600 })
+    // Store token in KV with 10-minute TTL — will be validated on login
+    if (c.env.KV) {
+      await c.env.KV.put(`csrf:${csrf_token}`, '1', { expirationTtl: 600 })
+    }
 
-  // Set cookie for same-origin requests
-  c.header('Set-Cookie', `csrf-token=${csrf_token}; Path=/; SameSite=None; Secure; HttpOnly`)
+    // Set cookie for same-origin requests
+    c.header('Set-Cookie', `csrf-token=${csrf_token}; Path=/; SameSite=None; Secure; HttpOnly`)
 
-  return c.json({ csrf_token })
+    return c.json({ csrf_token })
+  } catch (err: any) {
+    logger.error('CSRF token generation error', { error: err?.message })
+    // Return a token even on KV failure — form will still work via cookie
+    const fallbackToken = crypto.randomUUID()
+    c.header('Set-Cookie', `csrf-token=${fallbackToken}; Path=/; SameSite=None; Secure; HttpOnly`)
+    return c.json({ csrf_token: fallbackToken })
+  }
 })
 
 // Auth providers endpoint

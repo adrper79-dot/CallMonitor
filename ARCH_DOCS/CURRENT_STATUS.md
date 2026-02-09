@@ -1,7 +1,7 @@
 # Word Is Bond - Current Status & Quick Reference
 
 **Last Updated:** February 9, 2026  
-**Version:** 4.29 - Session 5 Codebase Hardening (8 new defects found, 5 resolved + 2 prior confirmed fixed)  
+**Version:** 4.30 - Session 6 Turn 8: Deep audit + v5 build + security hardening  
 **Status:** Production Ready (100% Complete) ⭐ Hybrid Pages + Workers Live
 
 > **"The System of Record for Business Conversations"**
@@ -13,6 +13,33 @@
 ---
 
 ## 🔧 **Recent Updates (February 9, 2026)**
+
+### **Session 6, Turn 8 — Production Readiness Sweep (v4.30):** ✅ **100/109 BACKLOG RESOLVED (92%) | Builds Clean | 5 Security Fixes**
+
+Deep production readiness audit: workers TypeScript check, Next.js build, production test suite, and full codebase defect scan.
+
+**Fixes Applied:**
+| Category | Count | Details |
+|----------|-------|---------|
+| 🔴 CRITICAL — Multi-tenant | 2 queries | Added org_id to campaign_calls UPDATE (dialer.ts), call_timeline_events query (calls.ts) |
+| 🟠 HIGH — Multi-tenant | 3 queries | Added org_id to call_notes GET/INSERT, call_outcome_history query (calls.ts) |
+| 🟠 HIGH — DB Leak | 1 handler | Added finally/db.end() to webhooks /subscriptions/:id/deliveries |
+| 🟠 HIGH — Compile Errors | 11 errors | Fixed plan-gating.ts: SESSION_KV→KV binding, Context→AppEnv, removed unused c.set('plan') |
+| 🟡 MEDIUM — Test Defects | 14 tests | Fixed wrong table names (6), wrong route paths (5), authjs→public sessions (2), security test routes (1) |
+
+**Build Status:** ✅ Workers tsc —noEmit: 0 errors | ✅ Next.js build: 31/31 pages | ✅ All code changes compile clean
+
+**Remaining Open Items:**
+
+- `BL-020` — WAF rules (manual Cloudflare Dashboard task)
+- `BL-107` — Rate limiters on paid API endpoints (ElevenLabs TTS, Telnyx dial)
+- `BL-108` — Rate limiters on 6 mutation endpoints
+- `BL-109` — V5 migration SQL not applied to production Neon DB
+- `BL-084/BL-095` — Artifacts TEXT PK → UUID (deferred)
+- `BL-093` — Missing audit on /verify, /chat, /analyze (deferred)
+- `BL-094` — No Zod on ai-llm.ts (deferred)
+
+---
 
 ### **Session 5 — Deep Audit + Hardening (v4.29):** ✅ **89/95 BACKLOG RESOLVED (94%) | 396 TESTS PASS (0 REGRESSIONS)**
 
