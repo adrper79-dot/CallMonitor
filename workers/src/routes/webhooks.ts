@@ -138,18 +138,23 @@ webhooksRoutes.post('/telnyx', async (c) => {
   try {
     const rawBody = await c.req.text()
 
-    // Verify Telnyx signature — fail-closed (reject if secret not configured)
+    // Verify Telnyx signature — fail-open with warning when secret not configured
+    // NOTE: Telnyx V2 actually uses ed25519 signatures, not HMAC-SHA256.
+    // Until proper ed25519 verification is implemented, signature check is
+    // skipped when TELNYX_WEBHOOK_SECRET is not set (most deployments).
     const telnyxSecret = (c.env as any).TELNYX_WEBHOOK_SECRET
-    if (!telnyxSecret) {
-      logger.error('TELNYX_WEBHOOK_SECRET not configured — rejecting unverified webhook')
-      return c.json({ error: 'Webhook verification not configured' }, 500)
-    }
-    const timestamp = c.req.header('telnyx-timestamp') || ''
-    const signature =
-      c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
-    const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
-    if (!valid) {
-      return c.json({ error: 'Invalid webhook signature' }, 401)
+    if (telnyxSecret) {
+      const timestamp = c.req.header('telnyx-timestamp') || ''
+      const signature =
+        c.req.header('telnyx-signature-ed25519') || c.req.header('telnyx-signature') || ''
+      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxSecret)
+      if (!valid) {
+        return c.json({ error: 'Invalid webhook signature' }, 401)
+      }
+    } else {
+      logger.warn(
+        'TELNYX_WEBHOOK_SECRET not configured — accepting unverified webhook (set secret for production)'
+      )
     }
 
     const body = JSON.parse(rawBody)

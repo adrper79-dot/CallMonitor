@@ -112,6 +112,71 @@ Even when `modulations` was present, the handler used `modulations.record ?? fal
 
 ---
 
+## 🔴 CRITICAL — Unapplied Migrations Silently Break Auth (v4.29 — 4+ Hours Lost)
+
+**Code referencing a column that doesn't exist in production = silent total auth failure.**
+
+### The Bug
+
+Commit `5bd452b` added `u.platform_role` to the `verifySession` SQL query and the `Session` interface. The corresponding migration file (`2026-02-09-platform-admin.sql`) existed in `migrations/` but was **never run against the production database**. Result: every call to `verifySession` threw `column u.platform_role does not exist`, the catch block returned `null` with zero logging, and **every authenticated request returned 401**.
+
+### Why It's Insidious
+
+- Login itself still works (session is created in DB) — user sees "login success"
+- Session verification silently fails — dashboard shows "unauthenticated"
+- The `catch(error) { return null }` pattern hides the real error completely
+- No logs, no 500, no stack trace — just `{user: null}` from `/auth/session`
+- The migration file exists in the repo, so it _looks_ like it was applied
+- TypeScript compiles fine — the column is a string in a template literal
+
+### Compounding Bug: PBKDF2 Iteration Limit
+
+Same session also set `PBKDF2_ITERATIONS = 120_000` but Cloudflare Workers hard-caps at 100,000. This silently broke signup and password hash upgrades on login. The rehash try/catch hid this failure too.
+
+### Prevention
+
+1. **ALWAYS run migrations against production BEFORE deploying code that references new columns**
+2. **Never swallow errors silently** — every `catch` block in auth/session code MUST `console.error()` the actual error message
+3. After adding any column to a SQL query, verify it exists: `SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'platform_role'`
+4. When adding crypto parameters (iterations, key size), check the runtime's limits — Cloudflare Workers PBKDF2 max = 100,000 iterations
+5. Add a deployment checklist item: "Are there unapplied migrations in `migrations/`?"
+
+---
+
+## 🔴 CRITICAL — Fail-Closed Webhook Verification With Missing Secret (v4.29 — Live Translation Silently Dead)
+
+**A fail-closed guard on a missing secret blocks the entire webhook pipeline, not just one feature.**
+
+### The Bug
+
+The Telnyx webhook handler at `workers/src/routes/webhooks.ts` line 142 checked for `TELNYX_WEBHOOK_SECRET`. When the secret was not configured (it was never added via `wrangler secret put`), the handler returned HTTP 500 for **all** incoming Telnyx webhooks — including `call.initiated`, `call.answered`, `call.hangup`, and `call.transcription` events.
+
+This meant:
+
+- **Live translation never fired** — `call.transcription` events were rejected before reaching `handleCallTranscription`
+- **Call status updates never arrived** — calls showed as "pending" forever in the DB
+- **Recording webhooks were rejected** — no recording URLs stored
+
+The user's 10:37pm call had translation enabled (`translate: true`, `live_translate: true`), Telnyx sent transcription webhooks, but every one was 500'd at the door.
+
+### Why It's Insidious
+
+- The translation pipeline has 6+ components (Telnyx call config → transcription → webhook → OpenAI → DB → SSE) — hard to pinpoint which link is broken
+- The `call_translations` table exists, `OPENAI_API_KEY` is configured, voice config has translation enabled — everything looks correct
+- The webhook secret was listed in `wrangler.toml` comments and `scripts/verify-env.ts` as `required: false`
+- The verification function used HMAC-SHA256 but Telnyx V2 actually uses ed25519 signatures — even if the secret were set, verification would fail
+- No Cloudflare Workers logs are easily visible for webhook 500s
+- Calls still "work" (Telnyx connects calls) — only the post-connect webhooks fail
+
+### Prevention
+
+1. **Webhook signature verification must fail-open with a warning when the secret is not configured** — production should set the secret, but missing it should not silently kill all webhooks
+2. **Every env secret listed in `wrangler.toml` comments should have a corresponding integration test** that verifies it's actually set
+3. **When debugging a pipeline, test each link independently** — don't assume upstream components are fine just because the table and config exist
+4. **Use `wrangler secret list` as a diagnostic step** — compare against the secrets the code expects
+
+---
+
 ## 🔴 CRITICAL — Database Connection Order (8+ Hours Lost)
 
 **The single most expensive bug in project history.**
@@ -613,18 +678,21 @@ The AI on this platform operates as a **notary/stenographer** — it observes, r
 
 ## 📊 INCIDENT LOG
 
-| Date  | Issue                           | Root Cause                                 | Hours Lost | Fix                        |
-| ----- | ------------------------------- | ------------------------------------------ | ---------- | -------------------------- |
-| Feb 5 | Auth sessions not verifying     | DB connection order (HYPERDRIVE first)     | 4+         | Swap to NEON_PG_CONN first |
-| Feb 5 | /api/calls WebSocket error      | Same — HYPERDRIVE first in getDb()         | 2+         | Same fix                   |
-| Feb 5 | Login works but session invalid | Inconsistent connection order across files | 2+         | Standardized all files     |
-| Feb 6 | 30+ components 401 in prod      | Raw fetch() without Bearer token           | 3+         | Migrated to apiClient      |
-| Feb 6 | Billing 500 error               | Missing `plan` column in orgs table        | 1          | Graceful column fallback   |
-| Feb 6 | Voice config 400                | Org validation too strict                  | 0.5        | Fall back to session org   |
-| Feb 6 | Idempotency silently broken     | CORS not exposing Idempotency-Key header   | 1          | Added to CORS config       |
-| Feb 7 | Rate limiting gap               | Only auth.ts had rate limits               | 0          | Extended to 6 route files  |
+| Date  | Issue                           | Root Cause                                  | Hours Lost | Fix                        |
+| ----- | ------------------------------- | ------------------------------------------- | ---------- | -------------------------- |
+| Feb 5 | Auth sessions not verifying     | DB connection order (HYPERDRIVE first)      | 4+         | Swap to NEON_PG_CONN first |
+| Feb 5 | /api/calls WebSocket error      | Same — HYPERDRIVE first in getDb()          | 2+         | Same fix                   |
+| Feb 5 | Login works but session invalid | Inconsistent connection order across files  | 2+         | Standardized all files     |
+| Feb 6 | 30+ components 401 in prod      | Raw fetch() without Bearer token            | 3+         | Migrated to apiClient      |
+| Feb 6 | Billing 500 error               | Missing `plan` column in orgs table         | 1          | Graceful column fallback   |
+| Feb 6 | Voice config 400                | Org validation too strict                   | 0.5        | Fall back to session org   |
+| Feb 6 | Idempotency silently broken     | CORS not exposing Idempotency-Key header    | 1          | Added to CORS config       |
+| Feb 7 | Rate limiting gap               | Only auth.ts had rate limits                | 0          | Extended to 6 route files  |
+| Feb 8 | Login works, dashboard blocked  | Missing `platform_role` column in users     | 4+         | Applied migration to DB    |
+| Feb 8 | Signup & hash rehash fail       | PBKDF2 iterations 120k > CF Workers 100k    | 1          | Reduced to 100,000         |
+| Feb 9 | Live translation silent failure | TELNYX_WEBHOOK_SECRET not set → 500 rejects | 2          | Fail-open with warning     |
 
-**Total hours lost to preventable issues: ~13+**
+**Total hours lost to preventable issues: ~20+**
 
 ---
 

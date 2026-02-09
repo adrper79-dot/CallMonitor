@@ -100,7 +100,6 @@ export default function VoiceOperationsClient({
   const [optionsExpanded, setOptionsExpanded] = useState(false)
 
   // Responsive layout: true when viewport >= lg (1024px)
-  
 
   // Calling mode: phone (traditional) or browser (WebRTC)
   const [callingMode, setCallingMode] = useState<CallingMode>('phone')
@@ -179,10 +178,10 @@ export default function VoiceOperationsClient({
             <div className="hidden lg:flex flex-1 overflow-hidden">
               {/* Left Rail - Call List (280px) */}
               <aside
-                className="w-72 border-r border-gray-200 flex flex-col overflow-hidden bg-white"
+                className="w-72 shrink-0 border-r border-gray-200 flex flex-col bg-white"
                 data-tour="call-list"
               >
-                <div className="border-b border-gray-200 p-4">
+                <div className="border-b border-gray-200 p-4 shrink-0">
                   <BookingsList
                     onBookingClick={(booking) => {}}
                     onNewBooking={() => setShowBookingModal(true)}
@@ -190,17 +189,19 @@ export default function VoiceOperationsClient({
                   />
                 </div>
 
-                <CallList
-                  calls={initialCalls}
-                  selectedCallId={selectedCallId}
-                  organizationId={organizationId}
-                  onSelect={setSelectedCallId}
-                />
+                <div className="flex-1 overflow-y-auto">
+                  <CallList
+                    calls={initialCalls}
+                    selectedCallId={selectedCallId}
+                    organizationId={organizationId}
+                    onSelect={setSelectedCallId}
+                  />
+                </div>
               </aside>
 
               {/* Main Area - Call Controls & Detail */}
-              <main className="flex-1 overflow-y-auto p-6">
-                <div className="max-w-2xl mx-auto space-y-6">
+              <main className="flex-1 min-w-0 overflow-y-auto p-6">
+                <div className="max-w-3xl mx-auto space-y-6">
                   {/* Active Call Panel */}
                   {activeCallId && activeCall.status && (
                     <ActiveCallPanel
@@ -222,12 +223,12 @@ export default function VoiceOperationsClient({
                     )}
 
                   {/* Target & Campaign Selector */}
-                  <div className="hidden lg:block space-y-4" data-tour="target-selector">
+                  <div className="space-y-4" data-tour="target-selector">
                     <TargetCampaignSelector organizationId={organizationId} />
                   </div>
 
                   {/* Calling Mode Toggle */}
-                  <div className="hidden lg:block bg-white rounded-md border border-gray-200 p-4">
+                  <div className="bg-white rounded-md border border-gray-200 p-4">
                     <CallingModeSelectorWithWebRTC
                       mode={callingMode}
                       onModeChange={setCallingMode}
@@ -236,7 +237,7 @@ export default function VoiceOperationsClient({
                   </div>
 
                   {/* PRIMARY ACTION: Call Controls - Desktop */}
-                  <div className="hidden lg:block" data-tour="place-call">
+                  <div data-tour="place-call">
                     {callingMode === 'phone' && !activeCallId && (
                       <ExecutionControls
                         organizationId={organizationId}
@@ -311,7 +312,7 @@ export default function VoiceOperationsClient({
 
               {/* Right Rail - Activity Feed (280px) */}
               <aside
-                className="w-72 border-l border-gray-200 overflow-y-auto p-4 bg-white"
+                className="w-72 shrink-0 border-l border-gray-200 overflow-y-auto p-4 bg-white"
                 data-tour="activity-feed"
               >
                 <ActivityFeedEmbed organizationId={organizationId} limit={20} />

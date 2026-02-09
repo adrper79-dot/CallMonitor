@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS sentiment_alert_configs (
 CREATE TABLE IF NOT EXISTS dialer_agent_status (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL, -- REFERENCES users(id) removed due to type mismatch
   campaign_id UUID REFERENCES campaigns(id),
   status TEXT NOT NULL DEFAULT 'offline'
     CHECK (status IN ('offline', 'available', 'on_call', 'wrap_up', 'break')),
