@@ -33,6 +33,8 @@
     "test:live:db": "vitest --config vitest.production.config.ts tests/production/database-live.test.ts --run",
     "test:live:voice": "vitest --config vitest.production.config.ts tests/production/voice-live.test.ts --run",
     "test:live:all": "vitest --config vitest.production.config.ts --run",
+    "test:translation": "npx tsx scripts/test-live-translation.ts",
+    "test:voice-to-voice": "vitest tests/voice-to-voice.test.ts --run",
     "test:validate": "vitest --config vitest.production.config.ts tests/production/feature-validation.test.ts --run",
     "test:validate:functional": "vitest --config vitest.production.config.ts tests/production/functional-validation.test.ts --run",
     "test:validate:all": "vitest --config vitest.production.config.ts tests/production/feature-validation.test.ts tests/production/functional-validation.test.ts --run",

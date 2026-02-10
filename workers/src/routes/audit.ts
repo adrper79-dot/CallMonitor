@@ -32,18 +32,27 @@ auditRoutes.get('/', async (c) => {
 
     const limit = parseInt(c.req.query('limit') || '12')
     const offset = parseInt(c.req.query('offset') || '0')
+    const since = c.req.query('since') || null
 
     // Fetch audit logs for organization
     // Use explicit cast for user_id join since types may differ
+    // Optional `since` cursor enables polling for new-only entries
+    const params: any[] = [session.organization_id, limit, offset]
+    let sinceClause = ''
+    if (since) {
+      sinceClause = ' AND al.created_at > $4::timestamptz'
+      params.push(since)
+    }
+
     const result = await db.query(
       `SELECT al.*, u.email as user_email, u.name as user_name
        FROM audit_logs al
        LEFT JOIN users u ON u.id::text = al.user_id::text
-       WHERE al.organization_id = $1::uuid
+       WHERE al.organization_id = $1::uuid${sinceClause}
        ORDER BY al.created_at DESC
        LIMIT $2
        OFFSET $3`,
-      [session.organization_id, limit, offset]
+      params
     )
 
     return c.json({
@@ -68,4 +77,3 @@ auditRoutes.get('/', async (c) => {
     await db.end()
   }
 })
-

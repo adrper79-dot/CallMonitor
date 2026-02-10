@@ -417,6 +417,65 @@ export default function CallModulations({
                     />
                   </div>
                 )}
+                {/* Voice-to-voice translation - only show when live translation is enabled */}
+                {checked && (config?.translate_mode || 'post_call') === 'live' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded border border-blue-200">
+                      <div>
+                        <span className="text-xs font-medium text-blue-800">Voice-to-Voice</span>
+                        <p className="text-xs text-blue-600">Real-time audio translation</p>
+                      </div>
+                      <Switch
+                        id="voice-to-voice-toggle"
+                        checked={config?.voice_to_voice || false}
+                        onCheckedChange={(checked) => updateConfig({ voice_to_voice: checked })}
+                        disabled={!canEdit}
+                        aria-label="Voice-to-Voice Translation"
+                      />
+                    </div>
+                    {config?.voice_to_voice && (
+                      <div className="p-3 bg-blue-50 rounded border border-blue-200 space-y-3">
+                        <p className="text-xs text-blue-700 font-medium">
+                          🎯 Voice-to-Voice Translation Active
+                        </p>
+                        <p className="text-xs text-blue-600">
+                          Translated speech will be injected into the call in real-time. Requires
+                          ElevenLabs API key configuration.
+                        </p>
+                        <Select
+                          label="Translation Voice"
+                          value={config?.elevenlabs_voice_id || ''}
+                          onChange={(e) =>
+                            updateConfig({ elevenlabs_voice_id: e.target.value || undefined })
+                          }
+                          disabled={!canEdit}
+                          hint="Select voice for translated speech"
+                        >
+                          <option value="">Select voice...</option>
+                          <option value="21m00Tcm4TlvDq8ikWAM">Rachel (English)</option>
+                          <option value="pNInz6obpgDQGcFmaJgB">Adam (Spanish)</option>
+                          <option value="ErXwobaYiN019PkySvjV">Antoni (French)</option>
+                          <option value="VR6AewLTigWG4xSOukaG">Arnold (German)</option>
+                          <option value="EXAVITQu4vr4xnSDxMaL">Bella (English)</option>
+                          <option value="MF3mGyEYCl7XYWbV9V6O">Elli (Italian)</option>
+                          <option value="TxGEqnHWrfWFTfGW9XjX">Josh (English)</option>
+                          <option value="onwK4e9ZLuTAKqWW03F9">Domi (English)</option>
+                        </Select>
+                        <div className="text-xs text-blue-600 space-y-1">
+                          <p>
+                            <strong>Latency:</strong> ~2-3 seconds end-to-end
+                          </p>
+                          <p>
+                            <strong>Cost:</strong> ~$2/hour (ElevenLabs + OpenAI)
+                          </p>
+                          <p>
+                            <strong>Quality:</strong> Natural speech synthesis
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -147,6 +147,8 @@ export const VoiceConfigSchema = z.object({
       synthetic_caller: z.boolean().optional(),
       use_voice_cloning: z.boolean().optional(),
       live_translate: z.boolean().optional(),
+      voice_to_voice: z.boolean().optional(),
+      elevenlabs_voice_id: z.string().max(100).optional(),
     })
     .optional(),
 })
@@ -656,4 +658,3 @@ export const LanguageDetectionSchema = z.object({
   auto_detect: z.boolean().default(true),
   preferred_language: z.string().max(5).optional(),
 })
-

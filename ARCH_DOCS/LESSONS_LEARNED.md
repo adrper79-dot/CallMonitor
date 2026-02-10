@@ -6,6 +6,54 @@
 
 ---
 
+## 🔴 CRITICAL — Tailwind Responsive Class Ordering Can Break Desktop/Mobile Layouts (v4.29 — Mobile Nav Leaking)
+
+**When using conflicting Tailwind utilities (e.g., `flex` + `lg:hidden`), class order determines which wins. Responsive variants must come FIRST to avoid base utility overrides.**
+
+### The Bug
+
+Mobile layout wrapper used `<div className="flex lg:hidden ...">` — this applies `display: flex` (base) AND `display: none` at `lg+` (responsive). In Tailwind's generated CSS, base utilities typically come BEFORE responsive variants in source order, so when both target the same property with equal specificity, **the base class can win** depending on stylesheet order and browser cascade rules. Result: mobile nav + content leaked onto desktop layout, appearing below the correctly-rendered desktop 3-column view.
+
+### Why It's Insidious
+
+- Desktop layout wrapper (`hidden lg:flex`) worked correctly because `hidden` is the base (stronger default)
+- Only affected the mobile wrapper where `flex` was base + `lg:hidden` was responsive
+- CSS cascade/specificity is subtle — both selectors have same specificity, so source order wins
+- The bug was intermittent or browser-dependent based on how Tailwind orders utilities in the final stylesheet
+- Multiple fix attempts failed because we kept using the same pattern (`flex lg:hidden` → `lg:hidden flex`)
+
+### Prevention
+
+1. **Always use responsive-first ordering:** `lg:hidden flex` NOT `flex lg:hidden`
+2. **Better yet, invert the logic:** Use `hidden max-lg:flex` (hidden by default, flex only BELOW lg)
+3. When hiding on desktop, start with `hidden` as base: `hidden lg:block` OR `hidden max-lg:flex`
+4. When showing on desktop, start with responsive: `lg:flex` (no base `flex` if it should be hidden on mobile)
+5. **Test at multiple breakpoints** — desktop bugs often hide at mobile and vice versa
+
+### Resolution
+
+Changed mobile wrapper from:
+
+```tsx
+<div className="flex lg:hidden flex-col flex-1 overflow-hidden">
+```
+
+To inverted logic:
+
+```tsx
+<div className="hidden max-lg:flex flex-col flex-1 overflow-hidden">
+```
+
+Also added defensive `lg:hidden` directly on `<MobileBottomNav>` component for redundancy.
+
+**Tailwind Class Ordering Rule:** When using conflicting properties, order matters:
+
+- `hidden lg:flex` ✅ (hidden base, flex at lg+)
+- `flex lg:hidden` ❌ (flex base may override lg:hidden)
+- `hidden max-lg:flex` ✅ (hidden base, flex below lg — cleanest for mobile-only)
+
+---
+
 ## 🔴 CRITICAL — Production DB Missing 22 Columns in `calls` Table (v4.29 — Silent Call Failure)
 
 **The `calls` table in production was created from an older schema missing 22 columns, so `POST /calls/start` INSERT silently failed — no call was ever recorded.**
@@ -1190,6 +1238,7 @@ Bridge calls to Telnyx were failing with HTTP 500 "Failed to place call". The ac
 ### Prevention
 
 **Bad:**
+
 ```typescript
 if (!callResponse.ok) {
   logger.error('Telnyx call creation failed', { error })
@@ -1198,12 +1247,14 @@ if (!callResponse.ok) {
 ```
 
 **Good:**
+
 ```typescript
 const detail = errorJson.errors?.[0]?.detail || errorJson.message
 return c.json({ error: detail }, status) // ✅ Actual error message
 ```
 
 **Best:**
+
 ```typescript
 // Handle specific error codes first
 if (status === 429) {
@@ -1238,6 +1289,7 @@ return c.json({ error: detail }, 500)
 ### Lesson for Future Integrations
 
 **Checklist:**
+
 - [ ] Document third-party account tier and limits BEFORE coding
 - [ ] Add specific error handling for provider's error codes (429, 402, 403, etc.)
 - [ ] Test with real API calls, not just unit tests
@@ -1264,19 +1316,21 @@ Voice calls with live translation enabled were failing immediately with HTTP 500
 ### Technical Details
 
 **Before (Broken):**
+
 ```typescript
 callPayload.transcription = {
-  transcription_engine: 'B',    // ❌ Wrong — transcription must be boolean
+  transcription_engine: 'B', // ❌ Wrong — transcription must be boolean
   transcription_tracks: 'both', // ❌ Config belongs in transcription_config
 }
 ```
 
 **After (Fixed):**
+
 ```typescript
-callPayload.transcription = true  // ✅ Boolean to enable transcription
+callPayload.transcription = true // ✅ Boolean to enable transcription
 callPayload.transcription_config = {
-  transcription_engine: 'B',      // ✅ Engine config in transcription_config
-  transcription_tracks: 'both',   // ✅ Tracks config in transcription_config
+  transcription_engine: 'B', // ✅ Engine config in transcription_config
+  transcription_tracks: 'both', // ✅ Tracks config in transcription_config
 }
 ```
 

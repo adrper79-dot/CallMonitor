@@ -37,55 +37,76 @@ export default function ActivityFeedEmbed({
 }: ActivityFeedEmbedProps) {
   const [events, setEvents] = useState<ActivityEvent[]>(initialEvents || [])
   const [filter, setFilter] = useState<string>('all')
+  const [initialLoaded, setInitialLoaded] = useState(!!initialEvents?.length)
 
   const { updates, connected } = useRealtime(organizationId || null)
 
+  // Always poll for events as a baseline — useRealtime provides incremental
+  // updates, but we need an initial load and periodic full refresh.
   const { data: polledEvents } = usePolling<ActivityEvent>(
     async () => {
       if (!organizationId) return []
       try {
-        const data = await apiGet(
-          `/api/audit-logs?orgId=${encodeURIComponent(organizationId)}&limit=${limit}`
-        )
-        return data.events || []
+        const data = await apiGet(`/api/audit-logs?limit=${limit}`)
+        const logs = data.logs || data.events || []
+        return logs.map((log: any) => ({
+          id: log.id || `evt-${Date.now()}-${Math.random()}`,
+          call_id: log.resource_type === 'calls' ? log.resource_id : undefined,
+          timestamp: log.created_at || new Date().toISOString(),
+          type: mapTableToEventType(log.resource_type || 'audit_logs', log.new_value || log),
+          title: mapTableToEventTitle(log.resource_type || 'audit_logs', log.new_value || log),
+          status: mapTableToEventStatus(log.resource_type || 'audit_logs', log.new_value || log),
+        }))
       } catch (error: any) {
         if (error.status === 401) return []
         return []
       }
     },
-    30000,
-    !connected && !!organizationId
+    30000, // Refresh full list every 30 s
+    !!organizationId
   )
 
+  // Merge incremental realtime updates into the event list
   useEffect(() => {
     if (!updates.length) return
 
-    updates.forEach((update) => {
-      if (
-        update.table === 'audit_logs' ||
-        update.table === 'calls' ||
-        update.table === 'recordings' ||
-        update.table === 'ai_runs'
-      ) {
+    const newEvents: ActivityEvent[] = updates
+      .filter(
+        (u) =>
+          u.table === 'audit_logs' ||
+          u.table === 'calls' ||
+          u.table === 'recordings' ||
+          u.table === 'ai_runs'
+      )
+      .map((update) => {
         const row = update.data as any
-        const event: ActivityEvent = {
-          id: row?.id || `event-${Date.now()}`,
+        return {
+          id: row?.id || `event-${Date.now()}-${Math.random()}`,
           call_id: row?.call_id || row?.call_sid || undefined,
           timestamp: row?.created_at || new Date().toISOString(),
           type: mapTableToEventType(update.table, row),
           title: mapTableToEventTitle(update.table, row),
           status: mapTableToEventStatus(update.table, row),
         }
-        setEvents((prev) => [event, ...prev].slice(0, limit * 2))
-      }
-    })
+      })
+
+    if (newEvents.length > 0) {
+      setEvents((prev) => {
+        // De-duplicate by id
+        const ids = new Set(newEvents.map((e) => e.id))
+        const filtered = prev.filter((e) => !ids.has(e.id))
+        return [...newEvents, ...filtered].slice(0, limit * 2)
+      })
+    }
   }, [updates, limit])
 
+  // When full poll completes, replace event list
   useEffect(() => {
-    if (!connected && polledEvents.length > 0) {
+    if (polledEvents.length > 0) {
       setEvents(polledEvents)
+      setInitialLoaded(true)
     }
-  }, [polledEvents, connected])
+  }, [polledEvents])
 
   const filteredEvents = events
     .filter((e) => {
@@ -166,7 +187,11 @@ export default function ActivityFeedEmbed({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold ${evt.title === 'Call Completed' ? 'text-red-500' : 'text-gray-900'}`}>{evt.title}</p>
+                    <p
+                      className={`text-sm font-semibold ${evt.title === 'Call Completed' ? 'text-red-500' : 'text-gray-900'}`}
+                    >
+                      {evt.title}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {new Date(evt.timestamp).toLocaleString()}
                     </p>

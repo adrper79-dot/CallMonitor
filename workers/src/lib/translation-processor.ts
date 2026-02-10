@@ -1,28 +1,29 @@
 /**
- * Live Translation Processor — Real-time transcription → translation → DB pipeline
+ * Live Translation Processor — Real-time transcription → translation → TTS → audio injection pipeline
  *
  * Receives transcription segments from Telnyx Call Control v2 webhooks,
- * translates them via OpenAI, and writes results to `call_translations`.
- * The existing SSE stream (live-translation.ts) polls this table and
- * delivers segments to the frontend.
+ * translates them via OpenAI, synthesizes speech via ElevenLabs, and injects
+ * audio into active calls for full voice-to-voice translation.
  *
  * Architecture (lowest latency path):
- *   Telnyx Transcription Webhook → translateAndStore() → OpenAI GPT-4o-mini → DB INSERT
+ *   Telnyx Transcription Webhook → translateAndStore() → OpenAI GPT-4o-mini → ElevenLabs TTS → Telnyx Audio Injection
  *   No WebSocket relay, no Durable Objects, no external transcription API.
  *
  * Latency budget:
  *   Telnyx transcription delivery: ~0.5-1s after utterance
  *   OpenAI translation (gpt-4o-mini): ~0.3-0.5s
- *   DB write: ~0.05s
- *   SSE poll interval: 1s
+ *   ElevenLabs TTS: ~0.5-0.8s
+ *   Telnyx audio injection: ~0.2s
  *   Total end-to-end: ~2-3s per utterance
  *
  * @see ARCH_DOCS/02-FEATURES/LIVE_TRANSLATION_FLOW.md
- * @see workers/src/routes/live-translation.ts — SSE delivery layer
+ * @see ARCH_DOCS/02-FEATURES/VOICE_TO_VOICE_TRANSLATION.md
  */
 
 import type { DbClient } from './db'
 import { logger } from './logger'
+import { synthesizeSpeech, type TTSSegment } from './tts-processor'
+import { queueAudioInjection, type AudioInjection } from './audio-injector'
 
 const OPENAI_BASE = 'https://api.openai.com/v1'
 const TRANSLATION_MODEL = 'gpt-4o-mini'
@@ -49,6 +50,11 @@ export interface TranslationSegment {
   targetLanguage: string
   segmentIndex: number
   confidence: number
+  voiceToVoice?: boolean
+  elevenlabsKey?: string
+  telnyxKey?: string
+  targetCallControlId?: string
+  r2Client?: R2Bucket
 }
 
 export interface TranslationResult {
@@ -60,12 +66,13 @@ export interface TranslationResult {
 
 /**
  * Translate a single transcription segment and store in DB.
+ * If voice-to-voice mode is enabled, also synthesize speech and inject audio.
  *
  * This is the hot path — called for every utterance during a live call.
  * Optimized for minimal latency:
  *   1. Single OpenAI call with minimal prompt
  *   2. Single DB INSERT (no SELECT first)
- *   3. Fire-and-forget pattern — errors are logged but don't block caller
+ *   3. Optional TTS + audio injection pipeline
  */
 export async function translateAndStore(
   db: DbClient,
@@ -80,6 +87,11 @@ export async function translateAndStore(
     targetLanguage,
     segmentIndex,
     confidence,
+    voiceToVoice = false,
+    elevenlabsKey,
+    telnyxKey,
+    targetCallControlId,
+    r2Client,
   } = segment
 
   // Skip empty or whitespace-only segments
@@ -175,6 +187,59 @@ export async function translateAndStore(
       confidence,
     })
 
+    // If voice-to-voice mode is enabled, synthesize speech and inject audio
+    if (voiceToVoice && elevenlabsKey && telnyxKey && targetCallControlId && r2Client) {
+      try {
+        // Synthesize speech
+        const ttsResult = await synthesizeSpeech(r2Client, elevenlabsKey, {
+          callId,
+          organizationId,
+          translatedText,
+          targetLanguage,
+          segmentIndex,
+        })
+
+        if (ttsResult.success && ttsResult.audioUrl && ttsResult.durationMs) {
+          // Inject audio into call
+          const injectionResult = await queueAudioInjection(db, telnyxKey, {
+            callId,
+            segmentIndex,
+            audioUrl: ttsResult.audioUrl,
+            durationMs: ttsResult.durationMs,
+            targetCallControlId,
+            organizationId,
+          })
+
+          if (injectionResult.success) {
+            logger.info('Voice-to-voice translation completed', {
+              callId,
+              segmentIndex,
+              injectionId: injectionResult.injectionId,
+            })
+          } else {
+            logger.warn('Audio injection failed, text-only translation available', {
+              callId,
+              segmentIndex,
+              error: injectionResult.error,
+            })
+          }
+        } else {
+          logger.warn('TTS synthesis failed, falling back to text-only', {
+            callId,
+            segmentIndex,
+            error: ttsResult.error,
+          })
+        }
+      } catch (voiceErr: any) {
+        logger.error('Voice-to-voice pipeline error', {
+          callId,
+          segmentIndex,
+          error: voiceErr?.message,
+        })
+        // Continue with text-only translation even if voice fails
+      }
+    }
+
     return { success: true, translatedText, segmentIndex }
   } catch (err: any) {
     logger.error('Translation processor error', {
@@ -266,4 +331,3 @@ export async function getTranslationConfig(
     live_translate: config.live_translate ?? false,
   }
 }
-

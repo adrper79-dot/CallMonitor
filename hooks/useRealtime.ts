@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { apiPost } from '@/lib/apiClient'
+import { apiGet } from '@/lib/apiClient'
 
 /**
  * Real-time Updates Hook
  *
- * Uses polling-based updates for Neon compatibility.
+ * Polls audit_logs for recent changes and emits typed updates.
+ * Consumers (ActivityFeedEmbed, call status panel) receive a
+ * unified stream without needing WebSockets.
  */
 
 interface RealtimeUpdate {
@@ -16,43 +18,83 @@ interface RealtimeUpdate {
   receivedAt: number
 }
 
-// Polling interval
-const POLL_INTERVAL = 5000 // 5 seconds
+// Polling interval — 5 s keeps UI responsive without hammering the API
+const POLL_INTERVAL = 5000
 
 export function useRealtime(organizationId: string | null) {
   const [updates, setUpdates] = useState<RealtimeUpdate[]>([])
   const [connected, setConnected] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const lastPollRef = useRef<Date>(new Date())
-  const setupAttemptedRef = useRef<boolean>(false)
+  const lastPollRef = useRef<string>(new Date().toISOString())
 
   useEffect(() => {
-    if (!organizationId || setupAttemptedRef.current) {
+    if (!organizationId) {
+      setConnected(false)
       return
     }
 
-    setupAttemptedRef.current = true
     let mounted = true
 
-    // For now, just set connected to true to avoid UI issues
-    // Real-time functionality requires WebSocket implementation
-    setConnected(true)
+    async function poll() {
+      try {
+        const data = await apiGet(
+          `/api/audit-logs?limit=20&since=${encodeURIComponent(lastPollRef.current)}`
+        )
 
-    // Cleanup function
+        if (!mounted) return
+
+        const entries = data.logs || []
+        if (entries.length > 0) {
+          const newUpdates: RealtimeUpdate[] = entries.map((evt: any) => ({
+            type: evt.action || 'update',
+            table: evt.resource_type || 'audit_logs',
+            data: {
+              id: evt.id || evt.resource_id,
+              call_id: evt.resource_type === 'calls' ? evt.resource_id : undefined,
+              status:
+                (typeof evt.new_value === 'object' ? evt.new_value?.status : undefined) ||
+                undefined,
+              created_at: evt.created_at,
+              ...(typeof evt.new_value === 'object' ? evt.new_value : {}),
+            },
+            receivedAt: Date.now(),
+          }))
+
+          setUpdates(newUpdates)
+
+          // Advance cursor to newest event
+          const newest = entries[0]?.created_at
+          if (newest) lastPollRef.current = newest
+        }
+
+        if (mounted) setConnected(true)
+      } catch (err: any) {
+        if (err?.status === 401 && mounted) {
+          setConnected(false)
+          return
+        }
+        // Non-auth errors — stay in polling loop but flag disconnected
+        if (mounted) setConnected(false)
+      }
+    }
+
+    // Initial poll
+    poll()
+    intervalRef.current = setInterval(poll, POLL_INTERVAL)
+
     return () => {
       mounted = false
-      setupAttemptedRef.current = false
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       setConnected(false)
     }
   }, [organizationId])
 
   const clearUpdates = useCallback(() => setUpdates([]), [])
 
-  return {
-    updates,
-    connected,
-    clearUpdates,
-  }
+  return { updates, connected, clearUpdates }
 }
 
 /**

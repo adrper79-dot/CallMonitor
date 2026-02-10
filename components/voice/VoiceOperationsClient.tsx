@@ -20,7 +20,7 @@ import { RecentTargets } from './RecentTargets'
 import { ActiveCallPanel } from './ActiveCallPanel'
 import { LiveTranslationPanel } from './LiveTranslationPanel'
 import { useRealtime } from '@/hooks/useRealtime'
-import { ProductTour, VOICE_TOUR } from '@/components/tour'
+import { ProductTour, VOICE_TOUR, REVIEW_TOUR } from '@/components/tour'
 import { MobileBottomNav, MobileTab } from './MobileBottomNav' // Componentized Nav
 import { useActiveCall } from '@/hooks/useActiveCall' // Logic Extraction
 import { ChevronDown, ChevronUp } from 'lucide-react' // Standardized Icons
@@ -170,304 +170,387 @@ export default function VoiceOperationsClient({
     <VoiceConfigProvider organizationId={organizationId}>
       <WebRTCProvider organizationId={organizationId}>
         <TargetNumberProvider>
-          <div className="flex flex-col h-screen bg-gray-50" style={{ paddingTop: '80px' }}>
-            {/* paddingTop offsets the fixed Navigation (h-20 / 80px) — uses inline style
-                so h-screen minus 80px = actual available height without overflow */}
-            <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
-
-            {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
-            <div className="hidden lg:flex flex-1 min-h-0">
-              {/* Left Rail - Call List (280px) */}
-              <aside
-                className="w-72 shrink-0 border-r border-gray-200 flex flex-col bg-white"
-                data-tour="call-list"
-              >
-                <div className="border-b border-gray-200 p-4 shrink-0">
-                  <BookingsList
-                    onBookingClick={(booking) => {}}
-                    onNewBooking={() => setShowBookingModal(true)}
-                    limit={3}
-                  />
-                </div>
-
-                <div className="flex-1 overflow-y-auto">
-                  <CallList
-                    calls={initialCalls}
-                    selectedCallId={selectedCallId}
-                    organizationId={organizationId}
-                    onSelect={setSelectedCallId}
-                  />
-                </div>
-              </aside>
-
-              {/* Main Area - Call Controls & Detail */}
-              <main className="flex-1 min-w-0 overflow-y-auto p-6">
-                <div className="max-w-3xl mx-auto space-y-6">
-                  {/* Active Call Panel */}
-                  {activeCallId && activeCall.status && (
-                    <ActiveCallPanel
-                      callId={activeCallId}
-                      organizationId={organizationId || undefined}
-                      status={activeCall.status}
-                      duration={activeCall.duration}
-                      onViewDetails={() => setSelectedCallId(activeCallId)}
-                      onNewCall={handleNewCall}
-                      showConfirmations={true}
-                    />
-                  )}
-
-                  {/* Live Translation Panel — shown during active calls when translate mode is 'live' */}
-                  {activeCallId &&
-                    activeCall.status &&
-                    ['initiating', 'ringing', 'in_progress'].includes(activeCall.status) && (
-                      <LiveTranslationFeed callId={activeCallId} organizationId={organizationId} />
-                    )}
-
-                  {/* Target & Campaign Selector */}
-                  <div className="space-y-4" data-tour="target-selector">
-                    <TargetCampaignSelector organizationId={organizationId} />
-                  </div>
-
-                  {/* Calling Mode Toggle */}
-                  <div className="bg-white rounded-md border border-gray-200 p-4">
-                    <CallingModeSelectorWithWebRTC
-                      mode={callingMode}
-                      onModeChange={setCallingMode}
-                      disabled={!!activeCallId}
-                    />
-                  </div>
-
-                  {/* PRIMARY ACTION: Call Controls - Desktop */}
-                  <div data-tour="place-call">
-                    {callingMode === 'phone' && !activeCallId && (
-                      <ExecutionControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
-                    )}
-                    {callingMode === 'browser' && (
-                      <WebRTCCallControls
-                        organizationId={organizationId}
-                        onCallPlaced={handleCallPlaced}
-                      />
-                    )}
-                  </div>
-
-                  {/* Recent Targets */}
-                  <div className="bg-white rounded-md border border-gray-200 p-4">
-                    <RecentTargets
-                      organizationId={organizationId}
-                      onSelect={handleTargetSelect}
-                      limit={3}
-                    />
-                  </div>
-
-                  {/* Call Options - Progressive Disclosure */}
-                  <section
-                    className="bg-white rounded-md border border-gray-200"
-                    data-tour="call-options"
-                  >
-                    <button
-                      onClick={() => setOptionsExpanded(!optionsExpanded)}
-                      className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-                    >
-                      <div>
-                        <h2 className="text-sm font-semibold text-gray-900">Call Options</h2>
-                        <p className="text-xs text-gray-500">Recording, transcription, and more</p>
-                      </div>
-                      {optionsExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-gray-400" />
-                      )}
-                    </button>
-
-                    {optionsExpanded && (
-                      <div className="px-4 pb-4 border-t border-gray-100">
-                        <CallModulations
-                          callId="org-default"
-                          organizationId={organizationId}
-                          initialModulations={{
-                            record: false,
-                            transcribe: false,
-                            translate: false,
-                            survey: false,
-                            synthetic_caller: false,
-                          }}
-                          onChange={handleModulationChange}
-                        />
-                      </div>
-                    )}
-                  </section>
-
-                  {/* Call Detail View */}
-                  <div id="call-detail-container">
-                    <CallDetailView
-                      callId={selectedCallId}
-                      organizationId={organizationId}
-                      onModulationChange={handleModulationChange}
-                    />
-                  </div>
-                </div>
-              </main>
-
-              {/* Right Rail - Activity Feed (280px) */}
-              <aside
-                className="w-72 shrink-0 border-l border-gray-200 overflow-hidden flex flex-col p-4 bg-white"
-                data-tour="activity-feed"
-              >
-                <ActivityFeedEmbed organizationId={organizationId} limit={20} />
-              </aside>
-            </div>
-
-            {/* ========== MOBILE/TABLET LAYOUT (below lg) ========== */}
-            <div className="flex lg:hidden flex-col flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto">
-                {/* Dial Tab */}
-                {mobileTab === 'dial' && (
-                  <div className="p-4 space-y-4">
-                    {activeCallId && activeCall.status && (
-                      <ActiveCallPanel
-                        callId={activeCallId}
-                        organizationId={organizationId || undefined}
-                        status={activeCall.status}
-                        duration={activeCall.duration}
-                        onViewDetails={() => setSelectedCallId(activeCallId)}
-                        onNewCall={handleNewCall}
-                        showConfirmations={true}
-                      />
-                    )}
-
-                    <div className="lg:hidden p-4">
-                      <TargetCampaignSelector organizationId={organizationId} />
-                    </div>
-
-                    {/* Calling Mode Toggle - Mobile */}
-                    <div className="lg:hidden bg-white rounded-md border border-gray-200 p-4">
-                      <CallingModeSelectorWithWebRTC
-                        mode={callingMode}
-                        onModeChange={setCallingMode}
-                        disabled={!!activeCallId}
-                      />
-                    </div>
-
-                    {/* Call Controls - Mobile */}
-                    <div className="lg:hidden">
-                      {callingMode === 'phone' && !activeCallId && (
-                        <ExecutionControls
-                          organizationId={organizationId}
-                          onCallPlaced={handleCallPlaced}
-                        />
-                      )}
-                      {callingMode === 'browser' && (
-                        <WebRTCCallControls
-                          organizationId={organizationId}
-                          onCallPlaced={handleCallPlaced}
-                        />
-                      )}
-                    </div>
-
-                    {/* Recent Targets */}
-                    <div className="bg-white rounded-md border border-gray-200 p-4">
-                      <RecentTargets
-                        organizationId={organizationId}
-                        onSelect={handleTargetSelect}
-                        limit={3}
-                      />
-                    </div>
-
-                    {/* Call Options - Collapsible */}
-                    <details className="bg-white rounded-md border border-gray-200 group">
-                      <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
-                        <span>Call Options</span>
-                        <span className="text-sm text-gray-500">Tap to expand</span>
-                      </summary>
-                      <div className="p-4 pt-0 border-t border-gray-200">
-                        <CallModulations
-                          callId="org-default"
-                          organizationId={organizationId}
-                          initialModulations={{
-                            record: false,
-                            transcribe: false,
-                            translate: false,
-                            survey: false,
-                            synthetic_caller: false,
-                          }}
-                          onChange={handleModulationChange}
-                        />
-                      </div>
-                    </details>
-
-                    {/* Scheduled Calls - Collapsible */}
-                    <details className="bg-white rounded-md border border-gray-200">
-                      <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
-                        <span>Scheduled Calls</span>
-                        <span className="text-sm text-gray-500">Tap to view</span>
-                      </summary>
-                      <div className="p-4 pt-0 border-t border-gray-200">
-                        <BookingsList
-                          onBookingClick={(booking) => {}}
-                          onNewBooking={() => setShowBookingModal(true)}
-                          limit={5}
-                        />
-                      </div>
-                    </details>
-
-                    {/* Call Detail View */}
-                    <div id="call-detail-container">
-                      <CallDetailView
-                        callId={selectedCallId}
-                        organizationId={organizationId}
-                        onModulationChange={handleModulationChange}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Calls Tab */}
-                {mobileTab === 'calls' && (
-                  <CallList
-                    calls={initialCalls}
-                    selectedCallId={selectedCallId}
-                    organizationId={organizationId}
-                    onSelect={(id) => {
-                      setSelectedCallId(id)
-                      setMobileTab('dial')
-                    }}
-                  />
-                )}
-
-                {/* Activity Tab */}
-                {mobileTab === 'activity' && (
-                  <div className="p-4">
-                    <ActivityFeedEmbed organizationId={organizationId} limit={30} />
-                  </div>
-                )}
-              </div>
-
-              {/* Mobile Bottom Navigation - Componentized */}
-              <MobileBottomNav
-                currentTab={mobileTab}
-                onTabChange={setMobileTab}
-                callsCount={initialCalls.length}
-                onScheduleClick={() => setShowBookingModal(true)}
-              />
-            </div>
-
-            {/* Booking Modal */}
-            <BookingModal
-              isOpen={showBookingModal}
-              onClose={() => setShowBookingModal(false)}
-              onSuccess={(booking) => {
-                setShowBookingModal(false)
-              }}
-            />
-
-            {/* Tutorial Tour */}
-            <ProductTour tourId="voice" steps={VOICE_TOUR} />
-          </div>
+          <VoiceOperationsInner
+            initialCalls={initialCalls}
+            organizationId={organizationId}
+            organizationName={organizationName}
+            selectedCallId={selectedCallId}
+            setSelectedCallId={setSelectedCallId}
+            showBookingModal={showBookingModal}
+            setShowBookingModal={setShowBookingModal}
+            optionsExpanded={optionsExpanded}
+            setOptionsExpanded={setOptionsExpanded}
+            callingMode={callingMode}
+            setCallingMode={setCallingMode}
+            activeCallId={activeCallId}
+            activeCall={activeCall}
+            mobileTab={mobileTab}
+            setMobileTab={setMobileTab}
+            handleCallPlaced={handleCallPlaced}
+            handleTargetSelect={handleTargetSelect}
+            handleNewCall={handleNewCall}
+            handleModulationChange={handleModulationChange}
+          />
         </TargetNumberProvider>
       </WebRTCProvider>
     </VoiceConfigProvider>
+  )
+}
+
+/**
+ * Inner component that renders inside TargetNumberProvider
+ * so it can access setTargetNumber for booking → dial flow.
+ */
+function VoiceOperationsInner({
+  initialCalls,
+  organizationId,
+  organizationName,
+  selectedCallId,
+  setSelectedCallId,
+  showBookingModal,
+  setShowBookingModal,
+  optionsExpanded,
+  setOptionsExpanded,
+  callingMode,
+  setCallingMode,
+  activeCallId,
+  activeCall,
+  mobileTab,
+  setMobileTab,
+  handleCallPlaced,
+  handleTargetSelect,
+  handleNewCall,
+  handleModulationChange,
+}: {
+  initialCalls: Call[]
+  organizationId: string | null
+  organizationName?: string
+  selectedCallId: string | null
+  setSelectedCallId: (id: string | null) => void
+  showBookingModal: boolean
+  setShowBookingModal: (show: boolean) => void
+  optionsExpanded: boolean
+  setOptionsExpanded: (expanded: boolean) => void
+  callingMode: CallingMode
+  setCallingMode: (mode: CallingMode) => void
+  activeCallId: string | null
+  activeCall: ReturnType<typeof useActiveCall>
+  mobileTab: MobileTab
+  setMobileTab: (tab: MobileTab) => void
+  handleCallPlaced: (callId: string) => void
+  handleTargetSelect: (number: string, name?: string) => void
+  handleNewCall: () => void
+  handleModulationChange: (mods: Record<string, boolean>) => Promise<void>
+}) {
+  const { setTargetNumber } = useTargetNumber()
+
+  /** Pre-fill the dialer with booking's phone number and switch to Dial tab */
+  const handleBookingClick = useCallback(
+    (booking: { attendee_phone: string; title?: string }) => {
+      if (booking.attendee_phone) {
+        setTargetNumber(booking.attendee_phone)
+        setMobileTab('dial')
+      }
+    },
+    [setTargetNumber, setMobileTab]
+  )
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50" style={{ paddingTop: '80px' }}>
+      {/* paddingTop offsets the fixed Navigation (h-20 / 80px) — uses inline style
+                so h-screen minus 80px = actual available height without overflow */}
+      <VoiceHeader organizationId={organizationId} organizationName={organizationName} />
+
+      {/* ========== DESKTOP LAYOUT (lg and up) ========== */}
+      <div className="hidden lg:flex flex-1 min-h-0">
+        {/* Left Rail - Call List (280px) */}
+        <aside
+          className="w-72 shrink-0 border-r border-gray-200 flex flex-col bg-white"
+          data-tour="call-list"
+        >
+          <div className="border-b border-gray-200 p-4 shrink-0">
+            <BookingsList
+              onBookingClick={handleBookingClick}
+              onNewBooking={() => setShowBookingModal(true)}
+              limit={3}
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            <CallList
+              calls={initialCalls}
+              selectedCallId={selectedCallId}
+              organizationId={organizationId}
+              onSelect={setSelectedCallId}
+            />
+          </div>
+        </aside>
+
+        {/* Main Area - Call Controls & Detail */}
+        <main className="flex-1 min-w-0 overflow-y-auto p-6">
+          <div className="max-w-3xl mx-auto space-y-6">
+            {/* Active Call Panel */}
+            {activeCallId && activeCall.status && (
+              <ActiveCallPanel
+                callId={activeCallId}
+                organizationId={organizationId || undefined}
+                status={activeCall.status}
+                duration={activeCall.duration}
+                onViewDetails={() => setSelectedCallId(activeCallId)}
+                onNewCall={handleNewCall}
+                showConfirmations={true}
+              />
+            )}
+
+            {/* Live Translation Panel — shown during active calls when translate mode is 'live' */}
+            {activeCallId &&
+              activeCall.status &&
+              ['initiating', 'ringing', 'in_progress'].includes(activeCall.status) && (
+                <LiveTranslationFeed callId={activeCallId} organizationId={organizationId} />
+              )}
+
+            {/* Target & Campaign Selector */}
+            <div className="space-y-4" data-tour="target-selector">
+              <TargetCampaignSelector organizationId={organizationId} />
+            </div>
+
+            {/* Calling Mode Toggle */}
+            <div className="bg-white rounded-md border border-gray-200 p-4">
+              <CallingModeSelectorWithWebRTC
+                mode={callingMode}
+                onModeChange={setCallingMode}
+                disabled={!!activeCallId}
+              />
+            </div>
+
+            {/* PRIMARY ACTION: Call Controls - Desktop */}
+            <div data-tour="place-call">
+              {callingMode === 'phone' && !activeCallId && (
+                <ExecutionControls
+                  organizationId={organizationId}
+                  onCallPlaced={handleCallPlaced}
+                />
+              )}
+              {callingMode === 'browser' && (
+                <WebRTCCallControls
+                  organizationId={organizationId}
+                  onCallPlaced={handleCallPlaced}
+                />
+              )}
+            </div>
+
+            {/* Recent Targets */}
+            <div className="bg-white rounded-md border border-gray-200 p-4">
+              <RecentTargets
+                organizationId={organizationId}
+                onSelect={handleTargetSelect}
+                limit={3}
+              />
+            </div>
+
+            {/* Call Options - Progressive Disclosure */}
+            <section
+              className="bg-white rounded-md border border-gray-200"
+              data-tour="call-options"
+            >
+              <button
+                onClick={() => setOptionsExpanded(!optionsExpanded)}
+                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+              >
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Call Options</h2>
+                  <p className="text-xs text-gray-500">Recording, transcription, and more</p>
+                </div>
+                {optionsExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </button>
+
+              {optionsExpanded && (
+                <div className="px-4 pb-4 border-t border-gray-100">
+                  <CallModulations
+                    callId="org-default"
+                    organizationId={organizationId}
+                    initialModulations={{
+                      record: false,
+                      transcribe: false,
+                      translate: false,
+                      survey: false,
+                      synthetic_caller: false,
+                    }}
+                    onChange={handleModulationChange}
+                  />
+                </div>
+              )}
+            </section>
+
+            {/* Call Detail View */}
+            <div id="call-detail-container">
+              <CallDetailView
+                callId={selectedCallId}
+                organizationId={organizationId}
+                onModulationChange={handleModulationChange}
+              />
+            </div>
+          </div>
+        </main>
+
+        {/* Right Rail - Activity Feed (280px) */}
+        <aside
+          className="w-72 shrink-0 border-l border-gray-200 overflow-hidden flex flex-col p-4 bg-white"
+          data-tour="activity-feed"
+        >
+          <ActivityFeedEmbed organizationId={organizationId} limit={20} />
+        </aside>
+      </div>
+
+      {/* ========== MOBILE/TABLET LAYOUT (below lg) ========== */}
+      <div className="hidden max-lg:flex flex-col flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
+          {/* Dial Tab */}
+          {mobileTab === 'dial' && (
+            <div className="p-4 space-y-4">
+              {activeCallId && activeCall.status && (
+                <ActiveCallPanel
+                  callId={activeCallId}
+                  organizationId={organizationId || undefined}
+                  status={activeCall.status}
+                  duration={activeCall.duration}
+                  onViewDetails={() => setSelectedCallId(activeCallId)}
+                  onNewCall={handleNewCall}
+                  showConfirmations={true}
+                />
+              )}
+
+              <div className="lg:hidden p-4">
+                <TargetCampaignSelector organizationId={organizationId} />
+              </div>
+
+              {/* Calling Mode Toggle - Mobile */}
+              <div className="lg:hidden bg-white rounded-md border border-gray-200 p-4">
+                <CallingModeSelectorWithWebRTC
+                  mode={callingMode}
+                  onModeChange={setCallingMode}
+                  disabled={!!activeCallId}
+                />
+              </div>
+
+              {/* Call Controls - Mobile */}
+              <div className="lg:hidden">
+                {callingMode === 'phone' && !activeCallId && (
+                  <ExecutionControls
+                    organizationId={organizationId}
+                    onCallPlaced={handleCallPlaced}
+                  />
+                )}
+                {callingMode === 'browser' && (
+                  <WebRTCCallControls
+                    organizationId={organizationId}
+                    onCallPlaced={handleCallPlaced}
+                  />
+                )}
+              </div>
+
+              {/* Recent Targets */}
+              <div className="bg-white rounded-md border border-gray-200 p-4">
+                <RecentTargets
+                  organizationId={organizationId}
+                  onSelect={handleTargetSelect}
+                  limit={3}
+                />
+              </div>
+
+              {/* Call Options - Collapsible */}
+              <details className="bg-white rounded-md border border-gray-200 group">
+                <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
+                  <span>Call Options</span>
+                  <span className="text-sm text-gray-500">Tap to expand</span>
+                </summary>
+                <div className="p-4 pt-0 border-t border-gray-200">
+                  <CallModulations
+                    callId="org-default"
+                    organizationId={organizationId}
+                    initialModulations={{
+                      record: false,
+                      transcribe: false,
+                      translate: false,
+                      survey: false,
+                      synthetic_caller: false,
+                    }}
+                    onChange={handleModulationChange}
+                  />
+                </div>
+              </details>
+
+              {/* Scheduled Calls - Collapsible */}
+              <details className="bg-white rounded-md border border-gray-200">
+                <summary className="p-4 cursor-pointer font-medium text-gray-900 flex items-center justify-between">
+                  <span>Scheduled Calls</span>
+                  <span className="text-sm text-gray-500">Tap to view</span>
+                </summary>
+                <div className="p-4 pt-0 border-t border-gray-200">
+                  <BookingsList
+                    onBookingClick={handleBookingClick}
+                    onNewBooking={() => setShowBookingModal(true)}
+                    limit={5}
+                  />
+                </div>
+              </details>
+
+              {/* Call Detail View */}
+              <div id="call-detail-container">
+                <CallDetailView
+                  callId={selectedCallId}
+                  organizationId={organizationId}
+                  onModulationChange={handleModulationChange}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Calls Tab */}
+          {mobileTab === 'calls' && (
+            <CallList
+              calls={initialCalls}
+              selectedCallId={selectedCallId}
+              organizationId={organizationId}
+              onSelect={(id) => {
+                setSelectedCallId(id)
+                setMobileTab('dial')
+              }}
+            />
+          )}
+
+          {/* Activity Tab */}
+          {mobileTab === 'activity' && (
+            <div className="p-4">
+              <ActivityFeedEmbed organizationId={organizationId} limit={30} />
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Bottom Navigation - Componentized */}
+        <MobileBottomNav
+          currentTab={mobileTab}
+          onTabChange={setMobileTab}
+          callsCount={initialCalls.length}
+          onScheduleClick={() => setShowBookingModal(true)}
+        />
+      </div>
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={showBookingModal}
+        onClose={() => setShowBookingModal(false)}
+        onSuccess={(booking) => {
+          setShowBookingModal(false)
+        }}
+      />
+
+      {/* Tutorial Tour */}
+      <ProductTour tourId="voice" steps={selectedCallId ? REVIEW_TOUR : VOICE_TOUR} />
+    </div>
   )
 }

@@ -1,0 +1,16 @@
+# Development Environment Variables
+# Copy this to .dev.vars and fill in your values
+
+# Session Token (Get from browser after signing in to https://voxsouth.online)
+WB_SESSION_TOKEN=
+
+# API Configuration
+API_BASE_URL=https://wordisbond-api.adrper79.workers.dev
+
+# OpenAI API Key (Required for translation)
+OPENAI_API_KEY=
+
+# Telnyx Configuration (Optional for webhook tests)
+TELNYX_API_KEY=
+TELNYX_NUMBER=
+TELNYX_CALL_CONTROL_APP_ID=

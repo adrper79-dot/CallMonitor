@@ -162,6 +162,14 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       setClauses.push(`live_translate = $${paramIndex++}`)
       values.push(modulations.live_translate)
     }
+    if (modulations.voice_to_voice !== undefined) {
+      setClauses.push(`voice_to_voice = $${paramIndex++}`)
+      values.push(modulations.voice_to_voice)
+    }
+    if (modulations.elevenlabs_voice_id !== undefined) {
+      setClauses.push(`elevenlabs_voice_id = $${paramIndex++}`)
+      values.push(modulations.elevenlabs_voice_id)
+    }
 
     let result
     if (setClauses.length === 0) {
@@ -174,8 +182,8 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
       result = await db.query(
         `INSERT INTO voice_configs (
           organization_id, record, transcribe, translate, translate_from, translate_to,
-          survey, synthetic_caller, use_voice_cloning, updated_at
-        ) VALUES ($1, false, false, false, NULL, NULL, false, false, false, NOW())
+          survey, synthetic_caller, use_voice_cloning, voice_to_voice, elevenlabs_voice_id, updated_at
+        ) VALUES ($1, false, false, false, NULL, NULL, false, false, false, false, NULL, NOW())
         ON CONFLICT (organization_id)
         DO UPDATE SET ${setClauses.join(', ')}, updated_at = NOW()
         RETURNING *`,
@@ -304,7 +312,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
 
     // Get voice config to determine recording and transcription settings
     const voiceConfigResult = await db.query(
-      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate, voice_to_voice
        FROM voice_configs
        WHERE organization_id = $1
        LIMIT 1`,
@@ -318,8 +326,9 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       logger.info('Call recording enabled')
     }
 
-    // Enable transcription for live translation OR regular transcription
-    const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
+    // Enable transcription for live translation, voice-to-voice, OR regular transcription
+    const enableTranscription =
+      voiceConfig?.live_translate || voiceConfig?.voice_to_voice || voiceConfig?.transcribe
     if (enableTranscription) {
       callPayload.transcription = true
       callPayload.transcription_config = {
@@ -328,6 +337,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       }
       logger.info('Transcription enabled for voice call', {
         live_translate: voiceConfig?.live_translate,
+        voice_to_voice: voiceConfig?.voice_to_voice,
         transcribe: voiceConfig?.transcribe,
       })
     }
@@ -457,7 +467,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
 
     const callId = callRecord.rows[0]?.id
 
-    logger.info('Call created', { callId, telnyxCallId })
+    logger.info('Call created', { callId, telnyxCallControlId })
 
     writeAuditLog(db, {
       organizationId: session.organization_id,
@@ -468,7 +478,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       newValue: {
         to: destinationNumber,
         from: callerNumber,
-        telnyx_call_id: telnyxCallId,
+        telnyx_call_id: telnyxCallControlId,
         flow_type: flow_type || 'direct',
       },
     })
@@ -476,7 +486,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     return c.json({
       success: true,
       call_id: callId,
-      telnyx_call_id: telnyxCallId,
+      telnyx_call_id: telnyxCallControlId,
       to: destinationNumber,
       from: callerNumber,
       flow_type: flow_type || 'direct',

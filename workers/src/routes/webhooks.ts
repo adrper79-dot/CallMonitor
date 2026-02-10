@@ -182,7 +182,10 @@ webhooksRoutes.post('/telnyx', async (c) => {
 
     // Validate required structure
     if (!body || typeof body !== 'object' || !body.data || !body.data.event_type) {
-      logger.warn('Telnyx webhook received invalid body structure', { hasData: !!body?.data, eventType: body?.data?.event_type })
+      logger.warn('Telnyx webhook received invalid body structure', {
+        hasData: !!body?.data,
+        eventType: body?.data?.event_type,
+      })
       return c.json({ error: 'Invalid webhook body structure' }, 400)
     }
 
@@ -206,6 +209,14 @@ webhooksRoutes.post('/telnyx', async (c) => {
           break
         case 'call.transcription':
           await handleCallTranscription(c.env, db, body.data.payload)
+          break
+
+        // Voice-to-voice translation: Audio playback events
+        case 'call.playback.started':
+          await handlePlaybackStarted(db, body.data.payload)
+          break
+        case 'call.playback.ended':
+          await handlePlaybackEnded(c.env, db, body.data.payload)
           break
 
         // v5.0: Gather/DTMF result — IVR Payments & Hybrid AI
@@ -401,13 +412,13 @@ async function handleCallInitiated(db: DbClient, payload: any) {
       call_control_id,
       bridge_call_id,
       from,
-      to
+      to,
     })
   } else {
     logger.warn('webhook-update-no-match and no bridge call found', {
       call_control_id,
       from,
-      to
+      to,
     })
   }
 }
@@ -447,7 +458,7 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
       const customerCallPayload = {
         to: call.to_number,
         from: call.from_number || env.TELNYX_NUMBER,
-        connection_id: env.TELNYX_CALL_CONTROL_APP_ID,  // Use Call Control App ID for programmatic calls
+        connection_id: env.TELNYX_CALL_CONTROL_APP_ID, // Use Call Control App ID for programmatic calls
         timeout_secs: 30,
         webhook_url: `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
         webhook_url_method: 'POST',
@@ -474,16 +485,19 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         logger.info('Customer call created successfully', { customerCallControlId })
 
         // Now bridge the agent call to the customer call
-        const bridgeResponse = await fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/bridge`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${env.TELNYX_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            call_control_id: customerCallControlId,
-          }),
-        })
+        const bridgeResponse = await fetch(
+          `https://api.telnyx.com/v2/calls/${call_control_id}/actions/bridge`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              call_control_id: customerCallControlId,
+            }),
+          }
+        )
 
         if (bridgeResponse.ok) {
           logger.info('Bridge call initiated successfully', {
@@ -494,18 +508,21 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
           const bridgeErrorText = await bridgeResponse.text()
           logger.error('Bridge action failed', {
             status: bridgeResponse.status,
-            response: bridgeErrorText.slice(0, 500)
+            response: bridgeErrorText.slice(0, 500),
           })
         }
       } else {
         const errorText = await createCallResponse.text()
         logger.error('Customer call creation failed', {
           status: createCallResponse.status,
-          response: errorText.slice(0, 500)
+          response: errorText.slice(0, 500),
         })
       }
     } catch (err) {
-      logger.error('Bridge call failed with exception', { error: (err as Error)?.message, stack: (err as Error)?.stack })
+      logger.error('Bridge call failed with exception', {
+        error: (err as Error)?.message,
+        stack: (err as Error)?.stack,
+      })
     }
   } else {
     logger.warn('Bridge call conditions not met', {
@@ -653,7 +670,7 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
       callId = bridgeCallResult.rows[0].id
       logger.info('Associating bridge customer transcription with main call', {
         customerCallId: callResult.rows[0].id,
-        mainCallId: callId
+        mainCallId: callId,
       })
     }
   }
@@ -665,6 +682,17 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     return
   }
 
+  // Check if voice-to-voice translation is enabled
+  const voiceConfigResult = await db.query(
+    `SELECT voice_to_voice, elevenlabs_api_key FROM voice_configs
+     WHERE organization_id = $1
+     LIMIT 1`,
+    [orgId]
+  )
+  const voiceConfig = voiceConfigResult.rows[0]
+  const voiceToVoiceEnabled = voiceConfig?.voice_to_voice === true
+  const elevenlabsKey = voiceConfig?.elevenlabs_api_key
+
   // Determine segment index — get current max for this call
   const indexResult = await db.query(
     `SELECT COALESCE(MAX(segment_index), -1) + 1 AS next_index
@@ -674,7 +702,34 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
   )
   const segmentIndex = indexResult.rows[0]?.next_index ?? 0
 
-  // Translate and store — this calls OpenAI and writes to call_translations
+  // For voice-to-voice, we need to determine which call leg this transcription came from
+  // and which leg should receive the translated audio
+  let targetCallControlId: string | undefined
+  if (voiceToVoiceEnabled) {
+    // Find the other call leg in a bridge scenario
+    const otherLegResult = await db.query(
+      `SELECT call_control_id FROM calls
+       WHERE flow_type IN ('bridge', 'bridge_customer')
+       AND status IN ('in_progress', 'answered')
+       AND id != $1
+       AND ((from_number = $2 AND to_number = $3) OR (from_number = $3 AND to_number = $2))
+       AND organization_id = $4
+       LIMIT 1`,
+      [callId, callResult.rows[0].from_number, callResult.rows[0].to_number, orgId]
+    )
+
+    if (otherLegResult.rows.length > 0) {
+      targetCallControlId = otherLegResult.rows[0].call_control_id
+    } else {
+      logger.warn('Voice-to-voice enabled but no target call leg found', {
+        callId,
+        callControlId: call_control_id,
+      })
+      // Fall back to text-only translation
+    }
+  }
+
+  // Translate and store — this calls OpenAI and optionally TTS + audio injection
   const openaiKey = env.OPENAI_API_KEY
   if (!openaiKey) {
     logger.error('OPENAI_API_KEY not configured — cannot translate')
@@ -689,6 +744,11 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     targetLanguage: translationConfig.translate_to,
     segmentIndex,
     confidence,
+    voiceToVoice: voiceToVoiceEnabled && !!targetCallControlId,
+    elevenlabsKey: elevenlabsKey || undefined,
+    telnyxKey: env.TELNYX_API_KEY,
+    targetCallControlId,
+    r2Client: env.CALL_AUDIO_BUCKET,
   })
 
   // v5.0: Also run sentiment analysis in parallel (non-blocking)
@@ -1251,6 +1311,42 @@ webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
   }
 })
 
+import { handlePlaybackComplete } from '../lib/audio-injector'
+
+/**
+ * Handle call.playback.started — Audio injection began.
+ * Logs the start of voice-to-voice translation playback.
+ */
+async function handlePlaybackStarted(db: DbClient, payload: any) {
+  const { call_control_id, playback_id, status } = payload
+
+  logger.info('Audio injection started', {
+    callControlId: call_control_id,
+    playbackId: playback_id,
+    status,
+  })
+
+  // Could update injection status to 'confirmed_playing' if needed
+  // For now, we mainly care about completion
+}
+
+/**
+ * Handle call.playback.ended — Audio injection completed.
+ * Updates the audio_injections table with completion status.
+ */
+async function handlePlaybackEnded(env: Env, db: DbClient, payload: any) {
+  const { call_control_id, playback_id, status } = payload
+
+  const success = status === 'completed'
+  await handlePlaybackComplete(db, call_control_id, playback_id, success)
+
+  logger.info('Audio injection completed', {
+    callControlId: call_control_id,
+    playbackId: playback_id,
+    success,
+  })
+}
+
 // --- Root-level aliases for newer WebhookManager frontend ---
 
 // Note: GET / would conflict with incoming webhook receivers,
@@ -1299,4 +1395,3 @@ webhooksRoutes.post('/:id/test', webhookRateLimit, async (c) => {
     return c.json({ error: 'Failed to test webhook' }, 500)
   }
 })
-
