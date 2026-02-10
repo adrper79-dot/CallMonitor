@@ -23,7 +23,7 @@ const nextConfig = {
     // Allow images from our R2 bucket and Cloudflare CDN
     remotePatterns: [
       { protocol: 'https', hostname: '**.r2.cloudflarestorage.com' },
-      { protocol: 'https', hostname: 'voxsouth.online' },
+      { protocol: 'https', hostname: 'wordis-bond.com' },
       { protocol: 'https', hostname: '**.pages.dev' },
     ],
   },

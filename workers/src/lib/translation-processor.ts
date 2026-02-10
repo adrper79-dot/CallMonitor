@@ -55,6 +55,7 @@ export interface TranslationSegment {
   telnyxKey?: string
   targetCallControlId?: string
   r2Client?: R2Bucket
+  r2PublicUrl?: string
 }
 
 export interface TranslationResult {
@@ -92,6 +93,7 @@ export async function translateAndStore(
     telnyxKey,
     targetCallControlId,
     r2Client,
+    r2PublicUrl,
   } = segment
 
   // Skip empty or whitespace-only segments
@@ -191,12 +193,13 @@ export async function translateAndStore(
     if (voiceToVoice && elevenlabsKey && telnyxKey && targetCallControlId && r2Client) {
       try {
         // Synthesize speech
-        const ttsResult = await synthesizeSpeech(r2Client, elevenlabsKey, {
+        const ttsResult = await synthesizeSpeech(db, elevenlabsKey, r2Client, {
           callId,
           organizationId,
           translatedText,
           targetLanguage,
           segmentIndex,
+          r2PublicUrl,
         })
 
         if (ttsResult.success && ttsResult.audioUrl && ttsResult.durationMs) {

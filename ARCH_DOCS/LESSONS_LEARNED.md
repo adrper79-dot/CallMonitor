@@ -830,7 +830,7 @@ The Feb 7, 2026 codebase audit found 5 route files executing DDL on every reques
 The Feb 7 audit found:
 
 - 4 different version numbers (v4.0, v4.22, v4.24) across 4 "current" docs
-- Wrong production URLs (`wordis-bond.com` → actual is `voxsouth.online`)
+- Wrong production URLs (previously `voxsouth.online` → now `wordis-bond.com`)
 - NextAuth code samples in MASTER_ARCHITECTURE.md (NextAuth removed in v4.22)
 - Wrong session property name in copilot-instructions.md (`orgId` → actual is `organization_id`)
 - 10 tracker/review files with all items marked ✅ Complete — zero actionable content
@@ -1007,7 +1007,7 @@ Telnyx V2 webhooks can sign with either shared-secret HMAC or Ed25519 public key
 ### The Bug
 
 ```typescript
-// BEFORE (broken) — resolves to https://voxsouth.online/api/reports/...
+// BEFORE (broken) — resolves to https://wordis-bond.com/api/reports/...
 window.open(`/api/reports/${reportId}/export?format=${format}`, '_blank')
 
 // AFTER (fixed) — resolves to https://wordisbond-api.adrper79.workers.dev/api/reports/...

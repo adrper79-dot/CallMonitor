@@ -370,7 +370,7 @@ async function handleCallInitiated(db: DbClient, payload: any) {
     [call_session_id, call_control_id]
   )
 
-  if (updateResult.rowCount > 0) {
+  if (updateResult.rowCount && updateResult.rowCount > 0) {
     // Successfully updated existing call
     return
   }
@@ -432,7 +432,7 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
     `UPDATE calls 
      SET status = 'in_progress', answered_at = NOW()
      WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL
-     RETURNING flow_type, to_number`,
+     RETURNING flow_type, to_number, from_number, organization_id`,
     [call_session_id, call_control_id]
   )
   if (result.rowCount === 0) {
@@ -454,19 +454,37 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
       telnyxNumber: !!env.TELNYX_NUMBER,
     })
     try {
+      // Check org voice config to determine if transcription should be enabled
+      const bridgeVoiceConfig = call.organization_id
+        ? (
+            await db.query(
+              `SELECT live_translate, voice_to_voice, transcribe FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+              [call.organization_id]
+            )
+          ).rows[0]
+        : null
+      const enableBridgeTranscription =
+        bridgeVoiceConfig?.live_translate ||
+        bridgeVoiceConfig?.voice_to_voice ||
+        bridgeVoiceConfig?.transcribe
+
       // Create a new call to the customer
-      const customerCallPayload = {
+      const customerCallPayload: Record<string, unknown> = {
         to: call.to_number,
         from: call.from_number || env.TELNYX_NUMBER,
         connection_id: env.TELNYX_CALL_CONTROL_APP_ID, // Use Call Control App ID for programmatic calls
         timeout_secs: 30,
         webhook_url: `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
         webhook_url_method: 'POST',
-        transcription: true,
-        transcription_config: {
+      }
+
+      // Only enable transcription if org has translation/transcription features enabled
+      if (enableBridgeTranscription) {
+        customerCallPayload.transcription = true
+        customerCallPayload.transcription_config = {
           transcription_engine: 'B',
           transcription_tracks: 'both',
-        },
+        }
       }
       logger.info('Bridge customer call payload', { payload: customerCallPayload })
 
@@ -480,7 +498,9 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
       })
 
       if (createCallResponse.ok) {
-        const customerCallData = await createCallResponse.json()
+        const customerCallData = (await createCallResponse.json()) as {
+          data: { call_control_id: string }
+        }
         const customerCallControlId = customerCallData.data.call_control_id
         logger.info('Customer call created successfully', { customerCallControlId })
 
@@ -707,25 +727,39 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
   let targetCallControlId: string | undefined
   if (voiceToVoiceEnabled) {
     // Find the other call leg in a bridge scenario
+    // Uses call_session_id for precise matching when available, falls back to number pair matching
     const otherLegResult = await db.query(
       `SELECT call_control_id FROM calls
        WHERE flow_type IN ('bridge', 'bridge_customer')
        AND status IN ('in_progress', 'answered')
        AND id != $1
-       AND ((from_number = $2 AND to_number = $3) OR (from_number = $3 AND to_number = $2))
        AND organization_id = $4
+       AND (
+         call_session_id = $5
+         OR ((from_number = $2 AND to_number = $3) OR (from_number = $3 AND to_number = $2))
+       )
+       ORDER BY
+         CASE WHEN call_session_id = $5 THEN 0 ELSE 1 END,
+         created_at DESC
        LIMIT 1`,
-      [callId, callResult.rows[0].from_number, callResult.rows[0].to_number, orgId]
+      [callId, callResult.rows[0].from_number, callResult.rows[0].to_number, orgId, call_session_id]
     )
 
     if (otherLegResult.rows.length > 0) {
       targetCallControlId = otherLegResult.rows[0].call_control_id
+      logger.info('Voice-to-voice target leg found', {
+        callId,
+        targetCallControlId,
+        sourceCallControlId: call_control_id,
+      })
     } else {
-      logger.warn('Voice-to-voice enabled but no target call leg found', {
+      // For direct (non-bridge) calls, inject back into the same call
+      // This allows the caller to hear the translated audio of the other party
+      targetCallControlId = call_control_id
+      logger.info('Voice-to-voice: using same call leg for direct call', {
         callId,
         callControlId: call_control_id,
       })
-      // Fall back to text-only translation
     }
   }
 
@@ -748,7 +782,8 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     elevenlabsKey: elevenlabsKey || undefined,
     telnyxKey: env.TELNYX_API_KEY,
     targetCallControlId,
-    r2Client: env.CALL_AUDIO_BUCKET,
+    r2Client: env.R2,
+    r2PublicUrl: env.R2_PUBLIC_URL,
   })
 
   // v5.0: Also run sentiment analysis in parallel (non-blocking)

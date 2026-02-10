@@ -72,6 +72,7 @@ export interface Env {
 
   // R2 Bucket
   R2: R2Bucket
+  R2_PUBLIC_URL?: string // Public custom domain for R2 bucket (e.g., https://audio.wordis-bond.com)
 
   // Environment variables
   NODE_ENV: string
@@ -136,8 +137,6 @@ app.use(
         c.env.CORS_ORIGIN,
         'https://wordis-bond.com',
         'https://www.wordis-bond.com',
-        'https://voxsouth.online',
-        'https://www.voxsouth.online',
         'https://wordisbond.pages.dev',
         'http://localhost:3000',
       ]
@@ -282,4 +281,3 @@ export default {
     ctx.waitUntil(handleScheduled(event, env))
   },
 }
-

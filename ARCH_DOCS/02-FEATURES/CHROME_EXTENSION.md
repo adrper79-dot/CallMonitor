@@ -42,6 +42,7 @@ chrome-extension/
 ### 1. Quick Call (Popup)
 
 Click the extension icon to:
+
 - Enter a phone number
 - Start a call with one click
 - View recent calls
@@ -50,12 +51,14 @@ Click the extension icon to:
 ### 2. Click-to-Call (Content Script)
 
 Automatically on every webpage:
+
 - Detects phone numbers
 - Highlights them in blue
 - Shows Call/Schedule tooltip on hover
 - Supports international formats
 
 **Supported Formats:**
+
 - `+1234567890` (E.164)
 - `(123) 456-7890` (US format)
 - `123-456-7890` (Dashes)
@@ -64,12 +67,14 @@ Automatically on every webpage:
 ### 3. Context Menu
 
 Right-click selected text to:
+
 - "📞 Call with Word Is Bond"
 - "📅 Schedule Call with Word Is Bond"
 
 ### 4. Notifications
 
 Chrome notifications for:
+
 - Call started
 - Call completed
 - Booking reminders
@@ -83,31 +88,26 @@ Chrome notifications for:
   "manifest_version": 3,
   "name": "Word Is Bond - Click to Call",
   "version": "1.0.0",
-  
-  "permissions": [
-    "activeTab",
-    "storage",
-    "contextMenus",
-    "notifications"
-  ],
-  
-  "host_permissions": [
-    "https://voxsouth.online/*"
-  ],
-  
+
+  "permissions": ["activeTab", "storage", "contextMenus", "notifications"],
+
+  "host_permissions": ["https://wordis-bond.com/*"],
+
   "action": {
     "default_popup": "popup/popup.html"
   },
-  
+
   "background": {
     "service_worker": "background/service-worker.js"
   },
-  
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content/content.js"],
-    "css": ["content/content.css"]
-  }]
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"]
+    }
+  ]
 }
 ```
 
@@ -117,14 +117,15 @@ Chrome notifications for:
 
 The extension communicates with Word Is Bond API:
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/health/user` | GET | Check authentication |
-| `/api/voice/call` | POST | Initiate calls |
-| `/api/calls` | GET | List recent calls |
-| `/api/bookings` | POST | Create bookings |
+| Endpoint           | Method | Purpose              |
+| ------------------ | ------ | -------------------- |
+| `/api/health/user` | GET    | Check authentication |
+| `/api/voice/call`  | POST   | Initiate calls       |
+| `/api/calls`       | GET    | List recent calls    |
+| `/api/bookings`    | POST   | Create bookings      |
 
 **Authentication:**
+
 - Uses browser session cookies (`credentials: 'include'`)
 - Requires user to be signed in via web app
 
@@ -152,15 +153,15 @@ The extension communicates with Word Is Bond API:
 
 User-configurable settings:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| API URL | voxsouth.online | Word Is Bond server URL |
-| Click-to-call enabled | true | Auto-detect phone numbers |
-| Show tooltip | true | Show Call/Schedule on hover |
-| Call notifications | true | Show call status notifications |
-| Booking reminders | true | Remind before scheduled calls |
-| Default record | true | Record calls by default |
-| Default transcribe | true | Transcribe calls by default |
+| Setting               | Default         | Description                    |
+| --------------------- | --------------- | ------------------------------ |
+| API URL               | wordis-bond.com | Word Is Bond server URL        |
+| Click-to-call enabled | true            | Auto-detect phone numbers      |
+| Show tooltip          | true            | Show Call/Schedule on hover    |
+| Call notifications    | true            | Show call status notifications |
+| Booking reminders     | true            | Remind before scheduled calls  |
+| Default record        | true            | Record calls by default        |
+| Default transcribe    | true            | Transcribe calls by default    |
 
 ---
 
@@ -178,6 +179,7 @@ User-configurable settings:
 ### Creating Icons
 
 Required icon sizes:
+
 - `icons/icon16.png` - Toolbar
 - `icons/icon32.png` - Toolbar (2x)
 - `icons/icon48.png` - Extensions page
@@ -195,18 +197,22 @@ zip -r callmonitor-extension.zip . -x ".*"
 ## Troubleshooting
 
 ### Extension not loading?
+
 - Enable Developer mode in `chrome://extensions/`
 - Check for manifest errors
 
 ### Can't make calls?
+
 - Sign in to Word Is Bond web app first
 - Check API URL in settings
 
 ### Phone numbers not detected?
+
 - Ensure "Click-to-call enabled" is on
 - Refresh page after enabling
 
 ### CORS errors?
+
 - Extension must be in `host_permissions`
 - API must allow cross-origin with credentials
 

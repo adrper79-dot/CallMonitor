@@ -44,7 +44,7 @@ test_endpoint() {
   fi
 
   CURL_ARGS+=(-H "Content-Type: application/json")
-  CURL_ARGS+=(-H "Origin: https://voxsouth.online")
+  CURL_ARGS+=(-H "Origin: https://wordis-bond.com")
 
   if [ -n "$BODY" ]; then
     CURL_ARGS+=(-d "$BODY")
@@ -102,7 +102,7 @@ if [ -n "${TEST_EMAIL:-}" ] && [ -n "${TEST_PASSWORD:-}" ]; then
   # Sign in to get a token
   SIGNIN_RESPONSE=$(curl -s -X POST "${API_BASE}/api/auth/signin" \
     -H "Content-Type: application/json" \
-    -H "Origin: https://voxsouth.online" \
+    -H "Origin: https://wordis-bond.com" \
     -d "{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}" 2>/dev/null)
   
   TOKEN=$(echo "$SIGNIN_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
@@ -131,7 +131,7 @@ if [ -n "${TEST_EMAIL:-}" ] && [ -n "${TEST_PASSWORD:-}" ]; then
     
     HEADERS=$(curl -s -D - -o /dev/null -X GET "${API_BASE}/api/analytics/kpis" \
       -H "Authorization: Bearer $TOKEN" \
-      -H "Origin: https://voxsouth.online" 2>/dev/null)
+      -H "Origin: https://wordis-bond.com" 2>/dev/null)
     
     if echo "$HEADERS" | grep -qi "x-ratelimit"; then
       echo -e "  ${GREEN}✓${NC} Rate limit headers present in analytics response"

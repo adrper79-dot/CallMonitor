@@ -380,7 +380,7 @@ const hashPassword = async (password: string): Promise<string> => {
 
 **Pages (UI)**:
 
-- Production URL: https://voxsouth.online
+- Production URL: https://wordis-bond.com
 - Pages URL: https://wordisbond.pages.dev
 - Build: `npm run build` → `out/` directory
 - Deploy: `npm run pages:deploy`

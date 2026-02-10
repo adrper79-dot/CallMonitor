@@ -136,7 +136,7 @@ async function runTests() {
   console.log('\n' + '-'.repeat(60))
   log('warn', 'To test with a real token:')
   console.log(`
-  1. Sign in at https://voxsouth.online/signin
+  1. Sign in at https://wordis-bond.com/signin
   2. Open browser DevTools → Application → Local Storage
   3. Copy the value of 'wb-session-token'
   4. Run this script with: 

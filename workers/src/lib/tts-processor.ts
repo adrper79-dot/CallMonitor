@@ -28,6 +28,7 @@ export interface TTSSegment {
   targetLanguage: string
   segmentIndex: number
   voiceId?: string
+  r2PublicUrl?: string
 }
 
 export interface TTSResult {
@@ -50,7 +51,15 @@ export async function synthesizeSpeech(
   r2Client: any,
   segment: TTSSegment
 ): Promise<TTSResult> {
-  const { callId, organizationId, translatedText, targetLanguage, segmentIndex, voiceId } = segment
+  const {
+    callId,
+    organizationId,
+    translatedText,
+    targetLanguage,
+    segmentIndex,
+    voiceId,
+    r2PublicUrl,
+  } = segment
 
   // Skip empty segments
   if (!translatedText || translatedText.trim().length === 0) {
@@ -73,7 +82,7 @@ export async function synthesizeSpeech(
       },
       body: JSON.stringify({
         text: translatedText,
-        model_id: 'eleven_monolingual_v1',
+        model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.8,
@@ -99,13 +108,23 @@ export async function synthesizeSpeech(
     const audioBuffer = await audioResponse.arrayBuffer()
     const audioData = new Uint8Array(audioBuffer)
 
-    // Calculate approximate duration (rough estimate: 150 words/minute = 2.5 words/second)
-    const wordCount = translatedText.split(/\s+/).length
-    const estimatedDurationMs = Math.max(1000, (wordCount / 2.5) * 1000)
+    // Calculate approximate duration with language-aware estimation
+    // CJK languages use characters not spaces; Arabic has different word structure
+    const cjkLanguages = ['zh', 'ja', 'ko']
+    let estimatedDurationMs: number
+    if (cjkLanguages.includes(targetLanguage)) {
+      // CJK: ~4 characters/second for speech
+      const charCount = translatedText.replace(/\s/g, '').length
+      estimatedDurationMs = Math.max(1000, (charCount / 4) * 1000)
+    } else {
+      // Alphabetic languages: ~2.5 words/second (150 words/minute)
+      const wordCount = translatedText.split(/\s+/).length
+      estimatedDurationMs = Math.max(1000, (wordCount / 2.5) * 1000)
+    }
 
     // Store in R2 with organized path structure
     const audioKey = `translations/${organizationId}/${callId}/${segmentIndex}.mp3`
-    const r2Object = await r2Client.put(audioKey, audioData, {
+    await r2Client.put(audioKey, audioData, {
       httpMetadata: {
         contentType: 'audio/mpeg',
         contentDisposition: `attachment; filename="translation-${callId}-${segmentIndex}.mp3"`,
@@ -115,27 +134,30 @@ export async function synthesizeSpeech(
         organizationId,
         segmentIndex: segmentIndex.toString(),
         language: targetLanguage,
-        wordCount: wordCount.toString(),
+        textLength: translatedText.length.toString(),
         estimatedDurationMs: estimatedDurationMs.toString(),
       },
     })
 
-    // Generate signed URL (valid for 1 hour)
-    const signedUrl = await generateSignedUrl(r2Client, audioKey, 3600)
+    // Generate publicly accessible URL for Telnyx to fetch
+    const publicUrl = r2PublicUrl
+      ? generatePublicUrl(r2PublicUrl, audioKey)
+      : generatePublicUrl('https://audio.wordis-bond.com', audioKey)
 
     // Update database with audio URL
-    await updateTranslationWithAudio(db, callId, segmentIndex, signedUrl, estimatedDurationMs)
+    await updateTranslationWithAudio(db, callId, segmentIndex, publicUrl, estimatedDurationMs)
 
     logger.info('TTS synthesis completed', {
       callId,
       segmentIndex,
       audioSize: audioData.length,
       estimatedDurationMs,
+      audioUrl: publicUrl,
     })
 
     return {
       success: true,
-      audioUrl: signedUrl,
+      audioUrl: publicUrl,
       durationMs: estimatedDurationMs,
       segmentIndex,
     }
@@ -189,19 +211,19 @@ function getDefaultVoiceForLanguage(language: string): string {
 }
 
 /**
- * Generate a signed URL for R2 object access.
+ * Generate a publicly accessible URL for R2 object access.
+ *
+ * Uses the R2 public bucket domain (R2_PUBLIC_URL env var) which must be configured
+ * as a custom domain on the R2 bucket in Cloudflare Dashboard.
+ * Telnyx playback_start requires a publicly reachable URL to fetch the audio.
+ *
+ * @see ARCH_DOCS/03-INFRASTRUCTURE — R2 bucket configuration
  */
-async function generateSignedUrl(
-  r2Client: any,
-  key: string,
-  expiresInSeconds: number
-): Promise<string> {
-  // In a real implementation, this would use Cloudflare's signed URL functionality
-  // For now, return a direct R2 URL (assuming public bucket or proper auth)
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
-  const r2Domain = `https://${accountId}.r2.cloudflarestorage.com`
-
-  return `${r2Domain}/${AUDIO_BUCKET}/${key}`
+function generatePublicUrl(r2PublicUrl: string, key: string): string {
+  // R2_PUBLIC_URL should be a custom domain like https://audio.wordis-bond.com
+  // configured in Cloudflare Dashboard → R2 → Bucket → Settings → Public Access
+  const baseUrl = r2PublicUrl.replace(/\/$/, '')
+  return `${baseUrl}/${key}`
 }
 
 /**
@@ -255,6 +277,6 @@ export async function getAvailableVoices(elevenlabsKey: string): Promise<
     throw new Error(`ElevenLabs voices API failed: ${response.status}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as { voices?: any[] }
   return data.voices || []
 }

@@ -18,7 +18,7 @@ Think of us as the flight recorder for business conversations. When everything g
 
 We built this for people who understand that evidence beats opinions, every time. Also, for people who've been burned by the phrase "I never said that."
 
-*(We know you've been burned. They all have.)*
+_(We know you've been burned. They all have.)_
 
 ---
 
@@ -36,7 +36,7 @@ Every call creates an immutable chain of artifacts — recording, transcript, tr
 
 When your lawyer asks "can you prove that?" — the answer is yes.
 
-*(And you get to say it with a confident smile.)*
+_(And you get to say it with a confident smile.)_
 
 ### What Makes This Different
 
@@ -75,6 +75,7 @@ AI can assist, but it never touches the source of truth.
 ### Prerequisites
 
 You'll need:
+
 - A Business plan (or higher) — because good evidence isn't free
 - Owner or Admin role — with great power comes great recordkeeping
 - A passing familiarity with phone numbers — we believe in you
@@ -88,13 +89,14 @@ If you're expecting magic, buy a wand. If you want authoritative call records, k
 
 **1. Log In** 🔐
 
-Navigate to `voxsouth.online` and authenticate. We support OAuth (Google, Azure, Twitter, Facebook) or classic email/password.
+Navigate to `wordis-bond.com` and authenticate. We support OAuth (Google, Azure, Twitter, Facebook) or classic email/password.
 
-*Pro tip: If you forget your password, our reset flow is fast. Unlike your memories of that call you didn't record.*
+_Pro tip: If you forget your password, our reset flow is fast. Unlike your memories of that call you didn't record._
 
 **2. Navigate to Voice Operations** 📞
 
 Click "Voice" in the navigation. You'll see a three-column interface:
+
 - **Left:** Call history (your greatest hits)
 - **Center:** Controls (mission control)
 - **Right:** Activity feed (what's happening now)
@@ -165,7 +167,7 @@ Why? Because when someone disputes what was said, you need the original, not our
 
 **What it means:** After the call, we translate the canonical transcript into your target language. This one goes in the evidence bundle.
 
-**Difference from live translation:** This is authoritative. This one matters in court. The live one helped you have the conversation. This one helps you *prove* the conversation.
+**Difference from live translation:** This is authoritative. This one matters in court. The live one helped you have the conversation. This one helps you _prove_ the conversation.
 
 ---
 
@@ -176,8 +178,9 @@ Why? Because when someone disputes what was said, you need the original, not our
 **What it means:** When the call ends, an AI-powered voice bot automatically calls back and asks your survey questions. Collects responses. Stores them. Emails you the results.
 
 **How it works:**
-1. Call ends 
-2. 30 seconds later, callback initiated *(just enough time for them to think "wait, what?")*
+
+1. Call ends
+2. 30 seconds later, callback initiated _(just enough time for them to think "wait, what?")_
 3. AI bot asks your questions
 4. Responses recorded and scored
 5. Results in your inbox within 2 minutes
@@ -231,6 +234,7 @@ If you're calling the same numbers repeatedly, create voice targets.
 Save it once, call it forever. Like a phone book, but actually useful in 2026.
 
 **How:**
+
 1. Click "Add Number" in the left sidebar
 2. Enter phone, name, description
 3. Select as active target
@@ -260,7 +264,7 @@ Evidence Manifest (immediately after translation) — The legal wrapper
 
 Each artifact links to its predecessor. Each has provenance. Each is immutable.
 
-This isn't a feature. This is architecture. *And honestly, it's kind of beautiful.*
+This isn't a feature. This is architecture. _And honestly, it's kind of beautiful._
 
 ### Reviewing Call Details
 
@@ -280,6 +284,7 @@ Everything you need to reconstruct what happened. CSI: Phone Edition.
 When disputes arise (and they will — humans are predictable that way), click "Review Mode."
 
 **What you get:**
+
 - Read-only view (no accidental edits, even when you're stressed)
 - Timeline with full provenance
 - Authority badges on each artifact
@@ -309,17 +314,20 @@ It's complete, it's defensible, and it doesn't require your ops team to explain 
 ### Live Translation: A User's Guide
 
 **When it works brilliantly:**
+
 - One-on-one calls
 - Clear speakers
 - Structured conversation
 - Languages: English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Russian
 
 **When it's merely good:**
+
 - Multiple speakers (if they take turns)
 - Heavy accents
 - Technical jargon
 
 **When to skip it:**
+
 - Conference calls with 5+ people
 - Background noise louder than conversation
 - Languages we don't support yet
@@ -349,18 +357,21 @@ The AI bot is sophisticated, but it's not a therapist. Ask specific questions. G
 **The script is everything.**
 
 Write it like you're briefing a human. Include:
+
 - What to say
 - When to wait for response
 - What information to gather
 - How to close naturally
 
 **The AI will:**
+
 - Follow your script
 - Adapt to responses
 - Score performance
 - Flag compliance issues
 
 **The AI won't:**
+
 - Wing it
 - Make up information
 - Pretend to be human (it identifies as AI if asked)
@@ -378,6 +389,7 @@ Write it like you're briefing a human. Include:
 **Think of it as:** Mail merge, but for phone calls. And with better results tracking.
 
 **How to use it:**
+
 1. Create a campaign with target phone numbers
 2. Choose your call flow (Secret Shopper, Survey, Outbound, or Test)
 3. Schedule it (now, later, or recurring)
@@ -385,12 +397,14 @@ Write it like you're briefing a human. Include:
 5. Review results in real-time
 
 **Features:**
+
 - 📊 Progress tracking (completed, successful, failed counts)
 - 🔄 Automatic retry logic (configurable attempts per target)
 - 📈 Performance stats API for analytics
 - 📋 Full audit trail of every campaign action
 
 **Use cases:**
+
 - Mass customer outreach
 - Compliance call campaigns
 - Quality assurance at scale
@@ -403,18 +417,21 @@ Write it like you're briefing a human. Include:
 **Think of it as:** SQL queries, but without needing to know SQL. And prettier.
 
 **Data sources:**
+
 - 📞 Calls (the obvious one)
 - 🎯 Campaigns (bulk operations)
 - 📊 Scorecards (quality scores)
 - 📋 Surveys (customer feedback)
 
 **Export formats:**
+
 - PDF (for the executives)
 - CSV (for the spreadsheet lovers)
 - XLSX (for the Excel wizards)
 - JSON (for the developers who can't help themselves)
 
 **Scheduling options:**
+
 - Daily, Weekly, Monthly automated runs
 - Email delivery to stakeholders
 - Webhook delivery for integrations
@@ -426,9 +443,10 @@ Write it like you're briefing a human. Include:
 **What it is:** Real-time insights into your call operations.
 
 **Available dashboards:**
+
 - 📊 Call Analytics — Volume, duration, outcomes
 - 📈 Performance Metrics — Success rates, processing times
-- 💭 Sentiment Trends — How are your calls *feeling*?
+- 💭 Sentiment Trends — How are your calls _feeling_?
 - 📋 Survey Analytics — Aggregate survey results
 
 **Why you'll love it:** Because data is beautiful, and "we're doing better than last month" is a sentence you'll want to say.
@@ -440,19 +458,22 @@ Write it like you're briefing a human. Include:
 ### What Each Plan Gets You
 
 **Base Plan:** 🌱
+
 - Call execution
 - Recording
 - Basic reporting
-- *The essentials. Respectable.*
+- _The essentials. Respectable._
 
 **Pro Plan:** ⭐
+
 - Everything in Base
 - Canonical transcripts
 - Email artifacts
 - Basic analytics
-- *Now we're talking.*
+- _Now we're talking._
 
 **Business Plan:** 🚀
+
 - Everything in Pro
 - **Live translation (preview)**
 - Advanced analytics
@@ -460,16 +481,17 @@ Write it like you're briefing a human. Include:
 - Report Builder
 - AI Agent customization
 - Priority support
-- *The sweet spot.*
+- _The sweet spot._
 
 **Enterprise Plan:** 👑
+
 - Everything in Business
 - Custom integrations
 - Dedicated support
 - SLA guarantees
 - Volume pricing
 - Custom AI prompts
-- *For the serious operators.*
+- _For the serious operators._
 
 ### Feature Gating (And Why It Exists)
 
@@ -477,12 +499,12 @@ We gate features by plan tier.
 
 Not because we're greedy. Because these features cost us real money. Here's the honest math:
 
-| Feature | Our Cost | Your Reaction |
-|---------|----------|---------------|
-| Live translation | $500/month to SignalWire | 😱 |
-| Canonical transcripts | $0.0042/minute to AssemblyAI | 🤔 |
-| TTS Audio | ElevenLabs per-character | 💸 |
-| Evidence storage | S3 + compute | 📦 |
+| Feature               | Our Cost                     | Your Reaction |
+| --------------------- | ---------------------------- | ------------- |
+| Live translation      | $500/month to SignalWire     | 😱            |
+| Canonical transcripts | $0.0042/minute to AssemblyAI | 🤔            |
+| TTS Audio             | ElevenLabs per-character     | 💸            |
+| Evidence storage      | S3 + compute                 | 📦            |
 
 Higher plans subsidize expensive features. That's the deal. It's fair.
 
@@ -551,13 +573,13 @@ This is by design. You own your data. We make that real.
 
 ## Part IX: Best Practices (Hard-Won Lessons) 🎓
 
-*These aren't suggestions. These are battle scars turned into wisdom.*
+_These aren't suggestions. These are battle scars turned into wisdom._
 
 ### On Recording Everything
 
 **Don't.**
 
-Record what matters. Skip internal calls, skip test calls, skip calls with your mom. *(She doesn't need to be in the database.)*
+Record what matters. Skip internal calls, skip test calls, skip calls with your mom. _(She doesn't need to be in the database.)_
 
 Storage is cheap, but not free. More importantly, when you need to find something, you don't want to search through 10,000 recordings of "hey, where's the TPS report?"
 
@@ -576,8 +598,8 @@ Small optimization. Noticeable difference. 0.5 seconds you'll never get back.
 
 **Three is the magic number.** ✨
 
-- One question: You look lazy.  
-- Three questions: Perfect balance. *Chef's kiss.*
+- One question: You look lazy.
+- Three questions: Perfect balance. _Chef's kiss._
 - Seven questions: Nobody finishes. They're already ordering pizza.
 
 Ask what matters. Skip the rest. Your customers' time has value.
@@ -590,17 +612,17 @@ When a call matters, export the evidence immediately. Don't wait for the dispute
 
 Archive it. Date-stamp the folder. Sleep better knowing you have the proof.
 
-*Future you will thank present you. Future you always thanks present you for evidence.*
+_Future you will thank present you. Future you always thanks present you for evidence._
 
 ### On Campaigns
 
 **Start small.**
 
-New to campaigns? Test with 10 numbers before blasting 10,000. 
+New to campaigns? Test with 10 numbers before blasting 10,000.
 
 Check your script. Check your timing. Check your retry settings. Then scale up.
 
-*Nobody wants to explain why 10,000 people got a broken call at 3 AM.*
+_Nobody wants to explain why 10,000 people got a broken call at 3 AM._
 
 ---
 
@@ -613,11 +635,12 @@ Detects phone numbers on any webpage. Hover over them. Two options appear:
 **📞 Call:** Initiates call immediately  
 **📅 Schedule:** Opens scheduling page
 
-That's it. No bloat. No "AI-powered insights." Just efficient execution. *The way software should be.*
+That's it. No bloat. No "AI-powered insights." Just efficient execution. _The way software should be._
 
 ### Where It Shines
 
 **Use cases:**
+
 - CRM pages (HubSpot, Salesforce)
 - Support tickets (Zendesk, Intercom)
 - Customer databases
@@ -644,6 +667,7 @@ No configuration. No setup wizard. It just works.
 ### What We Don't Do
 
 **We don't:**
+
 - Store API keys in the extension
 - Write directly to your database
 - Bypass your permissions
@@ -656,6 +680,7 @@ This isn't paranoia. This is architecture.
 ### What We Do
 
 **We do:**
+
 - Encrypt in transit (TLS/SRTP)
 - Hash evidence manifests
 - Log every action with actor attribution
@@ -682,11 +707,13 @@ We're transparent about limitations. That's more valuable than false certificati
 A privileged, programmatic control surface for automation.
 
 **Not:**
+
 - A public API
 - An SDK free-for-all
 - A database pass-through
 
 **Is:**
+
 - Authenticated RPC interface
 - Maps to existing orchestration actions
 - Fully audited and rate-limited
@@ -727,6 +754,7 @@ POST /api/webrpc
 ```
 
 **Response:**
+
 ```json
 {
   "id": "req_abc123",
@@ -748,12 +776,14 @@ POST /api/webrpc
 ### When to Use WebRPC
 
 **Good use cases:**
+
 - CI/CD pipelines
 - Internal automation
 - Custom integrations
 - Advanced workflows
 
 **Bad use cases:**
+
 - Replacing the UI entirely
 - Building a competitor
 - Circumventing rate limits
@@ -791,6 +821,7 @@ When someone asks "what happened?" — you show them. When they ask "can you pro
 ### What We're NOT
 
 We're not:
+
 - A phone system replacement
 - An AI insights platform
 - A CRM
@@ -802,7 +833,7 @@ We're not:
 
 ## Part XIV: FAQ (The Questions Everyone Asks) ❓
 
-*The questions we get asked every single day. Now you don't have to email support.*
+_The questions we get asked every single day. Now you don't have to email support._
 
 **Q: Is the AI listening to my calls all the time?** 👂
 
@@ -826,7 +857,7 @@ Yes. ZIP file. One click. Everything. We're not in the lock-in business.
 
 **Q: Is this overkill for a small business?** 🤷
 
-Depends. Do you need to prove what happened, or just remember vaguely? 
+Depends. Do you need to prove what happened, or just remember vaguely?
 
 If it's the former, this is appropriate. If it's the latter, use RingCentral. No hard feelings.
 
@@ -862,13 +893,14 @@ Just authoritative call records when you need them — which, if you're reading 
 
 The call will be over before you know it. But we'll remember exactly what was said.
 
-*And so will you.*
+_And so will you._
 
 ---
 
 ## Appendix: Technical Reference 📋
 
 ### System Requirements
+
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 - Internet connection (obviously — it's 2026)
 - JavaScript enabled
@@ -876,38 +908,43 @@ The call will be over before you know it. But we'll remember exactly what was sa
 - A phone number to call (we can't help with that part)
 
 ### Supported Browsers
+
 - Chrome/Edge 90+ ✅
 - Firefox 88+ ✅
 - Safari 14+ ✅
 - Internet Explorer ❌ (it's 2026, come on)
 
 ### Supported Phone Formats
+
 - E.164 international format (the only format that matters)
 - US numbers: `+1XXXXXXXXXX`
 - International: `+[country code][number]`
 
 ### Supported Languages (Live Translation)
+
 🌍 English, Spanish, French, German, Italian, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi, Russian
 
-*More coming. We're working on it.*
+_More coming. We're working on it._
 
 ### Processing Times
-| Step | Time | What's Happening |
-|------|------|------------------|
-| Call initiation | 2-5 seconds | SignalWire doing its thing |
-| Recording delivery | 1-5 minutes | Audio processing + upload |
-| Transcript generation | 2-10 minutes | AssemblyAI magic |
-| Translation | 2-5 minutes | Language transformation |
+
+| Step                  | Time         | What's Happening           |
+| --------------------- | ------------ | -------------------------- |
+| Call initiation       | 2-5 seconds  | SignalWire doing its thing |
+| Recording delivery    | 1-5 minutes  | Audio processing + upload  |
+| Transcript generation | 2-10 minutes | AssemblyAI magic           |
+| Translation           | 2-5 minutes  | Language transformation    |
 
 ### Support Contacts
-- 🛠️ Technical support: support@voxsouth.online
-- 💰 Billing questions: billing@voxsouth.online
-- 🤝 Sales inquiries: sales@voxsouth.online
+
+- 🛠️ Technical support: support@wordis-bond.com
+- 💰 Billing questions: billing@wordis-bond.com
+- 🤝 Sales inquiries: sales@wordis-bond.com
 
 ---
 
 **Version 2.0** | January 2026 | Word Is Bond, Inc.
 
-*Remember what was said. Prove what happened. That's the promise.*
+_Remember what was said. Prove what happened. That's the promise._
 
 🎙️ **Your words matter. We make sure they're remembered correctly.**

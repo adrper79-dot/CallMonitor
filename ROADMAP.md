@@ -1,7 +1,7 @@
 # Cloudflare & Codebase Roadmap (Updated: Feb 9, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
-**Deployment**: ✅ Live at https://voxsouth.online (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
+**Deployment**: ✅ Live at https://wordis-bond.com (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
 **Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 30/30 production-verified  
 **Progress**: 109/109 items complete ✅ | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 

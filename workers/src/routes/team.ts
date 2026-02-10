@@ -147,7 +147,7 @@ teamRoutes.post('/invites', teamRateLimit, async (c) => {
     const orgName = orgResult.rows[0]?.name || 'Unknown'
 
     // Construct invite URL
-    const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+    const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
     const inviteUrl = `${appUrl}/signup?invite=${token}`
 
     // Audit log: invite created
@@ -413,4 +413,3 @@ teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
     await db.end()
   }
 })
-

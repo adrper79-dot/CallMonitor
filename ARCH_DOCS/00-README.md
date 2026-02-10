@@ -51,7 +51,7 @@ ARCH_DOCS/
 | Metric               | Value                                       | Status      |
 | -------------------- | ------------------------------------------- | ----------- |
 | **Architecture**     | Hybrid (Pages+Workers)                      | ✅ Deployed |
-| **Pages Deployment** | https://voxsouth.online                     | ✅ Live     |
+| **Pages Deployment** | https://wordis-bond.com                     | ✅ Live     |
 | **Workers API**      | https://wordisbond-api.adrper79.workers.dev | ✅ Live     |
 | **Build**            | Clean (30 pages)                            | ✅          |
 | **Tests**            | 123 passing, 87 skipped                     | ✅          |

@@ -135,13 +135,13 @@ wrangler deploy
 
 ### Routing Configuration (Cloudflare Dashboard)
 
-- `voxsouth.online/*` → Pages (Static UI)
+- `wordis-bond.com/*` → Pages (Static UI)
 - `wordisbond-api.adrper79.workers.dev/*` → Workers (APIs)
 
 Or use a single domain with Workers routes:
 
-- `voxsouth.online/api/*` → Workers
-- `voxsouth.online/*` → Pages (fallback)
+- `wordis-bond.com/api/*` → Workers
+- `wordis-bond.com/*` → Pages (fallback)
 
 ---
 
@@ -271,7 +271,7 @@ import { cors } from 'hono/cors'
 app.use(
   '*',
   cors({
-    origin: ['https://voxsouth.online'],
+    origin: ['https://wordis-bond.com'],
     credentials: true,
   })
 )
@@ -338,7 +338,7 @@ POST /api/auth/signup → User registration
 
 ✅ **Successfully Deployed:**
 
-- Static UI: https://voxsouth.online (production) / https://wordisbond.pages.dev (pages)
+- Static UI: https://wordis-bond.com (production) / https://wordisbond.pages.dev (pages)
 - Workers API: https://wordisbond-api.adrper79.workers.dev
 - Build: 28+ static pages, ~102KB first load JS
 - All API routes migrated to `workers/src/routes/`
@@ -352,16 +352,16 @@ POST /api/auth/signup → User registration
 **Live Deployment:**
 
 ```
-https://voxsouth.online                              → Cloudflare Pages (Static UI)
+https://wordis-bond.com                              → Cloudflare Pages (Static UI)
 https://wordisbond-api.adrper79.workers.dev/api/*     → Cloudflare Workers (API)
 ```
 
 **How It Works:**
 
-1. User visits `voxsouth.online` → Cloudflare serves static HTML from Pages
+1. User visits `wordis-bond.com` → Cloudflare serves static HTML from Pages
 2. Client-side JS calls Workers API via `apiClient` with Bearer auth
 3. Workers process API request (auth → validation → DB → response)
-4. CORS configured for cross-origin (`voxsouth.online` ↔ Workers)
+4. CORS configured for cross-origin (`wordis-bond.com` ↔ Workers)
 
 ---
 

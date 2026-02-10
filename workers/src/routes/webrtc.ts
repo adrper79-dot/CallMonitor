@@ -261,7 +261,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     // Initiate call via Telnyx Call Control API
     // Get voice config to determine recording and transcription settings
     const voiceConfigResult = await db.query(
-      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+      `SELECT record, transcribe, translate, translate_from, translate_to, live_translate, voice_to_voice
        FROM voice_configs
        WHERE organization_id = $1
        LIMIT 1`,
@@ -283,8 +283,9 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
       logger.info('Call recording enabled for WebRTC call', { callId })
     }
 
-    // Enable transcription for live translation OR regular transcription
-    const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
+    // Enable transcription for live translation, voice-to-voice, OR regular transcription
+    const enableTranscription =
+      voiceConfig?.live_translate || voiceConfig?.voice_to_voice || voiceConfig?.transcribe
     if (enableTranscription) {
       callPayload.transcription = true
       callPayload.transcription_config = {
@@ -294,35 +295,51 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
       logger.info('Transcription enabled for WebRTC call', {
         callId,
         live_translate: voiceConfig?.live_translate,
+        voice_to_voice: voiceConfig?.voice_to_voice,
         transcribe: voiceConfig?.transcribe,
       })
     }
+
+    // Create idempotency key for safe retries
+    const idempotencyKey = `webrtc_dial_${callId}_${Date.now()}`
 
     const telnyxResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify(callPayload),
     })
 
     if (!telnyxResponse.ok) {
-      const error = await telnyxResponse.text()
+      const errorText = await telnyxResponse.text()
       const status = telnyxResponse.status
+      let errorMessage = `Telnyx API error: ${status}`
+
+      try {
+        const errorData = JSON.parse(errorText)
+        errorMessage = errorData.errors?.[0]?.detail || errorData.message || errorMessage
+      } catch {
+        // Use raw error text if not JSON
+        errorMessage = errorText.substring(0, 200)
+      }
 
       // Handle Telnyx rate limiting
       if (status === 429) {
+        const retryAfter = telnyxResponse.headers.get('Retry-After') || '60'
         logger.warn('Telnyx WebRTC rate limit exceeded', {
           endpoint: '/v2/calls',
           connectionId: c.env.TELNYX_CONNECTION_ID?.slice(0, 8) + '...',
+          retryAfter,
         })
         await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
         return c.json(
           {
-            error: 'Call service rate limit exceeded. Please try again in 1 minute.',
+            error: 'Call service rate limit exceeded. Please try again later.',
             code: 'TELNYX_RATE_LIMIT',
-            retry_after: 60,
+            retry_after: parseInt(retryAfter),
           },
           429
         )
@@ -331,7 +348,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
       // Handle insufficient balance or account issues
       if (status === 402) {
         logger.error('Telnyx account payment issue (WebRTC)', {
-          response: error.slice(0, 200),
+          response: errorMessage,
         })
         await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
         return c.json(
@@ -343,7 +360,11 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
         )
       }
 
-      logger.error('Telnyx call initiation error', { status, error: (error as any)?.message })
+      logger.error('Telnyx call initiation error', {
+        status,
+        error: errorMessage,
+        callId,
+      })
 
       // Update call status to failed
       await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
@@ -370,13 +391,13 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
       resourceId: callId,
       action: AuditAction.CALL_STARTED,
       oldValue: null,
-      newValue: { call_id: callId, call_sid: callSid, phone_number, direction: 'outbound' },
+      newValue: { call_id: callId, call_sid: callId, phone_number, direction: 'outbound' },
     })
 
     return c.json({
       success: true,
       call_id: callId,
-      call_sid: callSid,
+      call_sid: callId,
       status: 'ringing',
     })
   } catch (err: any) {

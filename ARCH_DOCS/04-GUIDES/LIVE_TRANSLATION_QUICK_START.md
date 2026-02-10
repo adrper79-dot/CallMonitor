@@ -95,6 +95,7 @@ Use Case: Multilingual emergency line
 **Recommendation:** Try without first, enable if generic voices unsatisfactory
 
 **To enable:**
+
 1. Enable Live Translation
 2. Select languages
 3. Toggle **"Voice Cloning"** to ON
@@ -115,24 +116,24 @@ After enabling, verify:
 
 ## 📊 **What to Expect**
 
-| Metric | Value |
-|--------|-------|
-| **Latency** | 1-3 seconds (typical) |
-| **Accuracy** | 85-95% (general conversation) |
-| **Cost** | Included in Business plan |
+| Metric        | Value                                          |
+| ------------- | ---------------------------------------------- |
+| **Latency**   | 1-3 seconds (typical)                          |
+| **Accuracy**  | 85-95% (general conversation)                  |
+| **Cost**      | Included in Business plan                      |
 | **Recording** | Original audio only (translation not recorded) |
 
 ---
 
 ## 🐛 **Quick Troubleshooting**
 
-| Problem | Quick Fix |
-|---------|-----------|
+| Problem                | Quick Fix                              |
+| ---------------------- | -------------------------------------- |
 | **Toggle not visible** | Check plan is Business+, run migration |
-| **Toggle grayed out** | Check you have Owner/Admin role |
-| **Call fails** | Verify E.164 format: `+1234567890` |
-| **No translation** | Check Vercel logs for SWML endpoint |
-| **Transcript missing** | Wait 2-10 min, then refresh |
+| **Toggle grayed out**  | Check you have Owner/Admin role        |
+| **Call fails**         | Verify E.164 format: `+1234567890`     |
+| **No translation**     | Check Vercel logs for SWML endpoint    |
+| **Transcript missing** | Wait 2-10 min, then refresh            |
 
 ---
 
@@ -176,8 +177,8 @@ For detailed user flow, troubleshooting, and FAQs:
 
 ## 🔗 **Quick Links**
 
-- **Voice Operations:** `https://voxsouth.online/voice`
-- **Settings/Plan:** `https://voxsouth.online/settings`
+- **Voice Operations:** `https://wordis-bond.com/voice`
+- **Settings/Plan:** `https://wordis-bond.com/settings`
 - **API Capabilities:** `GET /api/call-capabilities?orgId={uuid}`
 - **Vercel Logs:** `npx vercel logs --follow`
 
@@ -187,7 +188,7 @@ For detailed user flow, troubleshooting, and FAQs:
 
 **Full User Flow:** `ARCH_DOCS/04-GUIDES/LIVE_TRANSLATION_USER_FLOW.md`  
 **Status Report:** `SIGNALWIRE_LIVE_TRANSLATION_STATUS.md`  
-**Support:** support@voxsouth.online
+**Support:** support@wordis-bond.com
 
 ---
 

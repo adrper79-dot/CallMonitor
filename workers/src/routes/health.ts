@@ -67,25 +67,38 @@ healthRoutes.get('/', async (c) => {
     })
   }
 
-  // 3. R2 check
+  // 4. Telnyx API check
   try {
-    const r2Start = Date.now()
-    await c.env.R2.head('health-check')
-    const r2Time = Date.now() - r2Start
-
-    checks.push({
-      service: 'r2',
-      status: 'healthy',
-      message: 'R2 bucket accessible',
-      responseTime: r2Time,
+    const telnyxStart = Date.now()
+    const response = await fetch('https://api.telnyx.com/v2/phone_numbers?page[size]=1', {
+      headers: {
+        Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
     })
+
+    const telnyxTime = Date.now() - telnyxStart
+
+    if (response.ok) {
+      checks.push({
+        service: 'telnyx',
+        status: 'healthy',
+        message: 'Telnyx API accessible',
+        responseTime: telnyxTime,
+      })
+    } else {
+      checks.push({
+        service: 'telnyx',
+        status: 'degraded',
+        message: `Telnyx API returned ${response.status}`,
+        responseTime: telnyxTime,
+      })
+    }
   } catch (err: any) {
-    // R2 head on non-existent object returns null, not error
     checks.push({
-      service: 'r2',
-      status: 'healthy',
-      message: 'R2 bucket accessible',
-      responseTime: Date.now() - startTime,
+      service: 'telnyx',
+      status: 'critical',
+      message: err.message || 'Telnyx API unreachable',
     })
   }
 
@@ -193,4 +206,3 @@ healthRoutes.get('/webhooks', async (c) => {
     await db.end()
   }
 })
-

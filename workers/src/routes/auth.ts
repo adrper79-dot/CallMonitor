@@ -570,7 +570,7 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
     await c.env.KV.put(`reset:${resetToken}`, userId, { expirationTtl: 3600 })
 
     // Construct reset URL (points to frontend reset-password page)
-    const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+    const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}`
 
     // Send password reset email via Resend (fire-and-forget)
@@ -755,4 +755,3 @@ async function verifyPassword(
 
   return { valid: false, needsRehash: false }
 }
-

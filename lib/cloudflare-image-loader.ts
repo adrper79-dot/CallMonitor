@@ -11,7 +11,7 @@
  * ```
  *
  * Cloudflare Image Resizing transforms images on-the-fly via URL params:
- *   https://voxsouth.online/cdn-cgi/image/width=800,quality=80,format=auto/hero.png
+ *   https://wordis-bond.com/cdn-cgi/image/width=800,quality=80,format=auto/hero.png
  *
  * Benefits:
  * - Auto WebP/AVIF format negotiation (Accept header)
@@ -28,7 +28,7 @@ interface CloudflareLoaderParams {
   quality?: number
 }
 
-const CDN_BASE = process.env.NEXT_PUBLIC_CDN_URL || 'https://voxsouth.online'
+const CDN_BASE = process.env.NEXT_PUBLIC_CDN_URL || 'https://wordis-bond.com'
 
 export function cloudflareLoader({ src, width, quality }: CloudflareLoaderParams): string {
   const params = [

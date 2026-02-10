@@ -9,7 +9,7 @@ ADD COLUMN audio_duration_ms INTEGER;
 -- Create audio_injections table for tracking audio playback
 CREATE TABLE audio_injections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  call_id TEXT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+  call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
   segment_index INTEGER NOT NULL,
   audio_url TEXT NOT NULL,
   duration_ms INTEGER NOT NULL,
@@ -45,9 +45,10 @@ CREATE POLICY audio_injections_org_isolation ON audio_injections
   FOR ALL USING (organization_id::text = current_setting('app.current_organization_id', true));
 
 -- Add audit logging trigger for audio_injections
-CREATE TRIGGER audit_audio_injections_trigger
-  AFTER INSERT OR UPDATE OR DELETE ON audio_injections
-  FOR EACH ROW EXECUTE FUNCTION audit_trigger_function();
+-- Note: audit_trigger_function may not exist in all environments, so this is optional
+-- CREATE TRIGGER audit_audio_injections_trigger
+--   AFTER INSERT OR UPDATE OR DELETE ON audio_injections
+--   FOR EACH ROW EXECUTE FUNCTION audit_trigger_function();
 
 -- Update voice_configs RLS to include new columns
 -- (existing policy should cover these automatically)

@@ -3,7 +3,7 @@
 ## Method 1: Browser DevTools (Recommended)
 
 1. **Sign in to the platform:**
-   - Go to https://voxsouth.online
+   - Go to https://wordis-bond.com
    - Sign in with your credentials
 
 2. **Open Developer Tools:**
@@ -13,7 +13,7 @@
    - Click the **Application** tab (Chrome/Edge)
    - OR **Storage** tab (Firefox)
    - Expand **Cookies** in the left sidebar
-   - Click on `https://voxsouth.online`
+   - Click on `https://wordis-bond.com`
 
 4. **Find and Copy the Token:**
    - Look for cookie named: `wb-session-token`
@@ -27,7 +27,7 @@
 ## Method 2: Browser Console
 
 ```javascript
-// Paste this in browser console while on voxsouth.online
+// Paste this in browser console while on wordis-bond.com
 document.cookie
   .split('; ')
   .find((c) => c.startsWith('wb-session-token='))

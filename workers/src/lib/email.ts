@@ -25,7 +25,7 @@ interface SendEmailResult {
 }
 
 const RESEND_API_URL = 'https://api.resend.com/emails'
-const DEFAULT_FROM = 'Word Is Bond <noreply@voxsouth.online>'
+const DEFAULT_FROM = 'Word Is Bond <noreply@wordis-bond.com>'
 
 /**
  * Send an email via Resend API.
@@ -154,7 +154,7 @@ export function callShareEmailHtml(
   senderName: string,
   callDate: string,
   callSummary: string | null,
-  appUrl: string = 'https://voxsouth.online'
+  appUrl: string = 'https://wordis-bond.com'
 ): string {
   const reviewUrl = `${appUrl}/review?callId=${callId}`
   const summaryBlock = callSummary
@@ -188,4 +188,3 @@ export function callShareEmailHtml(
 </body>
 </html>`
 }
-

@@ -32,7 +32,7 @@ You are the **DX/CI Agent** for the Word Is Bond platform. Your job is to improv
   - `signin.spec.ts` — login → dashboard redirect
   - `call-start.spec.ts` — authenticate → start call → verify recording
   - `settings.spec.ts` — change voice config → verify persistence
-- Configure `playwright.config.ts` with base URL `https://voxsouth.online`
+- Configure `playwright.config.ts` with base URL `https://wordis-bond.com`
 - Add npm script: `test:e2e`
 - Add GitHub Actions workflow for E2E (can use `test:e2e` on push to main)
 
@@ -61,7 +61,7 @@ const describeOrSkip = process.env.RUN_INTEGRATION ? describe : describe.skip
 - Email: `adrper79@gmail.com`
 - Password: `123qweASD`
 - API Base: `https://wordisbond-api.adrper79.workers.dev`
-- UI Base: `https://voxsouth.online`
+- UI Base: `https://wordis-bond.com`
 
 ## Critical Rules
 

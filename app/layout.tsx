@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://voxsouth.online'),
+  metadataBase: new URL('https://wordis-bond.com'),
   title: 'Word Is Bond | The System of Record for Business Conversations',
   description:
     'Evidence-grade call monitoring, transcription, and AI-powered analytics. What was said is what matters.',

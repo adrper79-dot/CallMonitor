@@ -22,6 +22,7 @@
 ## 🎯 **Overview**
 
 Live Translation enables real-time voice translation during phone calls using SignalWire AI Agents. When enabled, the system:
+
 - Listens to the caller's speech in real-time
 - Automatically detects the spoken language
 - Translates to the target language
@@ -29,6 +30,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 - Maintains a 1-3 second latency
 
 **Use Cases:**
+
 - Customer support for multilingual customers
 - International sales calls
 - Emergency hotlines with language barriers
@@ -40,19 +42,19 @@ Live Translation enables real-time voice translation during phone calls using Si
 
 ### **For Your Organization:**
 
-| Requirement | Status | How to Check |
-|-------------|--------|--------------|
+| Requirement                 | Status   | How to Check                             |
+| --------------------------- | -------- | ---------------------------------------- |
 | **Business Plan or Higher** | Required | Go to `/settings` → Check "Current Plan" |
-| **SignalWire Account** | Required | Verify credentials in `.env.local` |
-| **Owner or Admin Role** | Required | Go to `/voice` → Check role badge |
-| **Database Migration** | Required | Admin must run SQL migration |
+| **SignalWire Account**      | Required | Verify credentials in `.env.local`       |
+| **Owner or Admin Role**     | Required | Go to `/voice` → Check role badge        |
+| **Database Migration**      | Required | Admin must run SQL migration             |
 
 ### **For Individual Users:**
 
-| Requirement | Notes |
-|-------------|-------|
-| **Login Access** | Must be authenticated user |
-| **Organization Member** | Must belong to organization with Business plan |
+| Requirement              | Notes                                          |
+| ------------------------ | ---------------------------------------------- |
+| **Login Access**         | Must be authenticated user                     |
+| **Organization Member**  | Must belong to organization with Business plan |
 | **Role: Owner or Admin** | Viewer/Analyst/Operator roles cannot configure |
 
 ---
@@ -63,7 +65,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 
 #### **Step 1.1: Login**
 
-1. Navigate to `https://voxsouth.online`
+1. Navigate to `https://wordis-bond.com`
 2. Click "Sign In"
 3. Authenticate with your credentials
 4. You'll be redirected to the dashboard
@@ -78,11 +80,12 @@ Live Translation enables real-time voice translation during phone calls using Si
 2. Wait for the Voice Operations page to load
 
 **Expected Result:** See three-column layout:
+
 - **Left:** Call history list
 - **Center:** Call controls and features
 - **Right:** Activity feed
 
-**URL:** `https://voxsouth.online/voice`
+**URL:** `https://wordis-bond.com/voice`
 
 ---
 
@@ -94,6 +97,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 2. Look for the toggle switches
 
 **Expected Result:** See 5 feature toggles:
+
 - Recording
 - Transcribe
 - **Live Translation** ← (with blue "Preview" badge)
@@ -101,6 +105,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 - Secret Shopper
 
 **Visual Indicator:** The "Live Translation" toggle should show:
+
 - Blue "Preview" badge
 - Info icon (ℹ️) with tooltip
 
@@ -113,6 +118,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 3. Language selector dropdowns appear below
 
 **Expected Result:** See two dropdown menus appear:
+
 ```
 ┌─────────────────────────┐  ┌─────────────────────────┐
 │ From Language       [▼] │  │ To Language         [▼] │
@@ -126,6 +132,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 ```
 
 **Note:** If you don't see "Live Translation" (only "Translate"), your organization may not have:
+
 - Business plan subscription
 - Completed database migration
 - Feature flag enabled
@@ -138,6 +145,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 2. Select the language the **caller will speak**
 
 **Available Languages:**
+
 - English (en)
 - Spanish (es)
 - French (fr)
@@ -165,6 +173,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 **Example:** If you want to hear English translation, select "English"
 
 **Common Pairings:**
+
 - English → Spanish (US customer support for Spanish speakers)
 - Spanish → English (Spanish caller to English agent)
 - French → English (International support)
@@ -178,6 +187,7 @@ Live Translation enables real-time voice translation during phone calls using Si
 2. Click to enable if you want to preserve the caller's voice characteristics
 
 **What it does:**
+
 - **OFF:** Translation uses generic TTS voice for target language
 - **ON:** Attempts to clone caller's voice and speak translation in their voice
 
@@ -190,15 +200,18 @@ Live Translation enables real-time voice translation during phone calls using Si
 #### **Step 2.6: Save Configuration**
 
 Configuration is automatically saved when:
+
 - You change any toggle
 - You select a language
 - You enable/disable voice cloning
 
 **Expected Result:** See brief "Updating..." indicator, then:
+
 - "On" label appears next to toggle
 - Selected languages persist if you refresh page
 
 **Verification:**
+
 1. Refresh the browser page
 2. Check that "Live Translation" is still ON
 3. Check that selected languages are still selected
@@ -214,6 +227,7 @@ Configuration is automatically saved when:
 3. Enter the phone number to call in E.164 format
 
 **E.164 Format Examples:**
+
 - US: `+12392027345`
 - UK: `+442071234567`
 - Mexico: `+525512345678`
@@ -241,6 +255,7 @@ If you have pre-configured voice targets:
 2. Select an existing target to auto-fill number and settings
 
 **Voice Targets** are pre-saved configurations with:
+
 - Target phone number
 - Campaign association
 - Custom settings
@@ -256,12 +271,14 @@ If you have pre-configured voice targets:
    - ✅ Target Number: Entered
 2. Click the **"Start Call"** button (usually large, red/green)
 
-**Expected Result:** 
+**Expected Result:**
+
 - Button changes to "Calling..." state
 - Spinner or loading indicator appears
 - Call status updates in real-time
 
 **Behind the Scenes:** The system:
+
 1. Creates call record in database
 2. Routes request to `/api/voice/call`
 3. Handler checks live translation is enabled
@@ -273,11 +290,13 @@ If you have pre-configured voice targets:
 #### **Step 3.5: Call Connects**
 
 **When the call connects:**
+
 1. You'll see "Connected" status
 2. Call timer starts
 3. Activity feed shows "Call started" event
 
 **For the caller:**
+
 - Phone rings
 - They answer
 - They hear greeting (if configured)
@@ -300,6 +319,7 @@ AI Agent responds in English:
 ```
 
 **Translation Flow:**
+
 1. **Caller speaks** in their native language (e.g., Spanish)
 2. **AI Agent listens** via SignalWire RTP audio stream
 3. **STT (Speech-to-Text)** converts audio → text
@@ -310,6 +330,7 @@ AI Agent responds in English:
 8. **Latency:** 1-3 seconds total
 
 **What you see in the UI:**
+
 - Call status: "In Progress"
 - Call duration timer ticking
 - Activity feed may show events
@@ -321,11 +342,13 @@ AI Agent responds in English:
 While call is active:
 
 **Available Actions:**
+
 - View call duration
 - See real-time status updates
 - Monitor activity feed for events
 
 **NOT Available During Call:**
+
 - Live transcript (this is processed post-call)
 - Modify translation settings mid-call
 - Switch languages mid-call
@@ -337,6 +360,7 @@ While call is active:
 #### **Step 4.3: End the Call**
 
 **Caller hangs up:**
+
 1. Call automatically ends
 2. Status changes to "Completed"
 3. Recording is saved to SignalWire
@@ -345,6 +369,7 @@ While call is active:
 **OR**
 
 **You end the call:**
+
 1. Click "End Call" button (if available)
 2. Call terminates immediately
 3. Same post-call flow begins
@@ -363,6 +388,7 @@ While call is active:
 4. System creates `recordings` table entry
 
 **Fields Stored:**
+
 ```sql
 recordings:
   - call_sid: Unique call identifier
@@ -379,6 +405,7 @@ recordings:
 **Timeline:** 2-10 minutes after recording delivered
 
 **Flow:**
+
 1. System detects new recording
 2. Triggers `/api/webhooks/signalwire?type=recording.completed`
 3. Webhook handler:
@@ -389,6 +416,7 @@ recordings:
 5. Transcript saved to `ai_runs` table
 
 **Why Post-Call Transcript?**
+
 - ✅ **Authoritative:** Legal/audit evidence
 - ✅ **Higher Accuracy:** AssemblyAI has 93.4% WER
 - ✅ **Permanent Record:** Stored indefinitely
@@ -439,6 +467,7 @@ recordings:
    - Key phrases
 
 **Format Example:**
+
 ```
 [00:00:05] Caller:
 "Hola, necesito ayuda con mi pedido"
@@ -451,6 +480,7 @@ recordings:
 ```
 
 **Download Options:**
+
 - Plain text (.txt)
 - JSON (.json)
 - PDF report (.pdf)
@@ -467,6 +497,7 @@ recordings:
    - Translated language transcript
 
 **Note:** This is SEPARATE from live translation:
+
 - **Live Translation:** Real-time audio during call
 - **Post-Call Translation:** Text translation of transcript
 
@@ -479,6 +510,7 @@ recordings:
 3. Click "Play" to listen
 
 **Features:**
+
 - Playback speed control (0.5x, 1x, 1.5x, 2x)
 - Skip forward/backward
 - Download recording
@@ -526,7 +558,7 @@ recordings:
 │    - Parameters:                                                │
 │      • From: +17062677235 (agent number)                       │
 │      • To: +12392027345 (target)                               │
-│      • Url: https://voxsouth.online/api/voice/swml/...        │
+│      • Url: https://wordis-bond.com/api/voice/swml/...        │
 │              ?callId=UUID&from=es&to=en&orgId=UUID            │
 └─────────────────────────────────────────────────────────────────┘
                                 ↓
@@ -632,70 +664,75 @@ recordings:
 ### **Problem 1: "Live Translation" toggle not visible**
 
 **Symptoms:**
+
 - Only see "Translate" (not "Live Translation")
 - No "Preview" badge
 - No language selectors appear
 
 **Causes & Solutions:**
 
-| Cause | Check | Solution |
-|-------|-------|----------|
-| **Plan too low** | Go to `/settings` → Check plan | Upgrade to Business plan |
-| **Migration not run** | Ask admin | Admin must run SQL migration |
-| **Feature flag disabled** | Check Vercel env vars | Set `ENABLE_LIVE_TRANSLATION_PREVIEW=true` |
-| **Cache issue** | Try hard refresh | Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac) |
+| Cause                     | Check                          | Solution                                    |
+| ------------------------- | ------------------------------ | ------------------------------------------- |
+| **Plan too low**          | Go to `/settings` → Check plan | Upgrade to Business plan                    |
+| **Migration not run**     | Ask admin                      | Admin must run SQL migration                |
+| **Feature flag disabled** | Check Vercel env vars          | Set `ENABLE_LIVE_TRANSLATION_PREVIEW=true`  |
+| **Cache issue**           | Try hard refresh               | Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac) |
 
 ---
 
 ### **Problem 2: "Live Translation" toggle is grayed out**
 
 **Symptoms:**
+
 - Toggle is visible but disabled
 - Hover shows warning icon
 
 **Causes & Solutions:**
 
-| Cause | Check | Solution |
-|-------|-------|----------|
-| **Insufficient role** | Check your role badge | Only Owner/Admin can configure |
-| **API error** | Open browser console | Check for errors, contact support |
-| **Organization issue** | Verify org ID | Re-login, clear cache |
+| Cause                  | Check                 | Solution                          |
+| ---------------------- | --------------------- | --------------------------------- |
+| **Insufficient role**  | Check your role badge | Only Owner/Admin can configure    |
+| **API error**          | Open browser console  | Check for errors, contact support |
+| **Organization issue** | Verify org ID         | Re-login, clear cache             |
 
 ---
 
 ### **Problem 3: Language selectors don't appear**
 
 **Symptoms:**
+
 - Toggle is ON
 - But no dropdowns show
 
 **Causes & Solutions:**
 
-| Cause | Solution |
-|-------|----------|
-| **UI state issue** | Refresh page, toggle OFF then ON again |
-| **JavaScript error** | Open console, check for errors |
-| **Component crash** | Try different browser |
+| Cause                | Solution                               |
+| -------------------- | -------------------------------------- |
+| **UI state issue**   | Refresh page, toggle OFF then ON again |
+| **JavaScript error** | Open console, check for errors         |
+| **Component crash**  | Try different browser                  |
 
 ---
 
 ### **Problem 4: Call fails immediately**
 
 **Symptoms:**
+
 - Click "Start Call"
 - Error: "Call failed"
 - No translation happens
 
 **Causes & Solutions:**
 
-| Cause | Check | Solution |
-|-------|-------|----------|
-| **Invalid phone number** | Check format | Use E.164: `+12392027345` |
-| **Missing languages** | Verify both selected | Select both From and To languages |
-| **SignalWire issue** | Check Vercel logs | Contact SignalWire support |
-| **Insufficient credits** | Check SignalWire account | Top up account |
+| Cause                    | Check                    | Solution                          |
+| ------------------------ | ------------------------ | --------------------------------- |
+| **Invalid phone number** | Check format             | Use E.164: `+12392027345`         |
+| **Missing languages**    | Verify both selected     | Select both From and To languages |
+| **SignalWire issue**     | Check Vercel logs        | Contact SignalWire support        |
+| **Insufficient credits** | Check SignalWire account | Top up account                    |
 
 **Debug Steps:**
+
 1. Open browser console (F12)
 2. Click "Start Call"
 3. Look for POST `/api/voice/call` request
@@ -707,20 +744,22 @@ recordings:
 ### **Problem 5: Translation not working during call**
 
 **Symptoms:**
+
 - Call connects successfully
 - But no translation happens
 - Caller hears original audio only
 
 **Causes & Solutions:**
 
-| Cause | Check | Solution |
-|-------|-------|----------|
-| **SWML endpoint failed** | Check Vercel logs | Look for `/api/voice/swml/translation` errors |
-| **AI Agent not attached** | Check SignalWire dashboard | Verify AI Agent enabled on account |
-| **Wrong language codes** | Verify language selections | Use standard codes (en, es, fr, de) |
-| **Feature not activated** | Contact SignalWire | Verify AI Agent feature is enabled |
+| Cause                     | Check                      | Solution                                      |
+| ------------------------- | -------------------------- | --------------------------------------------- |
+| **SWML endpoint failed**  | Check Vercel logs          | Look for `/api/voice/swml/translation` errors |
+| **AI Agent not attached** | Check SignalWire dashboard | Verify AI Agent enabled on account            |
+| **Wrong language codes**  | Verify language selections | Use standard codes (en, es, fr, de)           |
+| **Feature not activated** | Contact SignalWire         | Verify AI Agent feature is enabled            |
 
 **Verification:**
+
 1. Go to SignalWire Dashboard
 2. Navigate to Calls → Recent Calls
 3. Find your call
@@ -732,18 +771,19 @@ recordings:
 ### **Problem 6: Post-call transcript missing**
 
 **Symptoms:**
+
 - Call completed successfully
 - Transcript tab shows "Loading..." indefinitely
 - Or shows "No transcript available"
 
 **Causes & Solutions:**
 
-| Cause | Timeline | Solution |
-|-------|----------|----------|
-| **Still processing** | 2-10 minutes | Wait, then refresh |
+| Cause                       | Timeline          | Solution                                 |
+| --------------------------- | ----------------- | ---------------------------------------- |
+| **Still processing**        | 2-10 minutes      | Wait, then refresh                       |
 | **Recording not delivered** | Check after 5 min | Verify recording in SignalWire dashboard |
-| **Webhook failed** | Admin check | Admin reviews webhook logs |
-| **AssemblyAI error** | Admin check | Admin checks AssemblyAI credits/status |
+| **Webhook failed**          | Admin check       | Admin reviews webhook logs               |
+| **AssemblyAI error**        | Admin check       | Admin checks AssemblyAI credits/status   |
 
 **Note:** Transcript generation is asynchronous. Normal delay is 2-10 minutes after call ends.
 
@@ -755,7 +795,8 @@ recordings:
 
 **Q: What's the difference between "Live Translation" and "Translate"?**
 
-**A:** 
+**A:**
+
 - **Live Translation:** Real-time audio translation DURING the call (1-3 sec latency)
 - **Translate:** Post-call text translation of the transcript
 
@@ -765,7 +806,8 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: Do I need to select languages, or will it auto-detect?**
 
-**A:** 
+**A:**
+
 - **Auto-detect works:** You can leave "From Language" blank
 - **Better to specify:** Selecting languages improves accuracy and reduces latency by ~500ms
 
@@ -789,7 +831,8 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: How accurate is the translation?**
 
-**A:** 
+**A:**
+
 - **General conversation:** 85-95% accurate
 - **Technical jargon:** 70-85% accurate
 - **Accents/dialects:** 75-90% accurate
@@ -800,12 +843,14 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: What's the latency?**
 
-**A:** 
+**A:**
+
 - **Typical:** 1-3 seconds from speech to translated audio
 - **Best case:** <1 second
 - **Worst case:** 4-5 seconds (poor connection or complex sentence)
 
 **For comparison:**
+
 - Human interpreter: 3-5 seconds
 - Video call lag: 200-500ms
 
@@ -814,6 +859,7 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 **Q: Does it work with multiple speakers?**
 
 **A:** Yes, but with limitations:
+
 - ✅ AI Agent translates all speech on the call
 - ⚠️ Cannot distinguish speakers in real-time
 - ⚠️ If multiple people talk simultaneously, translation may overlap
@@ -825,6 +871,7 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 **Q: Can I use this for conference calls?**
 
 **A:** Partially supported:
+
 - ✅ Works for 1-on-1 calls
 - ⚠️ Works for small groups (2-3 people) if turn-taking is structured
 - ❌ Not recommended for large conferences (5+ people)
@@ -836,6 +883,7 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 **Q: What languages are supported?**
 
 **A:** Currently 12 languages:
+
 - English (en)
 - Spanish (es)
 - French (fr)
@@ -855,9 +903,10 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: Does voice cloning work?**
 
-**A:** Experimental. Voice cloning attempts to preserve the caller's voice characteristics when speaking the translation. 
+**A:** Experimental. Voice cloning attempts to preserve the caller's voice characteristics when speaking the translation.
 
 **Current status:**
+
 - ✅ Feature is implemented
 - ⚠️ Quality depends on SignalWire's voice cloning capabilities
 - 🔬 Still being tested
@@ -868,7 +917,8 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: How much does live translation cost?**
 
-**A:** 
+**A:**
+
 - **For Business plan:** Included (no additional charge)
 - **Per-minute cost:** $0 (unlimited AI Agent usage)
 - **Only pay:** Base SignalWire plan ($500/month)
@@ -881,7 +931,8 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: What happens if the AI Agent crashes mid-call?**
 
-**A:** 
+**A:**
+
 - Call continues normally (no disconnection)
 - Translation stops
 - Original audio continues
@@ -893,7 +944,7 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: Can I test this without making a real call?**
 
-**A:** Not currently. The AI Agent only activates on live calls. 
+**A:** Not currently. The AI Agent only activates on live calls.
 
 **Alternative:** Use your own phone number as the target to test the feature.
 
@@ -902,12 +953,14 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 **Q: Is PII/sensitive data safe?**
 
 **A:** Yes, with caveats:
+
 - ✅ Audio is encrypted in transit (TLS/SRTP)
 - ✅ Original recording is stored securely
 - ⚠️ Live translation audio passes through SignalWire's AI Agent servers
 - ⚠️ Translation text may be processed by third-party AI models
 
 **Compliance:**
+
 - HIPAA: Not compliant (AI processing involves third parties)
 - GDPR: Compliant (with proper data processing agreements)
 - PCI-DSS: Do not use for payment card information
@@ -917,6 +970,7 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 **Q: Can I integrate this with my CRM?**
 
 **A:** Yes, via API:
+
 - Webhook notifications when call starts/ends
 - REST API to fetch call details, transcripts
 - Evidence manifest with full call metadata
@@ -927,7 +981,8 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 **Q: What if the caller speaks multiple languages in one call?**
 
-**A:** 
+**A:**
+
 - ✅ AI Agent can detect language switches
 - ✅ Will translate each segment to target language
 - ⚠️ May have slight delay when switching languages
@@ -940,12 +995,12 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 ### **Need Help?**
 
-| Issue | Contact |
-|-------|---------|
-| **Technical problems** | support@voxsouth.online |
-| **Billing/plan questions** | billing@voxsouth.online |
-| **Feature requests** | product@voxsouth.online |
-| **SignalWire issues** | support@signalwire.com |
+| Issue                      | Contact                 |
+| -------------------------- | ----------------------- |
+| **Technical problems**     | support@wordis-bond.com |
+| **Billing/plan questions** | billing@wordis-bond.com |
+| **Feature requests**       | product@wordis-bond.com |
+| **SignalWire issues**      | support@signalwire.com  |
 
 ### **Additional Resources**
 
@@ -958,9 +1013,9 @@ Both can be enabled simultaneously. Live Translation is for conversation assist.
 
 ## 📝 **Document History**
 
-| Version | Date | Changes | Author |
-|---------|------|---------|--------|
-| 1.0 | 2026-01-15 | Initial user flow documentation | System |
+| Version | Date       | Changes                         | Author |
+| ------- | ---------- | ------------------------------- | ------ |
+| 1.0     | 2026-01-15 | Initial user flow documentation | System |
 
 ---
 

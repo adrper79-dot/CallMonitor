@@ -5,7 +5,7 @@
 1. **Get Session Token from Browser**
 
    ```bash
-   # After signing into https://voxsouth.online
+   # After signing into https://wordis-bond.com
    # Open browser DevTools → Application → Cookies
    # Copy value of: wb-session-token
    ```

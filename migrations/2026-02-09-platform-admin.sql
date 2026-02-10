@@ -8,7 +8,7 @@ CHECK (platform_role IN ('user', 'platform-admin'));
 INSERT INTO public.users (id, email, name, platform_role)
 VALUES (
   'god-0000-0000-0000-000000000000',
-  'admin@voxsouth.online',
+  'admin@wordis-bond.com',
   'Platform Admin',
   'platform-admin'
 ) ON CONFLICT (id) DO NOTHING;

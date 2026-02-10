@@ -266,7 +266,7 @@
 ### BL-028: 3 different email domains in use
 
 - **Source:** CURRENT_STATUS.md WARN-1
-- **Impact:** Brand inconsistency (wordisbond.com, wordisbond.ai, voxsouth.online)
+- **Impact:** Brand inconsistency (wordisbond.com, wordisbond.ai, wordis-bond.com)
 - **Fix:** User decision required on canonical domain
 - **Status:** `[ ]`
 

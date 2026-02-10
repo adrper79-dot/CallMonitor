@@ -1,7 +1,7 @@
 # Development Environment Variables
 # Copy this to .dev.vars and fill in your values
 
-# Session Token (Get from browser after signing in to https://voxsouth.online)
+# Session Token (Get from browser after signing in to https://wordis-bond.com)
 WB_SESSION_TOKEN=
 
 # API Configuration

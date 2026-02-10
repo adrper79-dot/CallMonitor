@@ -181,7 +181,7 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
     try {
       // Get voice config to determine recording and transcription settings
       const voiceConfigResult = await db.query(
-        `SELECT record, transcribe, translate, translate_from, translate_to, live_translate
+        `SELECT record, transcribe, translate, translate_from, translate_to, live_translate, voice_to_voice
          FROM voice_configs
          WHERE organization_id = $1
          LIMIT 1`,
@@ -202,8 +202,9 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
         logger.info('Call recording enabled', { callId: call.id })
       }
 
-      // Enable transcription for live translation OR regular transcription
-      const enableTranscription = voiceConfig?.live_translate || voiceConfig?.transcribe
+      // Enable transcription for live translation, voice-to-voice, OR regular transcription
+      const enableTranscription =
+        voiceConfig?.live_translate || voiceConfig?.voice_to_voice || voiceConfig?.transcribe
       if (enableTranscription) {
         callPayload.transcription = true
         callPayload.transcription_config = {
@@ -213,6 +214,7 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
         logger.info('Transcription enabled for call', {
           callId: call.id,
           live_translate: voiceConfig?.live_translate,
+          voice_to_voice: voiceConfig?.voice_to_voice,
           transcribe: voiceConfig?.transcribe,
         })
       }
@@ -1342,7 +1344,7 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
             day: 'numeric',
           })
         : 'Unknown date'
-      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
 
       // Send email to all recipients (fire-and-forget per recipient)
       for (const recipient of recipients) {

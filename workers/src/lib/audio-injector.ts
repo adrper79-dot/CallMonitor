@@ -20,7 +20,7 @@ import type { DbClient } from './db'
 import { logger } from './logger'
 
 const TELNYX_BASE = 'https://api.telnyx.com/v2'
-const MAX_CONCURRENT_INJECTIONS = 1
+const MAX_CONCURRENT_INJECTIONS = 3 // Telnyx supports multiple concurrent playbacks
 const AUDIO_QUEUE_TIMEOUT_MS = 30000 // 30 seconds
 
 export interface AudioInjection {
@@ -75,7 +75,12 @@ export async function queueAudioInjection(
     const injectionId = await recordInjectionAttempt(db, injection)
 
     // Send playback command to Telnyx
-    const playbackResult = await sendPlaybackCommand(telnyxKey, targetCallControlId, audioUrl)
+    const playbackResult = await sendPlaybackCommand(
+      telnyxKey,
+      targetCallControlId,
+      audioUrl,
+      segmentIndex
+    )
 
     if (playbackResult.success) {
       // Mark injection as successful
@@ -105,50 +110,97 @@ export async function queueAudioInjection(
 }
 
 /**
- * Send playback_start command to Telnyx Call Control API.
+ * Send playback_start command to Telnyx Call Control API with enhanced error handling.
  */
 async function sendPlaybackCommand(
   telnyxKey: string,
   callControlId: string,
-  audioUrl: string
+  audioUrl: string,
+  segmentIndex?: number
 ): Promise<{ success: boolean; playbackId?: string; error?: string }> {
-  try {
-    const response = await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/playback_start`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${telnyxKey}`,
-      },
-      body: JSON.stringify({
-        audio_url: audioUrl,
-        loop: false,
-        overlay: true, // Play over existing audio
-        target_channels: 'single', // Play to both parties
-        client_state: 'voice_translation_injection',
-      }),
-    })
+  const maxRetries = 3
+  let lastError: string | undefined
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Telnyx playback command failed', {
-        status: response.status,
-        callControlId,
-        error: errorText.substring(0, 200),
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/playback_start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${telnyxKey}`,
+          'Idempotency-Key': `playback_${callControlId}_seg${segmentIndex ?? 0}`,
+        },
+        body: JSON.stringify({
+          audio_url: audioUrl,
+          loop: false,
+          overlay: true,
+          target_channels: 'single',
+          client_state: btoa(
+            JSON.stringify({ flow: 'voice_translation', segment: segmentIndex ?? 0 })
+          ),
+        }),
       })
-      return { success: false, error: `Telnyx API error: ${response.status}` }
+
+      // Handle rate limiting with proper backoff
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || '60'
+        const delayMs = parseInt(retryAfter) * 1000
+        logger.warn('Telnyx API rate limited, backing off', {
+          callControlId,
+          attempt,
+          retryAfter: delayMs,
+          remainingRetries: maxRetries - attempt,
+        })
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+        continue
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorMessage = `Telnyx API error: ${response.status}`
+
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.errors?.[0]?.detail || errorData.message || errorMessage
+        } catch {
+          // Use raw error text if not JSON
+          errorMessage = errorText.substring(0, 200)
+        }
+
+        throw new Error(errorMessage)
+      }
+
+      const result = (await response.json()) as { data?: { id?: string } }
+      const playbackId = result.data?.id
+
+      if (!playbackId) {
+        throw new Error('Invalid response: missing playback ID')
+      }
+
+      return { success: true, playbackId }
+    } catch (err: any) {
+      lastError = err?.message || 'Unknown error'
+      logger.error('Telnyx playback command failed', {
+        callControlId,
+        attempt,
+        maxRetries,
+        error: lastError,
+      })
+
+      // Exponential backoff for retries (except rate limiting which has its own delay)
+      if (attempt < maxRetries) {
+        const backoffMs = Math.pow(2, attempt) * 1000 // 2s, 4s, 8s
+        logger.info('Retrying Telnyx API call after backoff', {
+          callControlId,
+          attempt: attempt + 1,
+          backoffMs,
+        })
+        await new Promise((resolve) => setTimeout(resolve, backoffMs))
+      }
     }
-
-    const result = await response.json()
-    const playbackId = result.data?.id
-
-    return { success: true, playbackId }
-  } catch (err: any) {
-    logger.error('Telnyx playback request failed', {
-      callControlId,
-      error: err?.message,
-    })
-    return { success: false, error: err?.message }
   }
+
+  return { success: false, error: lastError }
 }
 
 /**

@@ -29,6 +29,9 @@ export interface VoiceConfig {
   // Voice cloning
   use_voice_cloning?: boolean
   cloned_voice_id?: string | null
+  // Voice-to-voice translation
+  voice_to_voice?: boolean
+  elevenlabs_voice_id?: string | null
   // AI Survey Bot fields
   survey_prompts?: string[]
   survey_question_types?: SurveyQuestionConfig[]
@@ -292,7 +295,10 @@ export function useVoiceConfig(organizationId?: string | null) {
           const newConfig = { ...(prev || {}), ...transientUpdates }
           // Save transient fields to localStorage
           try {
-            localStorage.setItem(`voice-config-transient-${organizationId}`, JSON.stringify(newConfig))
+            localStorage.setItem(
+              `voice-config-transient-${organizationId}`,
+              JSON.stringify(newConfig)
+            )
           } catch {
             // Ignore localStorage errors
           }

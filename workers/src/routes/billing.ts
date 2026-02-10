@@ -399,7 +399,7 @@ billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
       }
 
       // Create Checkout Session
-      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
       const checkoutRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
         method: 'POST',
         headers: {
@@ -465,7 +465,7 @@ billingRoutes.post('/portal', billingRateLimit, idempotent(), async (c) => {
         return c.json({ error: 'No Stripe customer found. Subscribe to a plan first.' }, 400)
       }
 
-      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://voxsouth.online'
+      const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
       const portalRes = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
         method: 'POST',
         headers: {
@@ -723,4 +723,3 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
     await db.end()
   }
 })
-

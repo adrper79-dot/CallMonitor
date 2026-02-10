@@ -602,7 +602,7 @@ export default function HealthcareVerticalPage() {
                 API Docs
               </Link>
               <Link
-                href="mailto:support@voxsouth.online"
+                href="mailto:support@wordis-bond.com"
                 className="text-sm text-gray-400 hover:text-white"
               >
                 Contact

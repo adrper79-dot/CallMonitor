@@ -13,7 +13,7 @@
 
 | Layer          | Technology                         | URL                                           |
 | -------------- | ---------------------------------- | --------------------------------------------- |
-| **UI**         | Next.js 15 · React 19 · Tailwind 4 | `https://voxsouth.online`                     |
+| **UI**         | Next.js 15 · React 19 · Tailwind 4 | `https://wordis-bond.com`                     |
 | **API**        | Hono 4.7 on Cloudflare Workers     | `https://wordisbond-api.adrper79.workers.dev` |
 | **Database**   | Neon PostgreSQL 17 (serverless)    | Hyperdrive-pooled                             |
 | **Storage**    | Cloudflare R2                      | Recordings, evidence bundles                  |
