@@ -1,9 +1,9 @@
 # Word Is Bond — Master Backlog
 
 **Created:** February 7, 2026  
-**Last Updated:** February 10, 2026 (Session 6, Turn 18 - Security Audit Complete)   
-**Total Items:** 120 | **Resolved:** 117 (98%) | **Open:** 3 | **Deferred:** 3  
-**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation + Automated security scan (Feb 10)  
+**Last Updated:** February 10, 2026 (Session 6, Turn 20 - Telnyx Integration Audit)   
+**Total Items:** 130 | **Resolved:** 117 (90%) | **Open:** 13 | **Deferred:** 3  
+**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation + Automated security scan (Feb 10) + Hidden features audit + Telnyx integration audit  
 **Format:** Priority-ordered, sequentially consumable by agents
 
 ---
@@ -1098,7 +1098,168 @@
 
 ---
 
-## 🔴 TIER 1: CRITICAL — Production Test Failures (Post-Fix Validation)
+## 🟡 TIER 3: MEDIUM — Hidden Features (Fully Built but Not Wired)
+
+### BL-121: DialerPanel component not wired to any page
+
+- **File:** `components/voice/DialerPanel.tsx` (283 lines, complete implementation)
+- **API Routes:** ✅ `/api/dialer/*` routes exist and functional
+- **Database:** ⏳ `dialer_agent_status` table (requires BL-109 V5 migration)
+- **Root Cause:** Feature fully built but no page created to expose it
+- **Impact:** Users cannot access predictive dialer dashboard (agent pool monitoring, campaign controls)
+- **Business Value:** HIGH — Competitive differentiator for call center operations
+- **Fix:** Create `/campaigns/[id]/dialer` page with DialerPanel component
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 1
+
+### BL-122: IVRPaymentPanel component not wired to any page
+
+- **File:** `components/voice/IVRPaymentPanel.tsx` (126 lines, complete implementation)
+- **API Routes:** ✅ `/api/ivr/*` routes exist and functional
+- **Database:** ✅ V5 migration has IVR flow structures (requires BL-109)
+- **Root Cause:** Feature fully built but no page integration
+- **Impact:** Users cannot initiate IVR payment flows (significant revenue collection feature missing)
+- **Business Value:** HIGH — Direct revenue automation, PCI-compliant payment collection
+- **Fix:** Wire into `/voice-operations/accounts/[id]` page as sidebar panel
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 2
+
+### BL-123: SentimentDashboard buried in analytics tab instead of standalone page
+
+- **File:** `components/analytics/SentimentDashboard.tsx` (complete dashboard)
+- **API Routes:** ✅ `/api/sentiment/*` fully functional
+- **Database:** ⏳ Requires BL-109 V5 migration tables (`call_sentiment_scores`, `call_sentiment_summary`, `sentiment_alert_configs`)
+- **Root Cause:** Component exists but only accessible via buried tab in `/analytics`
+- **Impact:** Users won't discover sentiment analysis feature easily (low discoverability)
+- **Business Value:** VERY HIGH — Proactive escalation prevention, compliance, coaching
+- **Fix:** Create `/analytics/sentiment` standalone page + add to main navigation
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 3
+
+### BL-124: SentimentWidget not exposed in voice operations UI
+
+- **File:** `components/voice/SentimentWidget.tsx` (real-time widget)
+- **API Routes:** ✅ `/api/sentiment/live/:callId` functional
+- **Database:** ⏳ Requires BL-109 V5 migration
+- **Root Cause:** Widget built but not integrated into live call monitoring
+- **Impact:** Agents don't see real-time sentiment during calls (missed coaching opportunity)
+- **Business Value:** MEDIUM — Real-time agent coaching, escalation prevention
+- **Fix:** Add to `/voice-operations` ActiveCallPanel sidebar
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 5
+
+### BL-125: SearchbarCopilot lacks prominent UI and keyboard shortcut
+
+- **File:** `components/SearchbarCopilot.tsx` (467 lines, complete implementation)
+- **API Routes:** ✅ `/api/bond-ai/*` fully functional
+- **Status:** ✅ Wired into Navigation, BUT lacks discoverability
+- **Root Cause:** No visual button in nav, no keyboard shortcut (Cmd+K standard missing)
+- **Impact:** Users unaware of AI assistant capability
+- **Business Value:** HIGH — Reduces support burden, in-app guidance
+- **Fix:** Add Cmd+K/Ctrl+K shortcut + visible "AI Assistant" button with kbd hint
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 4
+
+### BL-126: ScorecardTemplateLibrary buried in settings instead of review page
+
+- **File:** `components/voice/ScorecardTemplateLibrary.tsx`
+- **Status:** ✅ Functional, BUT buried in `/settings` → "Quality Assurance" tab
+- **Root Cause:** Feature placed in wrong section (QA managers expect it under `/review`)
+- **Impact:** Low discoverability, underutilized feature
+- **Business Value:** MEDIUM — QA workflow efficiency
+- **Fix:** Add "Templates" tab to `/review` page + link from main nav
+- **Status:** `[ ]` Open
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 8
+
+### BL-127: Collections module UI incomplete (basic table only)
+
+- **API Routes:** ✅ Complete (`/api/collections/*`)
+- **Database:** ✅ Tables exist (`collection_accounts`, `collection_payments`)
+- **UI:** ⚠️ Basic table view in `/voice-operations/accounts`
+- **Missing Components:** Payment history charts, account aging buckets, bulk import wizard
+- **Impact:** Collections teams don't have visual analytics or bulk tools
+- **Business Value:** MEDIUM — Revenue operations efficiency
+- **Fix:** Build CollectionsAnalytics, PaymentHistoryChart, BulkImportWizard components
+- **Status:** `[ ]` Open (lower priority — basic functionality exists)
+- **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 7
+
+**Note:** All sentiment/dialer/IVR features (BL-121 to BL-124) are BLOCKED by BL-109 (V5 migration not applied).
+
+---
+
+## � TIER 3: IMPORTANT — Telnyx Voice Integration (Configuration & Testing)
+
+### BL-128: Translation feature disabled in database (reported as "not working")
+
+- **Files:** `voice_configs` table, `workers/src/routes/webhooks.ts` (lines 761-769)
+- **Root Cause:** User reported translation not working. Audit found `voice_configs.live_translate = false` for organization
+- **Code Status:** ✅ Translation pipeline is CORRECTLY implemented (OpenAI GPT-4o-mini → call_translations → SSE)
+- **Issue:** Configuration flag disabled, not code defect
+- **Impact:** Feature exists but disabled in database - users can't see translations
+- **Fix:** Update voice_configs via API or SQL:
+  ```sql
+  UPDATE voice_configs 
+  SET live_translate = true, transcribe = true,
+      translate_from = 'en', translate_to = 'es'
+  WHERE organization_id = 'USER_ORG_ID';
+  ```
+- **Verification:** Place call, monitor `npx wrangler tail` for `call.transcription` events, check `call_translations` table
+- **Status:** `[ ]` Open (requires user decision on which orgs to enable)
+- **See:** ARCH_DOCS/TELNYX_INTEGRATION_AUDIT.md Section 4
+
+### BL-129: Missing L3/L4 tests for bridge call flow
+
+- **Files:** `tests/production/bridge-call-flow.test.ts` (created)
+- **Root Cause:** Existing voice tests only cover L1/L2 (API connectivity), not E2E bridge flow
+- **Missing Coverage:**
+  - Agent call initiation → agent answers → customer call → bridge action
+  - Transcription routing from bridge_customer to main bridge call
+  - AMD disabled for agent leg (prevents delay)
+  - Bridge call status transitions (initiating → in_progress → completed)
+- **Impact:** Bridge calls work in production but lack automated E2E validation
+- **Fix:** Created comprehensive test file with 6 test suites (30+ test cases)
+  - ✅ Bridge call initiation tests
+  - ✅ E.164 validation for both numbers
+  - ✅ AMD flag verification
+  - ✅ Status transition tests
+  - ✅ Customer call creation tests
+  - ✅ Transcription routing tests
+- **Status:** `[ ]` Open (test file created, needs execution with RUN_VOICE_TESTS=1)
+- **Notes:** Tests require real phone numbers and incur Telnyx charges
+- **See:** ARCH_DOCS/TELNYX_INTEGRATION_AUDIT.md Section 6
+
+### BL-130: Missing L3/L4 tests for translation pipeline
+
+- **Files:** `tests/production/translation-pipeline.test.ts` (created), `tests/production/amd.test.ts` (created)
+- **Root Cause:** No E2E tests for transcription → translation → SSE delivery flow
+- **Missing Coverage:**
+  - voice_configs flag controls (live_translate, transcribe, voice_to_voice)
+  - OpenAI GPT-4o-mini translation integration
+  - call_translations table storage (multi-segment ordering)
+  - SSE streaming endpoint (authentication, multi-tenant isolation)
+  - Voice-to-voice TTS synthesis + audio injection
+  - Ed25519 webhook signature verification
+  - AMD (Answering Machine Detection) for direct vs bridge calls
+- **Impact:** Translation works but lacks automated validation of full pipeline
+- **Fix:** Created comprehensive test files with 9 suites (60+ test cases)
+  - ✅ Translation config tests (language pairs, flags)
+  - ✅ OpenAI integration tests (actual translation API calls)
+  - ✅ Database storage tests (multi-segment ordering)
+  - ✅ SSE streaming tests (headers, auth, isolation)
+  - ✅ Voice-to-voice tests (TTS flag control)
+  - ✅ Error handling tests (API failures, missing config)
+  - ✅ AMD tests (direct/bridge config, status storage, webhook handling)
+  - ✅ AMD performance tests (timing, efficiency analysis)
+  - ✅ AMD use case tests (campaign optimization)
+- **Status:** `[ ]` Open (test files created, need execution with RUN_VOICE_TESTS=1)
+- **Notes:** Tests require OpenAI API key and incur charges
+- **See:** ARCH_DOCS/TELNYX_INTEGRATION_AUDIT.md Sections 4-6
+
+**Note:** All sentiment/dialer/IVR features (BL-121 to BL-124) are BLOCKED by BL-109 (V5 migration not applied).
+
+---
+
+## �🔴 TIER 1: CRITICAL — Production Test Failures (Post-Fix Validation)
 
 ### BL-116: Production test failures discovered during BL-111-115 validation
 

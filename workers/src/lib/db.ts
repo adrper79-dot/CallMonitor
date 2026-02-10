@@ -14,6 +14,7 @@
  */
 
 import { Pool } from '@neondatabase/serverless'
+import { logger } from './logger'
 import type { Env } from '../index'
 
 /** Pool configuration constants */
@@ -55,8 +56,11 @@ export function getDb(env: Env): DbClient {
     throw new Error('No database connection string found in environment')
   }
 
+  const paramSep = connectionString.includes('?') ? '&' : '?'
+  const connWithTimeout = `${connectionString}${paramSep}statement_timeout=${STATEMENT_TIMEOUT_MS}`
+
   const pool = new Pool({
-    connectionString: `${connectionString}?statement_timeout=${STATEMENT_TIMEOUT_MS}`,
+    connectionString: connWithTimeout,
     max: POOL_MAX,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
@@ -64,8 +68,26 @@ export function getDb(env: Env): DbClient {
 
   return {
     query: async (sqlString: string, params?: any[]) => {
-      const result = await pool.query(sqlString, params)
-      return { rows: result.rows || [] }
+      const start = Date.now()
+      try {
+        const result = await pool.query(sqlString, params)
+        const duration = Date.now() - start
+        logger.info('DB query executed', {
+          duration_ms: duration,
+          rowCount: (result as any).rowCount ?? (result as any).rows?.length ?? 0,
+          sql: sqlString.length > 200 ? sqlString.slice(0, 200) + '...' : sqlString,
+          params: Array.isArray(params) ? params.length : undefined,
+        })
+        return { rows: result.rows || [], rowCount: (result as any).rowCount }
+      } catch (err: any) {
+        const duration = Date.now() - start
+        logger.error('DB query failed', {
+          error: err?.message,
+          duration_ms: duration,
+          sql: sqlString.length > 200 ? sqlString.slice(0, 200) + '...' : sqlString,
+        })
+        throw err
+      }
     },
     end: () => pool.end(),
   }

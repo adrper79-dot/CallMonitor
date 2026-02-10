@@ -163,7 +163,6 @@ export default function ExecutionControls({
         const storedNumber = localStorage.getItem('voice-target-number')
         if (storedNumber && /^\+[1-9]\d{1,14}$/.test(storedNumber)) {
           requestBody.to_number = storedNumber
-          console.log('[ExecutionControls] Failsafe: used localStorage target number:', storedNumber)
         }
       }
 
@@ -184,17 +183,6 @@ export default function ExecutionControls({
         requestBody.from_number = config.from_number
         requestBody.flow_type = 'bridge'
       }
-
-      console.log('[ExecutionControls] Placing call with:', {
-        to_number: requestBody.to_number || '(not set)',
-        target_id: requestBody.target_id || '(not set)',
-        from_number: requestBody.from_number || '(not set)',
-        flow_type: requestBody.flow_type || 'direct',
-        configQuickDial: config?.quick_dial_number || '(not set)',
-        configTargetId: config?.target_id || '(not set)',
-        resolvedQuickDial: resolvedQuickDial || '(not set)',
-        targetNumberContext: targetNumber || '(empty)',
-      })
 
       const data = await apiPost('/api/voice/call', requestBody)
       const callId = data.call_id

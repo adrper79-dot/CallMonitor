@@ -1,10 +1,11 @@
 "use client"
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession } from '@/components/AuthProvider'
 import { Logo } from './Logo'
+import SearchbarCopilot from './SearchbarCopilot'
 
 /**
  * Navigation - Professional Design System v3.0
@@ -16,6 +17,7 @@ export default function Navigation() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const isAuthenticated = status === 'authenticated'
+  const searchbarRef = useRef<{ openSearch: () => void } | null>(null)
 
   // Protected nav items - only shown when authenticated
   // Per ARCH_DOCS UX_DESIGN_PRINCIPLES: No emojis in professional UI
@@ -29,6 +31,21 @@ export default function Navigation() {
 
   // Public pages where we show minimal nav
   const isPublicPage = ['/', '/signin', '/signup', '/forgot-password', '/reset-password', '/pricing', '/trust'].includes(pathname || '')
+
+  // Keyboard shortcut for searchbar (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        if (isAuthenticated && !isPublicPage && searchbarRef.current) {
+          searchbarRef.current.openSearch()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isAuthenticated, isPublicPage])
 
   return (
     <nav
@@ -104,6 +121,9 @@ export default function Navigation() {
               })}
             </div>
           )}
+
+          {/* Searchbar Copilot - Only show for authenticated users */}
+          {isAuthenticated && !isPublicPage && <SearchbarCopilot ref={searchbarRef} />}
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-4">

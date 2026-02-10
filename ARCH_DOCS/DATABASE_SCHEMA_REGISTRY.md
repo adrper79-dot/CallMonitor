@@ -1,7 +1,7 @@
 # Database Schema Registry
 
-**Status**: ✅ COMPLIANT | Updated: Feb 3, 2026  
-**Version**: 1.1 - Post-Migration  
+**Status**: ✅ COMPLIANT | Updated: Feb 10, 2026  
+**Version**: 1.2 - RLS Deployment + Type Convention Documentation  
 **Owner**: Platform Team
 
 ---
@@ -15,6 +15,35 @@ This document serves as the **single source of truth** for database schema namin
 Per [MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md), the mandatory standard is:
 
 > **MANDATORY**: All database columns, API endpoints, and variable names MUST use **snake_case** exclusively.
+
+### ID Type Convention & Exceptions
+
+**Standard Practice** (Enforced for all new tables):
+
+> All new database tables MUST use **UUID** as the primary key type (`id UUID PRIMARY KEY DEFAULT gen_random_uuid()`).
+
+**Documented Exceptions** (Legacy compatibility):
+
+| Column Pattern | Standard Type | Exception Tables | Exception Type | Rationale |
+|----------------|---------------|------------------|----------------|-----------|
+| `id` (PK) | **UUID** | `users`, `accounts` | **TEXT** | NextAuth.js library requirement |
+| `user_id` (FK) | **UUID** | `accounts`, `calls`, `org_members`, `tool_access_archived`, `tool_team_members` | **TEXT** | References `users.id` (TEXT) |
+
+**Enforcement Guidelines:**
+
+1. ✅ **New Tables**: MUST use UUID for primary keys
+2. ✅ **Foreign Keys**: Type must match the referenced column type
+3. ✅ **Legacy Tables**: Accept TEXT for NextAuth-related tables (`users`, `accounts`, `sessions`)
+4. ⚠️ **Migration Path**: Do NOT attempt to convert `users.id` from TEXT to UUID (breaking change, high risk)
+5. ✅ **TypeScript Types**: Enforce UUID in `types/database.ts` for all business tables
+
+**Type Consistency Validation:**
+
+- **UUID Tables**: 142+ tables use UUID exclusively ✅
+- **TEXT Exceptions**: 2 tables (`users`, `accounts`) due to NextAuth constraints ℹ️
+- **Legacy INT**: 2 tables (`call_translations`, `kpi_logs`) - pre-UUID era ⚠️
+
+**Reference:** [SCHEMA_DRIFT_VALIDATION_2026-02-10.md](SCHEMA_DRIFT_VALIDATION_2026-02-10.md) - MEDIUM Priority Issue #1
 
 ---
 
@@ -352,6 +381,74 @@ ORDER BY table_name, column_name;
 | 2026-02-04 | sessions migration | ✅ Complete | Renamed sessionToken→session_token, userId→user_id |
 | 2026-02-04 | Code update        | ✅ Complete | Updated Workers auth.ts and lib/auth.ts            |
 | 2026-02-04 | Verification       | ✅ Complete | Tested login flow, confirmed DB+code cohesion      |
+| 2026-02-10 | Schema drift validation | ✅ Complete | Deep validation identified 2 HIGH priority RLS gaps |
+| 2026-02-10 | RLS deployment     | ✅ Complete | Added RLS policies to transcriptions + ai_summaries |
+| 2026-02-10 | Type documentation | ✅ Complete | Documented UUID/TEXT ID type exceptions            |
+
+---
+
+## Row Level Security (RLS) Policies
+
+**Purpose**: Enforce multi-tenant data isolation at the database layer to prevent cross-organization data leakage.
+
+**Standard**: All business tables containing `organization_id` MUST have RLS policies enabled.
+
+### Tables with RLS Protection
+
+| Table | Policy Name | Status | Applied | Notes |
+|-------|-------------|--------|---------|-------|
+| `calls` | `calls_org_isolation` | ✅ Active | Pre-2026 | Primary call records |
+| `recordings` | `recordings_org_isolation` | ✅ Active | Pre-2026 | Audio/video recordings |
+| `transcriptions` | `transcriptions_org_isolation` | ✅ Active | 2026-02-10 | Call transcripts (HIGH sensitivity) |
+| `ai_summaries` | `ai_summaries_org_isolation` | ✅ Active | 2026-02-10 | AI-generated summaries (HIGH sensitivity) |
+| `audit_logs` | `audit_logs_org_isolation` | ✅ Active | Pre-2026 | Audit trail records |
+| `scorecards` | `scorecards_org_isolation` | ✅ Active | Pre-2026 | Quality evaluations |
+| `org_members` | `org_members_org_isolation` | ✅ Active | Pre-2026 | Membership records |
+| `campaigns` | `campaigns_org_isolation` | ✅ Active | Pre-2026 | Campaign data |
+| `collection_accounts` | `collection_accounts_org_isolation` | ✅ Active | Pre-2026 | Collections data |
+
+**Policy Pattern** (Standard for all RLS):
+
+```sql
+-- Enable RLS on table
+ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY;
+
+-- Create organization isolation policy
+CREATE POLICY "{table_name}_org_isolation" 
+ON {table_name}
+FOR ALL
+USING (
+  organization_id = current_setting('app.current_org_id', true)::UUID
+);
+```
+
+**Application Layer Requirements:**
+
+1. Workers API MUST set `app.current_org_id` in all database connections
+2. Middleware: `requireAuth()` extracts `organization_id` from session
+3. Database util: `getDb(c.env)` initializes connection with session context
+4. Reference: `workers/src/lib/db.ts` - connection initialization
+
+**Verification Query:**
+
+```sql
+-- Check which tables have RLS enabled
+SELECT 
+  tablename,
+  rowsecurity
+FROM pg_tables
+WHERE schemaname = 'public' 
+  AND rowsecurity = true
+ORDER BY tablename;
+```
+
+**Security Audit Trail:**
+
+- **2026-02-10**: Schema drift validation identified `transcriptions` and `ai_summaries` missing RLS
+- **2026-02-10**: Deployed RLS policies to both tables (migration: `2026-02-11-add-rls-transcriptions-summaries.sql`)
+- **Status**: All critical business tables now protected ✅
+
+---
 
 ---
 

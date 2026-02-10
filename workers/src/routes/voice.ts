@@ -355,7 +355,10 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       }
       // For bridge calls: call the agent first, webhook will bridge to customer on answer
       callPayload.to = from_number // Call the agent's phone first
-      logger.info('Bridge call: calling agent first', {
+      // Disable AMD for bridge calls — we're calling a known agent, not an unknown number.
+      // AMD 'detect' mode delays the call.answered webhook which breaks the bridge flow.
+      delete callPayload.answering_machine_detection
+      logger.info('Bridge call: calling agent first (AMD disabled)', {
         agentNumber: from_number,
         customerNumber: destinationNumber,
       })

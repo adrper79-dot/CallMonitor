@@ -444,7 +444,7 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
 
   // Handle bridge calls: when agent answers, create customer call and bridge
   if (call.flow_type === 'bridge' && call.to_number && env.TELNYX_API_KEY) {
-    logger.info('Bridge call: agent answered, creating customer call and bridging', {
+    logger.info('Bridge call: agent answered, creating customer call', {
       callControlId: call_control_id,
       customerNumber: call.to_number,
       agentNumber: call.from_number,
@@ -469,9 +469,11 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         bridgeVoiceConfig?.transcribe
 
       // Create a new call to the customer
+      // IMPORTANT: `from` MUST be a Telnyx-owned number, not the agent's personal phone.
+      // call.from_number is the agent's phone (the first leg destination), so always use TELNYX_NUMBER.
       const customerCallPayload: Record<string, unknown> = {
         to: call.to_number,
-        from: call.from_number || env.TELNYX_NUMBER,
+        from: env.TELNYX_NUMBER,
         connection_id: env.TELNYX_CALL_CONTROL_APP_ID, // Use Call Control App ID for programmatic calls
         timeout_secs: 30,
         webhook_url: `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
@@ -502,35 +504,20 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
           data: { call_control_id: string }
         }
         const customerCallControlId = customerCallData.data.call_control_id
-        logger.info('Customer call created successfully', { customerCallControlId })
+        logger.info('Customer call created successfully, deferring bridge until customer answers', {
+          customerCallControlId,
+          agentCallControlId: call_control_id,
+        })
 
-        // Now bridge the agent call to the customer call
-        const bridgeResponse = await fetch(
-          `https://api.telnyx.com/v2/calls/${call_control_id}/actions/bridge`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${env.TELNYX_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              call_control_id: customerCallControlId,
-            }),
-          }
+        // Store the pending bridge relationship on the AGENT's call record (which already exists).
+        // When the customer call fires call.answered as a bridge_customer, we look up
+        // the agent call by bridge_partner_id to execute the bridge.
+        await db.query(
+          `UPDATE calls
+           SET bridge_partner_id = $1
+           WHERE call_control_id = $2 AND organization_id IS NOT NULL`,
+          [customerCallControlId, call_control_id]
         )
-
-        if (bridgeResponse.ok) {
-          logger.info('Bridge call initiated successfully', {
-            agentCallControlId: call_control_id,
-            customerCallControlId,
-          })
-        } else {
-          const bridgeErrorText = await bridgeResponse.text()
-          logger.error('Bridge action failed', {
-            status: bridgeResponse.status,
-            response: bridgeErrorText.slice(0, 500),
-          })
-        }
       } else {
         const errorText = await createCallResponse.text()
         logger.error('Customer call creation failed', {
@@ -540,6 +527,71 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
       }
     } catch (err) {
       logger.error('Bridge call failed with exception', {
+        error: (err as Error)?.message,
+        stack: (err as Error)?.stack,
+      })
+    }
+  } else if (call.flow_type === 'bridge_customer') {
+    // This is the customer leg answering — now bridge the two calls!
+    logger.info('Bridge: customer answered, executing bridge action', {
+      customerCallControlId: call_control_id,
+    })
+
+    try {
+      // Find the agent's call by looking for bridge_partner_id = this customer's call_control_id
+      // The agent's call record has bridge_partner_id set to the customer's call_control_id
+      const partnerResult = await db.query(
+        `SELECT call_control_id FROM calls
+         WHERE bridge_partner_id = $1 AND organization_id IS NOT NULL`,
+        [call_control_id]
+      )
+
+      const agentCallControlId = partnerResult.rows[0]?.call_control_id
+      if (!agentCallControlId) {
+        logger.error('Bridge: no agent partner found for customer call', {
+          customerCallControlId: call_control_id,
+        })
+        return
+      }
+
+      // Bridge the agent call to the customer call
+      const bridgeResponse = await fetch(
+        `https://api.telnyx.com/v2/calls/${agentCallControlId}/actions/bridge`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            call_control_id: call_control_id,
+          }),
+        }
+      )
+
+      if (bridgeResponse.ok) {
+        logger.info('Bridge executed successfully', {
+          agentCallControlId,
+          customerCallControlId: call_control_id,
+        })
+
+        // Update both calls to 'bridged'
+        await db.query(
+          `UPDATE calls SET status = 'bridged', updated_at = NOW()
+           WHERE call_control_id IN ($1, $2) AND organization_id IS NOT NULL`,
+          [agentCallControlId, call_control_id]
+        )
+      } else {
+        const bridgeErrorText = await bridgeResponse.text()
+        logger.error('Bridge action failed', {
+          status: bridgeResponse.status,
+          response: bridgeErrorText.slice(0, 500),
+          agentCallControlId,
+          customerCallControlId: call_control_id,
+        })
+      }
+    } catch (err) {
+      logger.error('Bridge execution failed with exception', {
         error: (err as Error)?.message,
         stack: (err as Error)?.stack,
       })
