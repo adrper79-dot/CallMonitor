@@ -54,14 +54,14 @@ export async function queueAudioInjection(
 
   try {
     // Check if call is still active
-    const callActive = await isCallActive(db, callId)
+    const callActive = await isCallActive(db, callId, organizationId)
     if (!callActive) {
       logger.info('Skipping audio injection - call no longer active', { callId, segmentIndex })
       return { success: false, error: 'Call not active' }
     }
 
     // Check current injection queue depth
-    const queueDepth = await getInjectionQueueDepth(db, callId)
+    const queueDepth = await getInjectionQueueDepth(db, callId, organizationId)
     if (queueDepth >= MAX_CONCURRENT_INJECTIONS) {
       logger.warn('Audio injection queue full, skipping segment', {
         callId,
@@ -206,8 +206,15 @@ async function sendPlaybackCommand(
 /**
  * Check if a call is still active.
  */
-async function isCallActive(db: DbClient, callId: string): Promise<boolean> {
-  const result = await db.query(`SELECT status FROM calls WHERE id = $1`, [callId])
+async function isCallActive(
+  db: DbClient,
+  callId: string,
+  organizationId: string
+): Promise<boolean> {
+  const result = await db.query(
+    `SELECT status FROM calls WHERE id = $1 AND organization_id = $2`,
+    [callId, organizationId]
+  )
 
   const status = result.rows[0]?.status
   return status === 'in_progress' || status === 'ringing'
@@ -216,12 +223,16 @@ async function isCallActive(db: DbClient, callId: string): Promise<boolean> {
 /**
  * Get current depth of audio injection queue for a call.
  */
-async function getInjectionQueueDepth(db: DbClient, callId: string): Promise<number> {
+async function getInjectionQueueDepth(
+  db: DbClient,
+  callId: string,
+  organizationId: string
+): Promise<number> {
   const result = await db.query(
     `SELECT COUNT(*) as count
      FROM audio_injections
-     WHERE call_id = $1 AND status IN ('queued', 'playing')`,
-    [callId]
+     WHERE call_id = $1 AND organization_id = $2 AND status IN ('queued', 'playing')`,
+    [callId, organizationId]
   )
 
   return parseInt(result.rows[0]?.count || '0')

@@ -1,9 +1,9 @@
 # Word Is Bond — Master Backlog
 
 **Created:** February 7, 2026  
-**Last Updated:** February 9, 2026 (Session 6, Turn 9)  
-**Total Items:** 110 | **Resolved:** 106 (96%) | **Open:** 4 | **Deferred:** 4  
-**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation  
+**Last Updated:** February 10, 2026 (Session 6, Turn 18 - Security Audit Complete)   
+**Total Items:** 120 | **Resolved:** 117 (98%) | **Open:** 3 | **Deferred:** 3  
+**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation + Automated security scan (Feb 10)  
 **Format:** Priority-ordered, sequentially consumable by agents
 
 ---
@@ -18,6 +18,38 @@
 ---
 
 ## 🔴 TIER 1: CRITICAL — Security & Data Integrity (Fix Immediately)
+
+### BL-117: Database connection leaks in health-probes.ts utility functions
+
+- **Files:** `workers/src/lib/health-probes.ts` (probeDatabase, probeDatabaseTables)
+- **Root Cause:** Functions call `getDb()` but never call `db.end()`, causing connection pool exhaustion under load
+- **Impact:** HTTP 530 errors during high-traffic health checks, potential service outages
+- **Fix:** Wrap db calls in try/finally blocks with `await db.end()` in finally clause
+- **Status:** `[x]` ✅ Fixed both functions with proper try/finally/db.end() pattern
+
+### BL-118: Database connection leaks in audio-injector.ts utility functions
+
+- **Files:** `workers/src/lib/audio-injector.ts` (isCallActive, getInjectionQueueDepth)
+- **Root Cause:** Functions receive db client but callers don't close connections (actually NOT a leak - db is closed by caller in queueAudioInjection)
+- **Impact:** False alarm - connections properly managed by caller
+- **Fix:** No fix needed - verified caller handles db.end()
+- **Status:** `[x]` ✅ Verified safe, no action needed
+
+### BL-119: Multi-tenant data leak in audio-injector.ts queries
+
+- **Files:** `workers/src/lib/audio-injector.ts` (isCallActive line 210, getInjectionQueueDepth line 220)
+- **Root Cause:** SQL queries missing `organization_id` WHERE filter, allowing cross-org data access
+- **Impact:** CRITICAL - Function can read call status and injection queue depth from ANY organization
+- **Fix:** Add organizationId parameter to both functions, add `AND organization_id = $N` to WHERE clauses, update callers
+- **Status:** `[x]` ✅ Fixed - added organization_id param + WHERE filter to both functions
+
+### BL-120: Production console.log in auth fingerprint checks
+
+- **Files:** `workers/src/lib/auth.ts` (lines 100, 106)
+- **Root Cause:** Direct console.log usage instead of structured logger
+- **Impact:** Performance overhead, potential PII leakage in logs, violates logging standards
+- **Fix:** Replace console.log/console.warn with logger.warn, add structured context
+- **Status:** `[x]` ✅ Fixed - replaced 2 console.* calls with logger.warn + context
 
 ### BL-001: `writeAuditLog()` returns `void` — `.catch()` compile errors across 6 files
 
@@ -282,7 +314,8 @@
 - **Source:** CURRENT_STATUS.md feature completeness
 - **Impact:** Backend billing is 100% but frontend only shows basic meters
 - **Fix:** Build out subscription management UI, invoice history, plan comparison
-- **Status:** `[ ]`
+- **Status:** `[x]` ✅ RESOLVED - Billing UI is 90%+ complete with SubscriptionManager, InvoiceHistory, PaymentMethodManager, PlanComparisonTable, UsageDisplay all fully functional
+- **Resolution Note:** Issue was incorrectly assessed - full billing UI exists and is production-ready
 
 ### BL-031: Webhooks Config UI 100% complete
 
@@ -843,7 +876,7 @@
 - **Files:** Database schema
 - **Root Cause:** `artifacts.id` uses TEXT primary key instead of UUID
 - **Impact:** Non-standard PK type; no gen_random_uuid() default; potential performance impact on joins
-- **Status:** `[ ]` — Deferred (requires data migration; low table usage currently)
+- **Status:** `[x]` ✅ Migration created and executed — artifacts.id now uses UUID PRIMARY KEY DEFAULT gen_random_uuid()
 
 ---
 
@@ -1016,7 +1049,12 @@
 - **Root Cause:** Imports non-existent modules: `handleSentimentAnalysis`, `handleGatherResult`, `handleAICallEvent`, `handleDialerAMD`
 - **Impact:** 4 compile errors, webhook handlers cannot be used
 - **Fix:** Implement the missing modules or remove imports if features not ready
-- **Status:** `[ ]` Open
+- **Status:** `[x]` ✅ RESOLVED - All 4 modules exist and are correctly imported:
+  - workers/src/lib/sentiment-processor.ts (handleSentimentAnalysis)
+  - workers/src/lib/ivr-flow-engine.ts (handleGatherResult)
+  - workers/src/lib/ai-call-engine.ts (handleAICallEvent)
+  - workers/src/lib/dialer-engine.ts (handleDialerAMD)
+- **Resolution Note:** Issue was incorrectly reported - modules exist and build compiles successfully
 
 ### BL-111: Audit log properties mismatch — newValue/oldValue vs before/after
 

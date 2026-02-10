@@ -6,6 +6,7 @@
 import type { Context, Next } from 'hono'
 import type { Env } from '../index'
 import { getDb } from './db'
+import { logger } from './logger'
 
 export interface Session {
   user_id: string
@@ -97,13 +98,17 @@ export async function verifySession(
         const currentFp = await computeFingerprint(c)
         if (!timingSafeEqual(storedFp, currentFp)) {
           // Fingerprint mismatch — log but allow for now to debug
-          console.log('Fingerprint mismatch - stored:', storedFp, 'current:', currentFp)
+          logger.warn('Fingerprint mismatch detected', {
+            stored: storedFp,
+            current: currentFp,
+            session_id: row.id,
+          })
           // return null // Temporarily disabled
         }
       }
     } catch (err) {
       // KV failure is non-fatal — allow the request through
-      console.log('Fingerprint check error:', err)
+      logger.warn('Fingerprint check error', { error: err })
     }
 
     const row = result.rows[0]

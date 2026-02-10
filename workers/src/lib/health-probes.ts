@@ -46,8 +46,8 @@ function statusFromLatency(service: string, ms: number): ServiceStatus {
 
 export async function probeDatabase(env: Env): Promise<ProbeResult> {
   const start = Date.now()
+  const db = getDb(env)
   try {
-    const db = getDb(env)
     const result = await db.query('SELECT version() as version, NOW() as time')
     const ms = Date.now() - start
     return {
@@ -68,13 +68,15 @@ export async function probeDatabase(env: Env): Promise<ProbeResult> {
       details: 'Database unreachable',
       error: err.message,
     }
+  } finally {
+    await db.end()
   }
 }
 
 export async function probeDatabaseTables(env: Env): Promise<ProbeResult> {
   const start = Date.now()
+  const db = getDb(env)
   try {
-    const db = getDb(env)
     const result = await db.query(`
       SELECT table_name 
       FROM information_schema.tables 
@@ -126,6 +128,8 @@ export async function probeDatabaseTables(env: Env): Promise<ProbeResult> {
       details: 'Cannot query schema',
       error: err.message,
     }
+  } finally {
+    await db.end()
   }
 }
 
