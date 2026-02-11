@@ -166,6 +166,22 @@ bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, a
     // Always include org stats summary
     try {
       const stats = await fetchOrgStats(c.env, session.organization_id)
+      
+      // Check if organization has minimal data for meaningful AI insights
+      const hasMinimalData = 
+        (stats.calls?.total || 0) > 0 || 
+        (stats.tests?.total || 0) > 0 || 
+        (stats.scorecards?.total || 0) > 0
+      
+      if (!hasMinimalData) {
+        contextData.push(
+          `Organization is new with limited data. Recommend setting up:\n` +
+          `- Test configurations for QA monitoring\n` +
+          `- Scorecards for performance evaluation\n` +
+          `- Making calls with transcription enabled`
+        )
+      }
+      
       contextData.push(`Organization stats: ${JSON.stringify(stats)}`)
     } catch {
       /* non-critical */
@@ -682,6 +698,15 @@ bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
     const parsed = await validateBody(c, CopilotSchema)
     if (!parsed.success) return parsed.response
     const { call_id, transcript_segment, agent_question, scorecard_id } = parsed.data
+
+    // Check if we have enough context to provide meaningful guidance
+    if (!transcript_segment && !agent_question) {
+      return c.json({
+        success: false,
+        error: 'No context provided. Enable call transcription to get real-time guidance.',
+        guidance: 'To use the Co-Pilot, you need either:\n\n1. Real-time transcript segments (enable transcription on calls)\n2. A specific question about the call\n\nEnable transcription in your call settings to get AI-powered guidance during conversations.',
+      }, 400)
+    }
 
     // Build co-pilot context
     const contextParts: string[] = []

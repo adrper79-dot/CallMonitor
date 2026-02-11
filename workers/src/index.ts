@@ -83,6 +83,8 @@ export interface Env {
   NEON_PG_CONN: string
   AUTH_SECRET: string
   OPENAI_API_KEY: string
+  GROQ_API_KEY: string
+  GROK_API_KEY: string
   RESEND_API_KEY: string
   RESEND_FROM?: string
   RESEND_REPLY_TO?: string

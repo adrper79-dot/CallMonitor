@@ -34,9 +34,24 @@ export default function BondAICopilot({ callId, scorecardId, className }: Copilo
       if (data.success) {
         setGuidance(data.guidance)
         setLatency(data.latency_ms)
+      } else if (data.guidance) {
+        // API returned helpful guidance even on error (e.g., empty state message)
+        setGuidance(data.guidance)
       }
     } catch (err: any) {
-      setGuidance(`Unable to get guidance: ${err.message || 'Please try again'}`)
+      const errorMessage = err.message || 'Please try again'
+      if (errorMessage.includes('transcription')) {
+        setGuidance(
+          '📝 **Enable Transcription Required**\n\n' +
+            'The Co-Pilot needs real-time transcripts to provide guidance.\n\n' +
+            'To enable:\n' +
+            '1. Go to Call Settings\n' +
+            '2. Enable "Transcribe calls"\n' +
+            '3. Start a new call to see AI-powered suggestions'
+        )
+      } else {
+        setGuidance(`Unable to get guidance: ${errorMessage}`)
+      }
     } finally {
       setLoading(false)
     }
