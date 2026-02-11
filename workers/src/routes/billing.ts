@@ -116,32 +116,61 @@ async function getBillingInfo(c: any) {
           : org.plan || 'free'
 
     // Fetch subscription details from Stripe API if we have a subscription_id and API key
+    // Cache in KV for 5 minutes to avoid rate limiting (BL-007 fix)
     let nextBillingDate = null
     let amount = 0
     let cancelAtPeriodEnd = false
     let currentPeriodEnd = null
 
     if (c.env.STRIPE_SECRET_KEY && subscriptionData.subscription_id) {
+      const cacheKey = `stripe:sub:${subscriptionData.subscription_id}`
+
+      // Try cache first
+      let subscription: any = null
       try {
-        const stripeRes = await fetch(
-          `https://api.stripe.com/v1/subscriptions/${subscriptionData.subscription_id}`,
-          {
-            headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
-          }
-        )
-        if (stripeRes.ok) {
-          const subscription = (await stripeRes.json()) as any
-          nextBillingDate = subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000).toISOString()
-            : null
-          currentPeriodEnd = nextBillingDate
-          amount = subscription.items?.data?.[0]?.price?.unit_amount || 0
-          cancelAtPeriodEnd = subscription.cancel_at_period_end || false
+        const cached = await c.env.KV.get(cacheKey, 'json')
+        if (cached) {
+          subscription = cached
+          logger.info('Stripe subscription fetched from cache', {
+            subscription_id: subscriptionData.subscription_id,
+          })
         }
       } catch (err) {
-        logger.warn('Failed to fetch Stripe subscription details', {
-          subscription_id: subscriptionData.subscription_id,
-        })
+        logger.warn('KV cache read failed for Stripe subscription', { error: String(err) })
+      }
+
+      // Fetch from Stripe if not cached
+      if (!subscription) {
+        try {
+          const stripeRes = await fetch(
+            `https://api.stripe.com/v1/subscriptions/${subscriptionData.subscription_id}`,
+            {
+              headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+            }
+          )
+          if (stripeRes.ok) {
+            subscription = (await stripeRes.json()) as any
+            // Cache for 5 minutes (300 seconds)
+            c.env.KV.put(cacheKey, JSON.stringify(subscription), { expirationTtl: 300 }).catch(
+              () => {
+                logger.warn('Failed to cache Stripe subscription in KV')
+              }
+            )
+          }
+        } catch (err) {
+          logger.warn('Failed to fetch Stripe subscription details', {
+            subscription_id: subscriptionData.subscription_id,
+          })
+        }
+      }
+
+      if (subscription) {
+        nextBillingDate = subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null
+        currentPeriodEnd = nextBillingDate
+        amount = subscription.items?.data?.[0]?.price?.unit_amount || 0
+        cancelAtPeriodEnd = subscription.cancel_at_period_end || false
       }
     }
 
