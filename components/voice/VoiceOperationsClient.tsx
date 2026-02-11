@@ -556,7 +556,7 @@ function VoiceOperationsInner({
                 onModeChange={setCallingMode}
                 disabled={!!activeCallId}
               />
-              {callingMode === 'phone' && !activeCallId && (
+              {callingMode === 'phone' && (
                 <ExecutionControls
                   organizationId={organizationId}
                   onCallPlaced={handleCallPlaced}
