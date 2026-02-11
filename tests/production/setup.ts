@@ -106,18 +106,24 @@ export async function apiCall(
  * Returns a session token that can be used in API requests
  */
 export async function createTestSession(): Promise<string | null> {
-  // Auth tables are in public schema with snake_case columns
-  // First check for existing user
-  const authUsers = await query(`
-    SELECT id FROM public.users LIMIT 1
-  `)
+  // Use TEST_USER_ID from environment to ensure correct organization context
+  const authUserId = TEST_USER_ID
 
-  if (authUsers.length === 0) {
-    console.log('⚠️ No users found, cannot create session')
+  if (!authUserId) {
+    console.log('⚠️ TEST_USER_ID not set, cannot create session')
     return null
   }
 
-  const authUserId = authUsers[0].id
+  // Verify user exists
+  const authUsers = await query(
+    `SELECT id FROM public.users WHERE id = $1`,
+    [authUserId]
+  )
+
+  if (authUsers.length === 0) {
+    console.log(`⚠️ User ${authUserId} not found, cannot create session`)
+    return null
+  }
 
   // Check if user has a valid session
   const sessions = await query(
@@ -214,3 +220,10 @@ export async function verifyTestAccount(): Promise<{
 export async function globalTeardown(): Promise<void> {
   await pool.end()
 }
+
+// Auto-cleanup: end pool when process exits (prevents stale connections
+// and avoids "Connection terminated unexpectedly" when multiple test files
+// share the same pool singleton)
+process.on('beforeExit', () => {
+  pool.end().catch(() => {})
+})

@@ -5,11 +5,67 @@
  * - Every 5 min: Retry failed transcriptions
  * - Hourly: Cleanup expired sessions
  * - Daily: Usage aggregation
+ *
+ * Monitoring: Tracks execution metrics in KV for health endpoint
  */
 
 import type { Env } from './index'
 import { getDb } from './lib/db'
 import { logger } from './lib/logger'
+
+// Cron job monitoring helpers
+interface CronMetrics {
+  last_run: string // ISO timestamp
+  last_success: string | null
+  last_error: string | null
+  processed_count: number
+  error_count: number
+  duration_ms: number
+}
+
+async function trackCronExecution(
+  env: Env,
+  jobName: string,
+  fn: () => Promise<{ processed: number; errors: number }>
+): Promise<void> {
+  const startTime = Date.now()
+  const timestamp = new Date().toISOString()
+
+  try {
+    await env.KV.put(`cron:last_run:${jobName}`, timestamp)
+
+    const result = await fn()
+    const duration = Date.now() - startTime
+
+    const metrics: CronMetrics = {
+      last_run: timestamp,
+      last_success: timestamp,
+      last_error: null,
+      processed_count: result.processed,
+      error_count: result.errors,
+      duration_ms: duration,
+    }
+
+    await env.KV.put(`cron:metrics:${jobName}`, JSON.stringify(metrics))
+    logger.info(`Cron job completed: ${jobName}`, { duration, ...result })
+  } catch (error) {
+    const duration = Date.now() - startTime
+    const errorMsg = (error as Error)?.message || 'Unknown error'
+
+    const metrics: CronMetrics = {
+      last_run: timestamp,
+      last_success: null,
+      last_error: errorMsg,
+      processed_count: 0,
+      error_count: 1,
+      duration_ms: duration,
+    }
+
+    await env.KV.put(`cron:metrics:${jobName}`, JSON.stringify(metrics))
+    logger.error(`Cron job failed: ${jobName}`, { error: errorMsg, duration })
+    throw error // Re-throw for scheduler awareness
+  }
+}
 
 export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
   const cron = event.cron
@@ -17,13 +73,15 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
   try {
     switch (cron) {
       case '*/5 * * * *':
-        await retryFailedTranscriptions(env)
+        await trackCronExecution(env, 'retry_transcriptions', () =>
+          retryFailedTranscriptions(env)
+        )
         break
       case '0 * * * *':
-        await cleanupExpiredSessions(env)
+        await trackCronExecution(env, 'cleanup_sessions', () => cleanupExpiredSessions(env))
         break
       case '0 0 * * *':
-        await aggregateUsage(env)
+        await trackCronExecution(env, 'aggregate_usage', () => aggregateUsage(env))
         break
     }
   } catch (error) {
@@ -36,8 +94,12 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
  * Retry failed transcriptions
  * Runs every 5 minutes
  */
-async function retryFailedTranscriptions(env: Env): Promise<void> {
+async function retryFailedTranscriptions(
+  env: Env
+): Promise<{ processed: number; errors: number }> {
   const db = getDb(env)
+  let processedCount = 0
+  let errorCount = 0
 
   try {
     // Find calls with failed transcriptions that haven't been retried recently
@@ -104,7 +166,9 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
           callId: call.id,
           transcriptId: assemblyData.id,
         })
+        processedCount++
       } catch (error) {
+        errorCount++
         logger.warn('AssemblyAI retry exception', {
           callId: call.id,
           error: (error as Error)?.message,
@@ -112,6 +176,8 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
         // Skip failed individual retries
       }
     }
+
+    return { processed: processedCount, errors: errorCount }
   } finally {
     await db.end()
   }
@@ -121,15 +187,19 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
  * Cleanup expired sessions
  * Runs hourly
  */
-async function cleanupExpiredSessions(env: Env): Promise<void> {
+async function cleanupExpiredSessions(
+  env: Env
+): Promise<{ processed: number; errors: number }> {
   const db = getDb(env)
 
   try {
     // Delete expired sessions from public.sessions
-    await db.query(`
+    const result = await db.query(`
       DELETE FROM public.sessions
       WHERE expires < NOW()
     `)
+    
+    return { processed: result.rowCount || 0, errors: 0 }
   } finally {
     await db.end()
   }
@@ -139,7 +209,7 @@ async function cleanupExpiredSessions(env: Env): Promise<void> {
  * Aggregate daily usage statistics
  * Runs daily at midnight
  */
-async function aggregateUsage(env: Env): Promise<void> {
+async function aggregateUsage(env: Env): Promise<{ processed: number; errors: number }> {
   const db = getDb(env)
 
   try {
@@ -149,7 +219,7 @@ async function aggregateUsage(env: Env): Promise<void> {
     const dateStr = yesterday.toISOString().split('T')[0]
 
     // Aggregate call statistics per organization
-    await db.query(
+    const result = await db.query(
       `
     INSERT INTO usage_stats (organization_id, date, total_calls, total_duration_seconds, total_recordings)
     SELECT 
@@ -170,6 +240,9 @@ async function aggregateUsage(env: Env): Promise<void> {
   `,
       [dateStr]
     )
+    
+    const orgCount = result.rowCount || 0
+    return { processed: orgCount, errors: 0 }
   } finally {
     await db.end()
   }

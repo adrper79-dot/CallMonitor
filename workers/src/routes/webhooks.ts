@@ -40,6 +40,72 @@ import { deliverWithRetry, fanOutToSubscribers } from '../lib/webhook-retry'
 
 export const webhooksRoutes = new Hono<AppEnv>()
 
+// ─── SignalWire LaML Callback ──────────────────────────────────────────────
+// Public endpoint — SignalWire POSTs here when a call connects.
+// Returns minimal LaML XML: greet, pause, hang up.
+
+webhooksRoutes.post('/signalwire/laml/greeting', async (c) => {
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Response>',
+    '  <Say voice="Polly.Joanna">Hello from Word Is Bond. This is a test call. Goodbye.</Say>',
+    '  <Pause length="1"/>',
+    '  <Hangup/>',
+    '</Response>',
+  ].join('\n')
+
+  return c.body(xml, 200, { 'Content-Type': 'text/xml; charset=utf-8' })
+})
+
+// --- Dead Letter Queue (DLQ) Helper ---
+
+/**
+ * Store failed webhook processing attempt in KV Dead Letter Queue
+ * 
+ * Purpose: Preserve failed webhooks for manual inspection and replay
+ * Retention: 7 days (604800 seconds)
+ * 
+ * @param env - Workers environment with KV binding
+ * @param source - Webhook source (telnyx, stripe, assemblyai)
+ * @param eventType - Event type for categorization
+ * @param payload - Original webhook payload
+ * @param error - Error that caused the failure
+ */
+async function storeDLQ(
+  env: Env,
+  source: 'telnyx' | 'stripe' | 'assemblyai',
+  eventType: string,
+  payload: any,
+  error: string
+): Promise<void> {
+  try {
+    const timestamp = Date.now()
+    const key = `webhook-dlq:${source}:${timestamp}`
+
+    const dlqEntry = {
+      source,
+      event_type: eventType,
+      payload,
+      error,
+      timestamp: new Date(timestamp).toISOString(),
+      replay_url: `/api/internal/webhook-dlq/replay/${source}/${timestamp}`,
+    }
+
+    await env.KV.put(key, JSON.stringify(dlqEntry), {
+      expirationTtl: 604800, // 7 days
+    })
+
+    logger.info('Webhook stored in DLQ', { source, event_type: eventType, key })
+  } catch (dlqError) {
+    // Don't throw - DLQ failure shouldn't block webhook response
+    logger.error('Failed to store webhook in DLQ', {
+      error: (dlqError as Error)?.message,
+      source,
+      event_type: eventType,
+    })
+  }
+}
+
 // --- Signature verification helpers ---
 
 /**
@@ -249,6 +315,17 @@ webhooksRoutes.post('/telnyx', externalWebhookRateLimit, async (c) => {
     return c.json({ received: true })
   } catch (err: any) {
     logger.error('Telnyx webhook processing error', { error: err?.message, stack: err?.stack })
+    
+    // Store in DLQ for manual inspection
+    const body = await c.req.json().catch(() => ({}))
+    await storeDLQ(
+      c.env,
+      'telnyx',
+      body?.data?.event_type || 'unknown',
+      body,
+      err?.message || 'Unknown error'
+    )
+    
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -319,6 +396,17 @@ webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
     return c.json({ received: true })
   } catch (err: any) {
     logger.error('AssemblyAI webhook processing error')
+    
+    // Store in DLQ for manual inspection
+    const body = await c.req.json().catch(() => ({}))
+    await storeDLQ(
+      c.env,
+      'assemblyai',
+      body?.status || 'unknown',
+      body,
+      err?.message || 'Unknown error'
+    )
+    
     return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
@@ -371,6 +459,17 @@ webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
     return c.json({ received: true })
   } catch (err: any) {
     logger.error('Stripe webhook processing error')
+    
+    // Store in DLQ for manual inspection
+    const event = JSON.parse(await c.req.text()).catch(() => ({}))
+    await storeDLQ(
+      c.env,
+      'stripe',
+      event?.type || 'unknown',
+      event,
+      err?.message || 'Unknown error'
+    )
+    
     return c.json({ error: 'Webhook processing failed' }, 500)
   } finally {
     await db.end()

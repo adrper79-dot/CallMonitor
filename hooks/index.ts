@@ -20,7 +20,7 @@ export type {
 export { WebRTCProvider, useWebRTCContext, useOptionalWebRTC } from './WebRTCProvider'
 
 // Real-time updates
-export { useRealtime, usePolling } from './useRealtime'
+export { useRealtime, usePolling, RealtimeProvider } from './useRealtime'
 
 // Voice configuration
 export { useVoiceConfig, VoiceConfigProvider } from './useVoiceConfig'

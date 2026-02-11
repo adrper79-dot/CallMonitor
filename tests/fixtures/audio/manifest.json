@@ -1,0 +1,62 @@
+{
+  "es": {
+    "file": "es-tone-440hz.wav",
+    "frequency": 440,
+    "sha256": "9c8452f9410add638623f7749913e5eed96cb13d44809d8d816172418d767f82",
+    "bytes": 64044
+  },
+  "fr": {
+    "file": "fr-tone-494hz.wav",
+    "frequency": 494,
+    "sha256": "ace519daee161723c4b9ff519485d29723a1f36fa6cfcea0b3d7d71c5b25675e",
+    "bytes": 64044
+  },
+  "pt": {
+    "file": "pt-tone-523hz.wav",
+    "frequency": 523,
+    "sha256": "af5606825f929720e5eeef5b0d8044c13092a2a9f37ce17ba1bcf101c9f4d837",
+    "bytes": 64044
+  },
+  "de": {
+    "file": "de-tone-587hz.wav",
+    "frequency": 587,
+    "sha256": "873184796fb8b2dee999a359586c84475309e24e854c63df5899280f775268c5",
+    "bytes": 64044
+  },
+  "it": {
+    "file": "it-tone-659hz.wav",
+    "frequency": 659,
+    "sha256": "896eda4d1655104e0b9bcd89e6d8a2e0a7e3ad41014a2dcd90b3bc4feccdd51f",
+    "bytes": 64044
+  },
+  "zh": {
+    "file": "zh-tone-698hz.wav",
+    "frequency": 698,
+    "sha256": "cda82be8b77b337b340552c7898d22f700e456c4d2ac96dfb4162f39a06b141c",
+    "bytes": 64044
+  },
+  "ja": {
+    "file": "ja-tone-784hz.wav",
+    "frequency": 784,
+    "sha256": "b45c514b64ec12dabc40aeda366bf4394024699771e2f7215953225f6af69c6f",
+    "bytes": 64044
+  },
+  "ar": {
+    "file": "ar-tone-880hz.wav",
+    "frequency": 880,
+    "sha256": "0e7789b96c9b7b87bdd4d6dbce90c38cf2e0b26067f317a71319e600d3817348",
+    "bytes": 64044
+  },
+  "en": {
+    "file": "en-tone-330hz.wav",
+    "frequency": 330,
+    "sha256": "8909831c7f9c4e6d8982157e588a78f2f48de54002903385a3f047bb1087263a",
+    "bytes": 64044
+  },
+  "silence": {
+    "file": "silence-tone-0hz.wav",
+    "frequency": 0,
+    "sha256": "20eaebffe1816e0ffa6f7f854f5ef4ea80d5349faaf0ce1fec1b713e7fde58fa",
+    "bytes": 64044
+  }
+}

@@ -391,4 +391,83 @@ describe('Live Workers API Tests', () => {
       expect(latency_ms).toBeLessThan(1000)
     })
   })
+
+  // ─── MONITORING ENDPOINTS ─────────────────────────────────────────────────
+
+  describe('Internal Monitoring Endpoints', () => {
+    test('GET /api/internal/cron-health returns cron job status', async () => {
+      if (apiHealth.status === 'down') {
+        console.log('⛔ SKIPPED — API DOWN')
+        return
+      }
+
+      const { status, data, service_reachable } = await apiCall('GET', '/api/internal/cron-health')
+      expect(service_reachable, 'API SERVICE DOWN during cron health check').toBe(true)
+      expect(status).toBe(200)
+
+      expect(data).toHaveProperty('jobs')
+      expect(Array.isArray(data.jobs)).toBe(true)
+
+      // Should have our 3 cron jobs
+      const jobNames = data.jobs.map((j: any) => j.job_name)
+      expect(jobNames).toContain('retry_transcriptions')
+      expect(jobNames).toContain('aggregate_usage')
+      expect(jobNames).toContain('cleanup_sessions')
+
+      // Each job should have status and metrics
+      data.jobs.forEach((job: any) => {
+        expect(['healthy', 'degraded', 'down', 'unknown']).toContain(job.status)
+        expect(job).toHaveProperty('last_run')
+        expect(job).toHaveProperty('staleness_minutes')
+      })
+
+      console.log(`   ⏰ Cron health: ${data.jobs.length} jobs monitored`)
+    })
+
+    test('GET /api/internal/webhook-dlq returns failed webhook entries', async () => {
+      if (apiHealth.status === 'down') {
+        console.log('⛔ SKIPPED — API DOWN')
+        return
+      }
+
+      const { status, data, service_reachable } = await apiCall('GET', '/api/internal/webhook-dlq')
+      expect(service_reachable, 'API SERVICE DOWN during DLQ check').toBe(true)
+      expect(status).toBe(200)
+
+      expect(data).toHaveProperty('entries')
+      expect(Array.isArray(data.entries)).toBe(true)
+      expect(data).toHaveProperty('total_count')
+      expect(typeof data.total_count).toBe('number')
+
+      console.log(`   📬 DLQ entries: ${data.total_count}`)
+    })
+
+    test('GET /api/internal/schema-health validates database schema', async () => {
+      if (apiHealth.status === 'down') {
+        console.log('⛔ SKIPPED — API DOWN')
+        return
+      }
+
+      const { status, data, service_reachable } = await apiCall('GET', '/api/internal/schema-health')
+      expect(service_reachable, 'API SERVICE DOWN during schema health check').toBe(true)
+      expect(status).toBe(200)
+
+      expect(data).toHaveProperty('status')
+      expect(data).toHaveProperty('tables')
+      expect(data).toHaveProperty('timestamp')
+
+      // Should validate critical tables
+      const criticalTables = ['calls', 'users', 'organizations', 'voice_configs', 'usage_stats']
+      criticalTables.forEach(tableName => {
+        expect(data.tables).toHaveProperty(tableName)
+        const tableInfo = data.tables[tableName]
+        expect(tableInfo).toHaveProperty('status')
+        expect(tableInfo).toHaveProperty('column_count')
+        expect(tableInfo).toHaveProperty('missing_columns')
+        expect(Array.isArray(tableInfo.missing_columns)).toBe(true)
+      })
+
+      console.log(`   🗄️ Schema health: ${data.status}`)
+    })
+  })
 })

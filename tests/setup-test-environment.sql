@@ -101,6 +101,7 @@ BEGIN
   -- 4. CREATE VOICE CONFIGURATION
   -- ============================================================================
   INSERT INTO voice_configs (
+    id,
     organization_id,
     record,
     transcribe,
@@ -109,6 +110,7 @@ BEGIN
     translate_to,
     updated_at
   ) VALUES (
+    gen_random_uuid(),
     v_org_id,
     true,  -- Enable recording
     true,  -- Enable transcription
@@ -119,14 +121,32 @@ BEGIN
   );
 
   -- ============================================================================
-  -- 5. CREATE SUBSCRIPTION
+  -- 5. CREATE ORG MEMBERSHIP
+  -- ============================================================================
+  -- Add all users to org_members (required for auth)
+  INSERT INTO org_members (user_id, organization_id, role, created_at)
+  SELECT 
+    u.id,
+    v_org_id,
+    CASE 
+      WHEN u.role = 'agent' THEN 'admin'
+      ELSE 'user'
+    END,
+    NOW()
+  FROM users u
+  WHERE u.organization_id = v_org_id;
+
+  -- ============================================================================
+  -- 6. CREATE SUBSCRIPTION
   -- ============================================================================
   INSERT INTO subscriptions (
+    id,
     organization_id,
     plan,
     status,
     created_at
   ) VALUES (
+    gen_random_uuid(),
     v_org_id,
     'enterprise',
     'active',
@@ -134,7 +154,7 @@ BEGIN
   );
 
   -- ============================================================================
-  -- 6. VERIFY CREATION
+  -- 7. VERIFY CREATION
   -- ============================================================================
   RAISE NOTICE '============================================================================';
   RAISE NOTICE 'Test Environment Provisioned Successfully';
@@ -171,32 +191,32 @@ END $$;
 COMMIT;
 
 -- ============================================================================
--- 7. DISPLAY TEST CREDENTIALS
+-- 8. DISPLAY TEST CREDENTIALS
 -- ============================================================================
 \echo '\n============================================================================'
 \echo 'Test Users Created'
 \echo '============================================================================'
 SELECT 
-  email,
-  name,
-  role,
-  organization_id
+  u.email,
+  u.name,
+  u.role,
+  u.organization_id
 FROM users u
 JOIN organizations o ON u.organization_id = o.id
 WHERE o.name = 'Word Is Bond QA Team'
-ORDER BY role DESC, email;
+ORDER BY u.role DESC, u.email;
 
 \echo '\n============================================================================'
 \echo 'Organization Details'
 \echo '============================================================================'
 SELECT 
-  id,
-  name,
-  plan,
-  provisioned_number,
-  plan_status
-FROM organizations 
-WHERE name = 'Word Is Bond QA Team';
+  o.id,
+  o.name,
+  o.plan,
+  o.provisioned_number,
+  o.plan_status
+FROM organizations o
+WHERE o.name = 'Word Is Bond QA Team';
 
 \echo '\n============================================================================'
 \echo 'Environment Ready for E2E Testing'

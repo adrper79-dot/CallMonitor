@@ -48,6 +48,7 @@ import { audioRoutes } from './routes/audio'
 import { reliabilityRoutes } from './routes/reliability'
 import { adminRoutes } from './routes/admin'
 import { complianceRoutes } from './routes/compliance'
+import { internalRoutes } from './routes/internal'
 import { collectionsRoutes } from './routes/collections'
 import { sentimentRoutes } from './routes/sentiment'
 import { onboardingRoutes } from './routes/onboarding'
@@ -234,6 +235,7 @@ app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/dialer', dialerRoutes)
 app.route('/api/ivr', ivrRoutes)
 app.route('/api/ai-toggle', aiToggleRoutes)
+app.route('/api/internal', internalRoutes) // Monitoring and health endpoints
 app.route('/api/admin/metrics', adminMetricsRoutes)
 
 // Root endpoint

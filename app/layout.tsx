@@ -5,6 +5,7 @@ import AuthProvider from '../components/AuthProvider'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { ToastProvider } from '../components/ui/toast'
 import { ThemeProvider } from '../components/theme-provider'
+import { RealtimeProvider } from '../hooks/useRealtime'
 
 // Jetsons-inspired typography
 const spaceGrotesk = Space_Grotesk({
@@ -76,7 +77,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               enableSystem
               disableTransitionOnChange
             >
-              <ToastProvider>{children}</ToastProvider>
+              <RealtimeProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </RealtimeProvider>
             </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>

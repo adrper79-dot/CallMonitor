@@ -322,8 +322,8 @@ export const gatherRateLimit = rateLimit({ limit: 20, windowSeconds: 60, prefix:
 /** RBAC permission queries: 30 per 5 minutes per IP */
 export const rbacRateLimit = rateLimit({ limit: 30, windowSeconds: 5 * 60, prefix: 'rl:rbac' })
 
-/** Audit log queries: 20 per 5 minutes per IP */
-export const auditRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:audit' })
+/** Audit log queries: 100 per 5 minutes per IP (UI polling - ActivityFeed, CallList, etc.) */
+export const auditRateLimit = rateLimit({ limit: 100, windowSeconds: 5 * 60, prefix: 'rl:audit' })
 
 /** External webhook receivers: 100 per minute per IP (Telnyx/AssemblyAI/Stripe) */
 export const externalWebhookRateLimit = rateLimit({ limit: 100, windowSeconds: 60, prefix: 'rl:ext-webhook' })

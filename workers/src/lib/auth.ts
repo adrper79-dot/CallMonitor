@@ -82,7 +82,7 @@ export async function verifySession(
         om.organization_id,
         om.role
       FROM public.sessions s
-      JOIN public.users u ON u.id = s.user_id::text
+      JOIN public.users u ON u.id = s.user_id
       LEFT JOIN org_members om ON om.user_id = u.id
       WHERE s.session_token = $1 AND s.expires > NOW()
       LIMIT 1
