@@ -2,7 +2,7 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Last Updated:** February 11, 2026 (Session 10 — Rogue Agent Schema Drift Fix)
+**Last Updated:** February 11, 2026 (Session 14 — Authentication Silent Failure Fix)
 **Applicable Versions:** v4.8 – v4.51
 
 ---
@@ -30,7 +30,7 @@ Remove all `::text` casts from JOIN conditions — since both sides are now `uui
 -- BROKEN (text = uuid)
 LEFT JOIN org_members om ON om.user_id::text = u.id
 
--- FIXED (uuid = uuid)  
+-- FIXED (uuid = uuid)
 LEFT JOIN org_members om ON om.user_id = u.id
 ```
 
@@ -50,6 +50,65 @@ LEFT JOIN org_members om ON om.user_id = u.id
 
 ---
 
+## 🔴 CRITICAL — Authentication Silent Failure: Database Query Errors Break Login (v4.51)
+
+**Session verification queries with incorrect type casts cause login to succeed but access to fail silently. Users see successful login followed by immediate redirect back to signin page.**
+
+### The Symptom
+
+- ✅ Login form accepts credentials
+- ✅ API returns session token
+- ✅ Frontend stores token in localStorage
+- ❌ Dashboard redirects to signin (session invalid)
+- ❌ No visible error messages
+
+### Root Cause
+
+Incorrect database JOIN in `verifySession()` used `::text` cast on UUID columns:
+
+```sql
+-- BROKEN: Causes "operator does not exist: uuid = text" error
+JOIN public.users u ON u.id = s.user_id::text
+```
+
+Both `users.id` and `sessions.user_id` are UUID type, but the query cast `sessions.user_id` to text, creating an invalid `uuid = text` comparison that PostgreSQL rejects.
+
+### The Fix
+
+Remove unnecessary `::text` cast since both columns are UUID:
+
+```sql
+-- FIXED: Direct UUID comparison
+JOIN public.users u ON u.id = s.user_id
+```
+
+### Why It Matters
+
+1. **Silent Authentication Failures:** Database errors in `verifySession()` return `null` instead of throwing, causing login to appear successful but sessions to be invalid
+2. **Poor User Experience:** Users complete login flow successfully only to be immediately redirected back to signin
+3. **Hard to Debug:** No error logs visible to users, requires database query inspection
+4. **Production Impact:** Complete authentication system failure despite login appearing to work
+
+### Files Fixed
+
+- `workers/src/lib/auth.ts:79` — `verifySession()` database query (THE LOGIN BREAKER)
+
+### Verification
+
+- ✅ Session verification returns user data instead of `null`
+- ✅ Login → Dashboard access works end-to-end
+- ✅ Database query executes without type errors
+- ✅ Authentication flow fully functional
+
+### Lesson
+
+1. **Database query errors in auth are SILENT DEATH** — `verifySession()` catches all errors and returns `null`, masking critical issues
+2. **Test authentication end-to-end** — Unit tests may pass while integration fails due to type mismatches
+3. **Log database errors aggressively** — Auth failures should be logged with full context for debugging
+4. **Validate JOIN conditions** — Always verify column types match in database queries, especially in auth code
+
+---
+
 ## 🔴 CRITICAL — Webhook Security: Never Bypass Signature Verification (v4.29)
 
 **Webhook endpoints must enforce signature verification MANDATORILY. Bypassing verification when secrets are missing creates critical security vulnerabilities allowing fake webhook injection.**
@@ -61,7 +120,9 @@ LEFT JOIN org_members om ON om.user_id = u.id
 if (webhookSecret) {
   // verify signature
 } else {
-  logger.warn('ASSEMBLYAI_WEBHOOK_SECRET not configured — accepting unverified webhook (configure secret for production)')
+  logger.warn(
+    'ASSEMBLYAI_WEBHOOK_SECRET not configured — accepting unverified webhook (configure secret for production)'
+  )
 }
 ```
 
@@ -103,7 +164,7 @@ if (!webhookSecret) {
 
 ```typescript
 routes.get('/resource', async (c) => {
-  const db = getDb(c.env)          // ❌ Opens DB connection for unauthenticated request
+  const db = getDb(c.env) // ❌ Opens DB connection for unauthenticated request
   try {
     const session = c.get('session') // ❌ No requireAuth() called yet
     // ... handler logic
@@ -117,8 +178,8 @@ routes.get('/resource', async (c) => {
 
 ```typescript
 routes.get('/resource', async (c) => {
-  const session = c.get('session')   // ✅ Middleware already validated auth
-  const db = getDb(c.env)            // ✅ Only opens DB for authenticated requests
+  const session = c.get('session') // ✅ Middleware already validated auth
+  const db = getDb(c.env) // ✅ Only opens DB for authenticated requests
   try {
     // ... handler logic
   } finally {
@@ -136,14 +197,14 @@ routes.get('/resource', async (c) => {
 
 ### Files Fixed (32 handlers)
 
-| File | Handlers Fixed |
-|------|---------------|
-| campaigns.ts | 6 |
-| bond-ai.ts | 13 |
-| retention.ts | 5 |
-| surveys.ts | 3 |
-| shopper.ts | 3 |
-| reliability.ts | 2 |
+| File           | Handlers Fixed |
+| -------------- | -------------- |
+| campaigns.ts   | 6              |
+| bond-ai.ts     | 13             |
+| retention.ts   | 5              |
+| surveys.ts     | 3              |
+| shopper.ts     | 3              |
+| reliability.ts | 2              |
 
 ### Audit Methodology
 
@@ -164,13 +225,13 @@ Automated agent scanned all 44 route files with regex pattern detecting `getDb` 
  * Campaign Management Page
  * ... JSDoc comment block ...
  */
-'use client'  // ❌ Line 9 — Next.js ignores this, treats as server component
+'use client' // ❌ Line 9 — Next.js ignores this, treats as server component
 ```
 
 ### The Fix
 
 ```tsx
-'use client'  // ✅ Line 1 — correctly marks as client component
+'use client' // ✅ Line 1 — correctly marks as client component
 /**
  * Campaign Management Page
  * ... JSDoc comment block ...
@@ -195,21 +256,23 @@ Automated agent scanned all 44 route files with regex pattern detecting `getDb` 
 ### Why It's Critical
 
 Unprotected mutation endpoints create real-world cost exposure:
+
 - **Onboarding POST /setup** creates a Stripe customer AND orders a Telnyx phone number — each costing real money
 - **Dialer endpoints** trigger actual phone calls via Telnyx API
 - **Reliability endpoints** trigger extensive database operations
 
 ### Rate Limiters Created
 
-| Limiter | Limit | Window | Endpoints |
-|---------|-------|--------|-----------|
-| `onboardingRateLimit` | 3 | 15 min | POST /setup, POST /progress |
-| `dialerRateLimit` | 30 | 5 min | Dialer mutation endpoints |
-| `reliabilityRateLimit` | 10 | 5 min | Reliability mutation endpoints |
+| Limiter                | Limit | Window | Endpoints                      |
+| ---------------------- | ----- | ------ | ------------------------------ |
+| `onboardingRateLimit`  | 3     | 15 min | POST /setup, POST /progress    |
+| `dialerRateLimit`      | 30    | 5 min  | Dialer mutation endpoints      |
+| `reliabilityRateLimit` | 10    | 5 min  | Reliability mutation endpoints |
 
 ### Audit Checklist for New Endpoints
 
 When creating any new endpoint:
+
 1. **Read-only?** → Apply read rate limiter (e.g., 60/min)
 2. **Mutation?** → Apply mutation rate limiter (e.g., 10-30/5min)
 3. **Creates external resources?** → Apply strict limiter (e.g., 3/15min)
@@ -231,6 +294,7 @@ User: "I don't believe translation is working"
 ### The Investigation
 
 Comprehensive Telnyx integration audit revealed:
+
 - ✅ E.164 phone number validation correct
 - ✅ Call flows (direct, bridge, WebRTC) compliant with Telnyx v2 API
 - ✅ Translation pipeline correctly implemented:
@@ -245,7 +309,7 @@ Comprehensive Telnyx integration audit revealed:
 ```typescript
 const translationConfig = await getTranslationConfig(db, orgId)
 if (!translationConfig || !translationConfig.live_translate) {
-  return  // ← EXITS HERE if flag is false!
+  return // ← EXITS HERE if flag is false!
 }
 ```
 
@@ -264,14 +328,16 @@ Translation feature was **correctly implemented** but **disabled via configurati
 ### The Fix
 
 **Simple SQL:**
+
 ```sql
-UPDATE voice_configs 
+UPDATE voice_configs
 SET live_translate = true, transcribe = true,
     translate_from = 'en', translate_to = 'es'
 WHERE organization_id = 'TARGET_ORG_ID';
 ```
 
 **Or via API:**
+
 ```bash
 curl -X PUT /api/voice/config \
   -H "Authorization: Bearer TOKEN" \
@@ -286,6 +352,7 @@ curl -X PUT /api/voice/config \
    - Organization settings control access levels
 
 2. **Add telemetry for disabled features:**
+
    ```typescript
    if (!translationConfig || !translationConfig.live_translate) {
      logger.info('Translation skipped - disabled for org', { orgId })
@@ -304,6 +371,7 @@ curl -X PUT /api/voice/config \
 ### Compliance Verified (Telnyx Integration)
 
 While investigating translation, full Telnyx audit revealed **10/10 compliance:**
+
 - ✅ E.164 phone validation (`/^\+[1-9]\d{1,14}$/`)
 - ✅ Correct `connection_id` (Call Control App ID)
 - ✅ Transcription engine "B" (Telnyx v2)
@@ -326,6 +394,7 @@ While investigating translation, full Telnyx audit revealed **10/10 compliance:*
 ### The Validation
 
 Session 6 Turn 22 comprehensive feature validation (3 agents, 43 routes analyzed) found 4 instances of this pattern:
+
 - `ai-transcribe.ts`: GET /status/:id, GET /result/:id
 - `ai-llm.ts`: POST /chat, POST /analyze
 
@@ -378,18 +447,21 @@ try {
 ### Detection & Prevention
 
 **Detection:**
+
 ```bash
 # Search for getDb inside try blocks
 grep -A 3 "try {" workers/src/routes/*.ts | grep "getDb"
 ```
 
 **Linting Rule (future):**
+
 ```typescript
 // ESLint rule idea: flag getDb not followed by try within 5 lines
 // Require getDb declaration before try block
 ```
 
 **Code Review Checklist:**
+
 - [ ] Every `getDb()` call has `finally { await db.end() }`
 - [ ] `db` variable declared BEFORE `try` block
 - [ ] No early returns without db.end() (all returns go through finally)
@@ -408,7 +480,7 @@ grep -A 3 "try {" workers/src/routes/*.ts | grep "getDb"
 
 ---
 
-## 🟡 HIGH — SELECT * Anti-Pattern: Network Overhead & PII Leakage (v4.39)
+## 🟡 HIGH — SELECT \* Anti-Pattern: Network Overhead & PII Leakage (v4.39)
 
 **Always specify explicit column lists. `SELECT *` wastes bandwidth, exposes unnecessary data, and creates compliance risks.**
 
@@ -422,7 +494,7 @@ SELECT *, COUNT(*) OVER() as total_count FROM reports
 WHERE organization_id = $1
 
 -- ✅ GOOD: Explicit columns only
-SELECT id, name, created_at, report_type, status, 
+SELECT id, name, created_at, report_type, status,
        COUNT(*) OVER() as total_count
 FROM reports
 WHERE organization_id = $1
@@ -430,12 +502,12 @@ WHERE organization_id = $1
 
 ### Impact
 
-| Issue | Severity | Details |
-|-------|----------|---------|
-| **Network Overhead** | HIGH | ~40% extra bandwidth (unused jsonb columns, audit fields) |
-| **PII Leakage** | MEDIUM | May expose `created_by_email`, `internal_notes`, etc. |
-| **GDPR Risk** | MEDIUM | Data minimization violation (returning more than necessary) |
-| **Performance** | LOW | Marginal (indexes still used) |
+| Issue                | Severity | Details                                                     |
+| -------------------- | -------- | ----------------------------------------------------------- |
+| **Network Overhead** | HIGH     | ~40% extra bandwidth (unused jsonb columns, audit fields)   |
+| **PII Leakage**      | MEDIUM   | May expose `created_by_email`, `internal_notes`, etc.       |
+| **GDPR Risk**        | MEDIUM   | Data minimization violation (returning more than necessary) |
+| **Performance**      | LOW      | Marginal (indexes still used)                               |
 
 ### Why It Happens
 
@@ -462,6 +534,7 @@ WHERE organization_id = $1
 ### The Gap
 
 Comprehensive validation found:
+
 - ✅ 100% of mutation endpoints protected (billing, calls, team, voice confirmed)
 - ❌ RBAC permission lookups unprotected (GET /context, /check, /roles)
 - ❌ Audit log reads unprotected (GET /audit)
@@ -503,12 +576,12 @@ auditRoutes.get('/', auditRateLimit, async (c) => { ... })
 
 ### Recommended Limits (from validation)
 
-| Endpoint Type | Limit | Window | Rationale |
-|---------------|-------|--------|-----------|
-| RBAC Checks | 100 | 1 min | Frequent permission checks normal |
-| Audit Logs | 30 | 5 min | Pagination-heavy, less frequent |
-| Analytics | 60 | 5 min | Complex queries, moderate use |
-| Webhooks (receiver) | 1000 | 1 min | High volume expected, but prevent DDoS |
+| Endpoint Type       | Limit | Window | Rationale                              |
+| ------------------- | ----- | ------ | -------------------------------------- |
+| RBAC Checks         | 100   | 1 min  | Frequent permission checks normal      |
+| Audit Logs          | 30    | 5 min  | Pagination-heavy, less frequent        |
+| Analytics           | 60    | 5 min  | Complex queries, moderate use          |
+| Webhooks (receiver) | 1000  | 1 min  | High volume expected, but prevent DDoS |
 
 **BL-SEC-005, BL-SEC-006, BL-VOICE-001 created** - P0/P1 priorities
 
@@ -552,10 +625,10 @@ const oldState = await db.query(
 )
 
 // Perform mutation
-const result = await db.query(
-  'UPDATE organizations SET subscription_status = $1 WHERE id = $2',
-  ['cancelling', session.organization_id]
-)
+const result = await db.query('UPDATE organizations SET subscription_status = $1 WHERE id = $2', [
+  'cancelling',
+  session.organization_id,
+])
 
 // Log with both old and new values
 writeAuditLog(db, {
@@ -564,13 +637,13 @@ writeAuditLog(db, {
   resourceType: 'billing',
   resourceId: subscriptionId,
   action: AuditAction.SUBSCRIPTION_CANCELLED,
-  oldValue: { 
+  oldValue: {
     status: oldState.rows[0].subscription_status,
-    plan: oldState.rows[0].plan
+    plan: oldState.rows[0].plan,
   },
-  newValue: { 
+  newValue: {
     status: 'cancelling',
-    cancel_at_period_end: true
+    cancel_at_period_end: true,
   },
 })
 ```
@@ -1987,12 +2060,16 @@ Deleted corrupted file with `Remove-Item components\SearchbarCopilot.tsx` and re
 ```tsx
 const SearchbarCopilot = forwardRef<{ openSearch: () => void }>((props, ref) => {
   const [isOpen, setIsOpen] = useState(false)
-  
+
   // Expose openSearch method via ref
-  useImperativeHandle(ref, () => ({
-    openSearch: () => setIsOpen(true)
-  }), [])
-  
+  useImperativeHandle(
+    ref,
+    () => ({
+      openSearch: () => setIsOpen(true),
+    }),
+    []
+  )
+
   // ... rest of component
 })
 
@@ -2007,7 +2084,7 @@ import SearchbarCopilot from './SearchbarCopilot'
 
 export default function Navigation() {
   const searchbarRef = useRef<{ openSearch: () => void } | null>(null)
-  
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -2017,16 +2094,12 @@ export default function Navigation() {
         }
       }
     }
-    
+
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isAuthenticated, isPublicPage])
-  
-  return (
-    <nav>
-      {isAuthenticated && <SearchbarCopilot ref={searchbarRef} />}
-    </nav>
-  )
+
+  return <nav>{isAuthenticated && <SearchbarCopilot ref={searchbarRef} />}</nav>
 }
 ```
 
@@ -2091,7 +2164,9 @@ Instead of a floating chat button in the corner (common but easy to miss), we in
 **Navigation Integration:**
 
 ```tsx
-{isAuthenticated && !isPublicPage && <SearchbarCopilot ref={searchbarRef} />}
+{
+  isAuthenticated && !isPublicPage && <SearchbarCopilot ref={searchbarRef} />
+}
 ```
 
 **Searchbar Trigger:**
@@ -2134,10 +2209,12 @@ Instead of a floating chat button in the corner (common but easy to miss), we in
 ### Migration Scope
 
 **Phase 1: Legacy ID Migration**
+
 - `call_translations.id`: INTEGER → UUID ✅
 - `kpi_logs.id`: BIGINT → UUID ✅
 
 **Phase 2: user_id Standardization**
+
 - 16 tables migrated: `access_grants_archived`, `alert_acknowledgements`, `audit_logs`, `bond_ai_conversations`, `booking_events`, `caller_id_default_rules`, `caller_id_permissions`, `campaign_audit_log`, `compliance_violations`, `dialer_agent_status`, `report_access_log`, `sessions`, `sso_login_events`, `team_members`, `tool_access`, `webrtc_sessions`
 - All user_id columns: UUID → TEXT ✅
 
@@ -2158,6 +2235,7 @@ ALTER TABLE table_name RENAME COLUMN user_id_text TO user_id;
 ```
 
 **Why This Works:**
+
 - No table locks during data migration
 - Maintains referential integrity
 - Safe rollback possible
@@ -2174,19 +2252,21 @@ ALTER TABLE table_name RENAME COLUMN user_id_text TO user_id;
 ### Codebase Updates Required
 
 **TypeScript Schema Updates:**
+
 ```typescript
 // Before
 user: z.object({
   id: z.string().uuid(), // ❌ Wrong after migration
 })
 
-// After  
+// After
 user: z.object({
   id: z.string(), // ✅ Correct - now TEXT
 })
 ```
 
 **Database Casting Removed:**
+
 - No more `user_id::uuid` casts in queries
 - Direct string operations on user_id fields
 - Updated API client expectations
@@ -2194,18 +2274,18 @@ user: z.object({
 ### Migration Timeline
 
 - **Phase 1:** 5 minutes (ID migrations)
-- **Phase 2:** 8 minutes (user_id standardization)  
+- **Phase 2:** 8 minutes (user_id standardization)
 - **Testing:** 10 minutes (validation on temporary branches)
 - **Code Updates:** 5 minutes (schema and type fixes)
 - **Documentation:** 5 minutes (lessons learned, migration log)
 
 ### Files Modified
 
-| Component | Files Changed | Change Type |
-|-----------|---------------|-------------|
-| Database | `migrations/2026-02-10-session7-rls-security-hardening.sql` | Added migration SQL |
-| Frontend Types | `lib/schemas/api.ts` | Updated user.id from UUID to string |
-| Documentation | `ARCH_DOCS/LESSONS_LEARNED.md` | Added migration lessons |
+| Component      | Files Changed                                               | Change Type                         |
+| -------------- | ----------------------------------------------------------- | ----------------------------------- |
+| Database       | `migrations/2026-02-10-session7-rls-security-hardening.sql` | Added migration SQL                 |
+| Frontend Types | `lib/schemas/api.ts`                                        | Updated user.id from UUID to string |
+| Documentation  | `ARCH_DOCS/LESSONS_LEARNED.md`                              | Added migration lessons             |
 
 ### Verification Commands
 
@@ -2214,9 +2294,9 @@ user: z.object({
 SELECT pg_typeof(id) FROM call_translations LIMIT 1; -- Should return 'uuid'
 SELECT pg_typeof(id) FROM kpi_logs LIMIT 1; -- Should return 'uuid'
 
--- Check user_id migrations  
-SELECT table_name, data_type 
-FROM information_schema.columns 
+-- Check user_id migrations
+SELECT table_name, data_type
+FROM information_schema.columns
 WHERE column_name = 'user_id' AND table_schema = 'public'
 ORDER BY table_name; -- All should be 'text'
 ```
@@ -2248,6 +2328,7 @@ ORDER BY table_name; -- All should be 'text'
 ### Solution
 
 Implemented multi-provider architecture:
+
 - Groq (Llama 4 Scout) for simple tasks (38% cheaper)
 - OpenAI for complex tasks (quality)
 - Grok Voice for TTS (83% cheaper)
@@ -2296,6 +2377,7 @@ Use cheap providers for commodity tasks (translation, simple chat), premium prov
 **Defined L4 testing standard** per ARCH_DOCS/05-REFERENCE/VALIDATION_PROCESS.md
 
 Created comprehensive L4 test suite:
+
 - L4.1: Audit Logging
 - L4.2: Tenant Isolation (RLS)
 - L4.3: Rate Limiting
@@ -2352,6 +2434,7 @@ L4 tests catch the bugs that slip through unit/integration tests. They're essent
 ### Key Insight
 
 Failing tests are good! They reveal:
+
 - Edge cases not handled
 - Overly brittle assertions
 - Missing error handling
@@ -2367,7 +2450,7 @@ expect(result.redacted).toBe('My SSN is [REDACTED_SSN] please help')
 
 // CORRECT - Pattern matching
 expect(result.redacted).toContain('[REDACTED_SSN]')
-expect(result.entities.some(e => e.type === 'ssn')).toBe(true)
+expect(result.entities.some((e) => e.type === 'ssn')).toBe(true)
 ```
 
 ---
@@ -2542,12 +2625,13 @@ Time spent on documentation is investment, not cost. One hour writing docs saves
 **Root Cause:** Test data generation prioritizes readability over database compatibility. PostgreSQL rejects non-UUID strings when column expects uuid type.
 
 **Solution:**
+
 ```typescript
 // ❌ BROKEN - string that looks like ID but isn't UUID
-const testUserId = "fixer-test-owner-001"
+const testUserId = 'fixer-test-owner-001'
 
 // ✅ FIXED - proper UUID format
-const testUserId = "550e8400-e29b-41d4-a716-446655440000"
+const testUserId = '550e8400-e29b-41d4-a716-446655440000'
 ```
 
 **Impact:** 15+ database tests failing, blocking CI/CD pipelines.
@@ -2569,13 +2653,14 @@ const testUserId = "550e8400-e29b-41d4-a716-446655440000"
 **Root Cause:** Production tests hit real APIs without rate limit awareness. External service rate limits cause intermittent failures.
 
 **Solution:**
+
 ```typescript
 // Add retry with exponential backoff
 async function apiCallWithRetry(method: string, url: string, retries = 3) {
   for (let i = 0; i < retries; i++) {
     const response = await apiCall(method, url)
     if (response.status !== 429) return response
-    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
+    await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, i)))
   }
   return apiCall(method, url) // Final attempt
 }
@@ -2590,6 +2675,7 @@ async function apiCallWithRetry(method: string, url: string, retries = 3) {
 **Root Cause:** Auth middleware runs before business logic, blocking requests before they reach 404 handlers.
 
 **Solution:** Either:
+
 1. Update test expectations to account for auth (401 for unauthenticated requests)
 2. Configure test auth to allow 404 responses through
 3. Mock auth middleware in tests
@@ -2602,7 +2688,8 @@ async function apiCallWithRetry(method: string, url: string, retries = 3) {
 
 **Root Cause:** Multiple rapid edits caused indentation and syntax corruption. No syntax validation during save.
 
-**Solution:** 
+**Solution:**
+
 - Use TypeScript-aware editors with real-time syntax checking
 - Run `tsc --noEmit` or `npx vitest --run --reporter=verbose` after edits
 - Keep test files simple and focused
@@ -2616,6 +2703,7 @@ async function apiCallWithRetry(method: string, url: string, retries = 3) {
 **Root Cause:** External tool dependencies not included in project setup or CI configuration.
 
 **Solution:**
+
 - Add k6 to `package.json` devDependencies
 - Use Docker-based k6 for consistent environments
 - Consider alternatives like Artillery or k6 cloud
