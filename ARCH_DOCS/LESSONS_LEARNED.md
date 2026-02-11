@@ -2726,5 +2726,3 @@ async function apiCallWithRetry(method: string, url: string, retries = 3) {
 6. **Tool Dependencies:** Include all testing tools in project setup
 7. **Test Isolation:** Mock external services to avoid rate limits
 8. **CI Stability:** Run tests multiple times to catch flakes
-
-<!-- Hook protection test -->
