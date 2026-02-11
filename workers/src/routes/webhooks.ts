@@ -737,11 +737,101 @@ async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
     const result = await db.query(
       `UPDATE calls 
        SET recording_url = $2
-       WHERE call_sid = $1 AND organization_id IS NOT NULL`,
+       WHERE call_sid = $1 AND organization_id IS NOT NULL
+       RETURNING id, organization_id`,
       [call_session_id, key]
     )
+    
     if (result.rowCount === 0) {
       logger.warn('webhook-update-no-match', { call_session_id, handler: 'handleRecordingSaved' })
+      return
+    }
+
+    const call = result.rows[0]
+    const callId = call.id
+    const orgId = call.organization_id
+
+    // Check if organization has transcription enabled
+    const configResult = await db.query(
+      `SELECT transcribe FROM voice_configs WHERE organization_id = $1 LIMIT 1`,
+      [orgId]
+    )
+
+    const shouldTranscribe = configResult.rows[0]?.transcribe === true
+    
+    if (shouldTranscribe && env.ASSEMBLYAI_API_KEY) {
+      try {
+        // Generate public URL for AssemblyAI to access recording
+        const recordingUrl = env.R2_PUBLIC_URL 
+          ? `${env.R2_PUBLIC_URL}/${key}`
+          : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${callId}`
+
+        const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
+
+        // Submit to AssemblyAI
+        const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+          method: 'POST',
+          headers: {
+            Authorization: env.ASSEMBLYAI_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audio_url: recordingUrl,
+            webhook_url: webhookUrl,
+            speaker_labels: true,
+            auto_highlights: true,
+            sentiment_analysis: true,
+            ...(env.ASSEMBLYAI_WEBHOOK_SECRET
+              ? {
+                  webhook_auth_header_name: 'Authorization',
+                  webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET,
+                }
+              : {}),
+          }),
+        })
+
+        if (assemblyRes.ok) {
+          const assemblyData = await assemblyRes.json<{ id: string }>()
+          
+          // Update call with pending transcription
+          await db.query(
+            `UPDATE calls 
+             SET transcript_status = 'pending', transcript_id = $1
+             WHERE id = $2`,
+            [assemblyData.id, callId]
+          )
+
+          logger.info('Auto-submitted recording for transcription', {
+            callId,
+            transcriptId: assemblyData.id,
+            organization_id: orgId,
+          })
+        } else {
+          const errText = await assemblyRes.text()
+          logger.error('AssemblyAI auto-submission failed', {
+            callId,
+            status: assemblyRes.status,
+            error: errText,
+          })
+          
+          // Mark as failed so retry cron can pick it up
+          await db.query(
+            `UPDATE calls SET transcript_status = 'failed' WHERE id = $1`,
+            [callId]
+          )
+        }
+      } catch (err) {
+        logger.error('Transcription submission exception', {
+          callId,
+          error: (err as Error)?.message,
+        })
+        
+        // Mark as failed for retry
+        await db.query(
+          `UPDATE calls SET transcript_status = 'failed' WHERE id = $1`,
+          [callId]
+        )
+      }
     }
   }
 }

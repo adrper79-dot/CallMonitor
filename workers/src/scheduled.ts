@@ -40,14 +40,15 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
   const db = getDb(env)
 
   try {
-    // Find calls with failed transcriptions that haven't exceeded retry limit
+    // Find calls with failed transcriptions that haven't been retried recently
+    // Use updated_at to avoid hammering failed submissions
     const result = await db.query(`
-    SELECT id, call_sid, recording_url, transcript_retries
+    SELECT id, call_sid, recording_url
     FROM calls
     WHERE transcript_status = 'failed'
-      AND transcript_retries < 3
       AND recording_url IS NOT NULL
       AND ended_at > NOW() - INTERVAL '24 hours'
+      AND (updated_at < NOW() - INTERVAL '5 minutes' OR updated_at IS NULL)
     LIMIT 10
   `)
 
@@ -92,8 +93,8 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
 
         await db.query(
           `UPDATE calls
-         SET transcript_status = 'pending',
-             transcript_retries = transcript_retries + 1,
+         SET transcript_id = $1,
+             updated_at = NOW() = transcript_retries + 1,
              transcript_id = $1
          WHERE id = $2`,
           [assemblyData.id, call.id]
