@@ -82,7 +82,9 @@ export function getDb(env: Env, orgId?: string): DbClient {
         // Set RLS session variable on first query if orgId provided
         // Uses a single SET LOCAL so it applies to the current transaction scope
         if (orgId && !rlsInitialized) {
-          await pool.query(`SET LOCAL app.current_org_id = '${orgId.replace(/[^a-f0-9-]/gi, '')}'`)
+          await pool.query(`SELECT set_config('app.current_org_id', $1, true)`, [
+            orgId.replace(/[^a-f0-9-]/gi, ''),
+          ])
           rlsInitialized = true
         }
         const result = await pool.query(sqlString, params)
@@ -107,4 +109,3 @@ export function getDb(env: Env, orgId?: string): DbClient {
     end: () => pool.end(),
   }
 }
-

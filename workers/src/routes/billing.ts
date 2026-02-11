@@ -262,6 +262,23 @@ billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
       return c.json({ error: 'Stripe not configured' }, 503)
     }
 
+    // Verify the payment method belongs to this org's Stripe customer
+    const orgResult = await db.query('SELECT stripe_customer_id FROM organizations WHERE id = $1', [
+      session.organization_id,
+    ])
+    const stripeCustomerId = orgResult.rows[0]?.stripe_customer_id
+    if (stripeCustomerId) {
+      const pmRes = await fetch(`https://api.stripe.com/v1/payment_methods/${pmId}`, {
+        headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+      })
+      if (pmRes.ok) {
+        const pmData = (await pmRes.json()) as any
+        if (pmData.customer !== stripeCustomerId) {
+          return c.json({ error: 'Payment method does not belong to this organization' }, 403)
+        }
+      }
+    }
+
     // Detach the payment method via Stripe API
     const stripeRes = await fetch(`https://api.stripe.com/v1/payment_methods/${pmId}/detach`, {
       method: 'POST',
@@ -561,7 +578,11 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         resourceId: subscriptionId,
         action: AuditAction.SUBSCRIPTION_CANCELLED,
         oldValue: { subscription_status: oldStatus },
-        newValue: { subscription_id: subscriptionId, subscription_status: 'cancelling', cancel_at_period_end: true },
+        newValue: {
+          subscription_id: subscriptionId,
+          subscription_status: 'cancelling',
+          cancel_at_period_end: true,
+        },
       })
 
       return c.json({

@@ -1209,9 +1209,15 @@ callsRoutes.post('/:id/confirmations', callMutationRateLimit, async (c) => {
 
     // call_confirmations table must exist via migrations — no DDL in request handlers
     const { rows: inserted } = await db.query(
-      `INSERT INTO call_confirmations (call_id, confirmation_type, details, confirmed_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [callId, confirmation_type, JSON.stringify(details || {}), confirmed_by || session.user_id]
+      `INSERT INTO call_confirmations (call_id, confirmation_type, details, confirmed_by, organization_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [
+        callId,
+        confirmation_type,
+        JSON.stringify(details || {}),
+        confirmed_by || session.user_id,
+        session.organization_id,
+      ]
     )
 
     // Audit log: confirmation created

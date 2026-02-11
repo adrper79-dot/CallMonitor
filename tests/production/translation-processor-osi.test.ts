@@ -1,16 +1,17 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { translateAndStore, type TranslationSegment } from '../../workers/src/lib/translation-processor'
+import {
+  translateAndStore,
+  type TranslationSegment,
+} from '../../workers/src/lib/translation-processor'
 import { synthesizeSpeech } from '../../workers/src/lib/tts-processor'
 import { queueAudioInjection } from '../../workers/src/lib/audio-injector'
 
-const loggerSpy = {
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}
-
 vi.mock('../../workers/src/lib/logger', () => ({
-  logger: loggerSpy,
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }))
 
 vi.mock('../../workers/src/lib/tts-processor', () => ({
@@ -20,6 +21,9 @@ vi.mock('../../workers/src/lib/tts-processor', () => ({
 vi.mock('../../workers/src/lib/audio-injector', () => ({
   queueAudioInjection: vi.fn(),
 }))
+
+// Import logger after mock is set up for spy access
+import { logger } from '../../workers/src/lib/logger'
 
 type MockFetchResponse = {
   ok: boolean
@@ -31,6 +35,11 @@ type MockFetchResponse = {
 describe('Translation Processor - OSI layers', () => {
   let mockDb: { query: ReturnType<typeof vi.fn> }
   let fetchMock: ReturnType<typeof vi.fn>
+  const loggerSpy = logger as unknown as {
+    info: ReturnType<typeof vi.fn>
+    warn: ReturnType<typeof vi.fn>
+    error: ReturnType<typeof vi.fn>
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -49,7 +58,6 @@ describe('Translation Processor - OSI layers', () => {
     confidence: 0.97,
     ...overrides,
   })
-	})
 
   const createFetchResponse = (overrides: Partial<MockFetchResponse> = {}): MockFetchResponse => ({
     ok: true,

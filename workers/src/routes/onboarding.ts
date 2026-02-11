@@ -88,7 +88,7 @@ onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
         if (orderRes.ok) {
           provisionedNumber = phoneNumber
           await db.query(
-            'UPDATE organizations SET provisioned_number = $1, trial_ends_at = NOW() + INTERVAL \'7 days\', onboarding_step = 2 WHERE id = $2',
+            "UPDATE organizations SET provisioned_number = $1, trial_ends_at = NOW() + INTERVAL '14 days', onboarding_step = 2 WHERE id = $2",
             [provisionedNumber, session.organization_id]
           )
         }
@@ -107,7 +107,7 @@ onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
     return c.json({
       success: true,
       provisionedNumber,
-      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     })
   } catch (err: any) {
     logger.error('Onboarding setup error', { error: err?.message })

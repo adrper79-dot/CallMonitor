@@ -109,13 +109,13 @@ export async function verifySession(
       if (storedFp) {
         const currentFp = await computeFingerprint(c)
         if (!timingSafeEqual(storedFp, currentFp)) {
-          // Fingerprint mismatch — log but allow for now to debug
-          logger.warn('Fingerprint mismatch detected', {
+          // Fingerprint mismatch — reject session to prevent hijacking
+          logger.warn('Fingerprint mismatch detected — session rejected', {
             stored: storedFp,
             current: currentFp,
             session_id: row.id,
           })
-          // return null // Temporarily disabled
+          return null
         }
       }
     } catch (err) {
@@ -241,4 +241,3 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 
   return cookies
 }
-
