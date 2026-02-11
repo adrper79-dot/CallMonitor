@@ -124,7 +124,7 @@ export async function createTestSession(): Promise<string | null> {
     `
     SELECT session_token, expires 
     FROM public.sessions 
-    WHERE user_id = $1::uuid
+    WHERE user_id = $1
     AND expires > NOW()
     ORDER BY expires DESC 
     LIMIT 1
@@ -143,7 +143,7 @@ export async function createTestSession(): Promise<string | null> {
   await query(
     `
     INSERT INTO public.sessions (session_token, user_id, expires)
-    VALUES ($1, $2::uuid, $3)
+    VALUES ($1, $2, $3)
     ON CONFLICT (session_token) DO UPDATE SET expires = $3
   `,
     [sessionToken, authUserId, expires.toISOString()]
