@@ -192,7 +192,7 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
         if (orgId) {
           await db.query(
             `INSERT INTO org_members (id, user_id, organization_id, role, created_at)
-             VALUES (gen_random_uuid(), $1::uuid, $2, 'admin', NOW())`,
+             VALUES (gen_random_uuid(), $1, $2, 'admin', NOW())`,
             [user.id, orgId]
           )
         }
@@ -325,12 +325,12 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     }
 
     // Get user's organization
-    // Note: org_members.user_id and users.id are both UUID — direct comparison
+    // Note: org_members.user_id and users.id are both TEXT — direct comparison
     const orgResult = await db.query(
       `SELECT om.organization_id, om.role, o.name as org_name
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id = $1::uuid
+       WHERE om.user_id = $1
        LIMIT 1`,
       [user.id]
     )
