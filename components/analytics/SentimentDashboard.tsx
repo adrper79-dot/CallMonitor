@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { apiGet, apiPut } from '@/lib/apiClient'
+import { apiPut } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
+import { useApiQuery } from '@/hooks'
 
 interface SentimentConfig {
   enabled: boolean
@@ -38,30 +39,35 @@ interface SentimentHistory {
  * Professional Design System v3.0
  */
 export function SentimentDashboard() {
-  const [config, setConfig] = useState<SentimentConfig | null>(null)
-  const [history, setHistory] = useState<SentimentHistory[]>([])
-  const [loading, setLoading] = useState(true)
   const [configEditing, setConfigEditing] = useState(false)
   const [threshold, setThreshold] = useState(-0.5)
   const [keywords, setKeywords] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Fetch config with useApiQuery
+  const {
+    data: configData,
+    loading: configLoading,
+    refetch: refetchConfig,
+  } = useApiQuery<{ config: SentimentConfig }>('/api/sentiment/config')
+
+  // Fetch history with useApiQuery
+  const {
+    data: historyData,
+    loading: historyLoading,
+  } = useApiQuery<{ history: SentimentHistory[] }>('/api/sentiment/history?limit=20')
+
+  const config = configData?.config || null
+  const history = historyData?.history || []
+  const loading = configLoading || historyLoading
+
+  // Initialize form fields when config loads
   useEffect(() => {
-    Promise.all([
-      apiGet<any>('/api/sentiment/config'),
-      apiGet<any>('/api/sentiment/history?limit=20'),
-    ])
-      .then(([configRes, historyRes]) => {
-        if (configRes?.config) {
-          setConfig(configRes.config)
-          setThreshold(configRes.config.alert_threshold)
-          setKeywords((configRes.config.objection_keywords || []).join(', '))
-        }
-        if (historyRes?.history) setHistory(historyRes.history)
-      })
-      .catch((err) => logger.error('Sentiment dashboard load error', { error: err?.message }))
-      .finally(() => setLoading(false))
-  }, [])
+    if (config) {
+      setThreshold(config.alert_threshold)
+      setKeywords((config.objection_keywords || []).join(', '))
+    }
+  }, [config])
 
   const saveConfig = async () => {
     setSaving(true)
@@ -76,7 +82,7 @@ export function SentimentDashboard() {
         alert_channels: config?.alert_channels || ['dashboard'],
         webhook_url: config?.webhook_url || null,
       })
-      if (res?.config) setConfig(res.config)
+      refetchConfig() // Refetch latest config
       setConfigEditing(false)
     } catch (err: any) {
       logger.error('Save sentiment config error', { error: err?.message })
@@ -94,7 +100,7 @@ export function SentimentDashboard() {
         alert_threshold: config?.alert_threshold ?? -0.5,
         alert_channels: config?.alert_channels || ['dashboard'],
       })
-      if (res?.config) setConfig(res.config)
+      refetchConfig() // Refetch latest config
     } catch (err: any) {
       logger.error('Toggle sentiment error', { error: err?.message })
     } finally {

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 const SESSION_KEY = 'wb-session-token'
 
 import { apiGetNoAuth, apiPostNoAuth, apiPost, apiGet } from '@/lib/apiClient'
+import { logger } from '@/lib/logger'
 
 interface User {
   id: string
@@ -139,7 +140,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return null
       }
     } catch (err) {
-      console.error('Session fetch error:', err)
+      logger.error('Session fetch error', { error: err })
       setSession(null)
       setStatus('unauthenticated')
       return null

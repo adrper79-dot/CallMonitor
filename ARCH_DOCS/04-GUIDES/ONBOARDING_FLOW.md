@@ -3,13 +3,12 @@ do the customer collecting money part?# Customer Onboarding Flow
 **Self-Serve Steps**:
 
 1. **Signup**: /signup → auto-org.
-2. **Billing**: Stripe checkout → plan.
-3. **Customer Space**: /teams → add users.
-4. **Telephony**: /voice → buy TN, verify CID (/caller-id).
-5. **Training**: Tour components/tour.
-6. **Call Mask**: Verified CID for outbound.
-7. **Ready**: Dashboard calls.
+2. **Onboarding**: /onboarding → import CSV → first call.
+3. **Telephony**: /voice → buy TN, verify CID (/caller-id).
+4. **Training**: Tour components/tour.
+5. **Call Mask**: Verified CID for outbound.
+6. **Ready**: Calls dashboard.
 
 **Gaps**: Auto-TN provision, welcome email.
 
-**Code**: Auth, billing, caller-id, teams ready.
+**Code**: Auth, caller-id, teams ready. Billing can follow first call.

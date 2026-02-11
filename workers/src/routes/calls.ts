@@ -27,7 +27,7 @@ import {
   emailRateLimit,
   telnyxVoiceRateLimit,
 } from '../lib/rate-limit'
-import { sendEmail, callShareEmailHtml } from '../lib/email'
+import { sendEmail, callShareEmailHtml, getEmailDefaults } from '../lib/email'
 import { getTranslationConfig } from '../lib/translation-processor'
 
 export const callsRoutes = new Hono<AppEnv>()
@@ -1347,8 +1347,10 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
       const appUrl = c.env.NEXT_PUBLIC_APP_URL || 'https://wordis-bond.com'
 
       // Send email to all recipients (fire-and-forget per recipient)
+      const emailDefaults = getEmailDefaults(c.env)
       for (const recipient of recipients) {
         sendEmail(c.env.RESEND_API_KEY, {
+          ...emailDefaults,
           to: recipient,
           subject: `Call record shared by ${session.name || 'a team member'}`,
           html: callShareEmailHtml(

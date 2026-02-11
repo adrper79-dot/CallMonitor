@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { AppShell } from '@/components/layout/AppShell'
 import { BookingModal } from '@/components/voice/BookingModal'
@@ -31,11 +32,15 @@ interface Booking {
 }
 
 export default function BookingsPage() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all')
+  const upcomingBooking = bookings
+    .filter((booking) => booking.start_time && new Date(booking.start_time) >= new Date())
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0]
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -95,25 +100,6 @@ export default function BookingsPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return '⏳'
-      case 'confirmed':
-        return '✅'
-      case 'calling':
-        return '📞'
-      case 'completed':
-        return '✓'
-      case 'cancelled':
-        return '✕'
-      case 'failed':
-        return '⚠️'
-      default:
-        return '•'
-    }
-  }
-
   const handleCancelBooking = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this scheduled call?')) return
 
@@ -132,13 +118,13 @@ export default function BookingsPage() {
         <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-              📅 Scheduled Calls
+              Schedule
             </h1>
             <p className="text-sm text-gray-500 mt-1">View and manage all your scheduled calls</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => (window.location.href = '/voice-operations')}>
-              ← Back to Voice
+            <Button variant="outline" onClick={() => router.push('/voice-operations')}>
+              Back to Calls
             </Button>
             <Button onClick={() => setShowModal(true)}>
               + Schedule New Call
@@ -149,6 +135,22 @@ export default function BookingsPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {!loading && !error && upcomingBooking && (
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Next Scheduled Call</p>
+            <div className="mt-2 flex flex-wrap items-center gap-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{upcomingBooking.title}</p>
+                <p className="text-xs text-gray-500">
+                  <ClientDate date={upcomingBooking.start_time} format="short" />
+                </p>
+              </div>
+              <div className="text-xs text-gray-500">
+                {upcomingBooking.attendee_name || upcomingBooking.attendee_phone}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Filters */}
         <div className="flex gap-2 mb-6">
           {(['all', 'pending', 'completed', 'cancelled'] as const).map((f) => (
@@ -181,7 +183,6 @@ export default function BookingsPage() {
         {/* Empty State */}
         {!loading && !error && bookings.length === 0 && (
           <div className="text-center py-12">
-            <div className="text-6xl mb-4">📅</div>
             <h3 className="text-xl font-medium text-gray-700 mb-2">No scheduled calls</h3>
             <p className="text-gray-500 mb-6">
               {filter === 'all'
@@ -209,7 +210,7 @@ export default function BookingsPage() {
                       <span
                         className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(booking.status)}`}
                       >
-                        {getStatusIcon(booking.status)} {booking.status}
+                        {booking.status}
                       </span>
                     </div>
 

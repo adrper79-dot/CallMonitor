@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { logger } from '@/lib/logger'
 
 /**
  * Tour Step Component
@@ -68,7 +69,7 @@ export function TourStep({
         setTimeout(() => findTarget(attempt + 1), 200)
       } else {
         // Target not found after retries - skip to next step
-        console.warn(`[Tour] Target not found: ${targetSelector}, skipping step`)
+        logger.warn('Tour: Target not found, skipping step', { targetSelector })
         onNext()
       }
     }

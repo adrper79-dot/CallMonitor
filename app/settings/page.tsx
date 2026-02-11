@@ -119,19 +119,23 @@ function SettingsPageContent() {
   }
 
   // Organized tabs by job-to-be-done
-  const tabs: { id: TabId; label: string; description: string }[] = [
+  const allTabs: { id: TabId; label: string; description: string; ownerOnly?: boolean }[] = [
     { id: 'call-config', label: 'Call Configuration', description: 'Targets, Caller ID, defaults' },
     {
       id: 'ai-control',
-      label: 'AI & Intelligence',
+      label: 'AI Settings',
       description: 'Transcription, translation, surveys',
     },
-    { id: 'quality', label: 'Quality Assurance', description: 'AI quality evaluation scripts' },
-    { id: 'compliance', label: 'Compliance', description: 'Retention policies, legal holds' },
-    { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions' },
-    { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations' },
-    { id: 'billing', label: 'Billing', description: 'Plan and payment' },
+    { id: 'quality', label: 'Evidence Quality', description: 'QA scripts and scorecards', ownerOnly: true },
+    { id: 'compliance', label: 'Compliance', description: 'Retention policies, legal holds', ownerOnly: true },
+    { id: 'team', label: 'Team & Access', description: 'Members, roles, permissions', ownerOnly: true },
+    { id: 'webhooks', label: 'Webhooks', description: 'Event subscriptions & integrations', ownerOnly: true },
+    { id: 'billing', label: 'Billing', description: 'Plan and payment', ownerOnly: true },
   ]
+
+  // Workers only see Call Config and AI Settings; owners/admins see all
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin'
+  const tabs = isOwnerOrAdmin ? allTabs : allTabs.filter(t => !t.ownerOnly)
 
   const userEmail = session?.user?.email || undefined
 
@@ -140,15 +144,29 @@ function SettingsPageContent() {
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {organizationName || 'Your Organization'}
-            {plan && (
-              <Badge variant="default" className="ml-2">
-                {plan.charAt(0).toUpperCase() + plan.slice(1)}
-              </Badge>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {organizationName || 'Your Organization'}
+                {plan && (
+                  <Badge variant="default" className="ml-2">
+                    {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                  </Badge>
+                )}
+              </p>
+            </div>
+            {!isOwnerOrAdmin && (
+              <div className="text-right">
+                <Badge variant="secondary" className="text-xs">
+                  {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Member'}
+                </Badge>
+                <p className="text-xs text-gray-400 mt-1">
+                  Contact your admin for full settings access
+                </p>
+              </div>
             )}
-          </p>
+          </div>
         </div>
       </header>
 
@@ -242,7 +260,7 @@ function SettingsPageContent() {
             </div>
           )}
 
-          {/* Quality Assurance */}
+          {/* Evidence Quality */}
           {activeTab === 'quality' && (
             <section className="space-y-6">
               <div>

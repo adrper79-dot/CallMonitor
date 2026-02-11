@@ -41,7 +41,8 @@ app.post('/webhooks/word-is-bond', (req, res) => {
 
   // Process webhook event
   const { event, data } = req.body
-  console.log('Received event:', event, data)
+  // Log event (use your preferred logging library)
+  logger.info('Received webhook event', { event, data })
 
   res.json({ received: true })
 })`,

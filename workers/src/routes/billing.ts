@@ -541,6 +541,13 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         return c.json({ error: 'Failed to cancel subscription' }, 500)
       }
 
+      // Capture old state for audit trail (BL-SEC-004)
+      const oldStatusResult = await db.query(
+        `SELECT subscription_status FROM organizations WHERE id = $1`,
+        [session.organization_id]
+      )
+      const oldStatus = oldStatusResult.rows[0]?.subscription_status
+
       // Update local status
       await db.query(`UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`, [
         session.organization_id,
@@ -553,8 +560,8 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         resourceType: 'billing',
         resourceId: subscriptionId,
         action: AuditAction.SUBSCRIPTION_CANCELLED,
-        oldValue: null,
-        newValue: { subscription_id: subscriptionId, cancel_at_period_end: true },
+        oldValue: { subscription_status: oldStatus },
+        newValue: { subscription_id: subscriptionId, subscription_status: 'cancelling', cancel_at_period_end: true },
       })
 
       return c.json({

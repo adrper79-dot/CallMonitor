@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(findstr:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)",
+      "Bash(npx wrangler tail:*)",
+      "Bash(npm run:*)",
+      "Bash(npx wrangler deploy:*)",
+      "Bash(find:*)"
     ]
   }
 }

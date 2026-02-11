@@ -26,11 +26,10 @@ export const retentionRoutes = new Hono<AppEnv>()
 
 // GET / — Get retention policy
 retentionRoutes.get('/', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const result = await db.query(
       `SELECT * FROM retention_policies
        WHERE organization_id = $1
@@ -57,11 +56,10 @@ retentionRoutes.get('/', async (c) => {
 
 // PUT / — Update retention policy
 retentionRoutes.put('/', retentionRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, UpdateRetentionSchema)
     if (!parsed.success) return parsed.response
     const {
@@ -117,11 +115,10 @@ retentionRoutes.put('/', retentionRateLimit, async (c) => {
 
 // GET /legal-holds — List legal holds
 retentionRoutes.get('/legal-holds', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
     const offset = parseInt(c.req.query('offset') || '0', 10)
 
@@ -144,11 +141,10 @@ retentionRoutes.get('/legal-holds', async (c) => {
 
 // POST /legal-holds — Create legal hold
 retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, CreateLegalHoldSchema)
     if (!parsed.success) return parsed.response
     const { name, matter_reference, applies_to_all } = parsed.data
@@ -187,11 +183,10 @@ retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
 
 // DELETE /legal-holds/:id — Release legal hold
 retentionRoutes.delete('/legal-holds/:id', retentionRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const holdId = c.req.param('id')
 
     const result = await db.query(

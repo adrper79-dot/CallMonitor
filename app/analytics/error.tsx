@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Analytics Error Boundary
@@ -14,15 +15,10 @@ export default function AnalyticsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(
-      JSON.stringify({
-        level: 'ERROR',
-        msg: 'Analytics error',
-        error: error.message,
-        digest: error.digest,
-        ts: new Date().toISOString(),
-      })
-    )
+    logger.error('Analytics error', {
+      error: error.message,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

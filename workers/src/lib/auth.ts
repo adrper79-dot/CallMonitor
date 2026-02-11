@@ -62,29 +62,39 @@ export async function verifySession(
 ): Promise<Session | null> {
   const db = getDb(c.env)
   try {
+    logger.info('[verifySession] Verifying session token', {
+      token_prefix: token.substring(0, 8) + '...',
+      has_token: !!token,
+    })
+
     // Query sessions with user and org membership info
     // Note: Using LEFT JOIN on org_members so users without org membership still work
-    // Note: sessions.user_id is UUID, users.id is TEXT - cast s.user_id::text for comparison
-    // Note: org_members.user_id is UUID, users.id is TEXT - cast om.user_id::text for comparison
+    // Note: All user ID columns are UUID type — direct comparison, no casts needed
     const result = await db.query(
       `
-      SELECT 
-        s.session_token, 
-        s.expires, 
-        u.email, 
-        u.name, 
+      SELECT
+        s.session_token,
+        s.expires,
+        u.email,
+        u.name,
         u.id as user_id,
         u.platform_role,
-        om.organization_id, 
+        om.organization_id,
         om.role
       FROM public.sessions s
-      JOIN public.users u ON u.id = s.user_id::text
-      LEFT JOIN org_members om ON om.user_id::text = u.id
+      JOIN public.users u ON u.id = s.user_id
+      LEFT JOIN org_members om ON om.user_id = u.id
       WHERE s.session_token = $1 AND s.expires > NOW()
       LIMIT 1
     `,
       [token]
     )
+
+    logger.info('[verifySession] Session query result', {
+      found_rows: result.rows?.length || 0,
+      has_user: !!result.rows?.[0]?.email,
+      has_org: !!result.rows?.[0]?.organization_id,
+    })
 
     if (!result.rows || result.rows.length === 0) {
       return null
@@ -92,6 +102,8 @@ export async function verifySession(
 
     // H2 hardening: validate device fingerprint if one was stored at login
     // Graceful — if no fingerprint in KV (legacy sessions), skip validation
+    const row = result.rows[0]
+
     try {
       const storedFp = await c.env.KV.get(`fp:${token}`)
       if (storedFp) {
@@ -111,8 +123,6 @@ export async function verifySession(
       logger.warn('Fingerprint check error', { error: err })
     }
 
-    const row = result.rows[0]
-
     return {
       user_id: row.user_id,
       email: row.email,
@@ -125,7 +135,7 @@ export async function verifySession(
   } catch (error: any) {
     // Don't throw - just return null so routes can return 401
     // CRITICAL: Log the error so silent failures are visible in production
-    console.error('[verifySession] Session verification failed:', error?.message || error)
+    logger.error('[verifySession] Session verification failed', { error: error?.message || error })
     return null
   } finally {
     await db.end()

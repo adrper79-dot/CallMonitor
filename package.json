@@ -4,10 +4,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cloudflare": "cross-env CLOUDFLARE_ENV=1 opennextjs-cloudflare build",
     "start": "next start",
     "pages:deploy": "wrangler pages deploy out --project-name wordisbond",
-    "pages:deploy:cloudflare": "wrangler pages deploy .open-next/assets --project-name wordisbond",
     "api:dev": "wrangler dev --config workers/wrangler.toml",
     "api:deploy": "wrangler deploy --config workers/wrangler.toml",
     "api:tail": "wrangler tail wordisbond-api",
@@ -45,6 +43,10 @@
     "test:e2e:headed": "npx playwright test --headed",
     "test:e2e:ui": "npx playwright test --ui",
     "test:coverage": "vitest run --coverage",
+    "test:load:smoke": "k6 run tests/load/smoke.k6.js",
+    "test:load:baseline": "k6 run tests/load/baseline.k6.js",
+    "test:load:spike": "k6 run tests/load/spike.k6.js",
+    "test:load:all": "npm run test:load:smoke && npm run test:load:baseline && npm run test:load:spike",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
@@ -52,7 +54,7 @@
     "typecheck": "tsc --noEmit",
     "env:verify": "npx tsx scripts/verify-env.ts",
     "health-check": "curl -f https://wordisbond-api.adrper79.workers.dev/health || exit 1",
-    "clean": "rm -rf .next out .open-next .wrangler node_modules/.cache",
+    "clean": "rm -rf .next out .wrangler node_modules/.cache",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -67,7 +69,6 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.23",
     "@ai-sdk/react": "^3.0.66",
-    "@opennextjs/cloudflare": "^1.16.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",

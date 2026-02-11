@@ -286,7 +286,7 @@ describeOrSkip('Translation Pipeline E2E Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = callResponse.call_id
       createdCallIds.push(callId)
@@ -352,7 +352,7 @@ describeOrSkip('Translation Pipeline E2E Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = callResponse.call_id
       createdCallIds.push(callId)
@@ -407,7 +407,7 @@ describeOrSkip('Translation Pipeline E2E Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = callResponse.call_id
       createdCallIds.push(callId)
@@ -515,7 +515,7 @@ describeOrSkip('Translation Pipeline E2E Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = callResponse.call_id
       createdCallIds.push(callId)
@@ -564,7 +564,7 @@ describeOrSkip('Translation Pipeline E2E Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = callResponse.call_id
       createdCallIds.push(callId)

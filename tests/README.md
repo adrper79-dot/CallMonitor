@@ -101,7 +101,7 @@ npm test -- tests/unit/rbac.test.ts
   - System health
 
 - **Webhook Security** (`tests/unit/webhookSecurity.test.ts`)
-  - SignalWire signature verification
+  - Telnyx signature verification
   - AssemblyAI signature verification
 
 - **Rate Limiting** (`tests/unit/rateLimit.test.ts`)
@@ -125,20 +125,20 @@ npm test -- tests/unit/rbac.test.ts
 ### Integration Tests
 
 - **Webhook Flow** (`tests/integration/webhookFlow.test.ts`)
-  - SignalWire webhook → Call status update
+  - Telnyx webhook → Call status update
   - AssemblyAI webhook → Transcription completion
   - Evidence manifest generation
 
 - **Call Execution Flow** (`tests/integration/callExecutionFlow.test.ts`)
-  - Call initiation → SignalWire → LaML generation
+  - Call initiation → Telnyx → TeXML generation
   - End-to-end call flow
 
 ## Mocking
 
 Tests use mocks for:
 
-- Supabase client (`@/lib/supabaseAdmin`)
-- External APIs (SignalWire, AssemblyAI, OpenAI)
+- Neon database client (`@/lib/db`)
+- External APIs (Telnyx, AssemblyAI, OpenAI)
 - Next.js server components
 - Environment variables
 

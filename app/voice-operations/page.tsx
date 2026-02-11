@@ -6,6 +6,7 @@ import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
+import { AppShell } from '@/components/layout/AppShell'
 import { AlertTriangle } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
 
@@ -43,7 +44,7 @@ export default function VoiceOperationsPage() {
           setLoading(false)
         })
         .catch((err) => {
-          logger.error('Failed to fetch voice operations data', err)
+          logger.error('Failed to fetch calls data', err)
           setError(err.message || 'Failed to load data')
           setLoading(false)
         })
@@ -66,8 +67,8 @@ export default function VoiceOperationsPage() {
   if (status === 'unauthenticated' || !session?.user) {
     return (
       <ProtectedGate
-        title="Voice Operations"
-        description="Please sign in to access your voice dashboard and manage calls."
+        title="Calls"
+        description="Please sign in to access your call dashboard and manage calls."
         redirectUrl="/voice-operations"
       />
     )
@@ -88,13 +89,13 @@ export default function VoiceOperationsPage() {
   }
 
   return (
-    <>
+    <AppShell organizationName={organizationName || 'Your Organization'} userEmail={session?.user?.email || undefined}>
       <VoiceOperationsClient
         initialCalls={calls}
         organizationId={organizationId}
         organizationName={organizationName || undefined}
       />
       <TroubleshootChatToggle />
-    </>
+    </AppShell>
   )
 }

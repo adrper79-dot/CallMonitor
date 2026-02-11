@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-
+import { logger } from '@/lib/logger'
 /**
- * Voice Operations Error Boundary
+ * Calls Error Boundary
  *
- * Catches errors in the voice operations route and provides recovery options.
+ * Catches errors in the calls route and provides recovery options.
  */
 export default function VoiceError({
   error,
@@ -17,7 +17,7 @@ export default function VoiceError({
 }) {
   useEffect(() => {
     // Log error to monitoring service
-    console.error('Voice operations error:', error)
+    logger.error('Calls error', { error, digest: error.digest })
   }, [error])
 
   return (
@@ -43,8 +43,7 @@ export default function VoiceError({
 
           <h1 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h1>
           <p className="text-gray-600 mb-6">
-            We encountered an error loading voice operations. This has been logged and we&apos;re
-            working on it.
+            We encountered an error loading calls. This has been logged and we&apos;re working on it.
           </p>
 
           {/* Error details (in development) */}

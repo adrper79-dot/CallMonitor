@@ -9,6 +9,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
+import { rbacRateLimit } from '../lib/rate-limit'
 
 export const rbacRoutes = new Hono<AppEnv>()
 
@@ -33,7 +34,7 @@ const ROLE_INHERITANCE: Record<string, string[]> = {
 }
 
 // Get permissions context for current user
-rbacRoutes.get('/context', async (c) => {
+rbacRoutes.get('/context', rbacRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -101,7 +102,7 @@ rbacRoutes.get('/context', async (c) => {
 })
 
 // Check if user has a specific permission
-rbacRoutes.get('/check', async (c) => {
+rbacRoutes.get('/check', rbacRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -139,7 +140,7 @@ rbacRoutes.get('/check', async (c) => {
 })
 
 // List all available roles and their permissions (admin+)
-rbacRoutes.get('/roles', async (c) => {
+rbacRoutes.get('/roles', rbacRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)

@@ -17,6 +17,15 @@ NODE_ENV = "production"
 CORS_ORIGIN = "https://wordis-bond.com"
 API_BASE_URL = "https://wordisbond-api.adrper79.workers.dev"
 R2_PUBLIC_URL = "https://audio.wordis-bond.com"
+NEXT_PUBLIC_APP_URL = "https://wordis-bond.com"
+RESEND_FROM = "Word Is Bond <noreply@wordis-bond.com>"
+RESEND_REPLY_TO = "noreply@wordis-bond.com"
+
+# AI Provider Configuration (New - Cost Optimization)
+AI_PROVIDER_GROQ_ENABLED = true      # Enable Groq for translation/chat (38% cheaper)
+AI_PROVIDER_GROK_ENABLED = true      # Enable Grok Voice for TTS (83% cheaper)
+AI_PROVIDER_PREFER_CHEAP = true      # Route to cheaper provider when possible
+PUBLIC_BUCKET_URL = "https://audio.wordis-bond.com"  # For Grok Voice TTS audio URLs
 
 # Local development database connection (fallback to Hyperdrive in production)
 # Set via: wrangler secret put DATABASE_URL --config workers/wrangler.toml
@@ -60,6 +69,8 @@ crons = [
 # - TELNYX_WEBHOOK_SECRET
 # - ASSEMBLYAI_API_KEY
 # - ELEVENLABS_API_KEY
+# - GROQ_API_KEY             # NEW: Groq LLM API (Llama models)
+# - GROK_API_KEY             # NEW: Grok Voice API (xAI TTS)
 
 # Routes for custom domain - add manually via Dashboard instead
 # Error 10013 when deploying via wrangler, use Dashboard UI to add routes

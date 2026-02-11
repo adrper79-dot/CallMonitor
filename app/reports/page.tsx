@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Reports Page
  *
@@ -5,8 +7,6 @@
  * Features: Generate reports, view history, export
  * RBAC: All can view, Owner/Admin can generate
  */
-
-'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'

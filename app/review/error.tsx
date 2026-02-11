@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Review Error Boundary
@@ -14,15 +15,10 @@ export default function ReviewError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(
-      JSON.stringify({
-        level: 'ERROR',
-        msg: 'Review error',
-        error: error.message,
-        digest: error.digest,
-        ts: new Date().toISOString(),
-      })
-    )
+    logger.error('Review error', {
+      error: error.message,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

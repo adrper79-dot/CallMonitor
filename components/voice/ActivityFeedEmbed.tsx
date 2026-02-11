@@ -116,6 +116,8 @@ export default function ActivityFeedEmbed({
     })
     .slice(0, limit)
 
+  const showSkeleton = !initialLoaded && !!organizationId
+
   function handleEventClick(event: ActivityEvent) {
     if (event.call_id) {
       window.dispatchEvent(
@@ -173,7 +175,19 @@ export default function ActivityFeedEmbed({
 
       {/* Event List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredEvents.length === 0 ? (
+        {showSkeleton ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, idx) => (
+              <div
+                key={`activity-skeleton-${idx}`}
+                className="p-3 bg-gray-50 rounded-md border border-gray-200 animate-pulse"
+              >
+                <div className="h-3 w-3/4 bg-gray-200 rounded" />
+                <div className="h-2 w-1/2 bg-gray-200 rounded mt-2" />
+              </div>
+            ))}
+          </div>
+        ) : filteredEvents.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-400">No recent activity</div>
         ) : (
           <ul className="space-y-2">

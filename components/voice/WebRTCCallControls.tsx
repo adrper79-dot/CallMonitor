@@ -6,6 +6,7 @@ import { useTargetNumber } from '@/hooks/TargetNumberProvider'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { logger } from '@/lib/logger'
 
 export interface WebRTCCallControlsProps {
   organizationId: string | null
@@ -94,7 +95,7 @@ export function WebRTCCallControls({ organizationId, onCallPlaced }: WebRTCCallC
       return
     }
 
-    console.info('[WebRTCCallControls] Attempting call with:', {
+    logger.info('WebRTCCallControls: Attempting call', {
       phoneNumber: targetNumber ? `***${targetNumber.slice(-4)}` : 'none',
       hasValidNumber,
     })

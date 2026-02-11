@@ -40,3 +40,11 @@ export type {
   CallRequest,
   UseCallModulationResult,
 } from './useCallModulation'
+
+// API Query Hook - Universal data fetching
+export { useApiQuery } from './useApiQuery'
+export type { UseApiQueryResult } from './useApiQuery'
+
+// SSE Hook - Server-Sent Events streaming
+export { useSSE } from './useSSE'
+export type { UseSSEResult } from './useSSE'

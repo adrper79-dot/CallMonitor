@@ -49,9 +49,20 @@ export interface AuditLogEntry {
  * the main request flow. This is acceptable because audit logs are
  * supplementary evidence; the primary data mutation has already succeeded.
  *
+ * NOTE: audit_logs columns (organization_id, user_id, resource_id) are UUID type.
+ * Non-UUID sentinel strings like 'signup', 'none', 'password_reset' are stored
+ * in the metadata JSONB column instead, with the UUID column set to NULL.
+ *
  * @param db - Database client from getDb(env)
  * @param entry - Audit log entry details
  */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function toUuidOrNull(value: string | null | undefined): string | null {
+  if (!value) return null
+  return UUID_REGEX.test(value) ? value : null
+}
+
 export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
   const {
     organizationId,
@@ -65,16 +76,20 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
 
   void db
     .query(
-      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, metadata, created_at)
+       VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, NOW())`,
       [
-        organizationId,
-        userId,
+        toUuidOrNull(organizationId),
+        toUuidOrNull(userId),
         resourceType,
-        resourceId,
+        toUuidOrNull(resourceId),
         action,
         oldValue ? JSON.stringify(oldValue) : null,
         newValue ? JSON.stringify(newValue) : null,
+        // Store non-UUID sentinel values in metadata for traceability
+        (!UUID_REGEX.test(organizationId) || !UUID_REGEX.test(userId) || !UUID_REGEX.test(resourceId))
+          ? JSON.stringify({ _org_label: organizationId, _user_label: userId, _resource_label: resourceId })
+          : null,
       ]
     )
     .catch((err) =>
@@ -184,6 +199,8 @@ export const AuditAction = {
 
   // Organizations
   ORG_CREATED: 'org:created',
+  ORGANIZATION_UPDATED: 'org:updated',
+  ONBOARDING_COMPLETED: 'org:onboarding_completed',
 
   // Audio
   AUDIO_UPLOADED: 'audio:uploaded',
@@ -235,6 +252,7 @@ export const AuditAction = {
   DIALER_QUEUE_PAUSED: 'dialer:queue_paused',
   DIALER_CALL_CONNECTED: 'dialer:call_connected',
   DIALER_AMD_DETECTED: 'dialer:amd_detected',
+  DIALER_AGENT_STATUS_UPDATED: 'dialer:agent_status_updated',
 
   // IVR Payments (v5.0)
   IVR_FLOW_STARTED: 'ivr:flow_started',
@@ -246,5 +264,12 @@ export const AuditAction = {
   // Multi-Language (v5.0)
   LANGUAGE_DETECTED: 'language:detected',
   TRANSLATION_CONFIG_UPDATED: 'translation:config_updated',
+
+  // Call Bridging (v5.0)
+  CALL_BRIDGED: 'call:bridged',
+
+  // AI LLM Usage (BL-093)
+  AI_CHAT_COMPLETED: 'ai:chat_completed',
+  AI_ANALYZE_COMPLETED: 'ai:analyze_completed',
 } as const
 

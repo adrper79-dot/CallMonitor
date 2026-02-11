@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { useVoiceConfig } from '@/hooks/useVoiceConfig'
+import { useVoiceConfig, useApiQuery } from '@/hooks'
 import { logger } from '@/lib/logger'
 
-import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
+import { apiPost, apiDelete } from '@/lib/apiClient'
 
 interface VoiceTarget {
   id: string
@@ -31,9 +31,6 @@ export default function VoiceTargetManager({
   organizationId,
   onTargetSelect,
 }: VoiceTargetManagerProps) {
-  const [targets, setTargets] = useState<VoiceTarget[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -46,25 +43,19 @@ export default function VoiceTargetManager({
   const { config, updateConfig } = useVoiceConfig(organizationId)
   const selectedTargetId = config?.target_id
 
-  const fetchTargets = useCallback(async () => {
-    if (!organizationId) return
+  // Fetch targets with useApiQuery hook
+  const {
+    data: targetsData,
+    loading,
+    error: fetchError,
+    refetch: refetchTargets,
+  } = useApiQuery<{ targets: VoiceTarget[] }>(
+    `/api/voice/targets?orgId=${encodeURIComponent(organizationId || '')}`,
+    {}
+  )
 
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await apiGet(`/api/voice/targets?orgId=${encodeURIComponent(organizationId)}`)
-
-      setTargets(data.targets || [])
-    } catch (err: any) {
-      setError(err.message || 'Failed to load targets')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
-  useEffect(() => {
-    fetchTargets()
-  }, [fetchTargets])
+  const targets = targetsData?.targets || []
+  const [error, setError] = useState<string | null>(fetchError?.message || null)
 
   const handleAddTarget = async () => {
     if (!newNumber || !organizationId) return
@@ -91,7 +82,7 @@ export default function VoiceTargetManager({
       setNewNumber('')
       setNewName('')
       setNewDescription('')
-      fetchTargets()
+      refetchTargets()
 
       // Auto-select the new target if it's the first one
       if (targets.length === 0 && data.target?.id) {
@@ -128,7 +119,7 @@ export default function VoiceTargetManager({
         await updateConfig({ target_id: null })
         onTargetSelect?.(null)
       }
-      fetchTargets()
+      refetchTargets()
     } catch (err) {
       logger.error('VoiceTargetManager: failed to delete target', err, {
         organizationId,

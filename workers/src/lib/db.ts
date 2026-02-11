@@ -37,14 +37,20 @@ export interface DbClient {
  * and closed within the same request handler.
  * Note: Prefer NEON_PG_CONN direct connection over HYPERDRIVE for compatibility.
  *
+ * @param env - Environment bindings with database connection strings
+ * @param orgId - Optional organization ID. When provided, sets the
+ *   `app.current_org_id` session variable for Row Level Security policies.
+ *   Routes that call getDb after requireAuth() SHOULD pass session.organization_id.
+ *
  * @example
  * ```ts
- * const db = getDb(c.env)
+ * const session = c.get('session')
+ * const db = getDb(c.env, session.organization_id)
  * const result = await db.query('SELECT * FROM users WHERE id = $1', [userId])
  * // Pool auto-closes at end of request via closeDb middleware
  * ```
  */
-export function getDb(env: Env): DbClient {
+export function getDb(env: Env, orgId?: string): DbClient {
   let connectionString: string
 
   // Prefer direct connection string for consistency
@@ -66,10 +72,19 @@ export function getDb(env: Env): DbClient {
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
   })
 
+  // Track whether RLS session variable has been set for this pool
+  let rlsInitialized = false
+
   return {
     query: async (sqlString: string, params?: any[]) => {
       const start = Date.now()
       try {
+        // Set RLS session variable on first query if orgId provided
+        // Uses a single SET LOCAL so it applies to the current transaction scope
+        if (orgId && !rlsInitialized) {
+          await pool.query(`SET LOCAL app.current_org_id = '${orgId.replace(/[^a-f0-9-]/gi, '')}'`)
+          rlsInitialized = true
+        }
         const result = await pool.query(sqlString, params)
         const duration = Date.now() - start
         logger.info('DB query executed', {

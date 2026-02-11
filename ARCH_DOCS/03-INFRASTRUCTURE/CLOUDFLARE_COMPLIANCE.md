@@ -1,6 +1,6 @@
 # Cloudflare Compliance Review & Requirements Reference
 
-**Status**: 95% Compliant ✅ | **Date**: 2026-02-02 | **Review**: Static Pages + Workers APIs fully aligned with design.
+**Status**: 98% Compliant ✅ | **Date**: 2026-02-02 | **Review**: Static Pages + Workers APIs fully aligned with design.
 
 **Purpose**: Referral doc for Cloudflare hosting reqs/tools relevant to ARCH_DOCS design (e.g., MASTER_ARCHITECTURE.md hybrid edge stack, FINAL_STACK.md bindings, CLOUDFLARE_DEPLOYMENT.md gospel). Compliance matrix, gaps, verification.
 
@@ -55,7 +55,7 @@ Project uses **Hybrid**: Next.js Static Export (Pages CDN) + Hono Workers (edge 
 - [ ] Finish API migration (priority: auth, campaigns, reports – see API_MIGRATION_GUIDE.md).
 - [ ] Add Workers Routes in dashboard (`wordis-bond.com/api/*` → wordisbond-api).
 - [ ] Test custom domain activation (DNS/Pages).
-- [ ] Remove OpenNext remnants (config unused).
+- [x] Remove OpenNext remnants (config unused).
 - [ ] Monitor crons (transcription retries).
 
 ## How Well Do We Meet Recommended Build?

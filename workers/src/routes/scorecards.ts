@@ -39,7 +39,9 @@ scorecardsRoutes.get('/', async (c) => {
     }
 
     const result = await db.query(
-      `SELECT * FROM scorecards
+      `SELECT id, organization_id, name, description, structure,
+              is_template, tool_id, created_by, created_at, updated_at
+      FROM scorecards
       WHERE organization_id = $1
       ORDER BY created_at DESC`,
       [session.organization_id]
@@ -118,7 +120,9 @@ scorecardsRoutes.get('/alerts', async (c) => {
     }
 
     const alertsResult = await db.query(
-      `SELECT * FROM scorecard_alerts
+      `SELECT id, organization_id, scorecard_id, call_id, trigger_type,
+              severity, message, acknowledged, acknowledged_by, created_at
+      FROM scorecard_alerts
       WHERE organization_id = $1
       ORDER BY created_at DESC
       LIMIT 20`,
@@ -144,7 +148,9 @@ scorecardsRoutes.get('/:id', async (c) => {
     const scorecardId = c.req.param('id')
 
     const result = await db.query(
-      `SELECT * FROM scorecards
+      `SELECT id, organization_id, name, description, structure,
+              is_template, tool_id, created_by, created_at, updated_at
+      FROM scorecards
       WHERE id = $1 AND organization_id = $2`,
       [scorecardId, session.organization_id]
     )

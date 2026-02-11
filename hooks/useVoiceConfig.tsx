@@ -84,25 +84,47 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
   const [error, setError] = useState<string | null>(null)
 
   // Load transient fields from localStorage
-  const loadTransientFields = (): Partial<VoiceConfig> => {
+  const loadTransientFields = useCallback((): Partial<VoiceConfig> => {
     if (!organizationId) return {}
     try {
       const stored = localStorage.getItem(`voice-config-transient-${organizationId}`)
-      return stored ? JSON.parse(stored) : {}
+      if (!stored) return {}
+      const parsed = JSON.parse(stored)
+      // Validate that values are not empty strings
+      const validated: Partial<VoiceConfig> = {}
+      if (parsed.quick_dial_number && parsed.quick_dial_number !== '') {
+        validated.quick_dial_number = parsed.quick_dial_number
+      }
+      if (parsed.from_number && parsed.from_number !== '') {
+        validated.from_number = parsed.from_number
+      }
+      if (parsed.target_id && parsed.target_id !== '') {
+        validated.target_id = parsed.target_id
+      }
+      if (parsed.campaign_id && parsed.campaign_id !== '') {
+        validated.campaign_id = parsed.campaign_id
+      }
+      return validated
     } catch {
       return {}
     }
-  }
+  }, [organizationId])
 
   // Save transient fields to localStorage
-  const saveTransientFields = (fields: Partial<VoiceConfig>) => {
+  const saveTransientFields = useCallback((fields: Partial<VoiceConfig>) => {
     if (!organizationId) return
     try {
-      localStorage.setItem(`voice-config-transient-${organizationId}`, JSON.stringify(fields))
+      // Filter out null/undefined/empty string values before saving
+      const filtered: any = {}
+      if (fields.quick_dial_number) filtered.quick_dial_number = fields.quick_dial_number
+      if (fields.from_number) filtered.from_number = fields.from_number
+      if (fields.target_id) filtered.target_id = fields.target_id
+      if (fields.campaign_id) filtered.campaign_id = fields.campaign_id
+      localStorage.setItem(`voice-config-transient-${organizationId}`, JSON.stringify(filtered))
     } catch {
       // Ignore localStorage errors
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     if (!organizationId) {
@@ -118,8 +140,10 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
         setError(null)
         const data = await apiGet(`/api/voice/config?orgId=${encodeURIComponent(organizationId)}`)
         // Merge with transient fields from localStorage
-        const transientFields = loadTransientFields()
-        setConfig({ ...(data.config || {}), ...transientFields })
+        setConfig((prev) => {
+          const transientFields = loadTransientFields()
+          return { ...(data.config || {}), ...transientFields }
+        })
       } catch (err: any) {
         setError(err?.message || 'Failed to load config')
         setConfig(null)
@@ -129,7 +153,7 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
     }
 
     fetchConfig()
-  }, [organizationId])
+  }, [organizationId, loadTransientFields])
 
   const updateConfig = useCallback(
     async (updates: Partial<VoiceConfig>): Promise<VoiceConfig | null> => {
@@ -168,7 +192,7 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
           setConfig((prev) => {
             const newConfig = { ...(prev || {}), ...transientUpdates }
             // Save transient fields to localStorage
-            saveTransientFields({ ...prev, ...transientUpdates })
+            saveTransientFields(newConfig)
             return newConfig
           })
         }
@@ -201,7 +225,7 @@ export function VoiceConfigProvider({ organizationId, children }: VoiceConfigPro
         throw err
       }
     },
-    [organizationId, config]
+    [organizationId, config, saveTransientFields]
   )
 
   return (

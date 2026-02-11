@@ -68,7 +68,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       expect(response.success).toBe(true)
       expect(response.call_id).toBeDefined()
@@ -129,7 +129,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = response.call_id
       createdCallIds.push(callId)
@@ -162,7 +162,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: CUSTOMER_PHONE,
         from_number: AGENT_PHONE,
         flow_type: 'bridge',
-      })
+      }})
 
       expect(response.success).toBe(true)
       expect(response.call_id).toBeDefined()
@@ -201,7 +201,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: CUSTOMER_PHONE,
         from_number: AGENT_PHONE,
         flow_type: 'bridge',
-      })
+      }})
 
       const bridgeCallId = bridgeResponse.call_id
       createdCallIds.push(bridgeCallId)
@@ -257,7 +257,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = response.call_id
       createdCallIds.push(callId)
@@ -384,7 +384,7 @@ describeOrSkip('Answering Machine Detection (AMD) Tests', () => {
         to_number: TEST_TO_NUMBER,
         from_number: TEST_FROM_NUMBER,
         flow_type: 'direct',
-      })
+      }})
 
       const callId = response.call_id
       createdCallIds.push(callId)

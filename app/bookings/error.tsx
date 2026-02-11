@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Bookings Error Boundary
@@ -14,15 +15,10 @@ export default function BookingsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(
-      JSON.stringify({
-        level: 'ERROR',
-        msg: 'Bookings error',
-        error: error.message,
-        digest: error.digest,
-        ts: new Date().toISOString(),
-      })
-    )
+    logger.error('Bookings error', {
+      error: error.message,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

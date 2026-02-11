@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Reports Error Boundary
@@ -14,15 +15,10 @@ export default function ReportsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(
-      JSON.stringify({
-        level: 'ERROR',
-        msg: 'Reports error',
-        error: error.message,
-        digest: error.digest,
-        ts: new Date().toISOString(),
-      })
-    )
+    logger.error('Reports error', {
+      error: error.message,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

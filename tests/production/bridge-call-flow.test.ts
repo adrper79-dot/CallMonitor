@@ -177,7 +177,7 @@ describeOrSkip('Bridge Call Flow E2E Tests', () => {
         to_number: CUSTOMER_PHONE,
         from_number: AGENT_PHONE,
         flow_type: 'bridge',
-      })
+      }})
 
       expect(initiateResponse.success).toBe(true)
       const callId = initiateResponse.call_id
@@ -222,7 +222,7 @@ describeOrSkip('Bridge Call Flow E2E Tests', () => {
         to_number: CUSTOMER_PHONE,
         from_number: AGENT_PHONE,
         flow_type: 'bridge',
-      })
+      }})
 
       expect(response.success).toBe(true)
       const bridgeCallId = response.call_id
@@ -285,7 +285,7 @@ describeOrSkip('Bridge Call Flow E2E Tests', () => {
         to_number: CUSTOMER_PHONE,
         from_number: AGENT_PHONE,
         flow_type: 'bridge',
-      })
+      }})
 
       const bridgeCallId = bridgeResponse.call_id
       createdCallIds.push(bridgeCallId)

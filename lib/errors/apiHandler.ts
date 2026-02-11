@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { AppError } from '@/types/app-error'
 import { trackAppError, trackError } from './errorTracker'
 import { recordErrorKPI, recordSuccessKPI } from './kpi'
+import { logger } from '@/lib/logger'
 
 /**
  * API Handler Wrapper
@@ -41,7 +42,7 @@ async function trackErrorWithContext(error: Error, context: ApiHandlerContext, d
     }
 
     // Log structured error data for Cloudflare Logs
-    console.error('API_ERROR', {
+    logger.error('API_ERROR', {
       error: {
         name: error.name,
         message: error.message,
@@ -65,7 +66,7 @@ async function trackErrorWithContext(error: Error, context: ApiHandlerContext, d
     }
   } catch (trackingError) {
     // Don't let error tracking break the main flow
-    console.error('Error tracking failed:', trackingError)
+    logger.error('Error tracking failed', { error: (trackingError as Error)?.message })
   }
 }
 

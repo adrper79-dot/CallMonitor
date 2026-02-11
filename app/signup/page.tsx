@@ -12,6 +12,7 @@ import {
   getPasswordStrength,
 } from '@/components/ui/form-validation'
 import { apiGet, apiPost, apiGetNoAuth } from '@/lib/apiClient'
+import { logger } from '@/lib/logger'
 
 interface InviteData {
   email: string
@@ -139,7 +140,7 @@ export default function SignUpPage() {
 
       if (signInRes?.error) {
         // Account created but sign-in failed - redirect to signin with message
-        console.error('Auto sign-in failed:', signInRes.error)
+        logger.error('Auto sign-in failed', { error: signInRes.error })
         router.push('/signin?message=account-created')
         return
       }
@@ -150,24 +151,24 @@ export default function SignUpPage() {
           const acceptData = await apiPost(`/api/team/invites/accept/${inviteToken}`, undefined)
 
           if (acceptData.success) {
-            console.info(`Joined organization: ${acceptData.organization_name}`)
+            logger.info('Joined organization', { organizationName: acceptData.organization_name })
           } else {
-            console.warn('Failed to accept invite:', acceptData.error)
+            logger.warn('Failed to accept invite', { error: acceptData.error })
           }
         } catch (acceptErr) {
-          console.error('Error accepting invite:', acceptErr)
+          logger.error('Error accepting invite', { error: acceptErr })
         }
       }
 
       // Step 4: Redirect to dashboard
       if (signInRes?.ok) {
-        router.push('/dashboard')
+        router.push('/onboarding')
       } else {
         // Fallback - redirect to signin
         router.push('/signin?message=account-created')
       }
     } catch (err: any) {
-      console.error('Signup error:', err)
+      logger.error('Signup error', { error: err?.message })
       setError(err?.message || 'Something went wrong')
       setLoading(false)
     }

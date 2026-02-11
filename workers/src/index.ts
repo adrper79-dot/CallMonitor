@@ -50,6 +50,7 @@ import { adminRoutes } from './routes/admin'
 import { complianceRoutes } from './routes/compliance'
 import { collectionsRoutes } from './routes/collections'
 import { sentimentRoutes } from './routes/sentiment'
+import { onboardingRoutes } from './routes/onboarding'
 import { dialerRoutes } from './routes/dialer'
 import { ivrRoutes } from './routes/ivr'
 import { aiToggleRoutes } from './routes/ai-toggle'
@@ -83,6 +84,8 @@ export interface Env {
   AUTH_SECRET: string
   OPENAI_API_KEY: string
   RESEND_API_KEY: string
+  RESEND_FROM?: string
+  RESEND_REPLY_TO?: string
   STRIPE_SECRET_KEY: string
   TELNYX_API_KEY: string
   TELNYX_CONNECTION_ID: string // Credential Connection for WebRTC
@@ -225,6 +228,7 @@ app.route('/api/_admin', adminRoutes)
 app.route('/api/compliance', complianceRoutes)
 app.route('/api/collections', collectionsRoutes)
 app.route('/api/sentiment', sentimentRoutes)
+app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/dialer', dialerRoutes)
 app.route('/api/ivr', ivrRoutes)
 app.route('/api/ai-toggle', aiToggleRoutes)

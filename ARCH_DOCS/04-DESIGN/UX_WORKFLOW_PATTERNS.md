@@ -26,10 +26,11 @@ All authenticated pages use the `AppShell` component for consistent navigation.
 │ │ Logo + Org Name             ││  Page Header               │
 │ │                             ││  ─────────────────────     │
 │ │ Navigation                  ││                            │
-│ │ • Overview                  ││  Page Content              │
+│ │ • Dashboard                 ││  Page Content              │
 │ │ • Calls (Primary)           ││                            │
-│ │ • Schedule                  ││                            │
 │ │ • Evidence                  ││                            │
+│ │ • Schedule                  ││                            │
+│ │ • Teams                     ││                            │
 │ │ • Settings                  ││                            │
 │ │                             ││                            │
 │ │ User Section                ││                            │
@@ -41,21 +42,39 @@ All authenticated pages use the `AppShell` component for consistent navigation.
 **Navigation Items:**
 | Route | Label | Icon | Priority |
 |-------|-------|------|----------|
-| `/dashboard` | Overview | Home | Secondary |
-| `/voice` | Calls | Phone | **Primary** |
-| `/bookings` | Schedule | Calendar | Secondary |
+| `/dashboard` | Dashboard | Home | Secondary |
+| `/voice-operations` | Calls | Phone | **Primary** |
 | `/review` | Evidence | Document | Secondary |
+| `/bookings` | Schedule | Calendar | Secondary |
+| `/teams` | Teams | Users | Secondary |
 | `/settings` | Settings | Gear | Secondary |
 
 **Mobile:** Collapses to hamburger menu with same navigation.
+
+**Vertical Modules:** Feature-specific workspaces (e.g., Collections at `/voice-operations/accounts`) are accessed via deep links and are not part of the core navigation.
+
+### Information Architecture (Service Model)
+
+```
+Core Services
+├─ Dashboard
+├─ Calls (Primary)
+├─ Evidence
+├─ Schedule
+├─ Teams
+└─ Settings
+
+Vertical Modules (deep links)
+└─ Collections (/voice-operations/accounts)
+```
 
 ---
 
 ### 2. First-Time User Onboarding
 
-New users (no previous calls) see the `OnboardingWizard` instead of the main Voice interface.
+New users start in the dedicated onboarding flow and then land in Calls.
 
-**Location:** `components/voice/OnboardingWizard.tsx`
+**Location:** `app/onboarding/page.tsx`
 
 **Flow:**
 ```
@@ -75,7 +94,7 @@ Step 4: Confirm
 └── [Place Call] → Exits wizard, places call
 ```
 
-**Skip:** Users can skip onboarding at any time to access full interface.
+**Skip:** Users can skip onboarding to access Calls and return later.
 
 ---
 
@@ -194,8 +213,8 @@ Settings are organized by job-to-be-done, not feature name.
 | Tab | Contains | Purpose |
 |-----|----------|---------|
 | **Call Configuration** | Targets + Caller ID | "Set up calls" |
-| **AI & Intelligence** | AI Control + Surveys | "Configure AI features" |
-| **Quality Assurance** | Secret Shopper | "Quality testing" |
+| **AI Settings** | AI Control + Surveys | "Configure AI features" |
+| **Evidence Quality** | Secret Shopper + Scorecards | "Quality testing" |
 | **Team & Access** | Team Management | "Manage people" |
 | **Billing** | Plan + Payment | "Manage subscription" |
 
@@ -253,7 +272,7 @@ Mobile uses bottom tab navigation with 4 items:
 │          Content Area               │
 │                                     │
 ├─────────────────────────────────────┤
-│ [📞 Dial] [📋 Calls] [🔔 Activity] [+ Schedule] │
+│ [📞 Calls] [📋 Evidence] [🗓 Schedule] [🏠 Dashboard] │
 └─────────────────────────────────────┘
 ```
 

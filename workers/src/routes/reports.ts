@@ -35,7 +35,8 @@ reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
     const offset = (page - 1) * limit
 
     const rowsResult = await db.query(
-      `SELECT *, COUNT(*) OVER() as total_count
+      `SELECT id, organization_id, name, type, status, filters, metrics, format,
+              created_by, created_at, updated_at, COUNT(*) OVER() as total_count
       FROM reports
       WHERE organization_id = $1
       ORDER BY created_at DESC
@@ -111,7 +112,9 @@ reportsRoutes.get('/:id/export', async (c) => {
     const reportId = c.req.param('id')
 
     const rowsResult = await db.query(
-      `SELECT * FROM reports
+      `SELECT id, organization_id, name, type, status, filters, metrics, format,
+              created_by, created_at, updated_at
+      FROM reports
       WHERE id = $1::uuid AND organization_id = $2
       LIMIT 1`,
       [reportId, session.organization_id]
@@ -157,7 +160,10 @@ reportsRoutes.get('/schedules', async (c) => {
     const offset = (page - 1) * limit
 
     const rowsResult = await db.query(
-      `SELECT *, COUNT(*) OVER() as total_count FROM report_schedules
+      `SELECT id, organization_id, name, report_type, cron_pattern, delivery_emails,
+              filters, format, is_active, created_by, created_at, updated_at,
+              COUNT(*) OVER() as total_count
+      FROM report_schedules
       WHERE organization_id = $1
       ORDER BY created_at DESC
       LIMIT $2 OFFSET $3`,

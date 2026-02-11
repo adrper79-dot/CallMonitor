@@ -2,9 +2,10 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
- * Voice Operations Error Boundary
+ * Calls Error Boundary
  * 
  * Catches errors in the voice route and provides recovery options.
  * Professional Design System v3.0
@@ -17,7 +18,7 @@ export default function VoiceError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Voice operations error:', error)
+    logger.error('Calls error', { error, digest: error.digest })
   }, [error])
 
   return (
@@ -32,7 +33,7 @@ export default function VoiceError({
           </div>
 
           <h1 className="text-xl font-semibold text-gray-900 mb-2">
-            Unable to load Voice Operations
+            Unable to load Calls
           </h1>
           <p className="text-gray-600 mb-6">
             There was a problem loading the call interface. Please try again.

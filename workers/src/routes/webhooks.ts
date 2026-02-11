@@ -29,7 +29,7 @@ import { requireAuth } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
-import { webhookRateLimit } from '../lib/rate-limit'
+import { webhookRateLimit, externalWebhookRateLimit } from '../lib/rate-limit'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { translateAndStore, getTranslationConfig } from '../lib/translation-processor'
 import { handleSentimentAnalysis } from '../lib/sentiment-processor'
@@ -134,7 +134,7 @@ async function verifyTelnyxSignature(
 }
 
 // Telnyx call events — verified via Ed25519 signature
-webhooksRoutes.post('/telnyx', async (c) => {
+webhooksRoutes.post('/telnyx', externalWebhookRateLimit, async (c) => {
   try {
     const rawBody = await c.req.text()
 
@@ -144,33 +144,34 @@ webhooksRoutes.post('/telnyx', async (c) => {
       return c.json({ error: 'Empty body not allowed' }, 400)
     }
 
-    // Verify Telnyx Ed25519 signature
-    // Get the public key from environment (base64-encoded)
+    // BL-133: MANDATORY Telnyx Ed25519 signature verification (fail-closed)
     const telnyxPublicKey = c.env.TELNYX_PUBLIC_KEY
-    if (telnyxPublicKey) {
-      const timestamp = c.req.header('telnyx-timestamp') || c.req.header('webhook-timestamp') || ''
-      const signature =
-        c.req.header('telnyx-signature-ed25519') || c.req.header('webhook-signature') || ''
-
-      if (!timestamp || !signature) {
-        logger.warn('Telnyx webhook missing timestamp or signature headers')
-        return c.json({ error: 'Missing signature headers' }, 401)
-      }
-
-      const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxPublicKey)
-      if (!valid) {
-        logger.error('Telnyx webhook signature verification failed', {
-          timestamp,
-          signatureLength: signature.length,
-        })
-        return c.json({ error: 'Invalid webhook signature' }, 401)
-      }
-      logger.info('Telnyx webhook signature verified successfully')
-    } else {
-      logger.warn(
-        'TELNYX_PUBLIC_KEY not configured — accepting unverified webhook (set public key for production)'
-      )
+    if (!telnyxPublicKey) {
+      logger.error('TELNYX_PUBLIC_KEY not configured - rejecting webhook')
+      return c.json({ error: 'Webhook verification not configured' }, 500)
     }
+
+    const timestamp = c.req.header('telnyx-timestamp') || c.req.header('webhook-timestamp') || ''
+    const signature =
+      c.req.header('telnyx-signature-ed25519') || c.req.header('webhook-signature') || ''
+
+    if (!timestamp || !signature) {
+      logger.warn('Telnyx webhook missing timestamp or signature headers', {
+        ip: c.req.header('cf-connecting-ip'),
+      })
+      return c.json({ error: 'Missing signature headers' }, 401)
+    }
+
+    const valid = await verifyTelnyxSignature(rawBody, timestamp, signature, telnyxPublicKey)
+    if (!valid) {
+      logger.warn('Invalid Telnyx webhook signature', {
+        ip: c.req.header('cf-connecting-ip'),
+        timestamp,
+        signatureLength: signature.length,
+      })
+      return c.json({ error: 'Invalid signature' }, 401)
+    }
+    logger.info('Telnyx webhook signature verified successfully')
 
     let body: any
     try {
@@ -255,22 +256,21 @@ webhooksRoutes.post('/telnyx', async (c) => {
 // AssemblyAI transcription webhook
 // BL-005: Verify webhook auth header (shared secret set during transcription submission)
 // BL-006: Scoped UPDATE by organization_id via JOIN to prevent cross-tenant injection
-webhooksRoutes.post('/assemblyai', async (c) => {
+webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
   try {
-    // BL-005: Verify webhook authentication token
+    // BL-005: Verify webhook authentication token (MANDATORY)
     const webhookSecret = c.env.ASSEMBLYAI_WEBHOOK_SECRET
-    if (webhookSecret) {
-      const authHeader =
-        c.req.header('Authorization') || c.req.header('X-AssemblyAI-Webhook-Secret') || ''
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
-      if (token !== webhookSecret) {
-        logger.error('AssemblyAI webhook signature verification failed')
-        return c.json({ error: 'Invalid webhook authentication' }, 401)
-      }
-    } else {
-      logger.warn(
-        'ASSEMBLYAI_WEBHOOK_SECRET not configured — accepting unverified webhook (configure secret for production)'
-      )
+    if (!webhookSecret) {
+      logger.error('ASSEMBLYAI_WEBHOOK_SECRET not configured - rejecting webhook')
+      return c.json({ error: 'Webhook verification not configured' }, 500)
+    }
+
+    const authHeader =
+      c.req.header('Authorization') || c.req.header('X-AssemblyAI-Webhook-Secret') || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
+    if (token !== webhookSecret) {
+      logger.error('AssemblyAI webhook signature verification failed')
+      return c.json({ error: 'Invalid webhook authentication' }, 401)
     }
 
     const body = await c.req.json()
@@ -280,16 +280,36 @@ webhooksRoutes.post('/assemblyai', async (c) => {
       const db = getDb(c.env)
       try {
         // BL-006: Organization-scoped update to prevent cross-tenant transcript injection
-        const result = await db.query(
-          `UPDATE calls 
-         SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
-         WHERE transcript_id = $2 AND organization_id IS NOT NULL`,
-          [text, transcript_id]
+        // Prefer to scope updates to a concrete organization_id to avoid cross-tenant updates.
+        const callOrgLookup = await db.query(
+          `SELECT organization_id FROM calls WHERE transcript_id = $1 LIMIT 1`,
+          [transcript_id]
         )
-        if (result.rows.length === 0) {
-          logger.warn('AssemblyAI webhook: no matching call found for transcript_id', {
-            transcript_id,
-          })
+        if (callOrgLookup.rows.length > 0) {
+          const orgId = callOrgLookup.rows[0].organization_id
+          const result = await db.query(
+            `UPDATE calls 
+             SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
+             WHERE transcript_id = $2 AND organization_id = $3`,
+            [text, transcript_id, orgId]
+          )
+          if (result.rowCount === 0) {
+            logger.warn('AssemblyAI webhook: no matching call found for transcript_id scoped to org', {
+              transcript_id,
+              organization_id: orgId,
+            })
+          }
+        } else {
+          // Fallback: attempt best-effort update (legacy behavior) if we couldn't resolve org
+          const result = await db.query(
+            `UPDATE calls 
+             SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
+             WHERE transcript_id = $2 AND organization_id IS NOT NULL`,
+            [text, transcript_id]
+          )
+          if (result.rowCount === 0) {
+            logger.warn('AssemblyAI webhook: no matching call found for transcript_id', { transcript_id })
+          }
         }
       } finally {
         await db.end()
@@ -304,7 +324,7 @@ webhooksRoutes.post('/assemblyai', async (c) => {
 })
 
 // Stripe billing webhook — verified via HMAC-SHA256 signature
-webhooksRoutes.post('/stripe', async (c) => {
+webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const signature = c.req.header('stripe-signature')
@@ -362,7 +382,28 @@ webhooksRoutes.post('/stripe', async (c) => {
 async function handleCallInitiated(db: DbClient, payload: any) {
   const { call_control_id, call_session_id, from, to } = payload
 
-  // First try to update existing call
+  // First try to update existing call. Prefer scoping by organization when possible.
+  const callOrg = await db.query(
+    `SELECT organization_id FROM calls WHERE call_control_id = $1 OR call_sid = $2 LIMIT 1`,
+    [call_control_id, call_session_id]
+  )
+
+  if (callOrg.rows.length > 0) {
+    const orgId = callOrg.rows[0].organization_id
+    const updateResult = await db.query(
+      `UPDATE calls
+       SET call_sid = $1, status = 'initiated'
+       WHERE call_control_id = $2 AND organization_id = $3`,
+      [call_session_id, call_control_id, orgId]
+    )
+
+    if (updateResult.rowCount && updateResult.rowCount > 0) {
+      // Successfully updated existing call
+      return
+    }
+  }
+
+  // Fallback: attempt legacy best-effort update if no org was resolvable
   const updateResult = await db.query(
     `UPDATE calls
      SET call_sid = $1, status = 'initiated'
@@ -512,12 +553,26 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         // Store the pending bridge relationship on the AGENT's call record (which already exists).
         // When the customer call fires call.answered as a bridge_customer, we look up
         // the agent call by bridge_partner_id to execute the bridge.
-        await db.query(
-          `UPDATE calls
-           SET bridge_partner_id = $1
-           WHERE call_control_id = $2 AND organization_id IS NOT NULL`,
-          [customerCallControlId, call_control_id]
+        // Scope the bridge_partner update to the call's organization when possible
+        const partnerOrg = await db.query(
+          `SELECT organization_id FROM calls WHERE call_control_id = $1 LIMIT 1`,
+          [call_control_id]
         )
+        if (partnerOrg.rows.length > 0) {
+          await db.query(
+            `UPDATE calls
+             SET bridge_partner_id = $1
+             WHERE call_control_id = $2 AND organization_id = $3`,
+            [customerCallControlId, call_control_id, partnerOrg.rows[0].organization_id]
+          )
+        } else {
+          await db.query(
+            `UPDATE calls
+             SET bridge_partner_id = $1
+             WHERE call_control_id = $2 AND organization_id IS NOT NULL`,
+            [customerCallControlId, call_control_id]
+          )
+        }
       } else {
         const errorText = await createCallResponse.text()
         logger.error('Customer call creation failed', {
@@ -569,18 +624,31 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         }
       )
 
-      if (bridgeResponse.ok) {
+        if (bridgeResponse.ok) {
         logger.info('Bridge executed successfully', {
           agentCallControlId,
           customerCallControlId: call_control_id,
         })
 
-        // Update both calls to 'bridged'
-        await db.query(
-          `UPDATE calls SET status = 'bridged', updated_at = NOW()
-           WHERE call_control_id IN ($1, $2) AND organization_id IS NOT NULL`,
+        // Update both calls to 'bridged' scoped to the organization we resolved earlier (if any)
+        const orgLookup = await db.query(
+          `SELECT organization_id FROM calls WHERE call_control_id = $1 OR call_control_id = $2 LIMIT 1`,
           [agentCallControlId, call_control_id]
         )
+        if (orgLookup.rows.length > 0) {
+          const orgId = orgLookup.rows[0].organization_id
+          await db.query(
+            `UPDATE calls SET status = 'bridged', updated_at = NOW()` +
+              ` WHERE call_control_id IN ($1, $2) AND organization_id = $3`,
+            [agentCallControlId, call_control_id, orgId]
+          )
+        } else {
+          await db.query(
+            `UPDATE calls SET status = 'bridged', updated_at = NOW()` +
+              ` WHERE call_control_id IN ($1, $2) AND organization_id IS NOT NULL`,
+            [agentCallControlId, call_control_id]
+          )
+        }
       } else {
         const bridgeErrorText = await bridgeResponse.text()
         logger.error('Bridge action failed', {
@@ -878,8 +946,28 @@ async function handleCallGatherEnded(env: Env, db: DbClient, payload: any) {
     status,
   })
 
+  // Fetch call details for audit logging (BL-VOICE-002)
+  const callResult = await db.query(
+    `SELECT id, organization_id FROM calls WHERE call_control_id = $1`,
+    [call_control_id]
+  )
+  const callRecord = callResult.rows[0]
+
   if (flowContext.flow === 'ivr_payment') {
     await handleGatherResult(db, call_control_id, gatherResult, status, env, flowContext)
+
+    // Audit log IVR DTMF collection (BL-VOICE-002)
+    if (callRecord) {
+      writeAuditLog(db, {
+        organizationId: callRecord.organization_id,
+        userId: 'system',
+        action: AuditAction.IVR_DTMF_COLLECTED,
+        resourceType: 'call',
+        resourceId: callRecord.id,
+        oldValue: null,
+        newValue: { flow: 'ivr_payment', status, hasDigits: !!digits, hasSpeech: !!speech },
+      })
+    }
   } else if (flowContext.flow === 'ai_dialog') {
     await handleAICallEvent(env, db, 'gather_ended', call_control_id, {
       transcript: gatherResult,
@@ -941,12 +1029,27 @@ async function handleCallBridged(env: Env, db: DbClient, payload: any) {
 
   logger.info('Call bridged', { callControlId: call_control_id })
 
-  // Update call status
-  await db.query(
+  // Update call status and capture details for audit logging (BL-VOICE-002)
+  const updateResult = await db.query(
     `UPDATE calls SET status = 'bridged', updated_at = NOW()
-     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL`,
+     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL
+     RETURNING id, organization_id`,
     [call_session_id, call_control_id]
   )
+
+  const callRecord = updateResult.rows[0]
+  if (callRecord) {
+    // Audit log call bridging event (BL-VOICE-002)
+    writeAuditLog(db, {
+      organizationId: callRecord.organization_id,
+      userId: 'system',
+      action: AuditAction.CALL_BRIDGED,
+      resourceType: 'call',
+      resourceId: callRecord.id,
+      oldValue: null,
+      newValue: { call_control_id, call_session_id },
+    })
+  }
 
   // Notify AI engine of bridge completion
   await handleAICallEvent(env, db, 'bridged', call_control_id, {})
@@ -963,97 +1066,132 @@ async function handleCheckoutCompleted(db: DbClient, session: any) {
   const subscriptionId = session.subscription
   const orgId = session.metadata?.organization_id
 
-  // If we have org_id in metadata, update it directly
+  // BL-134: Verify customer ownership before mutations
+  let verifiedOrgId: string
+
   if (orgId) {
-    await db.query(
-      `UPDATE organizations
-       SET stripe_customer_id = $2,
-           subscription_id = $3,
-           subscription_status = 'active',
-           plan_started_at = NOW()
-       WHERE id = $1`,
-      [orgId, customerId, subscriptionId]
+    // Verify the org_id from metadata actually exists and matches customer
+    const orgCheck = await db.query(
+      `SELECT id FROM organizations WHERE id = $1 AND stripe_customer_id = $2`,
+      [orgId, customerId]
     )
+    if (!orgCheck.rows[0]) {
+      logger.warn('Stripe checkout: org_id mismatch or not found', {
+        metadata_org_id: orgId,
+        customer_id: customerId,
+      })
+      return
+    }
+    verifiedOrgId = orgId
   } else {
-    // Fallback: look up by customer_id
-    await db.query(
-      `UPDATE organizations
-       SET subscription_id = $2,
-           subscription_status = 'active',
-           plan_started_at = NOW()
-       WHERE stripe_customer_id = $1`,
-      [customerId, subscriptionId]
+    // Fallback: look up by customer_id with verification
+    const orgResult = await db.query(
+      `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+      [customerId]
     )
+    if (!orgResult.rows[0]) {
+      logger.warn('Stripe checkout for unknown customer', {
+        customer_id: customerId,
+      })
+      return
+    }
+    verifiedOrgId = orgResult.rows[0].id
   }
 
-  // Log the checkout completion
+  // Update using verified org ID with additional WHERE clause safety
+  await db.query(
+    `UPDATE organizations
+     SET stripe_customer_id = $1,
+         subscription_id = $2,
+         subscription_status = 'active',
+         plan_started_at = NOW()
+     WHERE id = $3`,
+    [customerId, subscriptionId, verifiedOrgId]
+  )
+
+  // Log the checkout completion using verified orgId
   await db.query(
     `INSERT INTO billing_events (organization_id, event_type, amount, metadata, created_at)
-     SELECT id, 'checkout_completed', $2, $3::jsonb, NOW()
-     FROM organizations WHERE stripe_customer_id = $1`,
+     VALUES ($1, 'checkout_completed', $2, $3::jsonb, NOW())`,
     [
-      customerId,
+      verifiedOrgId,
       session.amount_total || 0,
       JSON.stringify({ session_id: session.id, subscription_id: subscriptionId }),
     ]
   )
 }
 
-async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
-  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
-    subscription.customer,
-  ])
-  const orgId = orgResult.rows[0]?.id
-
-  await db.query(
-    `UPDATE organizations
-     SET subscription_status = $2, subscription_id = $3, plan_id = $4
-     WHERE stripe_customer_id = $1`,
-    [
-      subscription.customer,
-      subscription.status,
-      subscription.id,
-      subscription.items.data[0]?.price?.id,
-    ]
-  )
-
-  if (orgId) {
-    writeAuditLog(db, {
-      organizationId: orgId,
-      userId: 'system',
-      action: AuditAction.SUBSCRIPTION_UPDATED,
-      resourceType: 'subscription',
-      resourceId: subscription.id,
-      oldValue: null,
-      newValue: { status: subscription.status, plan_id: subscription.items.data[0]?.price?.id },
-    })
-  }
-}
-
-async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
-  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
-    subscription.customer,
-  ])
-  const orgId = orgResult.rows[0]?.id
-
-  await db.query(
-    `UPDATE organizations 
-     SET subscription_status = 'canceled'
-     WHERE stripe_customer_id = $1`,
+export async function handleSubscriptionUpdate(db: DbClient, subscription: any) {
+  // BL-134: Verify customer ownership before mutations
+  const orgResult = await db.query(
+    `SELECT id, organization_id FROM organizations WHERE stripe_customer_id = $1`,
     [subscription.customer]
   )
 
-  if (orgId) {
-    writeAuditLog(db, {
-      organizationId: orgId,
-      userId: 'system',
-      action: AuditAction.SUBSCRIPTION_CANCELLED,
-      resourceType: 'subscription',
-      resourceId: subscription.id,
-      oldValue: null,
-      newValue: { status: 'canceled' },
+  if (!orgResult.rows[0]) {
+    logger.warn('Stripe webhook for unknown customer', {
+      customer_id: subscription.customer,
+      event_type: 'subscription.updated',
     })
+    return
   }
+
+  const orgId = orgResult.rows[0].id
+  const planId = subscription.items.data[0]?.price?.id
+
+  // Use verified org ID for update with additional WHERE clause safety
+  await db.query(
+    `UPDATE organizations
+     SET subscription_status = $1, subscription_id = $2, plan_id = $3
+     WHERE id = $4 AND stripe_customer_id = $5`,
+    [subscription.status, subscription.id, planId, orgId, subscription.customer]
+  )
+
+  writeAuditLog(db, {
+    organizationId: orgId,
+    userId: 'system',
+    action: AuditAction.SUBSCRIPTION_UPDATED,
+    resourceType: 'subscription',
+    resourceId: subscription.id,
+    oldValue: null,
+    newValue: { status: subscription.status, plan_id: planId },
+  })
+}
+
+async function handleSubscriptionCanceled(db: DbClient, subscription: any) {
+  // BL-134: Verify customer ownership before mutations
+  const orgResult = await db.query(
+    `SELECT id, organization_id FROM organizations WHERE stripe_customer_id = $1`,
+    [subscription.customer]
+  )
+
+  if (!orgResult.rows[0]) {
+    logger.warn('Stripe webhook for unknown customer', {
+      customer_id: subscription.customer,
+      event_type: 'subscription.deleted',
+    })
+    return
+  }
+
+  const orgId = orgResult.rows[0].id
+
+  // Use verified org ID for update with additional WHERE clause safety
+  await db.query(
+    `UPDATE organizations 
+     SET subscription_status = 'canceled'
+     WHERE id = $1 AND stripe_customer_id = $2`,
+    [orgId, subscription.customer]
+  )
+
+  writeAuditLog(db, {
+    organizationId: orgId,
+    userId: 'system',
+    action: AuditAction.SUBSCRIPTION_CANCELLED,
+    resourceType: 'subscription',
+    resourceId: subscription.id,
+    oldValue: null,
+    newValue: { status: 'canceled' },
+  })
 }
 
 async function handleInvoicePaid(db: DbClient, invoice: any) {
@@ -1079,27 +1217,37 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
   }
 }
 
-async function handleInvoiceFailed(db: DbClient, invoice: any) {
-  const orgResult = await db.query(`SELECT id FROM organizations WHERE stripe_customer_id = $1`, [
-    invoice.customer,
-  ])
-  const orgId = orgResult.rows[0]?.id
-
-  // Mark subscription as past_due
-  await db.query(
-    `UPDATE organizations
-     SET subscription_status = 'past_due'
-     WHERE stripe_customer_id = $1`,
+export async function handleInvoiceFailed(db: DbClient, invoice: any) {
+  // BL-134: Verify customer ownership before mutations
+  const orgResult = await db.query(
+    `SELECT id, organization_id FROM organizations WHERE stripe_customer_id = $1`,
     [invoice.customer]
   )
 
-  // Log the failed payment
+  if (!orgResult.rows[0]) {
+    logger.warn('Stripe webhook for unknown customer', {
+      customer_id: invoice.customer,
+      event_type: 'invoice.payment_failed',
+    })
+    return
+  }
+
+  const orgId = orgResult.rows[0].id
+
+  // Use verified org ID for update with additional WHERE clause safety
+  await db.query(
+    `UPDATE organizations
+     SET subscription_status = 'past_due'
+     WHERE id = $1 AND stripe_customer_id = $2`,
+    [orgId, invoice.customer]
+  )
+
+  // Log the failed payment using verified orgId
   await db.query(
     `INSERT INTO billing_events (organization_id, event_type, amount, invoice_id, metadata, created_at)
-     SELECT id, 'invoice_payment_failed', $2, $3, $4::jsonb, NOW()
-     FROM organizations WHERE stripe_customer_id = $1`,
+     VALUES ($1, 'invoice_payment_failed', $2, $3, $4::jsonb, NOW())`,
     [
-      invoice.customer,
+      orgId,
       invoice.amount_due,
       invoice.id,
       JSON.stringify({
@@ -1109,17 +1257,15 @@ async function handleInvoiceFailed(db: DbClient, invoice: any) {
     ]
   )
 
-  if (orgId) {
-    writeAuditLog(db, {
-      organizationId: orgId,
-      userId: 'system',
-      action: AuditAction.PAYMENT_FAILED,
-      resourceType: 'invoice',
-      resourceId: invoice.id,
-      oldValue: null,
-      newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
-    })
-  }
+  writeAuditLog(db, {
+    organizationId: orgId,
+    userId: 'system',
+    action: AuditAction.PAYMENT_FAILED,
+    resourceType: 'invoice',
+    resourceId: invoice.id,
+    oldValue: null,
+    newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
+  })
 }
 
 // ============================================================

@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Campaign Manager Page
  *
@@ -5,8 +7,6 @@
  * Features: List campaigns, create new, view details, execute
  * RBAC: All can view, Owner/Admin can manage
  */
-
-'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'

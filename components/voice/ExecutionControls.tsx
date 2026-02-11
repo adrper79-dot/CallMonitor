@@ -9,10 +9,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { apiPost } from '@/lib/apiClient'
+import { logger } from '@/lib/logger'
 
 export interface ExecutionControlsProps {
   organizationId: string | null
   onCallPlaced?: (callId: string) => void
+  embedded?: boolean
 }
 
 /**
@@ -24,9 +26,11 @@ export interface ExecutionControlsProps {
 export default function ExecutionControls({
   organizationId,
   onCallPlaced,
+  embedded = false,
 }: ExecutionControlsProps) {
-  const { role } = useRBAC(organizationId)
-  const canPlaceCall = usePermission(organizationId, 'call', 'execute')
+  const rbacState = useRBAC(organizationId)
+  const { role } = rbacState
+  const canPlaceCall = usePermission(organizationId, 'call', 'execute', rbacState)
   const { config, updateConfig } = useVoiceConfig(organizationId)
   const { targetNumber } = useTargetNumber()
   const { toast } = useToast()
@@ -197,7 +201,7 @@ export default function ExecutionControls({
         description: `Call ${callId.slice(0, 8)}... is being initiated`,
       })
     } catch (err: any) {
-      console.error('[ExecutionControls] Call failed:', err)
+      logger.error('ExecutionControls: Call failed', { error: err?.message, targetNumber })
       setCallStatus(null)
       toast({
         title: 'Error',
@@ -228,16 +232,16 @@ export default function ExecutionControls({
             : 'default'
 
   if (!canPlaceCall) {
-    return (
+    const content = (
       <div className="bg-white rounded-md border border-gray-200 p-4">
         <p className="text-sm text-gray-500">Only Owners, Admins, and Operators can place calls.</p>
       </div>
     )
+    return embedded ? content : content
   }
 
-  return (
-    <section className="bg-white rounded-md border border-gray-200 p-6">
-      <div className="space-y-4">
+  const content = (
+    <div className="space-y-4">
         {/* Target Display */}
         {hasDialTarget && (
           <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
@@ -322,7 +326,12 @@ export default function ExecutionControls({
             Enter a phone number above to place a call
           </p>
         )}
-      </div>
-    </section>
+    </div>
   )
+
+  if (embedded) {
+    return content
+  }
+
+  return <section className="bg-white rounded-md border border-gray-200 p-6">{content}</section>
 }

@@ -610,7 +610,7 @@ analyticsRoutes.get('/export', analyticsExportRateLimit, async (c) => {
             AND created_at >= $2::timestamptz
             AND created_at <= $3::timestamptz
           ORDER BY created_at DESC
-          LIMIT 10000`,
+          LIMIT 5000`,
           [session.organization_id, start, end]
         )
         rows = callsResult.rows
@@ -622,7 +622,7 @@ analyticsRoutes.get('/export', analyticsExportRateLimit, async (c) => {
             AND created_at >= $2::timestamptz
             AND created_at <= $3::timestamptz
           ORDER BY created_at DESC
-          LIMIT 10000`,
+          LIMIT 5000`,
           [session.organization_id, start, end]
         )
         rows = recResult.rows

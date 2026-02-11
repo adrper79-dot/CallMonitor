@@ -22,7 +22,7 @@ import {
 } from '../lib/schemas'
 import { loginRateLimit, signupRateLimit, forgotPasswordRateLimit } from '../lib/rate-limit'
 import { logger } from '../lib/logger'
-import { sendEmail, passwordResetEmailHtml } from '../lib/email'
+import { sendEmail, passwordResetEmailHtml, getEmailDefaults } from '../lib/email'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const authRoutes = new Hono<AppEnv>()
@@ -325,12 +325,12 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     }
 
     // Get user's organization
-    // Note: org_members.user_id is UUID, users.id is TEXT - need to cast
+    // Note: org_members.user_id and users.id are both UUID — direct comparison
     const orgResult = await db.query(
       `SELECT om.organization_id, om.role, o.name as org_name
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
-       WHERE om.user_id::text = $1
+       WHERE om.user_id = $1::uuid
        LIMIT 1`,
       [user.id]
     )
@@ -347,13 +347,25 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
     const fingerprint = await computeFingerprint(c)
 
     try {
-      // sessions table has UUID columns for id and user_id (per actual schema check)
+      logger.info('[login] Creating session', {
+        session_id: sessionId,
+        user_id: user.id,
+        user_email: user.email,
+        expires: expires.toISOString(),
+      })
+
+      // sessions table has TEXT columns for id and user_id (per neon_public_schema.sql)
       await db.query(
         `INSERT INTO public.sessions (id, session_token, user_id, expires)
-         VALUES ($1::uuid, $2, $3::uuid, $4)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (session_token) DO NOTHING`,
         [sessionId, sessionToken, user.id, expires.toISOString()]
       )
+
+      logger.info('[login] Session created successfully', {
+        session_id: sessionId,
+        token_prefix: sessionToken.substring(0, 8) + '...',
+      })
 
       // H2 hardening: store fingerprint in KV bound to session token
       // TTL matches session expiry (7 days = 604800 seconds)
@@ -361,6 +373,10 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
         expirationTtl: 7 * 24 * 60 * 60,
       })
     } catch (sessionError: any) {
+      logger.error('[login] Session creation failed', {
+        error: sessionError?.message || sessionError,
+        user_id: user.id,
+      })
       return c.json({ error: 'Session creation failed' }, 500)
     }
 
@@ -574,7 +590,9 @@ authRoutes.post('/forgot-password', forgotPasswordRateLimit, async (c) => {
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}`
 
     // Send password reset email via Resend (fire-and-forget)
+    const emailDefaults = getEmailDefaults(c.env)
     sendEmail(c.env.RESEND_API_KEY, {
+      ...emailDefaults,
       to: email.toLowerCase(),
       subject: 'Reset your Word Is Bond password',
       html: passwordResetEmailHtml(resetUrl, 60),

@@ -5,14 +5,20 @@ import { Suspense, useState, useEffect } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import { AppShell } from '@/components/layout/AppShell'
 import ReviewMode from '@/components/review/ReviewMode'
+import ScorecardTemplateLibrary from '@/components/voice/ScorecardTemplateLibrary'
 import { ProductTour, REVIEW_TOUR } from '@/components/tour'
 import { apiGet } from '@/lib/apiClient'
+import { logger } from '@/lib/logger'
 
 function ReviewPageContent() {
   const searchParams = useSearchParams()
   const callId = searchParams.get('callId')
+  const tab = searchParams.get('tab')
   const { data: session } = useSession()
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'review' | 'templates'>(
+    tab === 'templates' ? 'templates' : 'review'
+  )
 
   // Fetch organization from user
   useEffect(() => {
@@ -29,35 +35,60 @@ function ReviewPageContent() {
           setOrganizationId(data.organization.id)
         }
       })
-      .catch(console.error)
+      .catch((err) => logger.error('Failed to fetch organization', { error: err }))
   }, [session])
 
-  if (!callId) {
-    return (
-      <AppShell>
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="p-6 bg-white border border-gray-200 rounded-md">
-            <h1 className="text-xl font-semibold text-gray-900 mb-2">Evidence Review</h1>
-            <p className="text-gray-500">No call specified. Please provide a callId parameter.</p>
-            <p className="text-sm text-gray-400 mt-2">Example: /review?callId=abc-123-def</p>
-          </div>
-        </div>
-      </AppShell>
-    )
-  }
+  const tabs = [
+    { id: 'review' as const, label: 'Quality Audit' },
+    { id: 'templates' as const, label: 'Scoring Matrices' },
+  ]
 
   return (
     <AppShell>
-      {/* Page Header */}
+      {/* Page Header with Tabs */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Evidence Review</h1>
-          <p className="text-sm text-gray-500 mt-1">Review call evidence and recordings</p>
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Call Intelligence</h1>
+          <p className="text-sm text-gray-500 mt-1">Audit interactions, score performance, and manage scoring libraries</p>
+          <div className="flex gap-6 mt-4">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === t.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <ReviewMode callId={callId} organizationId={organizationId} />
+        {activeTab === 'review' && (
+          <>
+            {callId ? (
+              <ReviewMode callId={callId} organizationId={organizationId} />
+            ) : (
+              <div className="p-6 bg-white border border-gray-200 rounded-md">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Evidence Review</h2>
+                <p className="text-gray-500">No call specified. Please provide a callId parameter.</p>
+                <p className="text-sm text-gray-400 mt-2">Example: /review?callId=abc-123-def</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'templates' && (
+          <ScorecardTemplateLibrary
+            organizationId={organizationId || ''}
+            disabled={!organizationId}
+          />
+        )}
       </div>
 
       {/* Tutorial Tour */}

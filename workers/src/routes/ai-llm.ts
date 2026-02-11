@@ -24,6 +24,8 @@ import { aiLlmRateLimit } from '../lib/rate-limit'
 import { requirePlan } from '../lib/plan-gating'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { validateBody } from '../lib/validate'
+import { AiLlmChatSchema, AiLlmSummarizeSchema, AiLlmAnalyzeSchema } from '../lib/schemas'
 
 export const aiLlmRoutes = new Hono<AppEnv>()
 
@@ -41,22 +43,11 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, authMiddleware, requirePlan('pro'), as
     return c.json({ error: 'LLM service not configured' }, 503)
   }
 
+  const db = getDb(c.env)
   try {
-    const body = await c.req.json<{
-      messages: Array<{ role: string; content: string }>
-      model?: string
-      max_tokens?: number
-      temperature?: number
-    }>()
-
-    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-      return c.json({ error: 'messages array is required' }, 400)
-    }
-
-    // Enforce message limits (prevent abuse)
-    if (body.messages.length > 20) {
-      return c.json({ error: 'Maximum 20 messages per request' }, 400)
-    }
+    const parsed = await validateBody(c, AiLlmChatSchema)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data
 
     const totalChars = body.messages.reduce((sum, m) => sum + (m.content?.length || 0), 0)
     if (totalChars > 50000) {
@@ -98,6 +89,17 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, authMiddleware, requirePlan('pro'), as
       totalTokens: oaiResult.usage?.total_tokens,
     })
 
+    // Audit log AI chat usage (BL-093)
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'ai_llm',
+      resourceId: session.organization_id,
+      action: AuditAction.AI_CHAT_COMPLETED,
+      oldValue: null,
+      newValue: { model: body.model || DEFAULT_MODEL, total_tokens: oaiResult.usage?.total_tokens },
+    })
+
     return c.json({
       content: oaiResult.choices?.[0]?.message?.content || '',
       usage: oaiResult.usage,
@@ -106,6 +108,8 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, authMiddleware, requirePlan('pro'), as
   } catch (err: any) {
     logger.error('POST /api/ai/llm/chat error', { error: err?.message })
     return c.json({ error: 'LLM request failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 
@@ -121,19 +125,9 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, authMiddleware, requirePlan('star
 
   const db = getDb(c.env)
   try {
-    const body = await c.req.json<{
-      text: string
-      call_id?: string
-      max_length?: number
-    }>()
-
-    if (!body.text || body.text.length < 10) {
-      return c.json({ error: 'text is required (min 10 characters)' }, 400)
-    }
-
-    if (body.text.length > 100000) {
-      return c.json({ error: 'text exceeds 100,000 character limit' }, 400)
-    }
+    const parsed = await validateBody(c, AiLlmSummarizeSchema)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data
 
     const oaiResponse = await fetch(`${OPENAI_BASE}/chat/completions`, {
       method: 'POST',
@@ -212,15 +206,11 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
     return c.json({ error: 'LLM service not configured' }, 503)
   }
 
+  const db = getDb(c.env)
   try {
-    const body = await c.req.json<{
-      text: string
-      analysis_type?: 'compliance' | 'quality' | 'sentiment' | 'full'
-    }>()
-
-    if (!body.text || body.text.length < 10) {
-      return c.json({ error: 'text is required (min 10 characters)' }, 400)
-    }
+    const parsed = await validateBody(c, AiLlmAnalyzeSchema)
+    if (!parsed.success) return parsed.response
+    const body = parsed.data
 
     const analysisPrompts: Record<string, string> = {
       compliance:
@@ -273,6 +263,17 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
       analysis = { raw: oaiResult.choices?.[0]?.message?.content }
     }
 
+    // Audit log AI analysis usage (BL-093)
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'ai_llm',
+      resourceId: session.organization_id,
+      action: AuditAction.AI_ANALYZE_COMPLETED,
+      oldValue: null,
+      newValue: { analysis_type: analysisType, total_tokens: oaiResult.usage?.total_tokens },
+    })
+
     return c.json({
       analysis,
       analysis_type: analysisType,
@@ -281,6 +282,8 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
   } catch (err: any) {
     logger.error('POST /api/ai/llm/analyze error', { error: err?.message })
     return c.json({ error: 'Analysis failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 

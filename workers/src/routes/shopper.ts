@@ -155,13 +155,12 @@ shopperRoutes.post('/scripts/manage', shopperRateLimit, async (c) => {
 
 // PUT /scripts/:id — update script
 shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const scriptId = c.req.param('id')
     const parsed = await validateBody(c, UpdateShopperSchema)
     if (!parsed.success) return parsed.response
@@ -203,13 +202,12 @@ shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
 
 // DELETE /scripts/:id — delete script
 shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     const scriptId = c.req.param('id')
 
     const result = await db.query(
@@ -244,13 +242,12 @@ shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
 
 // DELETE /scripts/manage — frontend compat (id in body or query)
 shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
-
     // Try to get id from query or body
     let scriptId = c.req.query('id')
     if (!scriptId) {

@@ -73,6 +73,10 @@ export interface TranslationResult {
  * Optimized for minimal latency:
  *   1. Single OpenAI call with minimal prompt
  *   2. Single DB INSERT (no SELECT first)
+ *
+ * **Connection ownership:** The caller is responsible for calling `db.end()`
+ * after all translation segments are processed. This function does NOT close
+ * the connection, as multiple segments may use the same DbClient in sequence.
  *   3. Optional TTS + audio injection pipeline
  */
 export async function translateAndStore(

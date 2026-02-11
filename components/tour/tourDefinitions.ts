@@ -15,14 +15,14 @@ export interface TourStepDefinition {
 }
 
 /**
- * Voice Operations Page Tour
+ * Calls Page Tour
  * Guides users through the call execution workflow
  */
 export const VOICE_TOUR: TourStepDefinition[] = [
   {
     targetSelector: '[data-tour="target-selector"]',
     title: 'Choose Who to Call',
-    content: 'Select a saved target from your list or enter a phone number directly. Recent numbers appear below for quick access.',
+    content: 'Select a saved target from your list or enter a phone number directly. Recent numbers appear in the right rail for quick access.',
     position: 'bottom',
   },
   {
@@ -65,12 +65,12 @@ export const DASHBOARD_TOUR: TourStepDefinition[] = [
   {
     targetSelector: '[data-tour="quick-actions"]',
     title: 'Quick Actions',
-    content: 'Common tasks are one click away. Start a new call, schedule one for later, or jump to voice operations.',
+    content: 'Common tasks are one click away. Start a new call, schedule one for later, or jump to calls.',
     position: 'right',
   },
   {
     targetSelector: '[data-tour="recent-calls"]',
-    title: 'Recent Activity',
+    title: 'Recent Calls',
     content: 'Jump back into any recent call to review recordings and transcripts. Click to see full details.',
     position: 'left',
   },
@@ -90,7 +90,7 @@ export const SETTINGS_TOUR: TourStepDefinition[] = [
   {
     targetSelector: '[data-tour="settings-tabs"]',
     title: 'Settings Categories',
-    content: 'Settings are organized by task: Call Configuration, AI features, Quality Assurance, Team management, and Billing.',
+    content: 'Settings are organized by task: Call Configuration, AI settings, Evidence Quality, Team management, and Billing.',
     position: 'bottom',
   },
   {

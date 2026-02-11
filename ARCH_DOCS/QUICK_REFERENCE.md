@@ -247,6 +247,7 @@ NEXT_PUBLIC_API_URL=https://wordisbond-api.adrper79.workers.dev
 ```bash
 ASSEMBLYAI_API_KEY=xxx
 ELEVENLABS_API_KEY=xxx
+NEXT_PUBLIC_APP_URL=https://wordis-bond.com
 ```
 
 ### **Optional:**
@@ -254,6 +255,8 @@ ELEVENLABS_API_KEY=xxx
 ```bash
 TRANSLATION_LIVE_ASSIST_PREVIEW=true
 RESEND_API_KEY=xxx
+RESEND_FROM="Word Is Bond <noreply@wordis-bond.com>"
+RESEND_REPLY_TO=noreply@wordis-bond.com
 GOOGLE_CLIENT_ID=xxx
 GOOGLE_CLIENT_SECRET=xxx
 ```

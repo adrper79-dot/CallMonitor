@@ -219,7 +219,7 @@ export default function AnalyticsPage() {
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex gap-6" role="tablist">
           {[
-            { id: 'overview' as TabId, label: 'Overview' },
+          { id: 'overview' as TabId, label: 'Summary' },
             { id: 'calls' as TabId, label: 'Calls' },
             { id: 'sentiment' as TabId, label: 'Sentiment' },
             { id: 'performance' as TabId, label: 'Performance' },

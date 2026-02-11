@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Root Error Boundary
@@ -24,15 +25,10 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     // Structured error log for monitoring (Cloudflare Logpush, etc.)
-    console.error(
-      JSON.stringify({
-        level: 'ERROR',
-        msg: 'Unhandled client error',
-        error: error.message,
-        digest: error.digest,
-        ts: new Date().toISOString(),
-      })
-    )
+    logger.error('Unhandled client error', {
+      error: error.message,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

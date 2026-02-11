@@ -6,34 +6,35 @@ This document outlines the deployment architecture for the project, which is hos
 
 ## 🏗️ Architecture Overview
 
-The application is a Next.js Full Stack app deployed via **Cloudflare Pages** using the `@cloudflare/next-on-pages` adapter. This allows the Next.js app to run on Cloudflare's Edge Network (Workers).
+The application ships as a **static Next.js export** on Cloudflare Pages, with all API/server logic handled by a **separate Cloudflare Workers API**.
 
 ### Key Components
-- **Framework:** Next.js (via `@cloudflare/next-on-pages`)
-- **Runtime:** Edge (Cloudflare Workers)
-- **Database:** Neon (Postgres) via `pg` library (requires `nodejs_compat`)
+- **Framework:** Next.js (static export)
+- **Frontend Runtime:** Cloudflare Pages CDN (static assets)
+- **API Runtime:** Cloudflare Workers (Hono)
+- **Database:** Neon (Postgres) via Workers Hyperdrive
 - **DNS:** Cloudflare DNS
 
 ## ⚙️ Configuration
 
-### 1. `wrangler.toml`
-The local development configuration is managed via `wrangler.toml`.
+### 1. `wrangler.pages.toml`
+The Pages configuration is managed via `wrangler.pages.toml`.
 ```toml
-name = "gemini-project"
-pages_build_output_dir = ".vercel/output/static"
-compatibility_flags = ["nodejs_compat"]
+name = "wordisbond"
+pages_build_output_dir = "out"
+compatibility_date = "2026-02-01"
 ```
 
-### 2. Compatibility Flags (CRITICAL)
-The project relies on standard Node.js APIs (specifically for the `pg` database library). You **MUST** enable the **`nodejs_compat`** compatibility flag in the Cloudflare Dashboard.
+### 2. `workers/wrangler.toml`
+The Workers API configuration is managed via `workers/wrangler.toml` and includes `nodejs_compat`, Hyperdrive, KV, and R2 bindings.
 
-- **Dashboard Path:** Settings > Functions > Compatibility Flags
-- **Required Flag:** `nodejs_compat`
+### 3. Compatibility Flags (CRITICAL)
+The Workers API relies on Node.js APIs (Neon driver). Ensure the **`nodejs_compat`** flag is enabled for the Workers runtime.
 
-### 3. Build Settings
+### 4. Build Settings
 - **Framework Preset:** `Next.js`
-- **Build Command:** `npx @cloudflare/next-on-pages@1`
-- **Output Directory:** `.vercel/output/static`
+- **Build Command:** `npm run build`
+- **Output Directory:** `out`
 
 ## 🚀 Deployment Pipeline
 
@@ -42,7 +43,7 @@ Commits to the `main` branch trigger an automatic build and deployment to the pr
 
 ### Preview
 Pull Requests (if configured) or manual branches can be deployed to preview environments.
-- **Local Preview:** Run `npm run preview` to build and serve the app locally using Wrangler, simulating the Cloudflare environment.
+- **Local Preview:** `npm run build` then `wrangler pages dev out`
 
 ## 🔐 Environment Variables
 All environment variables must be set in the Cloudflare Pages Dashboard.
@@ -53,10 +54,10 @@ See `ARCH_DOCS/SECRETS_TO_SET.md` for the complete inventory.
 ## ⚠️ Known Differences from Vercel
 1.  **Cron Jobs:** Vercel Cron (`vercel.json`) is **NOT** supported. Use Cloudflare Scheduled Triggers or an external cron service to hit the API endpoints.
 2.  **Image Optimization:** Next.js `<Image>` component defaults to unoptimized in this adapter unless Cloudflare Image Resizing is explicitly configured and paid for.
-3.  **Edge Runtime:** All API routes run on the Edge. Ensure `export const dynamic = 'force-dynamic'` is set where needed.
+3.  **Edge Runtime:** API routes run in Workers, not in the Pages build.
 
 ## 🐛 Troubleshooting
-- **Database Connection Failed:** Check if `nodejs_compat` flag is enabled.
+- **Database Connection Failed:** Check if `nodejs_compat` flag is enabled in Workers.
 - **Build Error (No Project Settings):** Ensure no Vercel configuration files (`vercel.json`, `.vercel/`) exist in the repo.
 - **Build Error (ETARGET/Dependency):** Ensure `package.json` uses a valid Next.js version (e.g., `^14.2.xx`) rather than a non-existent one.
 - **Build Token Error:** Disconnect and reconnect the Git repository in Cloudflare Pages settings to refresh the OAuth token.

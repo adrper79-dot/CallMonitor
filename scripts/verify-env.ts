@@ -24,10 +24,6 @@ interface EnvVar {
 }
 
 const ENV_VARS: EnvVar[] = [
-  // Auth
-  { name: 'NEXTAUTH_SECRET', required: true, description: 'NextAuth secret (32+ chars)', group: 'auth', validate: (v) => v.length >= 32 },
-  { name: 'NEXTAUTH_URL', required: true, description: 'NextAuth URL', group: 'auth', validate: (v) => v.startsWith('http') },
-  
   // Database
   { name: 'NEON_PG_CONN', required: true, description: 'Neon Postgres connection string', group: 'db', validate: (v) => v.startsWith('postgresql://') },
   { name: 'DATABASE_URL', required: false, description: 'Database URL (alias)', group: 'db' },
@@ -123,7 +119,6 @@ function checkWranglerSecrets(): void {
   const content = fs.readFileSync(wranglerPath, 'utf-8')
   const secretsNeeded = [
     'NEON_PG_CONN',
-    'NEXTAUTH_SECRET',
     'TELNYX_API_KEY',
     'ASSEMBLYAI_API_KEY',
     'STRIPE_SECRET_KEY'

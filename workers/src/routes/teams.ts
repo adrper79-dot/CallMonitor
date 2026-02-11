@@ -49,7 +49,7 @@ teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
               (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) as member_count,
               COUNT(*) OVER() as total_count
        FROM teams t
-       LEFT JOIN users u ON u.id = t.manager_user_id::text
+       LEFT JOIN users u ON u.id = t.manager_user_id
        WHERE t.organization_id = $1 AND t.is_active = true
        ORDER BY t.name
        LIMIT $2 OFFSET $3`,
@@ -136,6 +136,14 @@ teamsRoutes.put('/:id', teamRateLimit, async (c) => {
     if (!parsed.success) return parsed.response
     const { name, description, team_type, parent_team_id, manager_user_id, is_active } = parsed.data
 
+    // Capture old state for audit trail (BL-SEC-004)
+    const oldTeamResult = await db.query(
+      `SELECT name, description, team_type, parent_team_id, manager_user_id, is_active
+       FROM teams WHERE id = $1 AND organization_id = $2`,
+      [teamId, session.organization_id]
+    )
+    const oldTeam = oldTeamResult.rows[0] || null
+
     await db.query(
       `UPDATE teams SET
         name = COALESCE($1, name),
@@ -163,7 +171,7 @@ teamsRoutes.put('/:id', teamRateLimit, async (c) => {
       resourceType: 'teams',
       resourceId: teamId,
       action: AuditAction.TEAM_UPDATED,
-      oldValue: null,
+      oldValue: oldTeam,
       newValue: { name, description, team_type, parent_team_id, manager_user_id, is_active },
     })
 
@@ -240,7 +248,7 @@ teamsRoutes.get('/:id/members', async (c) => {
               u.id as user_id, u.name, u.email,
               om.role as org_role
        FROM team_members tm
-       JOIN users u ON u.id = tm.user_id::text
+       JOIN users u ON u.id = tm.user_id
        LEFT JOIN org_members om ON om.user_id = tm.user_id AND om.organization_id = $2
        WHERE tm.team_id = $1
        ORDER BY tm.team_role, u.name`,
@@ -488,6 +496,13 @@ teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
       return c.json({ error: 'Cannot change your own role' }, 400)
     }
 
+    // Capture old role for audit trail (BL-SEC-004)
+    const oldRoleResult = await db.query(
+      `SELECT role FROM org_members WHERE user_id = $1 AND organization_id = $2`,
+      [userId, session.organization_id]
+    )
+    const oldRole = oldRoleResult.rows[0]?.role || null
+
     await db.query(
       `UPDATE org_members SET role = $1
        WHERE user_id = $2 AND organization_id = $3`,
@@ -500,7 +515,7 @@ teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
       resourceType: 'team_members',
       resourceId: userId,
       action: AuditAction.ROLE_CHANGED,
-      oldValue: null,
+      oldValue: { user_id: userId, old_role: oldRole },
       newValue: { user_id: userId, new_role: role },
     })
 

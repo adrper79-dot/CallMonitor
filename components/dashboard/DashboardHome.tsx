@@ -8,6 +8,7 @@ import { MetricCard } from '@/components/tableau/MetricCard'
 import { ProgressBar } from '@/components/tableau/ProgressBar'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { Badge } from '@/components/ui/badge'
+import { SkeletonDashboard } from '@/components/ui/Skeletons'
 import ActivityFeedEmbed from '@/components/voice/ActivityFeedEmbed'
 import ScorecardAlerts from '@/components/voice/ScorecardAlerts'
 import SurveyAnalyticsWidget from '@/components/dashboard/SurveyAnalyticsWidget'
@@ -42,6 +43,7 @@ interface RecentCall {
  */
 export default function DashboardHome({ organizationId }: { organizationId: string | null }) {
   const { plan, role } = useRBAC(organizationId)
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin'
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,23 +88,15 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
   }, [organizationId])
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 bg-gray-100 rounded-md animate-pulse" />
-          ))}
-        </div>
-      </div>
-    )
+    return <SkeletonDashboard />
   }
 
   return (
     <div className="space-y-8">
-      {/* Key Metrics */}
+      {/* Key Metrics — differentiated by role */}
       <section aria-label="Key Metrics" className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
-          label="Total Calls"
+          label={isOwnerOrAdmin ? 'Total Calls (Org)' : 'My Calls'}
           value={stats?.totalCalls || 0}
           change={stats?.callsToday ? `+${stats.callsToday} today` : undefined}
           trend={stats?.callsToday ? 'up' : 'neutral'}
@@ -118,10 +112,39 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
           value={stats?.recordingsCount || 0}
         />
         <MetricCard
-          label="Scheduled"
+          label={isOwnerOrAdmin ? 'Scheduled (Team)' : 'My Scheduled'}
           value={stats?.scheduledCalls || 0}
         />
       </section>
+
+      {/* Worker-specific: Personal Queue Summary */}
+      {!isOwnerOrAdmin && (
+        <section aria-label="Your Queue" className="bg-white border border-gray-200 rounded-md p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Your Queue Today</h2>
+            <Link
+              href="/voice-operations"
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              Open Cockpit
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="bg-gray-50 rounded-md p-3">
+              <p className="text-2xl font-bold text-gray-900">{stats?.callsToday || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">Completed</p>
+            </div>
+            <div className="bg-primary-50 rounded-md p-3">
+              <p className="text-2xl font-bold text-primary-700">0</p>
+              <p className="text-xs text-gray-500 mt-1">Remaining</p>
+            </div>
+            <div className="bg-green-50 rounded-md p-3">
+              <p className="text-2xl font-bold text-green-700">0</p>
+              <p className="text-xs text-gray-500 mt-1">Promises</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="dashboard-grid">
@@ -129,18 +152,26 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         <section aria-label="Quick Actions" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
 
-          {/* PRIMARY CTA - Make a Call */}
-          <Link
-            href="/voice-operations"
-            className="block w-full py-4 px-6 bg-primary-600 hover:bg-primary-700 text-white text-center font-semibold rounded-lg shadow-sm transition-colors"
-          >
-            <span className="flex items-center justify-center gap-2">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              Make a Call
-            </span>
-          </Link>
+          {stats?.totalCalls === 0 ? (
+            <Link
+              href="/onboarding"
+              className="block w-full py-3 px-4 border border-primary-200 bg-primary-50 text-primary-700 text-center font-semibold rounded-lg hover:bg-primary-100 transition-colors"
+            >
+              Finish onboarding (CSV → first call)
+            </Link>
+          ) : (
+            <Link
+              href="/voice-operations"
+              className="block w-full py-4 px-6 bg-primary-600 hover:bg-primary-700 text-white text-center font-semibold rounded-lg shadow-sm transition-colors"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                Make a Call
+              </span>
+            </Link>
+          )}
 
           {/* Secondary Actions */}
           <div className="bg-white border border-gray-200 rounded-md p-4 space-y-1">
@@ -153,7 +184,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         </section>
 
         {/* Recent Calls */}
-        <section aria-label="Recent Activity" className="space-y-4">
+        <section aria-label="Recent Calls" className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Recent Calls</h2>
 
           <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
@@ -260,14 +291,14 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         </section>
       </div>
 
-      {/* Team Visibility */}
+      {/* Team Visibility — owners see full feed + scorecard; workers see condensed view */}
       <section aria-label="Team Visibility" className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="activity-feed">
-        <div className="lg:col-span-2">
+        <div className={isOwnerOrAdmin ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <div className="bg-white border border-gray-200 rounded-md p-4">
-            <ActivityFeedEmbed organizationId={organizationId} limit={12} />
+            <ActivityFeedEmbed organizationId={organizationId} limit={isOwnerOrAdmin ? 12 : 6} />
           </div>
         </div>
-        <ScorecardAlerts organizationId={organizationId} />
+        {isOwnerOrAdmin && <ScorecardAlerts organizationId={organizationId} />}
       </section>
 
       {/* Tutorial Tour */}

@@ -9,6 +9,7 @@ import { BottomNav } from './BottomNav'
 import { ModeToggle } from '@/components/mode-toggle'
 import { BondAIChat } from '@/components/bond-ai'
 import OrgSwitcher from '@/components/teams/OrgSwitcher'
+import { logger } from '@/lib/logger'
 
 interface NavItemProps {
   href: string
@@ -68,7 +69,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
     try {
       await signOut({ callbackUrl: '/signin' })
     } catch (error) {
-      console.error('Sign out failed:', error)
+      logger.error('Sign out failed', { error })
       router.push('/signin')
     }
   }
@@ -76,7 +77,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
   const navItems = [
     {
       href: '/dashboard',
-      label: 'Overview',
+      label: 'Dashboard',
       icon: (
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path
@@ -101,19 +102,6 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
       ),
     },
     {
-      href: '/bookings',
-      label: 'Schedule',
-      icon: (
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-          />
-        </svg>
-      ),
-    },
-    {
       href: '/review',
       label: 'Evidence',
       icon: (
@@ -122,6 +110,28 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      ),
+    },
+    {
+      href: '/voice-operations/accounts',
+      label: 'Accounts',
+      icon: (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+        </svg>
+      ),
+    },
+    {
+      href: '/bookings',
+      label: 'Schedule',
+      icon: (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
       ),
@@ -136,6 +146,33 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
             strokeLinejoin="round"
             d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
           />
+        </svg>
+      ),
+    },
+    {
+      href: '/analytics',
+      label: 'Analytics',
+      icon: (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+        </svg>
+      ),
+    },
+    {
+      href: '/campaigns',
+      label: 'Campaigns',
+      icon: (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46" />
+        </svg>
+      ),
+    },
+    {
+      href: '/reports',
+      label: 'Reports',
+      icon: (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
         </svg>
       ),
     },
@@ -188,7 +225,7 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
               // Dispatch custom event to restart tour
               window.dispatchEvent(new CustomEvent('tour:restart'))
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
             title="Show tutorial"
           >
             <svg
@@ -206,6 +243,16 @@ export function AppShell({ children, organizationName, userEmail }: AppShellProp
             </svg>
             <span>Show tour</span>
           </button>
+        </div>
+
+        {/* Trust Signals */}
+        <div className="px-4 pb-3">
+          <div className="flex items-center gap-2 text-[10px] text-gray-400 tracking-wide">
+            <svg className="w-3 h-3 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+            </svg>
+            <span>SOC 2 | HIPAA | 256-bit encryption</span>
+          </div>
         </div>
 
         {/* User Section */}

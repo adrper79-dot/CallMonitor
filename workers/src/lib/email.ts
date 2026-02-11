@@ -27,6 +27,13 @@ interface SendEmailResult {
 const RESEND_API_URL = 'https://api.resend.com/emails'
 const DEFAULT_FROM = 'Word Is Bond <noreply@wordis-bond.com>'
 
+export function getEmailDefaults(env: { RESEND_FROM?: string; RESEND_REPLY_TO?: string }) {
+  return {
+    from: env.RESEND_FROM || undefined,
+    replyTo: env.RESEND_REPLY_TO || undefined,
+  }
+}
+
 /**
  * Send an email via Resend API.
  *

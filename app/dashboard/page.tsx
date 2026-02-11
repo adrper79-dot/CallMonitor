@@ -72,7 +72,7 @@ export default function DashboardPage() {
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Overview</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">
             Welcome back. Here&apos;s what&apos;s happening with your calls.
           </p>

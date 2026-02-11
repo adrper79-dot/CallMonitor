@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Phone, List, Calendar, FileText } from 'lucide-react'
+import { Phone, Home, Calendar, FileText } from 'lucide-react'
 
 export function BottomNav() {
   const pathname = usePathname()
@@ -10,13 +10,13 @@ export function BottomNav() {
   const items = [
     {
       href: '/voice-operations',
-      label: 'Dial',
+      label: 'Calls',
       icon: Phone,
     },
     {
-      href: '/dashboard',
-      label: 'Activity',
-      icon: List,
+      href: '/review',
+      label: 'Evidence',
+      icon: FileText,
     },
     {
       href: '/bookings',
@@ -24,9 +24,9 @@ export function BottomNav() {
       icon: Calendar,
     },
     {
-      href: '/review',
-      label: 'Evidence',
-      icon: FileText,
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: Home,
     },
   ]
 

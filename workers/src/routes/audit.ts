@@ -7,11 +7,12 @@ import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
+import { auditRateLimit } from '../lib/rate-limit'
 
 export const auditRoutes = new Hono<AppEnv>()
 
 // Get audit logs for organization
-auditRoutes.get('/', async (c) => {
+auditRoutes.get('/', auditRateLimit, async (c) => {
   const db = getDb(c.env)
   try {
     const session = await requireAuth(c)
@@ -47,7 +48,7 @@ auditRoutes.get('/', async (c) => {
     const result = await db.query(
       `SELECT al.*, u.email as user_email, u.name as user_name
        FROM audit_logs al
-       LEFT JOIN users u ON u.id::text = al.user_id::text
+       LEFT JOIN users u ON u.id = al.user_id
        WHERE al.organization_id = $1::uuid${sinceClause}
        ORDER BY al.created_at DESC
        LIMIT $2

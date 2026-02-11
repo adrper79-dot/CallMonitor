@@ -59,13 +59,17 @@ export function useRBAC(organizationId: string | null): RBACState {
 
 /**
  * Hook to check if user can perform an action
+ * NOTE: Pass the RBAC state from parent component to avoid duplicate API calls
  */
 export function usePermission(
   organizationId: string | null,
   feature: string,
-  action: 'read' | 'write' | 'execute'
+  action: 'read' | 'write' | 'execute',
+  rbacState?: RBACState
 ): boolean {
-  const { role, plan, loading } = useRBAC(organizationId)
+  // Use provided RBAC state if available, otherwise fetch (for standalone use)
+  const fetchedState = useRBAC(organizationId)
+  const { role, plan, loading } = rbacState || fetchedState
 
   if (loading || !role || !plan) {
     return false

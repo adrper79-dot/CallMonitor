@@ -16,7 +16,7 @@
  * @module components/settings/InvoiceHistory
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -31,7 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Loader2, Download, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import { logger } from '@/lib/logger'
-import { apiGet } from '@/lib/apiClient'
+import { useApiQuery } from '@/hooks'
 
 interface Invoice {
   id: string
@@ -50,38 +50,23 @@ interface InvoiceHistoryProps {
 }
 
 export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
 
   const pageSize = 10
   const canView = role === 'owner' || role === 'admin'
 
-  const fetchInvoices = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  // Fetch invoices with useApiQuery hook
+  const {
+    data: invoicesData,
+    loading,
+    error: fetchError,
+  } = useApiQuery<{ invoices: Invoice[]; hasMore: boolean }>(
+    `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`,
+    {}
+  )
 
-      const data = await apiGet(
-        `/api/billing/invoices?orgId=${organizationId}&page=${page}&limit=${pageSize}`
-      )
-      setInvoices(data.invoices || [])
-      setHasMore(data.hasMore || false)
-    } catch (err) {
-      logger.error('Error fetching invoices', err, { organizationId, page })
-      setError(err instanceof Error ? err.message : 'Failed to load invoices')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId, page, pageSize])
-
-  useEffect(() => {
-    if (canView) {
-      fetchInvoices()
-    }
-  }, [canView, fetchInvoices])
+  const invoices = invoicesData?.invoices || []
+  const hasMore = invoicesData?.hasMore || false
 
   const getStatusBadge = (status: Invoice['status']) => {
     const variants = {
@@ -136,8 +121,8 @@ export function InvoiceHistory({ organizationId, role }: InvoiceHistoryProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {error && (
-            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+          {fetchError && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{fetchError.message}</div>
           )}
 
           {invoices.length === 0 ? (

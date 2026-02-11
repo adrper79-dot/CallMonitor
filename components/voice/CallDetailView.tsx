@@ -14,6 +14,7 @@ import { OutcomeDeclaration } from './OutcomeDeclaration'
 import type { CallOutcome } from '@/lib/outcome/outcomeTypes'
 import { apiGet, apiFetchRaw } from '@/lib/apiClient'
 import { BondAICopilot } from '@/components/bond-ai'
+import { logger } from '@/lib/logger'
 
 export interface CallDetailViewProps {
   callId: string | null
@@ -63,7 +64,7 @@ export default function CallDetailView({
       }
     } catch (err) {
       // Silently fail - outcome may not exist yet
-      console.info('No existing outcome found')
+      logger.info('CallDetailView: No existing outcome found', { callId })
     } finally {
       setOutcomeLoading(false)
     }

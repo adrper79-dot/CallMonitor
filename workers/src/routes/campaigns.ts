@@ -24,11 +24,10 @@ export const campaignsRoutes = new Hono<AppEnv>()
 
 // Get campaigns for organization
 campaignsRoutes.get('/', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     if (!session.organization_id) {
       return c.json({ success: true, campaigns: [] })
     }
@@ -66,11 +65,10 @@ campaignsRoutes.get('/', async (c) => {
 
 // Create campaign
 campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, CreateCampaignSchema)
     if (!parsed.success) return parsed.response
     const { name, description, scenario, status } = parsed.data
@@ -111,11 +109,10 @@ campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
 
 // Get single campaign
 campaignsRoutes.get('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const campaignId = c.req.param('id')
 
     // Skip if it's the 'stats' path — let the stats route handle it
@@ -144,11 +141,10 @@ campaignsRoutes.get('/:id', async (c) => {
 
 // Get campaign stats
 campaignsRoutes.get('/:id/stats', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const campaignId = c.req.param('id')
 
     const result = await db.query(
@@ -208,11 +204,10 @@ campaignsRoutes.get('/:id/stats', async (c) => {
 
 // Update campaign
 campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const campaignId = c.req.param('id')
     const parsed = await validateBody(c, UpdateCampaignSchema)
     if (!parsed.success) return parsed.response
@@ -262,11 +257,10 @@ campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
 
 // Delete campaign
 campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const campaignId = c.req.param('id')
 
     const result = await db.query(

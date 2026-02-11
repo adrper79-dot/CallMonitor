@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Dashboard Error Boundary
@@ -18,7 +19,7 @@ export default function DashboardError({
 }) {
   useEffect(() => {
     // Log error to monitoring service
-    console.error('Dashboard error:', error)
+    logger.error('Dashboard error', { error, digest: error.digest })
   }, [error])
 
   return (

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { logger } from '@/lib/logger'
 
 /**
  * Settings Error Boundary
@@ -17,7 +18,7 @@ export default function SettingsError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Settings error:', error)
+    logger.error('Settings error', { error, digest: error.digest })
   }, [error])
 
   return (

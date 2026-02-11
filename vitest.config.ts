@@ -11,7 +11,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/tests/**/*.test.ts'],
-    exclude: ['node_modules', 'dist', '.next', 'out', 'workers', '**/archived/**', 'tests/production/**'],
+    exclude: ['node_modules', 'dist', '.next', 'out', 'workers', '**/archived/**'],
     env: {
       NODE_ENV: 'test'
     },

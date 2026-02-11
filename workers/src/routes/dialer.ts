@@ -20,7 +20,7 @@ import { validateBody } from '../lib/validate'
 import { DialerQueueSchema, DialerAgentStatusSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
-import { predictiveDialerRateLimit } from '../lib/rate-limit'
+import { predictiveDialerRateLimit, dialerRateLimit } from '../lib/rate-limit'
 import { startDialerQueue, pauseDialerQueue, getDialerStats } from '../lib/dialer-engine'
 
 export const dialerRoutes = new Hono<AppEnv>()
@@ -167,7 +167,7 @@ dialerRoutes.get('/stats/:campaignId', async (c) => {
 })
 
 // Update agent availability status
-dialerRoutes.put('/agent-status', async (c) => {
+dialerRoutes.put('/agent-status', dialerRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -193,6 +193,15 @@ dialerRoutes.put('/agent-status', async (c) => {
       [session.organization_id, session.user_id, parsed.data.status, parsed.data.campaign_id]
     )
 
+    writeAuditLog(db, {
+      userId: session.user_id,
+      organizationId: session.organization_id,
+      action: AuditAction.DIALER_AGENT_STATUS_UPDATED,
+      resourceType: 'dialer_agent_status',
+      resourceId: session.user_id,
+      newValue: { status: parsed.data.status, campaign_id: parsed.data.campaign_id },
+    })
+
     return c.json({ success: true, agent_status: result.rows[0] })
   } catch (err: any) {
     logger.error('PUT /api/dialer/agent-status error', { error: err?.message })
@@ -215,7 +224,7 @@ dialerRoutes.get('/agents', async (c) => {
     let query = `
       SELECT das.*, u.name as full_name, u.email
       FROM dialer_agent_status das
-      JOIN users u ON u.id = das.user_id::text
+      JOIN users u ON u.id = das.user_id
       WHERE das.organization_id = $1`
 
     if (campaignId) {

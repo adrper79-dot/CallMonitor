@@ -86,6 +86,14 @@ adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
       secretHash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
     }
 
+    // Capture old state for audit trail (BL-SEC-004)
+    const oldProviderResult = await db.query(
+      `SELECT id, provider, enabled, client_id FROM auth_providers
+       WHERE organization_id = $1 AND provider = $2`,
+      [session.organization_id, provider]
+    )
+    const oldProvider = oldProviderResult.rows[0] || null
+
     const result = await db.query(
       `INSERT INTO auth_providers (organization_id, provider, enabled, client_id, client_secret_hash, config)
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
@@ -114,6 +122,7 @@ adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
       resourceType: 'auth_providers',
       resourceId: row.id,
       action: AuditAction.AUTH_PROVIDER_UPDATED,
+      oldValue: oldProvider ? { provider: oldProvider.provider, enabled: oldProvider.enabled, client_id: oldProvider.client_id ? '***' + oldProvider.client_id.slice(-4) : null } : null,
       newValue: { provider: row.provider, enabled: row.enabled },
     })
 

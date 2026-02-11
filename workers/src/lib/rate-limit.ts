@@ -319,6 +319,15 @@ export const aiToggleRateLimit = rateLimit({ limit: 10, windowSeconds: 60, prefi
 /** DTMF gather operations: 20 per minute per IP */
 export const gatherRateLimit = rateLimit({ limit: 20, windowSeconds: 60, prefix: 'rl:gather' })
 
+/** RBAC permission queries: 30 per 5 minutes per IP */
+export const rbacRateLimit = rateLimit({ limit: 30, windowSeconds: 5 * 60, prefix: 'rl:rbac' })
+
+/** Audit log queries: 20 per 5 minutes per IP */
+export const auditRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:audit' })
+
+/** External webhook receivers: 100 per minute per IP (Telnyx/AssemblyAI/Stripe) */
+export const externalWebhookRateLimit = rateLimit({ limit: 100, windowSeconds: 60, prefix: 'rl:ext-webhook' })
+
 // ─── PAID API RATE LIMITERS (BL-107) ────────────────────────────────────────
 
 /** ElevenLabs TTS: 10 requests per 5 minutes per IP (cost control - ~$0.30/1K chars) */
@@ -342,5 +351,26 @@ export const aiConfigRateLimit = rateLimit({
   limit: 10,
   windowSeconds: 15 * 60,
   prefix: 'rl:ai-config',
+})
+
+/** Onboarding mutations: 3 per 15 minutes per IP (Stripe + Telnyx spend protection) */
+export const onboardingRateLimit = rateLimit({
+  limit: 3,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:onboarding',
+})
+
+/** Dialer agent status: 30 per 5 minutes per IP */
+export const dialerRateLimit = rateLimit({
+  limit: 30,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:dialer-status',
+})
+
+/** Reliability webhook retries: 10 per 5 minutes per IP */
+export const reliabilityRateLimit = rateLimit({
+  limit: 10,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:reliability',
 })
 

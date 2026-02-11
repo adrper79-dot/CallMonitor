@@ -6,7 +6,7 @@
 
 **Requirements**:
 1. Signup trial.
-2. Auto-TN (Telnyx API).
+2. Onboarding wizard (/onboarding).
 3. Test call.
 4. Tour.
 5. Billing opt.

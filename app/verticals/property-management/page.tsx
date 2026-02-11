@@ -288,7 +288,7 @@ export default function PropertyManagementVerticalPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Quality Assurance</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Evidence Quality</h3>
               <p className="text-gray-600">
                 Score leasing agent calls, maintenance response times, and tenant satisfaction.
                 Identify training opportunities across properties.

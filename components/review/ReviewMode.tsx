@@ -237,6 +237,9 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
   }
 
   const artifacts = buildTimelineArtifacts()
+  const recordingCount = call.recordings?.length || 0
+  const transcriptCount = call.transcript_versions?.length || 0
+  const manifestCount = call.evidence_manifests?.length || 0
 
   return (
     <div className="review-mode">
@@ -324,6 +327,28 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
           </div>
 
           <AuthorityBadge isAuthoritative={call.is_authoritative ?? true} producer="server" />
+        </div>
+      </div>
+
+      {/* Primary Evidence Summary */}
+      <div className="mb-6 p-4 bg-white border border-gray-200 rounded-md">
+        <h3 className="text-sm font-semibold text-gray-900">Primary Evidence</h3>
+        <p className="text-xs text-gray-500 mt-1">
+          Proof of the call exists when recordings, transcripts, and manifests are present.
+        </p>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Recordings</p>
+            <p className="text-lg font-semibold text-gray-900">{recordingCount}</p>
+          </div>
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Transcripts</p>
+            <p className="text-lg font-semibold text-gray-900">{transcriptCount}</p>
+          </div>
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Manifests</p>
+            <p className="text-lg font-semibold text-gray-900">{manifestCount}</p>
+          </div>
         </div>
       </div>
 

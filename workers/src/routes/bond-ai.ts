@@ -45,11 +45,10 @@ export const bondAiRoutes = new Hono<AppEnv>()
 
 // List conversations
 bondAiRoutes.get('/conversations', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const result = await db.query(
       `SELECT id, title, context_type, context_id, model, status, message_count, 
               last_message_at, created_at
@@ -70,11 +69,10 @@ bondAiRoutes.get('/conversations', async (c) => {
 
 // Create conversation
 bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, AnalyzeCallSchema)
     if (!parsed.success) return parsed.response
     const { title, context_type, context_id, model } = parsed.data
@@ -114,11 +112,10 @@ bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
 
 // Send chat message (the main Tier 1 endpoint)
 bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, async (c) => {
+  const session = c.get('session')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = c.get('session')
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     if (!c.env.OPENAI_API_KEY) {
       return c.json({ error: 'AI service not configured' }, 503)
     }
@@ -281,11 +278,10 @@ bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, a
 
 // Get conversation messages
 bondAiRoutes.get('/conversations/:id/messages', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const conversationId = c.req.param('id')
 
     // Verify ownership
@@ -322,11 +318,10 @@ bondAiRoutes.get('/conversations/:id/messages', async (c) => {
 
 // Delete/archive conversation
 bondAiRoutes.delete('/conversations/:id', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const conversationId = c.req.param('id')
 
     await db.query(
@@ -359,11 +354,10 @@ bondAiRoutes.delete('/conversations/:id', bondAiRateLimit, async (c) => {
 
 // Get alerts feed
 bondAiRoutes.get('/alerts', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const status = c.req.query('status') || 'unread'
     const severity = c.req.query('severity')
     const limit = Math.min(parseInt(c.req.query('limit') || '25'), 100)
@@ -412,11 +406,10 @@ bondAiRoutes.get('/alerts', async (c) => {
 
 // Acknowledge/dismiss alert
 bondAiRoutes.patch('/alerts/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const alertId = c.req.param('id')
     const parsed = await validateBody(c, UpdateInsightSchema)
     if (!parsed.success) return parsed.response
@@ -448,11 +441,10 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
 
 // Bulk acknowledge alerts
 bondAiRoutes.post('/alerts/bulk-action', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, BulkInsightSchema)
     if (!parsed.success) return parsed.response
     const { alert_ids, action } = parsed.data
@@ -485,11 +477,10 @@ bondAiRoutes.post('/alerts/bulk-action', bondAiRateLimit, async (c) => {
 
 // CRUD for alert rules (admin/manager only)
 bondAiRoutes.get('/alert-rules', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const result = await db.query(
       `SELECT id, name, description, rule_type, rule_config, severity,
               notification_channels, is_enabled, cooldown_minutes,
@@ -509,11 +500,10 @@ bondAiRoutes.get('/alert-rules', async (c) => {
 })
 
 bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     // Require manager+ role
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
@@ -569,11 +559,10 @@ bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
 })
 
 bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
       return c.json({ error: 'Manager role required' }, 403)
@@ -642,11 +631,10 @@ bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
 })
 
 bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 4) {
       return c.json({ error: 'Admin role required' }, 403)
@@ -683,11 +671,10 @@ bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
 
 // Real-time co-pilot assistance during a call
 bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     if (!c.env.OPENAI_API_KEY) {
       return c.json({ error: 'AI service not configured' }, 503)
     }

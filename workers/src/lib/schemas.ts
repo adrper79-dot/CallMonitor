@@ -658,3 +658,36 @@ export const LanguageDetectionSchema = z.object({
   auto_detect: z.boolean().default(true),
   preferred_language: z.string().max(5).optional(),
 })
+
+// ─── AI LLM Schemas (BL-094) ────────────────────────────────────────────────
+
+export const AiLlmChatSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['system', 'user', 'assistant']).describe('Message role'),
+        content: z.string().min(1).max(50000).describe('Message content'),
+      })
+    )
+    .min(1)
+    .max(20)
+    .describe('Chat messages array (max 20)'),
+  model: z.string().max(50).optional().describe('OpenAI model to use'),
+  max_tokens: z.number().int().positive().max(4096).optional().describe('Max response tokens'),
+  temperature: z.number().min(0).max(2).optional().describe('Sampling temperature'),
+})
+
+export const AiLlmSummarizeSchema = z.object({
+  text: z.string().min(10).max(100000).describe('Text to summarize (min 10, max 100k chars)'),
+  call_id: uuid.optional().describe('Associated call ID for audit trail'),
+  max_length: z.number().int().positive().max(2000).optional().describe('Max summary length in tokens'),
+})
+
+export const AiLlmAnalyzeSchema = z.object({
+  text: z.string().min(10).max(100000).describe('Text to analyze (min 10, max 100k chars)'),
+  analysis_type: z
+    .enum(['compliance', 'quality', 'sentiment', 'full'])
+    .optional()
+    .default('full')
+    .describe('Type of analysis to perform'),
+})

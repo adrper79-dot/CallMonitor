@@ -17,16 +17,16 @@ import { validateBody } from '../lib/validate'
 import { WebhookActionSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { reliabilityRateLimit } from '../lib/rate-limit'
 
 export const reliabilityRoutes = new Hono<AppEnv>()
 
 // GET /webhooks — List webhook failures and metrics
 reliabilityRoutes.get('/webhooks', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const status = c.req.query('status') || 'all'
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200)
     const offset = parseInt(c.req.query('offset') || '0')
@@ -85,12 +85,11 @@ reliabilityRoutes.get('/webhooks', async (c) => {
 })
 
 // PUT /webhooks — Take action on a webhook failure
-reliabilityRoutes.put('/webhooks', async (c) => {
+reliabilityRoutes.put('/webhooks', reliabilityRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
     const parsed = await validateBody(c, WebhookActionSchema)
     if (!parsed.success) return parsed.response
     const { failure_id, action, resolution_notes } = parsed.data

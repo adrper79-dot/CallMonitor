@@ -1,10 +1,14 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from '@/components/AuthProvider'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
+import CollectionsAnalytics from '@/components/voice/CollectionsAnalytics'
+import PaymentHistoryChart from '@/components/voice/PaymentHistoryChart'
+import BulkImportWizard from '@/components/voice/BulkImportWizard'
 import {
   AlertTriangle,
   Plus,
@@ -64,6 +68,7 @@ function formatCurrency(value: string | number): string {
 }
 
 export default function CollectionsPage() {
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const [accounts, setAccounts] = useState<CollectionAccount[]>([])
   const [stats, setStats] = useState<PortfolioStats | null>(null)
@@ -73,6 +78,11 @@ export default function CollectionsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const tabParam = searchParams.get('tab')
+  const historyParam = searchParams.get('history')
+  const initialTab: 'accounts' | 'analytics' | 'import' =
+    tabParam === 'analytics' || tabParam === 'import' ? tabParam : 'accounts'
+  const [activeTab, setActiveTab] = useState<'accounts' | 'analytics' | 'import'>(initialTab)
 
   const fetchData = useCallback(async () => {
     try {
@@ -137,8 +147,8 @@ export default function CollectionsPage() {
   if (status === 'unauthenticated' || !session?.user) {
     return (
       <ProtectedGate
-        title="Collections CRM"
-        description="Please sign in to access your collections dashboard."
+        title="Collections"
+        description="Please sign in to access your collections workspace."
         redirectUrl="/voice-operations/accounts"
       />
     )
@@ -164,10 +174,16 @@ export default function CollectionsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Collections CRM</h1>
-            <p className="text-sm text-gray-500">Manage debt collection accounts and payments</p>
+            <h1 className="text-2xl font-bold text-gray-900">Collections</h1>
+            <p className="text-sm text-gray-500">Manage collection accounts and payments</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={() => setActiveTab('import')}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Upload className="h-4 w-4" /> Import CSV
+            </button>
             <button
               onClick={() => setShowCreateForm(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -177,6 +193,40 @@ export default function CollectionsPage() {
           </div>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex gap-6 border-b border-gray-200">
+          {[
+            { id: 'accounts' as const, label: 'Accounts' },
+            { id: 'analytics' as const, label: 'Analytics' },
+            { id: 'import' as const, label: 'Bulk Import' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && <CollectionsAnalytics />}
+
+        {/* Bulk Import Tab */}
+        {activeTab === 'import' && (
+          <BulkImportWizard
+            onComplete={fetchData}
+            initialShowHistory={historyParam === '1'}
+          />
+        )}
+
+        {/* Accounts Tab */}
+        {activeTab === 'accounts' && <>
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -317,6 +367,13 @@ export default function CollectionsPage() {
           </div>
         )}
 
+        {/* Expanded Account Detail with Payment History */}
+        {expandedId && (
+          <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
+            <PaymentHistoryChart accountId={expandedId} />
+          </div>
+        )}
+
         {/* Accounts Table */}
         <div className="rounded-lg bg-white shadow-sm border overflow-hidden">
           <table className="w-full text-sm">
@@ -381,6 +438,7 @@ export default function CollectionsPage() {
             </tbody>
           </table>
         </div>
+        </> /* End accounts tab */}
       </div>
     </div>
   )

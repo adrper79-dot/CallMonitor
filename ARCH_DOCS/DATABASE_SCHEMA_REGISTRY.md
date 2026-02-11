@@ -1,7 +1,7 @@
 # Database Schema Registry
 
-**Status**: ✅ COMPLIANT | Updated: Feb 10, 2026  
-**Version**: 1.2 - RLS Deployment + Type Convention Documentation  
+**Status**: ⚠️ SCHEMA DRIFT DETECTED | Updated: Feb 11, 2026  
+**Version**: 1.3 - Rogue Agent Schema Drift Fix (text → uuid migration)  
 **Owner**: Platform Team
 
 ---
@@ -22,28 +22,33 @@ Per [MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md), the mandatory standard is:
 
 > All new database tables MUST use **UUID** as the primary key type (`id UUID PRIMARY KEY DEFAULT gen_random_uuid()`).
 
-**Documented Exceptions** (Legacy compatibility):
+**Schema Drift Notice (Feb 11, 2026):**
 
-| Column Pattern | Standard Type | Exception Tables | Exception Type | Rationale |
-|----------------|---------------|------------------|----------------|-----------|
-| `id` (PK) | **UUID** | `users`, `accounts` | **TEXT** | NextAuth.js library requirement |
-| `user_id` (FK) | **UUID** | `accounts`, `calls`, `org_members`, `tool_access_archived`, `tool_team_members` | **TEXT** | References `users.id` (TEXT) |
+> A rogue AI agent changed `users.id`, `sessions.id`, `sessions.user_id`, `accounts.user_id`, and `organizations.created_by` from `text` to `uuid`. All `user_id` columns are now consistently UUID across ALL tables. The codebase has been updated to match. The TEXT exceptions documented below NO LONGER APPLY.
+
+| Column Pattern | Actual Type (Live DB) | Previous Type | Notes |
+|----------------|----------------------|---------------|-------|
+| `users.id` | **UUID** | TEXT | Changed by rogue agent; code updated |
+| `sessions.id` | **UUID** | TEXT | Changed by rogue agent; code updated |
+| `sessions.user_id` | **UUID** | TEXT | Changed by rogue agent; code updated |
+| `accounts.user_id` | **UUID** | TEXT | Changed by rogue agent; code updated |
+| `organizations.created_by` | **UUID** | TEXT | Changed by rogue agent; code updated |
+| `sessions.session_token` | **VARCHAR** | TEXT | Minor type change, functionally equivalent |
+| All other `user_id` columns | **UUID** | UUID | Unchanged, always were UUID |
 
 **Enforcement Guidelines:**
 
 1. ✅ **New Tables**: MUST use UUID for primary keys
-2. ✅ **Foreign Keys**: Type must match the referenced column type
-3. ✅ **Legacy Tables**: Accept TEXT for NextAuth-related tables (`users`, `accounts`, `sessions`)
-4. ⚠️ **Migration Path**: Do NOT attempt to convert `users.id` from TEXT to UUID (breaking change, high risk)
+2. ✅ **Foreign Keys**: Type must match the referenced column type (ALL are now UUID)
+3. ✅ **Legacy Tables**: `users.id` is now UUID (no longer TEXT exception)
+4. ⚠️ **Do NOT add `::text` casts** in JOINs — all user ID columns are UUID, direct comparison works
 5. ✅ **TypeScript Types**: Enforce UUID in `types/database.ts` for all business tables
 
 **Type Consistency Validation:**
 
-- **UUID Tables**: 142+ tables use UUID exclusively ✅
-- **TEXT Exceptions**: 2 tables (`users`, `accounts`) due to NextAuth constraints ℹ️
+- **UUID Tables**: 144+ tables use UUID exclusively ✅
+- **TEXT Exceptions**: NONE (previously `users`, `accounts`) ✅
 - **Legacy INT**: 2 tables (`call_translations`, `kpi_logs`) - pre-UUID era ⚠️
-
-**Reference:** [SCHEMA_DRIFT_VALIDATION_2026-02-10.md](SCHEMA_DRIFT_VALIDATION_2026-02-10.md) - MEDIUM Priority Issue #1
 
 ---
 
