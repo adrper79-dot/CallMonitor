@@ -49,7 +49,7 @@ teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
               (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) as member_count,
               COUNT(*) OVER() as total_count
        FROM teams t
-       LEFT JOIN users u ON u.id = t.manager_user_id
+       LEFT JOIN users u ON u.id = t.manager_user_id::text
        WHERE t.organization_id = $1 AND t.is_active = true
        ORDER BY t.name
        LIMIT $2 OFFSET $3`,
@@ -248,7 +248,7 @@ teamsRoutes.get('/:id/members', async (c) => {
               u.id as user_id, u.name, u.email,
               om.role as org_role
        FROM team_members tm
-       JOIN users u ON u.id = tm.user_id
+       JOIN users u ON u.id = tm.user_id::text
        LEFT JOIN org_members om ON om.user_id = tm.user_id AND om.organization_id = $2
        WHERE tm.team_id = $1
        ORDER BY tm.team_role, u.name`,

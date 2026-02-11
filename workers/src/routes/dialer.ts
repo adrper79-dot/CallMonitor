@@ -224,7 +224,7 @@ dialerRoutes.get('/agents', async (c) => {
     let query = `
       SELECT das.*, u.name as full_name, u.email
       FROM dialer_agent_status das
-      JOIN users u ON u.id = das.user_id
+      JOIN users u ON u.id = das.user_id::text
       WHERE das.organization_id = $1`
 
     if (campaignId) {

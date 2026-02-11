@@ -410,7 +410,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
         o.updated_at,
         json_build_object('email', u.email) as declared_by_user
        FROM call_outcomes o
-       LEFT JOIN users u ON o.declared_by_user_id = u.id
+       LEFT JOIN users u ON o.declared_by_user_id::text = u.id
        WHERE o.call_id = $1 AND o.organization_id = $2`,
       [callId, organization_id]
     )
@@ -1071,7 +1071,7 @@ callsRoutes.get('/:id/notes', async (c) => {
       `SELECT cn.id, cn.call_id, cn.content, cn.created_by, cn.created_at,
               u.email as author_email, u.name as author_name
        FROM call_notes cn
-       LEFT JOIN users u ON u.id = cn.created_by
+       LEFT JOIN users u ON u.id = cn.created_by::text
        WHERE cn.call_id = $1 AND cn.organization_id = $2
        ORDER BY cn.created_at DESC`,
       [callId, session.organization_id]
