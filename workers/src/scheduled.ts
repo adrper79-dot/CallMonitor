@@ -94,8 +94,8 @@ async function retryFailedTranscriptions(env: Env): Promise<void> {
         await db.query(
           `UPDATE calls
          SET transcript_id = $1,
-             updated_at = NOW() = transcript_retries + 1,
-             transcript_id = $1
+             transcript_status = 'pending',
+             updated_at = NOW()
          WHERE id = $2`,
           [assemblyData.id, call.id]
         )

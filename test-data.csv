@@ -1,0 +1,13 @@
+CustomerName,CustomerEmail,CustomerPhone,InvoiceNum,InvoiceDate,DueDate,DaysOverdue,OpenBalance,OriginalAmount,LastPaymentDate,LastPaymentAmount,Memo,Status
+Acme Corp,accounting@acme.com,(404) 555-0123,INV-1001,2025-11-15,2025-12-15,-57,0.00,2500.00,2026-01-10,2500.00,Paid in full on time,Current (Paid)
+Acme Corp,accounting@acme.com,(404) 555-0123,INV-1023,2025-12-20,2026-01-19,-2,1487.50,3200.00,,0.00,Waiting on approval,Current
+Acme Corp,accounting@acme.com,(404) 555-0123,INV-1045,2026-01-05,2026-02-04,7,875.00,875.00,,,First reminder - polite call,Overdue Mild (1-30)
+Baker Enterprises,billing@bakerent.com,(678) 555-0987,INV-1002,2025-10-10,2025-11-09,94,4200.00,4200.00,,,No response to 2 emails - escalate call,Overdue Severe (61-90+)
+Baker Enterprises,billing@bakerent.com,(678) 555-0987,INV-1034,2025-12-01,2025-12-31,41,1200.00,2500.00,2026-01-15,1300.00,Partial payment - promised rest by Feb 10,Overdue Moderate (31-60)
+Charlie's Plumbing,charlie@plumbingga.com,(770) 555-4567,INV-1003,2025-12-05,2026-01-04,38,350.00,350.00,,,Small balance - friendly follow-up,Overdue Moderate (31-60)
+Delta Medical Supplies,ar@deltamed.com,(470) 555-3210,INV-1056,2025-09-20,2025-10-20,143,6850.00,6850.00,,,High priority - collection agency risk,Overdue Severe (61-90+)
+Delta Medical Supplies,ar@deltamed.com,(470) 555-3210,INV-1078,2026-01-10,2026-02-09,2,0.00,4500.00,2026-02-08,4500.00,Paid early - good payer,Current (Paid)
+Emma's Boutique,emma@emmasboutique.com,(678) 555-7890,INV-1004,2026-01-20,2026-02-19,-8,225.00,225.00,,,Not yet due - no call needed,Current
+Frank's Landscaping,frank@landscaping.com,(404) 555-2468,INV-1005,2025-11-01,2025-12-01,71,1800.00,1800.00,,,Disputed amount - needs manager call,Overdue Severe (61-90+)
+Grace Consulting,grace@graceconsult.com,(770) 555-1357,INV-1067,2025-12-15,2026-01-14,28,950.00,1200.00,2026-01-20,250.00,Partial - follow up on remainder,Overdue Mild (1-30)
+Henry's Auto Repair,henry@autorepair.com,(678) 555-8642,INV-1006,2025-10-25,2025-11-24,79,0.00,1450.00,2026-01-05,1450.00,Settled after collection call,Current (Paid)
