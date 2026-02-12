@@ -14,10 +14,10 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
-import { DialerQueueSchema, DialerAgentStatusSchema } from '../lib/schemas'
+import { DialerQueueSchema, DialerAgentStatusSchema, DialerPauseStopSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { predictiveDialerRateLimit, dialerRateLimit } from '../lib/rate-limit'
@@ -27,7 +27,7 @@ export const dialerRoutes = new Hono<AppEnv>()
 
 // Start dialing a campaign queue
 dialerRoutes.post('/start', predictiveDialerRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, DialerQueueSchema)
@@ -64,19 +64,27 @@ dialerRoutes.post('/start', predictiveDialerRateLimit, async (c) => {
 
 // Pause a dialer queue
 dialerRoutes.post('/pause', predictiveDialerRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const body = await c.req.json()
-  const campaignId = body?.campaign_id
-
-  if (!campaignId) {
-    return c.json({ error: 'campaign_id is required' }, 400)
-  }
+  const parsed = await validateBody(c, DialerPauseStopSchema)
+  if (!parsed.success) return parsed.response
+  const campaignId = parsed.data.campaign_id
 
   const db = getDb(c.env)
   try {
     await pauseDialerQueue(db, campaignId, session.organization_id, session.user_id)
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.DIALER_QUEUE_PAUSED,
+      resourceType: 'campaign',
+      resourceId: campaignId,
+      oldValue: null,
+      newValue: { status: 'paused' },
+    })
+
     return c.json({ success: true, status: 'paused' })
   } catch (err: any) {
     logger.error('POST /api/dialer/pause error', { error: err?.message })
@@ -88,15 +96,12 @@ dialerRoutes.post('/pause', predictiveDialerRateLimit, async (c) => {
 
 // Stop a dialer queue entirely
 dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const body = await c.req.json()
-  const campaignId = body?.campaign_id
-
-  if (!campaignId) {
-    return c.json({ error: 'campaign_id is required' }, 400)
-  }
+  const parsed = await validateBody(c, DialerPauseStopSchema)
+  if (!parsed.success) return parsed.response
+  const campaignId = parsed.data.campaign_id
 
   const db = getDb(c.env)
   try {
@@ -116,11 +121,11 @@ dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
     writeAuditLog(db, {
       organizationId: session.organization_id,
       userId: session.user_id,
-      action: AuditAction.DIALER_QUEUE_PAUSED,
+      action: AuditAction.DIALER_QUEUE_STOPPED,
       resourceType: 'campaign',
       resourceId: campaignId,
       oldValue: null,
-      newValue: { status: 'completed' },
+      newValue: { status: 'stopped' },
     })
 
     return c.json({ success: true, status: 'stopped' })
@@ -133,7 +138,7 @@ dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
 })
 
 // Get dialer stats for a campaign
-dialerRoutes.get('/stats/:campaignId', async (c) => {
+dialerRoutes.get('/stats/:campaignId', dialerRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -212,7 +217,7 @@ dialerRoutes.put('/agent-status', dialerRateLimit, async (c) => {
 })
 
 // List agent statuses
-dialerRoutes.get('/agents', async (c) => {
+dialerRoutes.get('/agents', dialerRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -224,7 +229,7 @@ dialerRoutes.get('/agents', async (c) => {
     let query = `
       SELECT das.*, u.name as full_name, u.email
       FROM dialer_agent_status das
-      JOIN users u ON u.id = das.user_id::text
+      JOIN users u ON u.id = das.user_id
       WHERE das.organization_id = $1`
 
     if (campaignId) {

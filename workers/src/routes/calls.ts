@@ -28,7 +28,6 @@ import {
   telnyxVoiceRateLimit,
 } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml, getEmailDefaults } from '../lib/email'
-import { getTranslationConfig } from '../lib/translation-processor'
 
 export const callsRoutes = new Hono<AppEnv>()
 
@@ -232,8 +231,8 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
         const errBody = await telnyxRes.text()
         logger.error('Telnyx call origination failed', { status: telnyxRes.status, body: errBody })
         // Update DB to reflect failure
-        await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`, [
-          call.id,
+        await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1 AND organization_id = $2`, [
+          call.id, session.organization_id,
         ])
         return c.json({ error: 'Failed to originate call via telephony provider' }, 502)
       }
@@ -243,13 +242,13 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
       }
       // Store call_control_id so webhooks can match events back to this call
       await db.query(
-        `UPDATE calls SET call_control_id = $1, call_sid = $2, status = 'initiated' WHERE id = $3`,
-        [telnyxData.data.call_control_id, telnyxData.data.call_session_id, call.id]
+        `UPDATE calls SET call_control_id = $1, call_sid = $2, status = 'initiated' WHERE id = $3 AND organization_id = $4`,
+        [telnyxData.data.call_control_id, telnyxData.data.call_session_id, call.id, session.organization_id]
       )
     } catch (telnyxErr: any) {
       logger.error('Telnyx call origination exception', { error: telnyxErr?.message })
-      await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1`, [
-        call.id,
+      await db.query(`UPDATE calls SET status = 'failed', ended_at = NOW() WHERE id = $1 AND organization_id = $2`, [
+        call.id, session.organization_id,
       ])
       return c.json({ error: 'Telephony provider unavailable' }, 502)
     }
@@ -596,7 +595,7 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
 })
 
 // PUT /api/calls/[id]/outcome
-callsRoutes.put('/:id/outcome', async (c) => {
+callsRoutes.put('/:id/outcome', callMutationRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) {
     return c.json({ success: false, error: 'Unauthorized' }, 401)
@@ -1090,7 +1089,7 @@ callsRoutes.get('/:id/notes', async (c) => {
 })
 
 // POST /api/calls/:id/notes — add a note
-callsRoutes.post('/:id/notes', async (c) => {
+callsRoutes.post('/:id/notes', callMutationRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ success: false, error: 'Unauthorized' }, 401)
 

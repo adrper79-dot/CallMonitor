@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { LogComplianceViolationSchema, ResolveComplianceViolationSchema } from '../lib/schemas'
@@ -26,7 +26,7 @@ export const complianceRoutes = new Hono<AppEnv>()
 // POST /violations — Log a compliance violation
 // Called by frontend's logComplianceViolation() in complianceUtils.ts
 complianceRoutes.post('/violations', complianceRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -164,7 +164,7 @@ complianceRoutes.get('/violations/:id', async (c) => {
 
 // PATCH /violations/:id — Update violation resolution
 complianceRoutes.patch('/violations/:id', complianceRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'compliance')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -173,6 +173,16 @@ complianceRoutes.patch('/violations/:id', complianceRateLimit, async (c) => {
     const parsed = await validateBody(c, ResolveComplianceViolationSchema)
     if (!parsed.success) return parsed.response
     const { resolution_status, resolution_notes } = parsed.data
+
+    // Fetch existing record for audit trail
+    const existing = await db.query(
+      `SELECT * FROM compliance_violations WHERE id = $1 AND organization_id = $2`,
+      [violationId, session.organization_id]
+    )
+    if (existing.rows.length === 0) {
+      return c.json({ error: 'Violation not found' }, 404)
+    }
+    const oldRecord = existing.rows[0]
 
     const result = await db.query(
       `UPDATE compliance_violations
@@ -201,6 +211,7 @@ complianceRoutes.patch('/violations/:id', complianceRateLimit, async (c) => {
       resourceType: 'compliance_violations',
       resourceId: result.rows[0].id,
       action: AuditAction.COMPLIANCE_VIOLATION_RESOLVED,
+      oldValue: oldRecord,
       newValue: result.rows[0],
     })
 

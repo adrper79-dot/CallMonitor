@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from '@/components/AuthProvider'
@@ -18,6 +18,14 @@ import { apiGetNoAuth } from '@/lib/apiClient'
  * - Immediate validation feedback
  */
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-pulse text-gray-400">Loading...</div></div>}>
+      <SignInContent />
+    </Suspense>
+  )
+}
+
+function SignInContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()

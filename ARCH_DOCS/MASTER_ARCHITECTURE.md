@@ -1,7 +1,7 @@
 # Master Architecture Reference
 
-**Status**: Production Gospel | Updated: Feb 7, 2026
-**Version**: 4.24+ — Full Platform (Live Translation, Campaigns, Reports, Billing)
+**Status**: Production Gospel | Updated: Feb 13, 2026
+**Version**: 4.56 — Session 19: Multi-agent audit (doc drift fixed, security hardening, feature registry updated)
 
 ---
 
@@ -64,7 +64,7 @@ flowchart TB
     end
 
     subgraph "Data & Services"
-        Neon[Neon Postgres<br/>Hyperdrive Pooling<br/>RLS Security<br/>113 Tables]
+        Neon[Neon Postgres<br/>Hyperdrive Pooling<br/>RLS Security<br/>149 Tables]
 
         R2[Cloudflare R2<br/>Object Storage<br/>Audio Recordings<br/>Evidence Bundles]
 
@@ -76,7 +76,11 @@ flowchart TB
 
         ElevenLabs[ElevenLabs<br/>Text-to-Speech<br/>Voice Cloning]
 
-        OpenAI[OpenAI<br/>LLM Reasoning<br/>Bond AI Chat/Copilot<br/>Translation Support]
+        Grok[Grok xAI<br/>Advanced LLM Reasoning<br/>Bond AI Chat/Copilot]
+
+        Groq[Groq Llama 4 Scout<br/>Cost-Optimized LLM<br/>Translation Support]
+
+        OpenAI[OpenAI<br/>LLM Fallback<br/>GPT-4o-mini]
     end
 
     Browser -->|HTTPS| Pages
@@ -87,7 +91,9 @@ flowchart TB
     Workers -->|Billing| Stripe
     Workers -->|Transcription| AssemblyAI
     Workers -->|TTS/Audio| ElevenLabs
-    Workers -->|Translation| OpenAI
+    Workers -->|LLM Advanced| Grok
+    Workers -->|LLM Cost-Opt| Groq
+    Workers -->|LLM Fallback| OpenAI
 
     style Browser fill:#e1f5fe
     style Pages fill:#f3e5f5
@@ -135,7 +141,9 @@ flowchart TB
 - **Telnyx**: Voice/SMS telephony
 - **Stripe**: Billing/subscriptions
 - **AssemblyAI**: Transcription
-- **OpenAI**: LLM reasoning
+- **Grok (xAI)**: Advanced LLM reasoning (Bond AI Chat, Copilot)
+- **Groq (Llama 4 Scout)**: Cost-optimized LLM (translation, simple tasks — 38% cost reduction)
+- **OpenAI (GPT-4o-mini)**: LLM fallback
 - **ElevenLabs**: Text-to-speech
 - **Resend**: Transactional email
 
@@ -296,7 +304,7 @@ Implemented with database persistence:
 **PBKDF2-SHA256 Implementation**:
 
 - **Algorithm**: PBKDF2 with SHA-256
-- **Iterations**: 120,000 (NIST recommended minimum)
+- **Iterations**: 100,000 (NIST recommended minimum)
 - **Salt**: 32-byte cryptographically secure random
 - **Key Length**: 256 bits (32 bytes)
 - **Backward Compatibility**: Transparent migration from legacy SHA-256 hashes
@@ -308,7 +316,7 @@ Implemented with database persistence:
 const hashPassword = async (password: string): Promise<string> => {
   const salt = crypto.getRandomValues(new Uint8Array(32))
   const key = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
     await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, [
       'deriveBits',
     ]),

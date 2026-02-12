@@ -315,7 +315,7 @@ export function sanitizeRequestFields<T extends Record<string, any>>(
     if (typeof sanitized[field] === 'string') {
       const result = sanitizePrompt(sanitized[field], options)
 
-      sanitized[field] = result.sanitized
+      ;(sanitized as Record<string, any>)[field] = result.sanitized
 
       if (result.violations.length > 0) {
         violations[field] = result.violations

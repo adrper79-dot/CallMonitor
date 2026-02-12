@@ -20,7 +20,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import {
   CreateCollectionAccountSchema,
@@ -170,7 +170,7 @@ collectionsRoutes.get('/imports', async (c) => {
 
 // ─── Create collection account ───────────────────────────────────────────────
 collectionsRoutes.post('/', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -226,7 +226,7 @@ collectionsRoutes.post('/', collectionsRateLimit, async (c) => {
 
 // ─── CSV bulk import ─────────────────────────────────────────────────────────
 collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -256,36 +256,81 @@ collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
     let skipped = 0
     const errors: Array<{ row: number; error: string }> = []
 
-    for (let i = 0; i < accounts.length; i++) {
-      const acct = accounts[i]
+    // Batch INSERT via VALUES list to avoid N+1 queries on large CSV imports
+    const BATCH_SIZE = 50
+    for (let batchStart = 0; batchStart < accounts.length; batchStart += BATCH_SIZE) {
+      const batch = accounts.slice(batchStart, batchStart + BATCH_SIZE)
+      const values: any[] = []
+      const placeholders: string[] = []
+
+      for (let i = 0; i < batch.length; i++) {
+        const acct = batch[i]
+        const offset = i * 14
+        placeholders.push(
+          `($${offset + 1}, $${offset + 2}, 'csv_import', $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14})`
+        )
+        values.push(
+          session.organization_id,
+          acct.external_id || null,
+          acct.name,
+          acct.balance_due,
+          acct.primary_phone,
+          acct.secondary_phone || null,
+          acct.email || null,
+          acct.address || null,
+          acct.custom_fields ? JSON.stringify(acct.custom_fields) : null,
+          acct.status || 'active',
+          acct.notes || null,
+          acct.promise_date || null,
+          acct.promise_amount || null,
+          session.user_id
+        )
+      }
+
       try {
-        await db.query(
+        const result = await db.query(
           `INSERT INTO collection_accounts
             (organization_id, external_id, source, name, balance_due, primary_phone,
              secondary_phone, email, address, custom_fields, status, notes,
              promise_date, promise_amount, created_by)
-          VALUES ($1, $2, 'csv_import', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          [
-            session.organization_id,
-            acct.external_id || null,
-            acct.name,
-            acct.balance_due,
-            acct.primary_phone,
-            acct.secondary_phone || null,
-            acct.email || null,
-            acct.address || null,
-            acct.custom_fields ? JSON.stringify(acct.custom_fields) : null,
-            acct.status || 'active',
-            acct.notes || null,
-            acct.promise_date || null,
-            acct.promise_amount || null,
-            session.user_id,
-          ]
+          VALUES ${placeholders.join(', ')}`,
+          values
         )
-        imported++
-      } catch (rowErr: any) {
-        skipped++
-        errors.push({ row: i + 1, error: rowErr?.message || 'Unknown error' })
+        imported += result.rowCount || batch.length
+      } catch (batchErr: any) {
+        // Fallback: insert individually to identify which rows failed
+        for (let i = 0; i < batch.length; i++) {
+          const acct = batch[i]
+          try {
+            await db.query(
+              `INSERT INTO collection_accounts
+                (organization_id, external_id, source, name, balance_due, primary_phone,
+                 secondary_phone, email, address, custom_fields, status, notes,
+                 promise_date, promise_amount, created_by)
+              VALUES ($1, $2, 'csv_import', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+              [
+                session.organization_id,
+                acct.external_id || null,
+                acct.name,
+                acct.balance_due,
+                acct.primary_phone,
+                acct.secondary_phone || null,
+                acct.email || null,
+                acct.address || null,
+                acct.custom_fields ? JSON.stringify(acct.custom_fields) : null,
+                acct.status || 'active',
+                acct.notes || null,
+                acct.promise_date || null,
+                acct.promise_amount || null,
+                session.user_id,
+              ]
+            )
+            imported++
+          } catch (rowErr: any) {
+            skipped++
+            errors.push({ row: batchStart + i + 1, error: rowErr?.message || 'Unknown error' })
+          }
+        }
       }
     }
 
@@ -371,7 +416,7 @@ collectionsRoutes.get('/:id', async (c) => {
 
 // ─── Update account ──────────────────────────────────────────────────────────
 collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -380,6 +425,16 @@ collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
     const parsed = await validateBody(c, UpdateCollectionAccountSchema)
     if (!parsed.success) return parsed.response
     const data = parsed.data
+
+    // Fetch existing record for audit trail
+    const existing = await db.query(
+      `SELECT * FROM collection_accounts WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+      [accountId, session.organization_id]
+    )
+    if (existing.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+    const oldRecord = existing.rows[0]
 
     const result = await db.query(
       `UPDATE collection_accounts
@@ -426,7 +481,7 @@ collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
       resourceType: 'collection_accounts',
       resourceId: accountId,
       action: AuditAction.COLLECTION_ACCOUNT_UPDATED,
-      oldValue: null,
+      oldValue: oldRecord,
       newValue: result.rows[0],
     })
 
@@ -441,7 +496,7 @@ collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
 
 // ─── Soft-delete account ─────────────────────────────────────────────────────
 collectionsRoutes.delete('/:id', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -506,7 +561,7 @@ collectionsRoutes.get('/:id/payments', async (c) => {
 
 // ─── Record payment ──────────────────────────────────────────────────────────
 collectionsRoutes.post('/:id/payments', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -607,7 +662,7 @@ collectionsRoutes.get('/:id/tasks', async (c) => {
 
 // ─── Create task ─────────────────────────────────────────────────────────────
 collectionsRoutes.post('/:id/tasks', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -668,7 +723,7 @@ collectionsRoutes.post('/:id/tasks', collectionsRateLimit, async (c) => {
 
 // ─── Update task ─────────────────────────────────────────────────────────────
 collectionsRoutes.put('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)
@@ -728,7 +783,7 @@ collectionsRoutes.put('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
 
 // ─── Delete task ─────────────────────────────────────────────────────────────
 collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env)

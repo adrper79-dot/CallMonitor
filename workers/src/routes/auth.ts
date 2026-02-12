@@ -669,10 +669,10 @@ authRoutes.post('/reset-password', forgotPasswordRateLimit, async (c) => {
   }
 })
 
-// ─── Password Hashing (PBKDF2-SHA256, 120k iterations) ───────────────────────
+// ─── Password Hashing (PBKDF2-SHA256, 100k iterations) ───────────────────────
 // PBKDF2 via Web Crypto API — NIST SP 800-132 recommended for password hashing.
-// Unlike raw SHA-256, PBKDF2 applies key stretching (120,000 rounds) making
-// brute-force attacks ~120,000x slower per guess.
+// Unlike raw SHA-256, PBKDF2 applies key stretching (100,000 rounds) making
+// brute-force attacks ~100,000x slower per guess.
 
 const PBKDF2_ITERATIONS = 100_000
 const PBKDF2_HASH = 'SHA-256'

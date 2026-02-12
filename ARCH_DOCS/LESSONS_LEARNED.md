@@ -2,8 +2,179 @@
 
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Last Updated:** February 11, 2026 (Session 14 — Authentication Silent Failure Fix)
-**Applicable Versions:** v4.8 – v4.51
+**Last Updated:** February 12, 2026 (Session 16 — Deep Audit & Remediation)
+**Applicable Versions:** v4.8 – v4.53
+
+---
+
+## 🔴 CRITICAL — PostgreSQL Does NOT Support `CREATE POLICY IF NOT EXISTS` (v4.53)
+
+**Migration `2026-02-11-compliance-and-payment-gaps.sql` completely failed on production because PostgreSQL does not support `CREATE POLICY IF NOT EXISTS` syntax. The entire transaction rolled back, leaving 6 tables uncreated.**
+
+### The Error
+```
+ERROR: syntax error at or near "IF"
+LINE 1: CREATE POLICY IF NOT EXISTS ...
+```
+
+### The Fix
+Rewrite all `CREATE POLICY IF NOT EXISTS` to idempotent `DO $$ BEGIN ... END $$` blocks:
+```sql
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'policy_name') THEN
+    CREATE POLICY policy_name ON table_name ...;
+  END IF;
+END $$;
+```
+
+### Rule
+**ALWAYS use `DO $$ BEGIN IF NOT EXISTS ... END $$` pattern for CREATE POLICY in migrations. Never use `IF NOT EXISTS` directly — it’s not supported by PostgreSQL for policies, unlike tables/indexes.**
+
+---
+
+## 🔴 CRITICAL — Always Verify Migrations Are Applied Before Deploying Endpoint Code (v4.53)
+
+**Three migration files sat unapplied for 2+ sessions while code referencing those tables was deployed. Every INSERT/SELECT on the missing tables caused HTTP 500s in production.**
+
+### The Situation
+- `v5-features.sql`, `v5.1-compliance-and-payment-gaps.sql`, and `v5.2-audio-intelligence-and-productivity.sql` were written but never applied
+- Worker routes (dialer, compliance, collections, productivity, sentiment) referenced tables that didn’t exist
+- No automated check existed to validate schema vs. code expectations
+
+### Rule
+**After writing a migration, apply it IMMEDIATELY. Add a post-deploy health check that queries every table referenced in new code. Never deploy endpoint code before its migration.**
+
+---
+
+## 🟠 HIGH — KV Stores Don’t Support Atomic Compare-and-Swap (v4.53)
+
+**ElevenLabs slot acquisition in ai-router.ts used `KV.get()` + `KV.put()` as separate operations. Under concurrent requests, two workers could read the same slot count and both increment, exceeding the limit.**
+
+### The Fix
+Added an explicit lock key pattern with 5s TTL:
+```typescript
+// Acquire lock
+await c.env.KV.put(`elevenlabs:lock`, '1', { expirationTtl: 5 })
+// ... perform slot operation ...
+// Release lock
+await c.env.KV.delete(`elevenlabs:lock`)
+```
+
+### Rule
+**Cloudflare KV is eventually consistent. For any read-modify-write pattern, implement explicit locking with short TTLs. Consider Durable Objects if true atomicity is needed.**
+
+---
+
+## 🟠 HIGH — RBAC `requireRole()` Must Be on EVERY Mutation Endpoint (v4.53)
+
+**20+ mutation endpoints across 6 route files had only `requireAuth()` (identity check) but no `requireRole()` (authorization check). Any authenticated user could start dialer queues, modify compliance violations, or change AI configurations.**
+
+### Rule
+**Every POST/PUT/PATCH/DELETE endpoint MUST have both `requireAuth()` AND `requireRole('minimum_role')`. Default to `requireRole('agent')` for standard operations, `requireRole('operator')` for destructive/bulk operations, `requireRole('manager')` for configuration changes, `requireRole('compliance')` for compliance modifications.**
+
+---
+
+## 🟡 MEDIUM — Audit Logs Need Pre-UPDATE SELECT for old_value (v4.53)
+
+**Several UPDATE endpoints logged `null` for `old_value` in audit trails because they didn’t fetch the existing record before overwriting it.**
+
+### Rule
+**Before any UPDATE that writes an audit log, do `SELECT * FROM table WHERE id = $1` first and pass the result as `oldValue` to `writeAuditLog()`. This preserves the complete before-state for compliance.**
+
+---
+
+## 🟡 MEDIUM — Verify Column Existence Before Writing Queries (v4.53)
+
+**`compliance-checker.ts` had two frequency cap queries using `WHERE account_id = $2` on the `calls` table. The `calls` table has no `account_id` column — these queries silently failed, causing a fail-closed state that blocked ALL calls from passing compliance checks.**
+
+### Rule
+**Always verify column existence against the live schema before writing queries. Use `to_number` or `from_number` for call-level lookups, not `account_id`. Keep `DATABASE_SCHEMA_REGISTRY.md` current.**
+
+**The `audio.ts` transcription path was submitting bare transcription requests with no intelligence features (no speaker_labels, no sentiment_analysis, no auto_highlights). This means any call recorded through the audio upload path lost ALL audio intelligence.**
+
+### The Error
+
+```typescript
+// audio.ts was sending:
+body: JSON.stringify({
+  audio_url: audioUrl,
+  webhook_url: webhookUrl,
+})
+// ZERO features — no speaker_labels, no sentiment_analysis, nothing
+```
+
+### Root Cause
+
+When `audio.ts` was originally built, it was a simple upload endpoint. The intelligence features were added to `webhooks.ts` and `queue-consumer.ts` but audio.ts was never updated. There were 4 distinct AssemblyAI submission paths and no centralized configuration.
+
+### The Fix
+
+Added full feature parity to audio.ts:
+```typescript
+speaker_labels: true,
+speakers_expected: 2,
+auto_highlights: true,
+sentiment_analysis: true,
+entity_detection: true,
+content_safety: true,
+```
+
+### Lesson
+
+**When adding a feature to one integration path, always search for ALL paths that touch the same external API.** Use `grep_search` for the API URL/SDK to find ALL submission points. In this case there were 4: `webhooks.ts` (inline fallback), `queue-consumer.ts`, `ai-transcribe.ts`, and `audio.ts`.
+
+### Files Fixed
+
+- `workers/src/routes/audio.ts` — Added all 6 intelligence parameters
+
+---
+
+## 🟡 WARNING — External Suggestions Used Wrong SDK Patterns (v4.52)
+
+**Two external suggestions provided code samples using the AssemblyAI JavaScript SDK (`assemblyai.transcripts.transcribe()`). Our stack uses raw `fetch()` to `api.assemblyai.com/v2/transcript` with webhook callbacks. ALL provided code samples were unusable.**
+
+### The Error
+
+External suggestion code:
+```typescript
+// WRONG — uses SDK we don't have
+import { AssemblyAI } from 'assemblyai'
+const transcript = await assemblyai.transcripts.transcribe({ audio_url, ... })
+```
+
+Our actual pattern:
+```typescript
+// CORRECT — raw fetch with webhook callback
+const response = await fetch('https://api.assemblyai.com/v2/transcript', {
+  method: 'POST',
+  headers: { authorization: env.ASSEMBLYAI_API_KEY },
+  body: JSON.stringify({ audio_url, webhook_url, speaker_labels: true, ... }),
+})
+```
+
+### Lesson
+
+**Always verify external code suggestions against actual codebase patterns before implementation.** Never blindly adopt SDK-based code when your integration uses direct HTTP. The external suggestion also referenced a `communications` table that doesn't exist (ours is `calls`).
+
+---
+
+## 🟢 TIP — Centralize AssemblyAI Feature Config (v4.52)
+
+Four separate files send requests to AssemblyAI with the same feature flags. Consider extracting a shared config:
+
+```typescript
+// Potential future improvement:
+const ASSEMBLYAI_FEATURES = {
+  speaker_labels: true,
+  speakers_expected: 2,
+  auto_highlights: true,
+  sentiment_analysis: true,
+  entity_detection: true,
+  content_safety: true,
+}
+```
+
+This would prevent the audio.ts drift from happening again. Currently not implemented because each path has slightly different requirements, but worth consideration for v5.3+.
 
 ---
 

@@ -16,6 +16,7 @@ export const rbacRoutes = new Hono<AppEnv>()
 // Role hierarchy — higher roles inherit all lower-role permissions
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
+  user: 2,
   agent: 2,
   manager: 3,
   compliance: 3, // Same level as manager, different permission set
@@ -26,11 +27,12 @@ const ROLE_HIERARCHY: Record<string, number> = {
 // Roles that a given role inherits from (ordered)
 const ROLE_INHERITANCE: Record<string, string[]> = {
   viewer: ['viewer'],
-  agent: ['viewer', 'agent'],
-  manager: ['viewer', 'agent', 'manager'],
-  compliance: ['viewer', 'compliance'],
-  admin: ['viewer', 'agent', 'manager', 'compliance', 'admin'],
-  owner: ['viewer', 'agent', 'manager', 'compliance', 'admin', 'owner'],
+  user: ['viewer', 'user'],
+  agent: ['viewer', 'user', 'agent'],
+  manager: ['viewer', 'user', 'agent', 'manager'],
+  compliance: ['viewer', 'user', 'compliance'],
+  admin: ['viewer', 'user', 'agent', 'manager', 'compliance', 'admin'],
+  owner: ['viewer', 'user', 'agent', 'manager', 'compliance', 'admin', 'owner'],
 }
 
 // Get permissions context for current user

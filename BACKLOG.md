@@ -2,8 +2,8 @@
 
 **Created:** February 7, 2026
 **Last Updated:** February 13, 2026 (v4.55 — Session 18 Post-Audit Fixes)
-**Total Items:** 231 | **Resolved:** 163 (71%) | **Open:** 4 | **In Progress:** 0 | **Deferred:** 5  
-**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation + Automated security scan (Feb 10) + Hidden features audit + Telnyx integration audit + Comprehensive feature validation (3 agents) + Session 8 compliance audit + Session 10 full platform audit + Session 16: 38-defect deep scan (P0-P3) + **Session 17: Multi-agent audit — 5 TS errors fixed, dead SignalWire code removed, N+1 CSV import fixed, 3 tenant isolation gaps closed, stale UI refs cleaned**  
+**Total Items:** 239 | **Resolved:** 198 (83%) | **Open:** 27 | **In Progress:** 14 | **Deferred:** 0  
+**Source:** Deep ARCH_DOCS review + codebase audit + TypeScript error scan + Production test validation + Automated security scan (Feb 10) + Hidden features audit + Telnyx integration audit + Comprehensive feature validation (3 agents) + Session 8 compliance audit + Session 10 full platform audit + Session 16: 38-defect deep scan (P0-P3) + **Session 17: Multi-agent audit — 5 TS errors fixed, dead SignalWire code removed, N+1 CSV import fixed, 3 tenant isolation gaps closed, stale UI refs cleaned** + **Session 19: Multi-agent audit — backlog header fixed, doc drift resolved, security hardening (AssemblyAI constant-time compare, login rate limit tightened), 11 missing routes added to feature registry**  
 **Format:** Priority-ordered, sequentially consumable by agents
 
 **Recent Validation:** Session 6 Turn 22 comprehensive feature audit
@@ -906,7 +906,7 @@
 - **Root Cause:** `id TEXT PRIMARY KEY` while every other entity uses `UUID DEFAULT gen_random_uuid()`
 - **Impact:** No auto-generation, no type safety, worse index performance
 - **Fix:** Change to `UUID PRIMARY KEY DEFAULT gen_random_uuid()` (requires data migration)
-- **Status:** `[ ]`
+- **Status:** `[x]` ✅ Superseded by BL-095 which applied the UUID migration (Session 19 audit cleanup)
 
 ### BL-085: `schemas.ts` — `SignInSchema.email` field lacks `.email()` validation
 
@@ -1183,7 +1183,7 @@
 
 15. **BL-081–087** — FK constraints, triggers, schema polish
 
-### BL-110: Missing lib modules — sentiment-processor, ivr-flow-engine, ai-call-engine, dialer-engine
+### BL-110b: Missing lib modules — sentiment-processor, ivr-flow-engine, ai-call-engine, dialer-engine
 
 - **Files:** `workers/src/routes/webhooks.ts` (lines 35-38)
 - **Root Cause:** Imports non-existent modules: `handleSentimentAnalysis`, `handleGatherResult`, `handleAICallEvent`, `handleDialerAMD`
@@ -1195,14 +1195,16 @@
   - workers/src/lib/ai-call-engine.ts (handleAICallEvent)
   - workers/src/lib/dialer-engine.ts (handleDialerAMD)
 - **Resolution Note:** Issue was incorrectly reported - modules exist and build compiles successfully
+- **Numbering Note:** Renumbered from duplicate BL-110 → BL-110b (Session 19 audit)
 
-### BL-111: Audit log properties mismatch — newValue/oldValue vs before/after
+### BL-111b: Audit log properties mismatch — newValue/oldValue vs before/after
 
 - **Files:** `workers/src/routes/voice.ts` (lines 192, 443, 499, 542)
 - **Root Cause:** `writeAuditLog()` expects `before`/`after` but code uses `oldValue`/`newValue`
 - **Impact:** 4 compile errors in voice.ts audit calls
 - **Fix:** Change to `before`/`after` or update interface to match DB columns
 - **Status:** `[x]` ✅ Fixed via bulk property replacement (before:→oldValue:, after:→newValue:) across all .ts files
+- **Numbering Note:** Renumbered from duplicate BL-111 → BL-111b (Session 19 audit)
 
 ### BL-112: Test helper apiCall signature mismatch
 
@@ -1887,7 +1889,7 @@
 - **Root Cause:** Mutation endpoints accept request bodies without schema validation
 - **Impact:** MEDIUM — Arbitrary data injection possible
 - **Fix:** Add Zod schemas for each endpoint's expected input
-- **Status:** `[x]` ✅ PARTIALLY RESOLVED Session 16 — Dialer /pause and /stop now use DialerPauseStopSchema. Shopper DELETE /scripts/manage still open.
+- **Status:** `[ ]` Partially resolved — Dialer /pause and /stop use DialerPauseStopSchema ✅. Shopper DELETE /scripts/manage still needs Zod validation.
 - **Priority:** P2
 
 ### BL-151: Migrations/backups directory cleanup

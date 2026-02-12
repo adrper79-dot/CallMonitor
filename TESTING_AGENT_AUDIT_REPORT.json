@@ -1,0 +1,274 @@
+{
+  "agent": "Testing",
+  "status": "PARTIAL",
+  "audit_date": "2026-02-12",
+  "platform_version": "v4.55",
+
+  "findings": [
+    {
+      "area": "Unit Test Coverage",
+      "status": "FAIL",
+      "detail": "Only 1 unit test file exists (tests/unit/ai-optimization.test.ts, 356 lines, ~35 test cases). Covers pii-redactor, prompt-sanitizer, ai-router, groq-client, grok-voice-client. 26 of 34 worker lib files have ZERO unit tests.",
+      "fix": "Create unit tests for critical libs: auth.ts, db.ts, schemas.ts, rate-limit.ts, bond-ai.ts, compliance-checker.ts, idempotency.ts, audit.ts, errors.ts. Target 60%+ lib coverage."
+    },
+    {
+      "area": "Feature Registry Completeness",
+      "status": "FAIL",
+      "detail": "Feature registry covers 37 of 48 route files. Missing 11: admin-metrics.ts, ai-router.ts, ai-toggle.ts, collections.ts, dialer.ts, internal.ts, ivr.ts, manager.ts, onboarding.ts, productivity.ts, sentiment.ts. These routes have no L1/L2 validation coverage.",
+      "fix": "Add all 11 missing routes to tests/production/feature-registry.ts so feature-validation.test.ts covers them automatically."
+    },
+    {
+      "area": "Production Tests — Conditional Skipping",
+      "status": "FAIL",
+      "detail": "Most production tests are gated behind env flags (RUN_API_TESTS, RUN_DB_TESTS, RUN_VOICE_TESTS, RUN_LOAD_TESTS). Without these flags, the majority of the 37 production test files are skipped. The '123 tests passing, 87 skipped' claim likely reflects this — most real validation is skipped in default runs.",
+      "fix": "1) Document required env vars clearly in tests/README.md. 2) Create a CI profile that sets all flags. 3) Ensure at least csv-validators, webhook-retry, translation-processor-osi, v5-features, feature-validation, and functional-validation run unconditionally."
+    },
+    {
+      "area": "E2E Tests (Playwright)",
+      "status": "FAIL",
+      "detail": "Only 3 spec files (15 active tests + 5 skipped). login.spec.ts (9 tests), navigation.spec.ts (6 tests), settings-webhook.spec.ts (ALL SKIPPED — requires auth). Authenticated flows have zero coverage. auth.setup.ts exists but is not activated (needs E2E_TEST_EMAIL/E2E_TEST_PASSWORD).",
+      "fix": "1) Configure test credentials and activate auth.setup.ts. 2) Add E2E specs for: dashboard, voice operations, billing/settings, team management, AI copilot, onboarding flow. 3) Uncomment chromium-authenticated project in playwright.config.ts."
+    },
+    {
+      "area": "AI Integration Testing — Grok/Groq",
+      "status": "PASS",
+      "detail": "Unit tests cover AI router task routing (6 tests), Groq cost calculation (2 tests), Grok voice cost + language mapping (4 tests), prompt sanitization (8 tests), PII redaction (7 tests). Production tests: ai-optimization-l4.test.ts covers audit logging and tenant isolation for AI ops.",
+      "fix": null
+    },
+    {
+      "area": "AI Integration Testing — AssemblyAI",
+      "status": "FAIL",
+      "detail": "AssemblyAI transcription path has e2e-transcription-workflow.test.ts but it's gated behind RUN_E2E flag. Webhook receiver is in feature registry but only tested at L1/L2 (reachability + auth gate). No unit tests for post-transcription-processor.ts.",
+      "fix": "Add unit tests for post-transcription-processor.ts. Create an integration test that validates AssemblyAI callback parsing without requiring real transcription."
+    },
+    {
+      "area": "AI Integration Testing — ElevenLabs TTS",
+      "status": "FAIL",
+      "detail": "No dedicated ElevenLabs tests found. tts-processor.ts is only mocked in translation-processor-osi.test.ts. tts.ts route is in feature registry (L1/L2 only). No functional test for TTS generation, error handling, or voice selection.",
+      "fix": "Create tests/unit/tts-processor.test.ts covering: voice selection, text chunking, error fallback, cost calculation. Add a production test for TTS endpoint with a short text sample."
+    },
+    {
+      "area": "Webhook Security",
+      "status": "FAIL",
+      "detail": "tests/webhooks-security.test.ts has 2 explicitly skipped tests (it.skip). Webhook signature validation and IP logging tests are not executing. settings-webhook.spec.ts is entirely skipped.",
+      "fix": "Implement Ed25519 signature verification mock for webhook security tests. Remove it.skip and provide test keypairs."
+    },
+    {
+      "area": "Error Handling UI",
+      "status": "PASS",
+      "detail": "app/error.tsx: Production-quality error boundary with structured logging, reset() action, 'Go home' fallback, error digest display. app/not-found.tsx: Basic but functional 404 page. ErrorBoundary component wraps entire app in layout.tsx.",
+      "fix": null
+    },
+    {
+      "area": "Loading States",
+      "status": "PASS",
+      "detail": "app/loading.tsx uses a <Loading> component with fullScreen and showLogo props. Dashboard page has inline loading spinner during auth/org resolution. ProtectedGate handles unauthenticated state with redirect CTA.",
+      "fix": null
+    },
+    {
+      "area": "Accessibility",
+      "status": "FAIL",
+      "detail": "Partial accessibility implementation. Good: DashboardHome uses aria-label on 6 sections, ActivityFeedEmbed has aria-live region, AudioPlayer has proper aria-labels, BookingModal/TourStep have role='dialog'. Bad: app/not-found.tsx has no ARIA attributes, app/dashboard/page.tsx has zero aria attributes on the page-level, no skip-to-content link in layout.tsx, no focus management on route changes.",
+      "fix": "1) Add skip-to-content link in layout.tsx. 2) Add aria-label to not-found.tsx. 3) Add aria-label to dashboard page header. 4) Audit all modals/dialogs for focus trapping. 5) Add aria-live regions for dynamic content updates."
+    },
+    {
+      "area": "Vitest Configuration",
+      "status": "PASS",
+      "detail": "Two configs properly separated: vitest.config.ts (unit tests, 30s timeout, v8 coverage with 60% threshold) and vitest.production.config.ts (production tests, 120s timeout, no mocks, sequential execution). Coverage thresholds: lines 60%, branches 50%, functions 50%, statements 60%.",
+      "fix": null
+    },
+    {
+      "area": "Playwright Configuration",
+      "status": "PASS",
+      "detail": "Well-configured: 30s timeout, trace on first retry, screenshot on failure, separate auth setup project, dev server auto-start. Properly separated authenticated vs unauthenticated test projects (though authenticated project is commented out).",
+      "fix": null
+    },
+    {
+      "area": "Load Tests",
+      "status": "PASS",
+      "detail": "6 k6 load test scripts covering: authentication, baseline performance, collections, smoke testing, spike testing, voice calls. Proper test separation by scenario.",
+      "fix": null
+    },
+    {
+      "area": "not-found.tsx Quality",
+      "status": "FAIL",
+      "detail": "Minimal 404 page: no dark mode support (hardcoded bg-gray-50, text-gray-900), no Word Is Bond branding, no navigation back to dashboard, no search suggestion. Compare to error.tsx which has recovery actions and structured logging.",
+      "fix": "Upgrade not-found.tsx to match error.tsx quality: add dark mode classes, brand logo, 'Go to Dashboard' link, and 'Search' link."
+    },
+    {
+      "area": "Production Test Infrastructure",
+      "status": "PASS",
+      "detail": "Excellent test infrastructure: feature-registry.ts (845 lines) provides auto-generated L1/L2 tests for 37 routes. setup.ts handles DB pool, session creation, cleanup. helpers.ts provides API call utilities. Deep-functional tests cover CRUD lifecycle, RBAC enforcement, and data integrity."
+    },
+    {
+      "area": "Critical Untested Paths",
+      "status": "FAIL",
+      "detail": "Billing flow (Stripe integration) has only L1/L2 tests — no payment creation, subscription upgrade, or webhook processing tests. Onboarding flow has NO tests. Manager route has NO tests. IVR flow engine has NO unit tests despite being a complex state machine.",
+      "fix": "Priority 1: Add billing integration tests (Stripe test mode). Priority 2: Add ivr-flow-engine.ts unit tests. Priority 3: Add onboarding E2E test. Priority 4: Add manager route tests."
+    }
+  ],
+
+  "test_coverage": {
+    "total_routes": 48,
+    "routes_in_feature_registry": 37,
+    "routes_with_l1_l2_tests": 37,
+    "routes_with_functional_tests": 15,
+    "routes_missing_from_registry": [
+      "admin-metrics.ts",
+      "ai-router.ts",
+      "ai-toggle.ts",
+      "collections.ts",
+      "dialer.ts",
+      "internal.ts",
+      "ivr.ts",
+      "manager.ts",
+      "onboarding.ts",
+      "productivity.ts",
+      "sentiment.ts"
+    ],
+    "total_libs": 34,
+    "libs_with_unit_tests": 8,
+    "libs_with_any_test_coverage": 8,
+    "untested_critical_libs": [
+      "auth.ts — authentication middleware (CRITICAL)",
+      "db.ts — database connection (CRITICAL)",
+      "schemas.ts — Zod validation schemas (CRITICAL)",
+      "rate-limit.ts — rate limiting (HIGH)",
+      "bond-ai.ts — AI copilot engine (HIGH)",
+      "idempotency.ts — request idempotency (HIGH)",
+      "audit.ts — audit logging (HIGH)",
+      "errors.ts — error handling utilities (MEDIUM)",
+      "compliance-checker.ts — compliance engine (MEDIUM)",
+      "dialer-engine.ts — outbound dialer (MEDIUM)",
+      "ivr-flow-engine.ts — IVR state machine (MEDIUM)",
+      "payment-scheduler.ts — payment processing (HIGH)",
+      "plan-gating.ts — plan enforcement (HIGH)",
+      "queue-consumer.ts — queue processing (MEDIUM)",
+      "likelihood-scorer.ts — collections scoring (MEDIUM)",
+      "sentiment-processor.ts — sentiment analysis (LOW)",
+      "post-transcription-processor.ts — post-transcription pipeline (MEDIUM)",
+      "email.ts — email service (LOW)",
+      "health-probes.ts — health check logic (LOW)",
+      "logger.ts — structured logging (LOW)",
+      "utils.ts — utility functions (LOW)",
+      "validate.ts — validation utilities (MEDIUM)",
+      "capabilities.ts — feature capabilities (LOW)",
+      "compliance-guides.ts — compliance rules (LOW)",
+      "ai-call-engine.ts — AI call engine (MEDIUM)",
+      "audio-injector.ts — audio injection (LOW)"
+    ]
+  },
+
+  "e2e_coverage": {
+    "total_spec_files": 3,
+    "active_spec_files": 2,
+    "skipped_spec_files": 1,
+    "total_active_tests": 15,
+    "total_skipped_tests": 5,
+    "playwright_configured": true,
+    "auth_setup_configured": false,
+    "auth_setup_reason": "E2E_TEST_EMAIL/E2E_TEST_PASSWORD env vars not set; chromium-authenticated project commented out",
+    "flows_tested": [
+      "Sign-in page UI + validation (9 tests)",
+      "Public page navigation (4 tests)",
+      "Auth guard redirection (2 tests)",
+      "404 page rendering (1 test)"
+    ],
+    "missing_critical_flows": [
+      "Dashboard (authenticated) — view KPIs, recent calls",
+      "Voice operations — initiate call, view active calls",
+      "Billing — subscription management, payment methods",
+      "Settings — all 7 tabs (call-config, ai-control, quality, compliance, team, webhooks, billing)",
+      "AI Copilot — chat with Bond AI",
+      "Team management — invite, role changes",
+      "Reports/Analytics — generate and view reports",
+      "Onboarding — new user onboarding wizard",
+      "Sign-up — registration + org creation",
+      "Collections — account management, CSV import"
+    ]
+  },
+
+  "ai_testing": {
+    "grok_tested": true,
+    "grok_details": "Unit: cost calculation (2 tests), voice-for-language mapping (4 tests). No integration test against live Grok API.",
+    "groq_tested": true,
+    "groq_details": "Unit: cost calculation (2 tests), routing (3 tests). No integration test against live Groq API.",
+    "assemblyai_tested": false,
+    "assemblyai_details": "Webhook receiver in feature registry (L1/L2 only). e2e-transcription-workflow.test.ts exists but gated behind RUN_E2E. No unit tests for post-transcription-processor.ts.",
+    "elevenlabs_tested": false,
+    "elevenlabs_details": "tts-processor.ts only appears as a mock in translation-processor-osi.test.ts. No dedicated TTS tests. tts.ts route has L1/L2 only.",
+    "pii_redaction_tested": true,
+    "prompt_injection_tested": true,
+    "ai_router_tested": true,
+    "bond_ai_copilot_tested": false,
+    "gaps": [
+      "No ElevenLabs TTS unit tests (voice selection, chunking, error handling)",
+      "No AssemblyAI callback parsing unit tests",
+      "No Bond AI copilot functional tests (only L1/L2 route check)",
+      "No AI LLM chat functional tests (only L1/L2 route check)",
+      "No integration tests against live AI APIs (all AI tests are unit-level or mocked)",
+      "ai-call-engine.ts has zero tests",
+      "No AI error/fallback path testing (what happens when Groq is down?)"
+    ]
+  },
+
+  "ui_ux": {
+    "error_handling": "PASS",
+    "error_handling_detail": "error.tsx has structured logging, reset/retry button, go-home link, error digest. ErrorBoundary wraps entire app. ProtectedGate handles auth redirects.",
+    "loading_states": "PASS",
+    "loading_states_detail": "Root loading.tsx uses fullscreen Loading component with logo. Dashboard has inline spinner. Suspense boundaries in settings page.",
+    "accessibility": "FAIL",
+    "accessibility_detail": "Inconsistent ARIA implementation. Some components good (DashboardHome, AudioPlayer, BookingModal), others lacking. No skip-to-content, no focus management on route changes.",
+    "dark_mode": "PARTIAL",
+    "dark_mode_detail": "ThemeProvider configured with system/class mode. error.tsx is light-only. not-found.tsx is light-only. Dashboard and settings appear to support dark mode via Tailwind classes.",
+    "issues": [
+      "not-found.tsx: No dark mode, no branding, no aria attributes, minimal design",
+      "No skip-to-content link in layout.tsx",
+      "Dashboard page.tsx has zero aria attributes at page level",
+      "No visible focus indicators documented/tested",
+      "No automated accessibility testing (axe-core, lighthouse CI)",
+      "Voice redirect page (app/voice/page.tsx) shows plain 'Redirecting...' text — should use proper loading component"
+    ]
+  },
+
+  "test_infrastructure_quality": {
+    "feature_registry": "EXCELLENT — 845-line auto-test registry covering 37 routes with L1/L2 validation",
+    "production_setup": "GOOD — Real DB pool, session management, cleanup utilities, conditional feature flags",
+    "deep_functional": "EXCELLENT — 1233-line CRUD lifecycle, RBAC enforcement, data integrity tests",
+    "vitest_config": "GOOD — Proper separation of unit vs production configs, appropriate timeouts",
+    "playwright_config": "GOOD — Proper auth setup pattern, trace/screenshot on failure, dev server integration",
+    "load_testing": "GOOD — 6 k6 scripts covering various scenarios"
+  },
+
+  "test_count_summary": {
+    "unit_test_files": 1,
+    "unit_test_cases_approx": 35,
+    "production_test_files": 27,
+    "production_test_files_always_run": 10,
+    "production_test_files_conditional": 17,
+    "e2e_spec_files": 3,
+    "e2e_active_tests": 15,
+    "e2e_skipped_tests": 5,
+    "load_test_files": 6,
+    "standalone_test_files": 2,
+    "note": "The '123 passing, 87 skipped' claim is plausible — most production tests skip without env flags"
+  },
+
+  "recommendations": [
+    "P0 — CRITICAL: Add unit tests for auth.ts, db.ts, schemas.ts (security + data layer foundations — 0 tests today)",
+    "P0 — CRITICAL: Add 11 missing routes to feature-registry.ts for automatic L1/L2 coverage",
+    "P1 — HIGH: Activate Playwright authenticated tests (set E2E_TEST_EMAIL/PASSWORD, uncomment chromium-authenticated project)",
+    "P1 — HIGH: Add E2E specs for dashboard, voice operations, and billing flows (highest user-value paths)",
+    "P1 — HIGH: Create unit tests for payment-scheduler.ts, plan-gating.ts, idempotency.ts (money + correctness)",
+    "P1 — HIGH: Add ElevenLabs TTS unit tests (tts-processor.test.ts) and AssemblyAI callback parsing tests",
+    "P2 — MEDIUM: Add Bond AI copilot functional test (not just L1 reachability)",
+    "P2 — MEDIUM: Add ivr-flow-engine.ts unit tests (complex state machine with no tests)",
+    "P2 — MEDIUM: Implement webhook Ed25519 signature verification tests (currently skipped)",
+    "P2 — MEDIUM: Add skip-to-content link and basic accessibility audit with axe-core in Playwright",
+    "P2 — MEDIUM: Upgrade not-found.tsx to match error.tsx quality (dark mode, branding, ARIA)",
+    "P3 — LOW: Add CI pipeline that runs production tests with all env flags set",
+    "P3 — LOW: Add automated accessibility testing (axe-core plugin for Playwright)",
+    "P3 — LOW: Create onboarding flow E2E test",
+    "P3 — LOW: Add AI fallback/degradation tests (what happens when Groq/Grok API is down)"
+  ]
+}

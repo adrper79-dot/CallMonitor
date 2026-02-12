@@ -636,6 +636,10 @@ export const DialerAgentStatusSchema = z.object({
   campaign_id: uuid.optional().nullable(),
 })
 
+export const DialerPauseStopSchema = z.object({
+  campaign_id: uuid,
+})
+
 // ─── IVR Payment Schemas (v5.0) ──────────────────────────────────────────────
 
 export const IVRFlowSchema = z.object({
@@ -690,4 +694,34 @@ export const AiLlmAnalyzeSchema = z.object({
     .optional()
     .default('full')
     .describe('Type of analysis to perform'),
+})
+
+// ─── Productivity Schemas (v5.2) ────────────────────────────────────────────
+
+export const CreateNoteTemplateSchema = z.object({
+  shortcode: z.string().min(1).max(50).describe('Shortcode for template (e.g., /vm)'),
+  title: z.string().min(1).max(200).describe('Template title'),
+  content: z.string().min(1).max(10000).describe('Template content'),
+  tags: z.array(z.string().max(50)).max(20).optional().describe('Tags for categorization'),
+})
+
+export const UpdateNoteTemplateSchema = z.object({
+  shortcode: z.string().min(1).max(50).optional(),
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().min(1).max(10000).optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+})
+
+export const CreateObjectionRebuttalSchema = z.object({
+  category: z.enum(['financial', 'legal', 'emotional', 'stalling', 'general']).optional().default('general'),
+  objection_text: z.string().min(1).max(2000).describe('The objection text'),
+  rebuttal_text: z.string().min(1).max(5000).describe('The rebuttal response'),
+  compliance_note: z.string().max(2000).optional().nullable(),
+})
+
+export const UpdateObjectionRebuttalSchema = z.object({
+  category: z.enum(['financial', 'legal', 'emotional', 'stalling', 'general']).optional(),
+  objection_text: z.string().min(1).max(2000).optional(),
+  rebuttal_text: z.string().min(1).max(5000).optional(),
+  compliance_note: z.string().max(2000).optional().nullable(),
 })

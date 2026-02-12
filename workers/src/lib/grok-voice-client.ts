@@ -226,7 +226,7 @@ export async function synthesizeTranslatedSpeech(
   const filename = `tts/${timestamp}-${voice}-${targetLanguage}.mp3`
 
   try {
-    await env.AUDIO_BUCKET.put(filename, result.audio, {
+    await env.R2.put(filename, result.audio, {
       httpMetadata: {
         contentType: 'audio/mpeg',
       },
@@ -239,7 +239,7 @@ export async function synthesizeTranslatedSpeech(
     })
 
     // Generate public URL (assuming R2 bucket has public access configured)
-    const audioUrl = `${env.PUBLIC_BUCKET_URL}/${filename}`
+    const audioUrl = `${env.R2_PUBLIC_URL || 'https://audio.wordis-bond.com'}/${filename}`
 
     logger.info('TTS audio uploaded to R2', {
       filename,

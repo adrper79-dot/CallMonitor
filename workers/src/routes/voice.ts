@@ -308,6 +308,11 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       to: destinationNumber,
       from: callerNumber,
       answering_machine_detection: 'detect',
+      answering_machine_detection_config: {
+        after_greeting_silence_millis: 800,
+        greeting_duration_millis: 3500,
+        total_analysis_time_millis: 5000,
+      },
     }
 
     // Get voice config to determine recording and transcription settings
@@ -323,7 +328,9 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     // Enable recording if configured
     if (voiceConfig?.record) {
       callPayload.record = 'record-from-answer'
-      logger.info('Call recording enabled')
+      callPayload.record_channels = 'dual'
+      callPayload.record_format = 'mp3'
+      logger.info('Call recording enabled (dual-channel)')
     }
 
     // Enable transcription for live translation, voice-to-voice, OR regular transcription
@@ -451,9 +458,10 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
         caller_id_used,
         flow_type,
         started_at,
+        amd_status,
         created_at
       ) VALUES (
-        $1, $2, 'initiating', $3, $4, $5, $6, $7, $8, NOW(), NOW()
+        $1, $2, 'initiating', $3, $4, $5, $6, $7, $8, NOW(), NULL, NOW()
       )
       RETURNING id`,
       [

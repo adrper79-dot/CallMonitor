@@ -213,7 +213,7 @@ export function redactRequestBody<T extends Record<string, any>>(
   fieldsToRedact.forEach((field) => {
     if (typeof redacted[field] === 'string') {
       const result = redactPII(redacted[field])
-      redacted[field] = result.redacted
+      ;(redacted as Record<string, any>)[field] = result.redacted
       redactionLog.push(result)
     }
   })

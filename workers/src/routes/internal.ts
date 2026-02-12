@@ -163,10 +163,13 @@ internalRoutes.get('/webhook-dlq', analyticsRateLimit, async (c) => {
       })
     )
 
+    const safeEntries = entries.filter((e) => e !== null)
+
     return c.json({
       total: list.keys.length,
+      total_count: list.keys.length, // backward-compatible shape for monitoring dashboards
       has_more: !list.list_complete,
-      entries: entries.filter((e) => e !== null),
+      entries: safeEntries,
     })
   } catch (error) {
     logger.error('Webhook DLQ retrieval failed', { error: (error as Error)?.message })
@@ -199,23 +202,34 @@ internalRoutes.get('/schema-health', analyticsRateLimit, async (c) => {
       calls: [
         'id',
         'organization_id',
-        'call_sid',
-        'transcript_status',
-        'transcript_id',
-        'transcript',
-        'recording_url',
+        'call_session_id',
+        'direction',
         'status',
+        'transcript',
+        'transcript_status',
+        'recording_url',
+        'duration_seconds',
         'created_at',
         'updated_at',
       ],
       users: ['id', 'email', 'organization_id', 'role', 'created_at'],
-      organizations: ['id', 'name', 'plan', 'stripe_customer_id', 'created_at'],
-      voice_configs: ['organization_id', 'transcribe', 'record', 'created_at'],
+      organizations: ['id', 'name', 'subscription_status', 'created_at', 'updated_at'],
+      voice_configs: ['id', 'organization_id', 'transcribe', 'ai_enabled', 'bond_enabled', 'created_at', 'updated_at'],
+      usage_stats: [
+        'id',
+        'organization_id',
+        'date',
+        'calls_count',
+        'minutes_used',
+        'transcripts_count',
+        'ai_requests_count',
+        'created_at',
+      ],
     }
 
     const validationResults: Record<
       string,
-      { status: 'valid' | 'invalid'; missing_columns: string[]; actual_columns: string[] }
+      { status: 'valid' | 'invalid'; missing_columns: string[]; column_count: number; actual_columns: string[] }
     > = {}
 
     for (const [tableName, expectedCols] of Object.entries(expectedColumns)) {
@@ -235,6 +249,7 @@ internalRoutes.get('/schema-health', analyticsRateLimit, async (c) => {
       validationResults[tableName] = {
         status: missingColumns.length === 0 ? 'valid' : 'invalid',
         missing_columns: missingColumns,
+        column_count: actualColumns.length,
         actual_columns: actualColumns,
       }
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn, useSession } from '@/components/AuthProvider'
@@ -32,6 +32,14 @@ interface InviteData {
  * - Immediate feedback: Inline validation
  */
 export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white"><div className="animate-pulse text-gray-400">Loading...</div></div>}>
+      <SignUpContent />
+    </Suspense>
+  )
+}
+
+function SignUpContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
@@ -177,7 +185,7 @@ export default function SignUpPage() {
   async function handleGoogleSignUp() {
     setLoading(true)
     await signIn('google', {
-      callbackUrl: inviteToken ? `/signup?invite=${inviteToken}` : '/dashboard',
+      callbackUrl: inviteToken ? `/signup?invite=${inviteToken}` : '/onboarding',
     })
   }
 
@@ -391,11 +399,11 @@ export default function SignUpPage() {
           {/* Terms */}
           <p className="mt-6 text-center text-xs text-gray-500">
             By creating an account, you agree to our{' '}
-            <Link href="/trust" className="underline hover:text-gray-700">
+            <Link href="/trust#terms" className="underline hover:text-gray-700">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link href="/trust" className="underline hover:text-gray-700">
+            <Link href="/trust#privacy" className="underline hover:text-gray-700">
               Privacy Policy
             </Link>
           </p>

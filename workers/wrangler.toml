@@ -48,12 +48,25 @@ id = "928d90ba89524fdfa9fec1043abdb229"
 binding = "R2"
 bucket_name = "wordisbond01"
 
+# Queue for async processing (transcription, post-call analysis)
+[[queues.producers]]
+binding = "TRANSCRIPTION_QUEUE"
+queue = "wordisbond-transcription"
+
+[[queues.consumers]]
+queue = "wordisbond-transcription"
+max_batch_size = 5
+max_batch_timeout = 10
+max_retries = 3
+dead_letter_queue = "wordisbond-transcription-dlq"
+
 # Cron Triggers for scheduled jobs
 [triggers]
 crons = [
   "*/5 * * * *",   # Every 5 min: retry failed transcriptions
   "0 * * * *",     # Hourly: cleanup expired sessions
-  "0 0 * * *"      # Daily: usage aggregation
+  "0 0 * * *",     # Daily midnight: usage aggregation
+  "0 6 * * *"      # Daily 6am: scheduled payments + dunning
 ]
 
 # Secrets (set via: wrangler secret put <NAME> --config workers/wrangler.toml)

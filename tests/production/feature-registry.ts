@@ -791,6 +791,206 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       },
     ],
   },
+
+  // ═══ MISSING ROUTES — Added Session 19 Multi-Agent Audit ═══════════════
+
+  {
+    id: 'collections',
+    name: 'Collections Management',
+    category: 'billing',
+    routeFile: 'collections.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/collections/accounts',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'List collection accounts',
+      },
+    ],
+  },
+  {
+    id: 'dialer',
+    name: 'Predictive Dialer',
+    category: 'voice',
+    routeFile: 'dialer.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/dialer/queues',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'List dialer queues',
+      },
+      {
+        method: 'POST',
+        path: '/api/dialer/queues',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Create dialer queue',
+      },
+    ],
+  },
+  {
+    id: 'ivr',
+    name: 'IVR Flow Engine',
+    category: 'voice',
+    routeFile: 'ivr.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/ivr/flows',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'List IVR flows',
+      },
+    ],
+  },
+  {
+    id: 'manager',
+    name: 'Manager Dashboard',
+    category: 'admin',
+    routeFile: 'manager.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/manager/dashboard',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get manager dashboard data',
+      },
+    ],
+  },
+  {
+    id: 'onboarding',
+    name: 'Onboarding Flow',
+    category: 'core',
+    routeFile: 'onboarding.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/onboarding/status',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get onboarding status',
+      },
+    ],
+  },
+  {
+    id: 'productivity',
+    name: 'Agent Productivity Suite',
+    category: 'voice',
+    routeFile: 'productivity.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/productivity/templates',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'List note templates',
+      },
+      {
+        method: 'GET',
+        path: '/api/productivity/rebuttals',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'List objection rebuttals',
+      },
+      {
+        method: 'GET',
+        path: '/api/productivity/planner',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get daily planner data',
+      },
+    ],
+  },
+  {
+    id: 'sentiment',
+    name: 'Sentiment Analysis',
+    category: 'ai',
+    routeFile: 'sentiment.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/sentiment/config',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get sentiment configuration',
+      },
+    ],
+  },
+  {
+    id: 'ai-toggle',
+    name: 'AI Feature Toggles',
+    category: 'ai',
+    routeFile: 'ai-toggle.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/ai-toggle',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get AI feature toggle state',
+      },
+    ],
+  },
+  {
+    id: 'ai-router',
+    name: 'AI Multi-Provider Router',
+    category: 'ai',
+    routeFile: 'ai-router.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'POST',
+        path: '/api/ai/router/chat',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Route AI chat to optimal provider',
+      },
+    ],
+  },
+  {
+    id: 'organizations',
+    name: 'Organizations',
+    category: 'core',
+    routeFile: 'organizations.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/organizations/current',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get current organization',
+      },
+    ],
+  },
+  {
+    id: 'retention',
+    name: 'Data Retention',
+    category: 'compliance',
+    routeFile: 'retention.ts',
+    status: 'active',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/retention',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Get retention policies',
+      },
+    ],
+  },
 ]
 
 // ─── Helper Functions ───────────────────────────────────────────────────────

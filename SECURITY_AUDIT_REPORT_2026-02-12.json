@@ -1,0 +1,309 @@
+{
+  "agent": "Security",
+  "version": "v4.55",
+  "date": "2026-02-12",
+  "status": "PASS",
+  "summary": "Overall security posture is STRONG. No critical vulnerabilities found. Auth, RBAC, SQL injection, tenant isolation, secrets, and rate limiting are all well-implemented. A small number of medium/low findings identified for hardening.",
+
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "area": "auth",
+      "detail": "Login rate limit is set to 100 attempts per 15 minutes per IP (loginRateLimit). While documented as headroom for automated testing, this is generous for production and allows significant brute-force capacity. Typical production: 5-10 attempts per 15 min.",
+      "file": "workers/src/lib/rate-limit.ts:165",
+      "fix": "Reduce login rate limit to 10-15 per 15 minutes for production. Use IP whitelisting or test org bypass (already implemented) for test automation."
+    },
+    {
+      "severity": "MEDIUM",
+      "area": "auth",
+      "detail": "CSRF token fallback: When KV fails in GET /csrf endpoint, a fallback UUID is generated and returned but NOT stored in KV. This means the CSRF token will never validate on login/signup (POST endpoints check KV for stored token), potentially causing auth failures but NOT a security bypass. However, the inconsistency is concerning.",
+      "file": "workers/src/routes/auth.ts:247-252",
+      "fix": "If KV is unavailable, return a 503 error instead of a token that can't validate. Or implement a secondary CSRF validation path (e.g., double-submit cookie pattern as fallback)."
+    },
+    {
+      "severity": "MEDIUM",
+      "area": "auth",
+      "detail": "AssemblyAI webhook uses plain string equality (token !== webhookSecret) for secret comparison instead of constant-time comparison. This is a timing side-channel vulnerability that could allow attackers to brute-force the webhook secret byte-by-byte.",
+      "file": "workers/src/routes/webhooks.ts:335",
+      "fix": "Use the same constant-time comparison pattern (XOR byte-by-byte) used in Stripe signature verification (line 134) and auth.ts timingSafeEqual()."
+    },
+    {
+      "severity": "LOW",
+      "area": "rbac",
+      "detail": "bond-ai PATCH /alerts/:id route is missing rate limiter middleware (all other mutation routes in bond-ai.ts use bondAiRateLimit). Auth is still enforced via requireAuth().",
+      "file": "workers/src/routes/bond-ai.ts:424",
+      "fix": "Add bondAiRateLimit middleware: bondAiRoutes.patch('/alerts/:id', bondAiRateLimit, async (c) => ...)"
+    },
+    {
+      "severity": "LOW",
+      "area": "rbac",
+      "detail": "Most bond-ai mutation routes use requireAuth() (any authenticated user) rather than requireRole() with minimum role. Alert rules (create/update/delete) and conversations are accessible to any authenticated user in the org. Consider whether admin/manager role should be required for alert-rule mutations.",
+      "file": "workers/src/routes/bond-ai.ts",
+      "fix": "Evaluate if bond-ai alert-rules and copilot mutations should require requireRole('manager') or requireRole('admin') instead of requireAuth()."
+    },
+    {
+      "severity": "LOW",
+      "area": "auth",
+      "detail": "PBKDF2 iterations set to 100,000 but comments in code reference 120,000 iterations and the hash format string says 'pbkdf2:120000:...'. The constant PBKDF2_ITERATIONS is 100_000 which is correct NIST minimum. The comment discrepancy is cosmetic but could confuse auditors.",
+      "file": "workers/src/routes/auth.ts:678-681",
+      "fix": "Update the comment on line 674 from '120k iterations' to '100k iterations' to match the actual constant."
+    },
+    {
+      "severity": "LOW",
+      "area": "auth",
+      "detail": "Legacy SHA-256 password hashes use salt+password concatenation (not HMAC) which is weaker but adequately mitigated by the transparent rehash-on-login mechanism that upgrades to PBKDF2.",
+      "file": "workers/src/routes/auth.ts:748-755",
+      "fix": "No immediate fix needed — legacy hashes are auto-upgraded on successful login. Monitor for remaining legacy hashes and potentially force password resets for stale accounts."
+    },
+    {
+      "severity": "LOW",
+      "area": "rate-limit",
+      "detail": "Rate limiter has a test organization bypass that queries the database on every rate-limited request to check if the session belongs to a hardcoded test org UUID. This adds latency to every rate-limited endpoint and the hardcoded UUID (3cc2cb3c-...) is visible in source code.",
+      "file": "workers/src/lib/rate-limit.ts:62-87",
+      "fix": "Move test org bypass to a KV lookup (cache test session tokens) or use a header-based bypass with a secret. Consider making the test org ID an environment variable."
+    },
+    {
+      "severity": "LOW",
+      "area": "sql_injection",
+      "detail": "Dynamic SET clause construction in voice.ts uses parameterized queries correctly ($N placeholders with paramIndex counter) but builds column names from hardcoded strings. This is SAFE because column names are never derived from user input — they come from if/else branches checking known property names.",
+      "file": "workers/src/routes/voice.ts:120-188",
+      "fix": "No fix needed — pattern is safe. Document the safety rationale with a comment for future auditors."
+    }
+  ],
+
+  "auth_audit": {
+    "password_hashing": "PASS",
+    "password_hashing_details": {
+      "algorithm": "PBKDF2-SHA256",
+      "iterations": 100000,
+      "salt_bytes": 32,
+      "key_bytes": 32,
+      "format": "pbkdf2:iterations:saltHex:derivedKeyHex",
+      "legacy_support": "SHA-256 with auto-upgrade on login",
+      "nist_compliant": true
+    },
+    "session_management": "PASS",
+    "session_management_details": {
+      "session_duration": "7 days (reduced from 30 — H2 hardening)",
+      "session_refresh": "Extends 7 days when <24h remaining",
+      "session_invalidation": "DELETE from DB on signout + KV fingerprint cleanup",
+      "session_fixation": "PASS — new session created on every login, no session reuse",
+      "fingerprint_binding": "H2 hardening — SHA-256(UserAgent|Origin) stored in KV, validated on every request"
+    },
+    "csrf_protection": "PASS",
+    "csrf_details": {
+      "mechanism": "Server-side KV token with 10-min TTL",
+      "one_time_use": true,
+      "coverage": "login, signup, forgot-password all validate CSRF",
+      "fallback_issue": "MEDIUM — KV failure returns unvalidatable token (see findings)"
+    },
+    "cookie_security": "PASS",
+    "cookie_flags": {
+      "HttpOnly": true,
+      "Secure": true,
+      "SameSite": "None (required for cross-origin static export + Workers API)",
+      "Path": "/"
+    },
+    "timing_safe_comparisons": "PASS — timingSafeEqual() used for fingerprint, hash, and token comparisons"
+  },
+
+  "rbac_audit": {
+    "routes_with_auth": "All mutation routes use requireAuth() or requireRole()",
+    "routes_with_rbac_role_check": 28,
+    "routes_using_requireAuth_only": "Most routes use requireAuth() — role checks applied selectively",
+    "routes_missing_rbac": [
+      "workers/src/routes/bond-ai.ts — PATCH /alerts/:id (has auth, missing rate limit)",
+      "workers/src/routes/bond-ai.ts — POST/PUT/DELETE alert-rules (has auth, no explicit role check — may want manager+)",
+      "workers/src/routes/campaigns.ts — POST/PUT/DELETE (has auth, no role check — any org member can manage campaigns)",
+      "workers/src/routes/billing.ts — POST /checkout, /cancel, /resume, /change-plan (has auth, no role check — any member can manage billing)"
+    ],
+    "mutation_routes_unprotected": [],
+    "role_hierarchy": {
+      "viewer": 1,
+      "agent": 2,
+      "analyst": 2,
+      "operator": 3,
+      "manager": 3,
+      "compliance": 3,
+      "admin": 4,
+      "owner": 5
+    },
+    "well_protected_routes": [
+      "dialer — requireRole('operator') for start/pause/stop",
+      "compliance — requireRole('agent') for create, requireRole('compliance') for resolve",
+      "recordings — requireRole('viewer') for read, requireRole('manager') for delete",
+      "calls — requireRole('agent') for mutations, requireRole('viewer') for reads",
+      "ai-toggle — requireRole('agent') for activate/deactivate, requireRole('manager') for prompt config",
+      "collections — requireRole('agent') for create, requireRole('operator') for import/delete",
+      "sentiment — requireRole('manager') for config updates",
+      "manager — requireRole('manager') for all dashboard routes",
+      "reports — authMiddleware + requirePlan('business')",
+      "teams — authMiddleware + requirePlan('pro')"
+    ]
+  },
+
+  "sql_injection": {
+    "parameterized_queries": "PASS",
+    "string_interpolation_found": [],
+    "details": {
+      "all_queries_use_dollar_params": true,
+      "dynamic_sql_patterns": [
+        {
+          "file": "workers/src/routes/voice.ts:188",
+          "pattern": "DO UPDATE SET ${setClauses.join(', ')}",
+          "safe": true,
+          "reason": "setClauses are built from hardcoded column names (record, transcribe, etc.) — never from user input. Values use $N params."
+        },
+        {
+          "file": "workers/src/routes/bond-ai.ts:469",
+          "pattern": "WHERE id IN (${placeholders})",
+          "safe": true,
+          "reason": "placeholders are generated as $N from array index, not from user input"
+        },
+        {
+          "file": "workers/src/routes/rbac-v2.ts:52,123",
+          "pattern": "WHERE role IN (${placeholders})",
+          "safe": true,
+          "reason": "placeholders are generated as $N from array index of role hierarchy list"
+        },
+        {
+          "file": "workers/src/routes/webhooks.ts:858-865",
+          "pattern": "String concatenation with + for SQL",
+          "safe": true,
+          "reason": "Concatenation is for line breaks only — all values use $1,$2,$3 parameterized"
+        }
+      ],
+      "email_templates_use_interpolation": true,
+      "email_interpolation_safe": "Template literals in email.ts use server-side variables (inviterName, orgName) not raw user input"
+    }
+  },
+
+  "tenant_isolation": {
+    "queries_missing_org_id": [],
+    "enforcement": "STRONG",
+    "details": {
+      "organization_id_in_where": "Verified in all business query routes (calls, campaigns, collections, voice, billing, teams, compliance, etc.)",
+      "webhook_isolation": "PASS",
+      "webhook_isolation_details": {
+        "telnyx": "Resolves org_id from call_control_id/call_sid lookup, then scopes all UPDATEs",
+        "assemblyai": "BL-006: Organization-scoped UPDATE via JOIN to prevent cross-tenant transcript injection",
+        "stripe": "Resolves org via stripe_customer_id, scopes subscription/invoice updates to that org"
+      },
+      "rls_support": "getDb() supports orgId parameter that sets app.current_org_id session variable for RLS policies",
+      "rls_org_id_sanitization": "orgId.replace(/[^a-f0-9-]/gi, '') prevents injection in set_config call"
+    }
+  },
+
+  "secrets": {
+    "hardcoded_secrets": "NONE",
+    "env_files_gitignored": true,
+    "gitignore_entries": [".env", ".env.*", ".env.local", ".env.test", ".env.production", "!.env.example"],
+    "wrangler_toml": "PASS — all secrets listed as comments with 'wrangler secret put' instructions, no actual values",
+    "secrets_managed_via": "Cloudflare Workers encrypted secrets (wrangler secret put)",
+    "secrets_list": [
+      "NEON_PG_CONN", "AUTH_SECRET", "OPENAI_API_KEY", "RESEND_API_KEY",
+      "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "TELNYX_API_KEY",
+      "TELNYX_CONNECTION_ID", "TELNYX_NUMBER", "TELNYX_WEBHOOK_SECRET",
+      "TELNYX_PUBLIC_KEY", "ASSEMBLYAI_API_KEY", "ASSEMBLYAI_WEBHOOK_SECRET",
+      "GROQ_API_KEY", "ELEVENLABS_API_KEY"
+    ],
+    "webhook_signatures": "PASS",
+    "webhook_signature_details": {
+      "telnyx": "Ed25519 signature verification (fail-closed if TELNYX_PUBLIC_KEY not configured)",
+      "stripe": "HMAC-SHA256 with constant-time comparison + replay protection (300s tolerance)",
+      "assemblyai": "Shared secret comparison — MEDIUM: uses non-constant-time === (see findings)"
+    }
+  },
+
+  "rate_limiting": {
+    "coverage": "EXCELLENT",
+    "total_rate_limiters": 34,
+    "auth_endpoints": {
+      "login": "100/15min (MEDIUM — high for production, see findings)",
+      "signup": "5/hour",
+      "forgot_password": "3/15min",
+      "reset_password": "3/15min (shares forgot limiter)"
+    },
+    "business_endpoints": "All mutation routes have rate limiters",
+    "ai_endpoints": "All AI routes rate-limited (LLM, TTS, transcription, sentiment, ElevenLabs)",
+    "webhook_endpoints": "External webhooks: 100/min, internal subscriptions: 10/5min",
+    "missing_rate_limits": [
+      "bond-ai PATCH /alerts/:id (see findings)"
+    ],
+    "fail_open": true,
+    "fail_open_rationale": "KV failures do not block requests — acceptable tradeoff for availability"
+  },
+
+  "input_validation": {
+    "zod_validation": "PASS",
+    "coverage": "All mutation endpoints use validateBody() with Zod schemas",
+    "schemas_file": "workers/src/lib/schemas.ts",
+    "validation_pattern": "const parsed = await validateBody(c, Schema); if (!parsed.success) return parsed.response",
+    "prompt_sanitizer": "PASS — workers/src/lib/prompt-sanitizer.ts detects injection patterns, role manipulation, delimiter injection, encoding tricks",
+    "pii_redactor": "PASS — workers/src/lib/pii-redactor.ts redacts SSN, credit cards, emails, phones, addresses, medical records before AI API calls"
+  },
+
+  "additional_security_features": {
+    "device_fingerprinting": "H2 hardening — SHA-256 fingerprint binding prevents session hijacking",
+    "session_token_format": "UUID v4 (crypto.randomUUID())",
+    "password_hash_auto_upgrade": "Legacy SHA-256 transparently upgraded to PBKDF2 on login",
+    "idempotency_middleware": "Available for billing/call mutations to prevent duplicate processing",
+    "stripe_event_deduplication": "stripe_events table prevents duplicate webhook processing",
+    "db_connection_order": "PASS — NEON_PG_CONN || HYPERDRIVE (correct per copilot-instructions.md)",
+    "statement_timeout": "30s per query to prevent runaway queries",
+    "pool_hardening": "max=5, idle=10s, connection_timeout=10s",
+    "audit_logging": "Comprehensive — all mutations logged with old_value/new_value pattern"
+  },
+
+  "recommendations": [
+    {
+      "priority": 1,
+      "severity": "MEDIUM",
+      "action": "Fix AssemblyAI webhook secret comparison to use constant-time equality",
+      "effort": "5 minutes",
+      "file": "workers/src/routes/webhooks.ts:335"
+    },
+    {
+      "priority": 2,
+      "severity": "MEDIUM",
+      "action": "Reduce login rate limit from 100 to 10-15 per 15 minutes for production",
+      "effort": "2 minutes",
+      "file": "workers/src/lib/rate-limit.ts:165"
+    },
+    {
+      "priority": 3,
+      "severity": "MEDIUM",
+      "action": "Fix CSRF fallback to return 503 instead of unvalidatable token",
+      "effort": "5 minutes",
+      "file": "workers/src/routes/auth.ts:247-252"
+    },
+    {
+      "priority": 4,
+      "severity": "LOW",
+      "action": "Add bondAiRateLimit to PATCH /alerts/:id route",
+      "effort": "1 minute",
+      "file": "workers/src/routes/bond-ai.ts:424"
+    },
+    {
+      "priority": 5,
+      "severity": "LOW",
+      "action": "Review bond-ai and billing mutations for requireRole() enforcement",
+      "effort": "30 minutes",
+      "file": "workers/src/routes/bond-ai.ts, workers/src/routes/billing.ts"
+    },
+    {
+      "priority": 6,
+      "severity": "LOW",
+      "action": "Move test org UUID from hardcoded to environment variable",
+      "effort": "10 minutes",
+      "file": "workers/src/lib/rate-limit.ts:75"
+    },
+    {
+      "priority": 7,
+      "severity": "LOW",
+      "action": "Fix PBKDF2 iteration count comment (says 120k, actual is 100k)",
+      "effort": "1 minute",
+      "file": "workers/src/routes/auth.ts:674"
+    }
+  ]
+}

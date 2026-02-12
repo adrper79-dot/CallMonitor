@@ -21,6 +21,7 @@ import { recordingsRoutes } from './routes/recordings'
 import { auditRoutes } from './routes/audit'
 import { webrtcRoutes } from './routes/webrtc'
 import { handleScheduled } from './scheduled'
+import { handleQueueBatch, type TranscriptionQueueMessage } from './lib/queue-consumer'
 import { scorecardsRoutes } from './routes/scorecards'
 import { rbacRoutes } from './routes/rbac-v2'
 import { analyticsRoutes } from './routes/analytics'
@@ -37,6 +38,7 @@ import { capabilitiesRoutes } from './routes/capabilities'
 import { aiConfigRoutes } from './routes/ai-config'
 import { aiTranscribeRoutes } from './routes/ai-transcribe'
 import { aiLlmRoutes } from './routes/ai-llm'
+import { aiRouterRoutes } from './routes/ai-router'
 import { teamRoutes } from './routes/team'
 import { usageRoutes } from './routes/usage'
 import { shopperRoutes } from './routes/shopper'
@@ -56,6 +58,8 @@ import { dialerRoutes } from './routes/dialer'
 import { ivrRoutes } from './routes/ivr'
 import { aiToggleRoutes } from './routes/ai-toggle'
 import { adminMetricsRoutes } from './routes/admin-metrics'
+import { productivityRoutes } from './routes/productivity'
+import { managerRoutes } from './routes/manager'
 import {
   buildErrorContext,
   logError,
@@ -75,6 +79,9 @@ export interface Env {
   // R2 Bucket
   R2: R2Bucket
   R2_PUBLIC_URL?: string // Public custom domain for R2 bucket (e.g., https://audio.wordis-bond.com)
+
+  // Queue for async transcription/analysis processing
+  TRANSCRIPTION_QUEUE?: Queue
 
   // Environment variables
   NODE_ENV: string
@@ -216,6 +223,7 @@ app.route('/api/capabilities', capabilitiesRoutes)
 app.route('/api/ai-config', aiConfigRoutes)
 app.route('/api/ai/transcribe', aiTranscribeRoutes)
 app.route('/api/ai/llm', aiLlmRoutes)
+app.route('/api/ai/router', aiRouterRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/teams', teamsRoutes)
 app.route('/api/bond-ai', bondAiRoutes)
@@ -237,6 +245,8 @@ app.route('/api/ivr', ivrRoutes)
 app.route('/api/ai-toggle', aiToggleRoutes)
 app.route('/api/internal', internalRoutes) // Monitoring and health endpoints
 app.route('/api/admin/metrics', adminMetricsRoutes)
+app.route('/api/productivity', productivityRoutes)
+app.route('/api/manager', managerRoutes)
 
 // Root endpoint
 app.get('/', (c) => {
@@ -287,5 +297,10 @@ export default {
   // Scheduled handler for cron triggers
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(handleScheduled(event, env))
+  },
+
+  // Queue consumer for async transcription processing
+  async queue(batch: MessageBatch<TranscriptionQueueMessage>, env: Env) {
+    await handleQueueBatch(batch, env)
   },
 }

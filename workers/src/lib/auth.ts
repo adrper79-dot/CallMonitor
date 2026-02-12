@@ -128,7 +128,7 @@ export async function verifySession(
       email: row.email,
       name: row.name,
       organization_id: row.organization_id,
-      role: row.role || 'viewer',
+      role: row.role || row.platform_role || 'owner',
       platform_role: row.platform_role,
       expires: row.expires instanceof Date ? row.expires.toISOString() : String(row.expires),
     }

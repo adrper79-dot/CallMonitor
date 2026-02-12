@@ -1,0 +1,390 @@
+{
+  "summary": [
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "p50": 335.9163000000001,
+      "p95": 358.3453999999999,
+      "okRate": 1,
+      "avgBytes": 0
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "p50": 728.2239,
+      "p95": 954.2860999999998,
+      "okRate": 1,
+      "avgBytes": 0
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "p50": 2042.3290999999995,
+      "p95": 2293.17,
+      "okRate": 1,
+      "avgBytes": 287040
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "p50": 1176.4538000000002,
+      "p95": 1221.4192000000003,
+      "okRate": 1,
+      "avgBytes": 69564
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "p50": 2833.6881999999996,
+      "p95": 3021.4775,
+      "okRate": 1,
+      "avgBytes": 404320
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "p50": 1813.1115999999984,
+      "p95": 2034.8174999999992,
+      "okRate": 1,
+      "avgBytes": 70052
+    }
+  ],
+  "samples": [
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "es->en",
+      "detail": "groq",
+      "ms": 358.3453999999999,
+      "cost": 89,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "es->en",
+      "detail": "openai",
+      "ms": 954.2860999999998,
+      "cost": 59,
+      "ok": true
+    },
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "fr->en",
+      "detail": "groq",
+      "ms": 335.9163000000001,
+      "cost": 93,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "fr->en",
+      "detail": "openai",
+      "ms": 728.2239,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "pt->en",
+      "detail": "groq",
+      "ms": 328.6122999999998,
+      "cost": 91,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "pt->en",
+      "detail": "openai",
+      "ms": 543.7094000000002,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "ar->en",
+      "detail": "groq",
+      "ms": 337.4557000000002,
+      "cost": 96,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "ar->en",
+      "detail": "openai",
+      "ms": 725.2356,
+      "cost": 68,
+      "ok": true
+    },
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "zh->en",
+      "detail": "groq",
+      "ms": 311.03690000000006,
+      "cost": 88,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "zh->en",
+      "detail": "openai",
+      "ms": 720.6011999999996,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq",
+      "scenario": "translation",
+      "language": "en->es",
+      "detail": "groq",
+      "ms": 305.9333999999999,
+      "cost": 88,
+      "ok": true
+    },
+    {
+      "provider": "openai",
+      "scenario": "translation",
+      "language": "en->es",
+      "detail": "openai",
+      "ms": 896.5648999999999,
+      "cost": 59,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "en",
+      "detail": "grok",
+      "ms": 1975.0746,
+      "bytes": 274560,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "en",
+      "detail": "elevenlabs",
+      "ms": 1131.3495999999996,
+      "bytes": 66499,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "es",
+      "detail": "grok",
+      "ms": 1952.4736000000003,
+      "bytes": 266880,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "es",
+      "detail": "elevenlabs",
+      "ms": 1176.4538000000002,
+      "bytes": 76112,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "fr",
+      "detail": "grok",
+      "ms": 1766.8654999999999,
+      "bytes": 232320,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "fr",
+      "detail": "elevenlabs",
+      "ms": 1221.4192000000003,
+      "bytes": 74022,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "pt",
+      "detail": "grok",
+      "ms": 2086.7424,
+      "bytes": 295680,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "pt",
+      "detail": "elevenlabs",
+      "ms": 1189.9542999999994,
+      "bytes": 79874,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "ar",
+      "detail": "grok",
+      "ms": 2042.3290999999995,
+      "bytes": 292800,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "ar",
+      "detail": "elevenlabs",
+      "ms": 1054.8896000000004,
+      "bytes": 58140,
+      "ok": true
+    },
+    {
+      "provider": "grok",
+      "scenario": "tts",
+      "language": "zh",
+      "detail": "grok",
+      "ms": 2293.17,
+      "bytes": 360000,
+      "ok": true
+    },
+    {
+      "provider": "elevenlabs",
+      "scenario": "tts",
+      "language": "zh",
+      "detail": "elevenlabs",
+      "ms": 1070.0743999999995,
+      "bytes": 62737,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "es->en",
+      "detail": "groq+grok",
+      "ms": 2752.4079999999994,
+      "bytes": 409920,
+      "cost": 89,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "es->en",
+      "detail": "openai+elevenlabs",
+      "ms": 1983.5028999999995,
+      "bytes": 70261,
+      "cost": 59,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "fr->en",
+      "detail": "groq+grok",
+      "ms": 2634.4124999999995,
+      "bytes": 359040,
+      "cost": 93,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "fr->en",
+      "detail": "openai+elevenlabs",
+      "ms": 2034.8174999999992,
+      "bytes": 72351,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "pt->en",
+      "detail": "groq+grok",
+      "ms": 2653.4214,
+      "bytes": 356160,
+      "cost": 91,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "pt->en",
+      "detail": "openai+elevenlabs",
+      "ms": 1660.752699999999,
+      "bytes": 69425,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "ar->en",
+      "detail": "groq+grok",
+      "ms": 2888.1035,
+      "bytes": 419520,
+      "cost": 96,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "ar->en",
+      "detail": "openai+elevenlabs",
+      "ms": 1729.0006000000012,
+      "bytes": 61902,
+      "cost": 68,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "zh->en",
+      "detail": "groq+grok",
+      "ms": 3021.4775,
+      "bytes": 451200,
+      "cost": 88,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "zh->en",
+      "detail": "openai+elevenlabs",
+      "ms": 1645.3761000000013,
+      "bytes": 70261,
+      "cost": 63,
+      "ok": true
+    },
+    {
+      "provider": "groq+grok",
+      "scenario": "translation+tts",
+      "language": "en->es",
+      "detail": "groq+grok",
+      "ms": 2833.6881999999996,
+      "bytes": 430080,
+      "cost": 88,
+      "ok": true
+    },
+    {
+      "provider": "openai+elevenlabs",
+      "scenario": "translation+tts",
+      "language": "en->es",
+      "detail": "openai+elevenlabs",
+      "ms": 1813.1115999999984,
+      "bytes": 76112,
+      "cost": 59,
+      "ok": true
+    }
+  ]
+}

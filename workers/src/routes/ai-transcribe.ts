@@ -68,8 +68,11 @@ aiTranscribeRoutes.post(
           audio_url: body.audio_url,
           language_code: body.language_code || 'en',
           speaker_labels: body.speaker_labels ?? true,
+          speakers_expected: 2,
           auto_highlights: true,
           sentiment_analysis: true,
+          entity_detection: true,
+          content_safety: true,
         }),
       })
 
@@ -127,7 +130,17 @@ aiTranscribeRoutes.get('/status/:id', aiTranscriptionRateLimit, async (c) => {
 
   const transcriptId = c.req.param('id')
 
+  // Verify transcript belongs to this org before hitting AssemblyAI
+  const db = getDb(c.env)
   try {
+    const ownerCheck = await db.query(
+      `SELECT id FROM ai_summaries WHERE external_id = $1 AND organization_id = $2`,
+      [transcriptId, session.organization_id]
+    )
+    if (ownerCheck.rows.length === 0) {
+      return c.json({ error: 'Transcription not found' }, 404)
+    }
+
     const aaiResponse = await fetch(`${ASSEMBLYAI_BASE}/transcript/${transcriptId}`, {
       headers: { Authorization: apiKey },
     })
@@ -146,6 +159,8 @@ aiTranscribeRoutes.get('/status/:id', aiTranscriptionRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('GET /api/ai/transcribe/status error', { error: err?.message })
     return c.json({ error: 'Status check failed' }, 500)
+  } finally {
+    await db.end()
   }
 })
 

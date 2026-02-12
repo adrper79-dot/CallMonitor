@@ -1,0 +1,156 @@
+{
+  "agent": "Architecture",
+  "audit_date": "2026-02-13",
+  "platform_version": "v4.55",
+  "status": "FAIL",
+  "findings": [
+    {
+      "area": "MASTER_ARCHITECTURE.md — Version & Date",
+      "status": "FAIL",
+      "detail": "Header says 'Version: 4.24+' and 'Updated: Feb 7, 2026'. Actual version is v4.55 (Session 18). Six sessions of changes undocumented.",
+      "fix": "Update header to 'Version: 4.55 — Full Platform (Audio Intelligence, Agent Productivity, Deep Audit Remediation)' and date to 'Feb 13, 2026'"
+    },
+    {
+      "area": "MASTER_ARCHITECTURE.md — Table Count",
+      "status": "FAIL",
+      "detail": "Mermaid architecture diagram shows '113 Tables' in the Neon box. Actual production DB has 149 tables (36 tables added in Sessions 15-16 including sentiment_analysis_config, dialer_queues, predictive_dialer_stats, dnc_lists, compliance_scores, compliance_events, scheduled_payments, payment_plans, dunning_events, objection_rebuttals, note_templates).",
+      "fix": "Update Mermaid diagram Neon box to '149 Tables'"
+    },
+    {
+      "area": "MASTER_ARCHITECTURE.md — Route Inventory",
+      "status": "FAIL",
+      "detail": "No comprehensive listing of 48 route files. The Mermaid diagram only mentions 5 route paths (auth, calls, orgs, teams, bond-ai). Missing 43 route files from any inventory: admin-metrics, admin, ai-config, ai-llm, ai-router, ai-toggle, ai-transcribe, analytics, audio, audit, billing, bookings, call-capabilities, caller-id, campaigns, capabilities, collections, compliance, dialer, health, internal, ivr, live-translation, manager, onboarding, organizations, productivity, rbac-v2, recordings, reliability, reports, retention, scorecards, sentiment, shopper, surveys, team, teams, test, tts, usage, users, voice, webhooks, webrtc.",
+      "fix": "Add a 'Route Module Inventory' section listing all 48 routes with their mount paths (from index.ts) and purpose"
+    },
+    {
+      "area": "MASTER_ARCHITECTURE.md — Lib Inventory",
+      "status": "FAIL",
+      "detail": "No listing of 34 lib files. Only auth.ts and db.ts are referenced in code samples. Missing documentation for: ai-call-engine, ai-router, audio-injector, bond-ai, capabilities, compliance-checker, compliance-guides, dialer-engine, email, errors, grok-voice-client, groq-client, health-probes, idempotency, ivr-flow-engine, likelihood-scorer, logger, payment-scheduler, pii-redactor, plan-gating, post-transcription-processor, prompt-sanitizer, queue-consumer, rate-limit, schemas, sentiment-processor, translation-processor, tts-processor, utils, validate, webhook-retry.",
+      "fix": "Add a 'Library Module Inventory' section listing all 34 libs with their purposes and public API"
+    },
+    {
+      "area": "MASTER_ARCHITECTURE.md — AI Provider Coverage",
+      "status": "FAIL",
+      "detail": "Only references OpenAI as LLM provider. Production stack also uses Grok (xAI) for voice/LLM, Groq for fast inference, and has dedicated lib files (grok-voice-client.ts, groq-client.ts). The AI router pattern (multi-provider routing) is completely undocumented.",
+      "fix": "Add Grok and Groq to the External Services section, update the Mermaid diagram, and document the AI router multi-provider pattern"
+    },
+    {
+      "area": "MASTER_ARCHITECTURE.md — Session 15-18 Features",
+      "status": "FAIL",
+      "detail": "Zero documentation of Audio Intelligence, Agent Productivity Suite, likelihood-to-pay scoring, payment calculator, daily planner, objection rebuttals, note templates, auto-task creation, or N+1 elimination. These represent the most significant feature additions since v4.24.",
+      "fix": "Add sections for Audio Intelligence Pipeline, Agent Productivity Suite, and Post-Transcription Processing architecture"
+    },
+    {
+      "area": "SYSTEM_MAP.md — Completeness",
+      "status": "FAIL",
+      "detail": "Extremely outdated. Backend section only lists 3 route files (auth.ts, organizations.ts, calls.ts) out of 48. References non-existent file 'workers/src/lib/pgClient.ts'. No mention of 34 lib files. No mention of productivity, dialer, IVR, compliance, campaigns, billing, voice, or any feature added after ~v4.0.",
+      "fix": "Complete rewrite needed. Should list all 48 route files, all 34 lib files, all frontend page directories, and reflect current architecture including scheduled.ts and queue-consumer.ts"
+    },
+    {
+      "area": "SYSTEM_MAP.md — Stale File Reference",
+      "status": "FAIL",
+      "detail": "References 'workers/src/lib/pgClient.ts' which does not exist. The actual database module is 'workers/src/lib/db.ts' (getDb pattern).",
+      "fix": "Remove pgClient.ts reference, ensure only db.ts is referenced"
+    },
+    {
+      "area": "DATABASE_SCHEMA_REGISTRY.md — Table Count",
+      "status": "FAIL",
+      "detail": "Says '113 total' tables. Actual production DB has 149 tables (confirmed in CURRENT_STATUS.md). 36 tables completely undocumented in the registry including all Session 15-16 additions.",
+      "fix": "Update total to 149, add schema documentation for the 36 missing tables"
+    },
+    {
+      "area": "DATABASE_SCHEMA_REGISTRY.md — users.id Type Contradiction",
+      "status": "FAIL",
+      "detail": "Self-contradictory: The Schema Drift Notice section (lines 28-41) explicitly states 'users.id is now UUID' after rogue agent migration. BUT the Core Table Schema for 'users' (line 81) still shows 'id | TEXT | NO'. The ER diagram also still shows 'TEXT id PK'. Same issue for accounts.user_id (table shows TEXT, drift notice says UUID).",
+      "fix": "Update the users table schema to show 'id | UUID', update accounts table to show 'user_id | UUID', update the Mermaid ER diagram to show UUID types"
+    },
+    {
+      "area": "DATABASE_SCHEMA_REGISTRY.md — Table Documentation Coverage",
+      "status": "FAIL",
+      "detail": "Only ~8 tables have full schema documentation (users, sessions, accounts, organizations, org_members, calls, recordings, surveys, ai_summaries). 141 tables lack schema documentation. No docs for: campaigns, teams, team_members, rbac_permissions, scorecards, recordings, transcriptions, compliance tables, billing tables, dialer tables, productivity tables, etc.",
+      "fix": "Add at minimum the schema for all tables referenced in RLS section + all tables with foreign key relationships to core tables"
+    },
+    {
+      "area": "FINAL_STACK.md — Missing AI Providers",
+      "status": "FAIL",
+      "detail": "No mention of Grok (xAI) or Groq as LLM providers. The actual stack uses a multi-provider AI router (grok-voice-client.ts, groq-client.ts, ai-router.ts). Translation pipeline says 'DeepL / GPT-4o-mini' but actual implementation uses Grok/Groq via the AI router.",
+      "fix": "Add Grok and Groq to Stack Summary. Update Translation pipeline to reflect actual providers. Add AI Router section explaining multi-provider routing strategy."
+    },
+    {
+      "area": "FINAL_STACK.md — Date Staleness",
+      "status": "FAIL",
+      "detail": "Last updated: 2026-01-29. Missing 2+ weeks of architectural changes including new Cloudflare Queue (transcription DLQ), new route files (productivity, manager, admin-metrics, ai-toggle), and new lib files (likelihood-scorer, payment-scheduler, audio-injector).",
+      "fix": "Update date and add new infrastructure components"
+    },
+    {
+      "area": "FINAL_STACK.md — KV Usage Details",
+      "status": "FAIL",
+      "detail": "Does not specify Cloudflare KV usage for sessions, rate-limiting, and idempotency. These are critical architectural components. KV is defined in worker bindings (Env interface) but undocumented in the stack reference.",
+      "fix": "Add KV to infrastructure section with usage: sessions, rate-limiting (lib/rate-limit.ts), idempotency keys (lib/idempotency.ts)"
+    },
+    {
+      "area": "Copilot Instructions — rbac-v2.ts Path",
+      "status": "FAIL",
+      "detail": ".github/copilot-instructions.md Key Utilities table references 'workers/src/lib/rbac-v2.ts' but this file does not exist. RBAC v2 is a route file at 'workers/src/routes/rbac-v2.ts'. No dedicated RBAC lib file exists in workers/src/lib/.",
+      "fix": "Either create workers/src/lib/rbac-v2.ts extracting role hierarchy logic from the route, or update the copilot-instructions to reference the correct path"
+    },
+    {
+      "area": "CURRENT_STATUS.md — Accuracy",
+      "status": "PASS",
+      "detail": "Up to date at v4.55, Feb 13, 2026. Accurately reports 149 tables, 163/231 backlog items resolved (71%). Documents Sessions 15-18 changes in detail. Links to all relevant architecture docs.",
+      "fix": null
+    },
+    {
+      "area": "workers/src/index.ts — Route Mounting",
+      "status": "PASS",
+      "detail": "All 48 route files are properly imported and mounted. Mount paths are consistent. CORS config includes all custom headers. Error handling is structured. Queue consumer and scheduled handler both exported.",
+      "fix": null
+    },
+    {
+      "area": "workers/src/lib/ — File Inventory",
+      "status": "PASS",
+      "detail": "All 34 lib files exist as listed. No orphaned imports detected in index.ts. File naming is consistent (kebab-case).",
+      "fix": null
+    }
+  ],
+  "summary": "FAIL — Significant architectural drift detected across 4 of 5 core architecture documents. MASTER_ARCHITECTURE.md is 6 sessions behind (v4.24 vs v4.55), missing 43 of 48 route files and all 34 lib files from any inventory. SYSTEM_MAP.md is severely outdated with stale file references. DATABASE_SCHEMA_REGISTRY.md has self-contradictory type information (users.id shown as TEXT despite UUID migration documented in same file) and undercounts tables by 36 (113 vs 149). FINAL_STACK.md omits Grok and Groq AI providers entirely. The actual codebase (index.ts, routes/, lib/) is healthy and well-organized — the drift is purely in documentation. CURRENT_STATUS.md is the only document that accurately reflects current state.",
+  "missing_docs": [
+    "Route inventory (48 routes with mount paths, middleware, and endpoint counts)",
+    "Lib inventory (34 libs with purposes and public APIs)",
+    "Audio Intelligence Pipeline architecture (entity detection, content safety, 4 transcription paths)",
+    "Agent Productivity Suite architecture (daily planner, likelihood scoring, payment calculator, objection library, note templates)",
+    "Post-Transcription Processing pipeline (auto-task creation, enriched AI summaries)",
+    "AI Router multi-provider strategy (Grok, Groq, OpenAI routing decisions)",
+    "Grok voice client integration details",
+    "Groq fast-inference client details",
+    "Payment scheduler architecture",
+    "Likelihood-to-pay scoring engine (5-factor model)",
+    "Dialer engine architecture",
+    "IVR flow engine architecture",
+    "PII redactor design",
+    "Prompt sanitizer design",
+    "Audio injector (TTS audio injection into calls)",
+    "Compliance checker and compliance guides",
+    "Webhook retry mechanism",
+    "Health probes system",
+    "Plan gating (feature gating by subscription plan)",
+    "36 database tables added in Sessions 15-16 (schemas undocumented)",
+    "Cloudflare Queue architecture (transcription queue + DLQ)",
+    "Scheduled tasks/cron architecture (workers/src/scheduled.ts)"
+  ],
+  "recommendations": [
+    "P0: Fix DATABASE_SCHEMA_REGISTRY.md users.id type contradiction (TEXT vs UUID) — active source of confusion for any developer reading the doc",
+    "P0: Update MASTER_ARCHITECTURE.md version to v4.55 and table count to 149 — the 'Production Gospel' header creates false confidence",
+    "P1: Add Route Module Inventory to MASTER_ARCHITECTURE.md — a table of all 48 routes with mount paths, auth requirements, and endpoint counts",
+    "P1: Add Lib Module Inventory to MASTER_ARCHITECTURE.md — a table of all 34 libs with one-line descriptions",
+    "P1: Add Grok and Groq to FINAL_STACK.md and MASTER_ARCHITECTURE.md — these are production AI providers currently invisible to docs",
+    "P1: Rewrite SYSTEM_MAP.md from scratch — it's 80%+ stale and references non-existent files",
+    "P2: Update DATABASE_SCHEMA_REGISTRY.md table count to 149 and add schemas for critical missing tables (at minimum: campaigns, teams, transcriptions, compliance tables, productivity tables)",
+    "P2: Document Audio Intelligence + Agent Productivity architecture in MASTER_ARCHITECTURE.md or a new ARCH_DOCS/02-FEATURES/ file",
+    "P2: Document AI Router multi-provider strategy — routing logic between Grok/Groq/OpenAI is a key architectural decision",
+    "P2: Fix .github/copilot-instructions.md rbac-v2.ts path (references non-existent lib file)",
+    "P3: Add Cloudflare Queue + DLQ architecture to FINAL_STACK.md",
+    "P3: Document scheduled.ts cron jobs and their responsibilities",
+    "P3: Add ER diagram for Session 15-16 tables (productivity, compliance, dialer schemas)"
+  ]
+}

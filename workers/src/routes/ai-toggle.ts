@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AIToggleSchema, AIPromptConfigSchema } from '../lib/schemas'
@@ -26,7 +26,7 @@ export const aiToggleRoutes = new Hono<AppEnv>()
 
 // Activate AI mode on a live call
 aiToggleRoutes.post('/activate', aiToggleRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, AIToggleSchema)
@@ -95,7 +95,7 @@ aiToggleRoutes.post('/activate', aiToggleRateLimit, async (c) => {
 
 // Deactivate AI mode — human takeover
 aiToggleRoutes.post('/deactivate', aiToggleRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, AIToggleSchema)
@@ -186,7 +186,7 @@ aiToggleRoutes.get('/status/:callId', async (c) => {
 
 // Update AI prompt configuration
 aiToggleRoutes.put('/prompt-config', aiToggleRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, AIPromptConfigSchema)

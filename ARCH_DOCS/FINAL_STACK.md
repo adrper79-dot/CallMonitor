@@ -11,7 +11,8 @@ This document is the canonical, consolidated architecture for the product (final
 - Telephony / Calls: Telnyx (CPaaS) — branded DIDs, media streams
 - Transcription: AssemblyAI (realtime + batch)
 - Text-to-Speech: ElevenLabs (streaming)
-- Live Translation: AssemblyAI → DeepL / GPT-4o-mini → ElevenLabs (Workers glue)
+- LLM / AI: Grok (xAI) for advanced reasoning + Groq (Llama 4 Scout) for cost-optimized tasks + OpenAI (GPT-4o-mini) fallback
+- Live Translation: AssemblyAI → Groq/OpenAI → ElevenLabs (Workers glue)
 - Authentication: Custom session-based auth with CSRF protection (Workers API)
 - Background Jobs: Cloudflare Queues + Cron Triggers
 - Security / Edge: Cloudflare WAF, Turnstile, Rate Limiting, Access
@@ -78,7 +79,7 @@ flowchart TD
 - Workers: API endpoints, webhook receivers, realtime orchestration, Hyperdrive queries
 - Neon: tenant-isolated data, indexes, branching for dev/staging
 - R2: durable media, evidence bundles, lifecycle rules
-- External APIs: Telnyx, AssemblyAI, ElevenLabs, DeepL/GPT for translation
+- External APIs: Telnyx, AssemblyAI, ElevenLabs, Grok (xAI), Groq (Llama 4 Scout), OpenAI (fallback)
 
 ## Security & Compliance Notes
 **TOGAF ADM Alignment**: Phase D (Tech Arch) via serverless stack; Phase H (Governance) via RLS/WAF/audit logs.
@@ -105,5 +106,5 @@ flowchart TD
 ---
 
 Maintained by: Architecture Team
-Last updated: 2026-01-29
+Last updated: 2026-02-13
 

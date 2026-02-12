@@ -158,6 +158,30 @@ analyticsRoutes.get('/kpis', analyticsRateLimit, async (c) => {
   }
 })
 
+// GET /trends — Lightweight placeholder returning empty datasets
+// Provides a stable 200 response for clients expecting this endpoint while
+// longer-running trend computations are implemented.
+analyticsRoutes.get('/trends', analyticsRateLimit, async (c) => {
+  const db = getDb(c.env)
+  try {
+    const session = await requireAuth(c)
+    if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+    const { start, end } = parseDateRange(c)
+
+    return c.json({
+      success: true,
+      trends: [],
+      period: { start, end },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/analytics/trends error', { error: err?.message })
+    return c.json({ success: true, trends: [], period: parseDateRange(c) })
+  } finally {
+    await db.end()
+  }
+})
+
 // GET /calls — Call volume & duration analytics
 analyticsRoutes.get('/calls', analyticsRateLimit, async (c) => {
   const db = getDb(c.env)

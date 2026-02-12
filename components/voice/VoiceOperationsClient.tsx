@@ -20,6 +20,7 @@ import { BookingModal } from './BookingModal'
 import { RecentTargets } from './RecentTargets'
 import { ActiveCallPanel } from './ActiveCallPanel'
 import { LiveTranslationPanel } from './LiveTranslationPanel'
+import PaymentCalculator from './PaymentCalculator'
 import { useRealtime } from '@/hooks/useRealtime'
 import { ProductTour, VOICE_TOUR, REVIEW_TOUR } from '@/components/tour'
 import { MobileBottomNav, MobileTab } from './MobileBottomNav' // Componentized Nav
@@ -633,6 +634,14 @@ function VoiceOperationsInner({
                   <div className="bg-gray-50 rounded-md border border-gray-200 p-3">
                     <h3 className="text-xs font-semibold text-gray-700 mb-2">Live Translation</h3>
                     <LiveTranslationFeed callId={activeCallId} organizationId={organizationId} />
+                  </div>
+                )}
+
+              {activeCallId &&
+                activeCall.status &&
+                ['initiating', 'ringing', 'in_progress'].includes(activeCall.status) && (
+                  <div className="bg-gray-50 rounded-md border border-gray-200 p-3">
+                    <PaymentCalculator />
                   </div>
                 )}
 

@@ -373,7 +373,10 @@ export default function OnboardingPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <button
-                  onClick={() => handleStepProgress('launch')}
+                  onClick={() => {
+                    handleStepProgress('launch')
+                    router.push('/campaigns')
+                  }}
                   className="p-6 border border-gray-100 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-200 transition-all text-left group"
                 >
                   <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4 group-hover:scale-110 transition-transform">
@@ -393,7 +396,10 @@ export default function OnboardingPage() {
                 </button>
 
                 <button
-                  onClick={() => handleStepProgress('launch')}
+                  onClick={() => {
+                    handleStepProgress('launch')
+                    router.push('/analytics')
+                  }}
                   className="p-6 border border-gray-100 rounded-xl bg-gray-50 hover:bg-purple-50 hover:border-purple-200 transition-all text-left group"
                 >
                   <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">

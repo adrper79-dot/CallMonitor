@@ -1,7 +1,7 @@
 # Database Schema Registry
 
-**Status**: ⚠️ SCHEMA DRIFT DETECTED | Updated: Feb 11, 2026  
-**Version**: 1.3 - Rogue Agent Schema Drift Fix (text → uuid migration)  
+**Status**: ✅ Schema Drift Resolved | Updated: Feb 13, 2026  
+**Version**: 1.4 - Session 19 audit fix (users.id type contradiction resolved, id_uuid column removed)  
 **Owner**: Platform Team
 
 ---
@@ -63,9 +63,9 @@ Per [MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md), the mandatory standard is:
 
 **Total Violations**: 0 columns (was 2, now fixed)
 
-### ✅ Tables Already Compliant (113 total)
+### ✅ Tables Already Compliant (149 total)
 
-All other tables (112) use snake_case column naming. Examples:
+All other tables (148) use snake_case column naming. Examples:
 
 - `users`: `id`, `name`, `email`, `email_verified`, `password_hash`, `organization_id`
 - `organizations`: `id`, `name`, `plan`, `stripe_customer_id`, `created_at`
@@ -84,7 +84,7 @@ Primary user identity table.
 
 | Column             | Type        | Nullable | Default | FK     |
 | ------------------ | ----------- | -------- | ------- | ------ |
-| `id`               | TEXT        | NO       | -       | PK     |
+| `id`               | UUID        | NO       | gen_random_uuid() | PK     |
 | `name`             | TEXT        | YES      | -       | -      |
 | `email`            | TEXT        | YES      | -       | UNIQUE |
 | `email_verified`   | TIMESTAMPTZ | YES      | -       | -      |
@@ -96,7 +96,6 @@ Primary user identity table.
 | `created_at`       | TIMESTAMPTZ | YES      | now()   | -      |
 | `updated_at`       | TIMESTAMPTZ | YES      | now()   | -      |
 | `normalized_email` | TEXT        | YES      | -       | -      |
-| `id_uuid`          | UUID        | YES      | -       | -      |
 
 **Referenced By**: accounts, ai_summaries, call_outcomes, calls, org_members, organizations, recordings, scorecards, test_configs, test_results, tool_access_archived, tool_team_members
 
@@ -203,7 +202,7 @@ erDiagram
     calls ||--o{ ai_summaries : "1:N"
 
     users {
-        TEXT id PK
+        UUID id PK
         TEXT name
         TEXT email UK
         TEXT password_hash

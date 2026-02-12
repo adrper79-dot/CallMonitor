@@ -18,7 +18,7 @@ import { telnyxVoiceRateLimit } from '../lib/rate-limit'
 export const webrtcRoutes = new Hono<AppEnv>()
 
 // Debug endpoint to check Telnyx configuration
-webrtcRoutes.get('/debug', async (c) => {
+webrtcRoutes.get('/debug', telnyxVoiceRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
@@ -87,7 +87,7 @@ webrtcRoutes.get('/debug', async (c) => {
 // Get WebRTC credentials from Telnyx
 // TELNYX_CONNECTION_ID should be a Credential Connection ID from Telnyx Portal
 // Go to: Voice > Credentials > Create new credential
-webrtcRoutes.get('/token', async (c) => {
+webrtcRoutes.get('/token', telnyxVoiceRateLimit, async (c) => {
   try {
     const session = await requireAuth(c)
     if (!session) {
@@ -280,7 +280,9 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     // Enable recording if configured
     if (voiceConfig?.record) {
       callPayload.record = 'record-from-answer'
-      logger.info('Call recording enabled for WebRTC call', { callId })
+      callPayload.record_channels = 'dual'
+      callPayload.record_format = 'mp3'
+      logger.info('Call recording enabled for WebRTC call (dual-channel)', { callId })
     }
 
     // Enable transcription for live translation, voice-to-voice, OR regular transcription

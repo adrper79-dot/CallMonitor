@@ -175,7 +175,6 @@ function getTypeConfig(type: TimelineArtifact['type']): { icon: string; label: s
 function formatProducer(producer: string): string {
   const producerMap: Record<string, string> = {
     telnyx: 'Telnyx',
-    signalwire: 'Telnyx',
     assemblyai: 'AssemblyAI',
     system_cas: 'System CAS',
     system: 'System',

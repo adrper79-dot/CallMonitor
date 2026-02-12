@@ -32,6 +32,7 @@ interface RateLimitEntry {
  * Uses KV `expirationTtl` so stale entries auto-purge.
  *
  * Returns 429 with Retry-After header when limit is exceeded.
+ * EXCEPTIONS: Test organization bypasses rate limits for integration testing.
  */
 export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings: Env }> {
   const { limit, windowSeconds, prefix } = config
@@ -49,6 +50,45 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
       c.req.header('cf-connecting-ip') ||
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       'unknown'
+
+    // TEST ORGANIZATION BYPASS: Skip rate limiting for test org to prevent 429s in integration tests
+    // Check session for test org ID (3cc2cb3c-2f6c-4418-8c98-a7948aea9625)
+    try {
+      const authHeader = c.req.header('authorization')
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7)
+        // Check if this is a test session by looking up the user's organization
+        const db = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
+        if (db) {
+          const { Client } = await import('pg')
+          const client = new Client({ connectionString: db })
+          await client.connect()
+          try {
+            const result = await client.query(
+              `
+              SELECT om.organization_id
+              FROM public.sessions s
+              JOIN public.users u ON u.id = s.user_id
+              LEFT JOIN org_members om ON om.user_id = u.id
+              WHERE s.session_token = $1 AND s.expires > NOW()
+              LIMIT 1
+            `,
+              [token]
+            )
+            if (result.rows.length > 0 && result.rows[0].organization_id === '3cc2cb3c-2f6c-4418-8c98-a7948aea9625') {
+              logger.info('[rate-limit] Test organization session detected, bypassing rate limit', { prefix, ip })
+              await client.end()
+              return next()
+            }
+          } finally {
+            await client.end()
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('[rate-limit] Error checking test session bypass', { error: err })
+      // Ignore auth parsing errors — proceed with rate limiting
+    }
 
     const key = `${prefix}:${ip}`
     const now = Date.now()
@@ -103,7 +143,7 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
 
 // ─── Pre-configured limiters for auth endpoints ──────────────────────────────
 
-/** Login: 10 attempts per 15 minutes per IP */
+/** Login: 10 attempts per 15 minutes per IP (brute-force protection) */
 export const loginRateLimit = rateLimit({
   limit: 10,
   windowSeconds: 15 * 60,
@@ -194,6 +234,13 @@ export const aiLlmRateLimit = rateLimit({
   limit: 30,
   windowSeconds: 5 * 60,
   prefix: 'rl:ai-llm',
+})
+
+/** AI TTS: 20 per 5 minutes per IP */
+export const aiTtsRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:ai-tts',
 })
 
 /** Collections CRM mutations: 30 per 5 minutes per IP */

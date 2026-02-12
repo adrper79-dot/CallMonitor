@@ -127,6 +127,12 @@ audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
             audio_url: audioUrl,
             language_code: language || 'en',
             webhook_url: webhookUrl,
+            speaker_labels: true,
+            speakers_expected: 2,
+            auto_highlights: true,
+            sentiment_analysis: true,
+            entity_detection: true,
+            content_safety: true,
             ...(c.env.ASSEMBLYAI_WEBHOOK_SECRET
               ? {
                   webhook_auth_header_name: 'Authorization',
@@ -184,7 +190,7 @@ audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
 })
 
 // GET /transcriptions/:id — Get transcription status & result
-audioRoutes.get('/transcriptions/:id', async (c) => {
+audioRoutes.get('/transcriptions/:id', audioRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 

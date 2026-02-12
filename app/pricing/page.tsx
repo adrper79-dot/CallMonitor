@@ -50,6 +50,7 @@ export default function PricingPage() {
               'Email artifacts',
             ]}
             cta="Start Pro"
+            plan="pro"
           />
           <PlanCard
             name="Business"
@@ -63,6 +64,7 @@ export default function PricingPage() {
               'Secret shopper scripts',
             ]}
             cta="Upgrade to Business"
+            plan="business"
           />
           <PlanCard
             name="Enterprise"
@@ -75,6 +77,7 @@ export default function PricingPage() {
               'Custom compliance requirements',
             ]}
             cta="Talk to Sales"
+            plan="enterprise"
           />
         </div>
       </section>
@@ -109,6 +112,7 @@ function PlanCard({
   features,
   cta,
   highlight = false,
+  plan,
 }: {
   name: string
   price: string
@@ -116,6 +120,7 @@ function PlanCard({
   features: string[]
   cta: string
   highlight?: boolean
+  plan: string
 }) {
   return (
     <div
@@ -132,7 +137,7 @@ function PlanCard({
         ))}
       </ul>
       <Link
-        href="/signup"
+        href={plan === 'enterprise' ? '/trust#contact' : `/signup?plan=${plan}`}
         className={`block text-center py-2 rounded-md font-medium ${
           highlight
             ? 'bg-primary-600 text-white hover:bg-primary-700'

@@ -91,7 +91,6 @@ export function AuthorityBadge({
 function formatProducer(producer: string): string {
   const producerMap: Record<string, string> = {
     telnyx: 'Telnyx',
-    signalwire: 'Telnyx',
     assemblyai: 'AssemblyAI',
     system_cas: 'System',
     system: 'System',

@@ -67,6 +67,27 @@ healthRoutes.get('/', async (c) => {
     })
   }
 
+  // 3. R2 bucket check
+  try {
+    const r2Start = Date.now()
+    // List a single object to validate access; tolerate empty bucket
+    const listResult = await c.env.R2.list({ limit: 1 })
+    const r2Time = Date.now() - r2Start
+
+    checks.push({
+      service: 'r2',
+      status: 'healthy',
+      message: `R2 accessible (${listResult.objects.length} objects sampled)`,
+      responseTime: r2Time,
+    })
+  } catch (err: any) {
+    checks.push({
+      service: 'r2',
+      status: 'degraded',
+      message: err.message || 'R2 access failed',
+    })
+  }
+
   // 4. Telnyx API check
   try {
     const telnyxStart = Date.now()

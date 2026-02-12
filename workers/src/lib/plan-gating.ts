@@ -220,6 +220,11 @@ export function requirePlan(minPlan: PlanName) {
       // Get organization plan
       const orgPlan = await getOrgPlan(c.env, session.organization_id)
 
+      // Business rule override: all paid tiers (starter+) may access any feature gated above 'free'
+      if (orgPlan !== 'free') {
+        return next()
+      }
+
       // Check access
       if (!hasAccess(orgPlan, minPlan)) {
         logger.info('Plan gate blocked request', {

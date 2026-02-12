@@ -18,6 +18,7 @@ import type { Env } from '../index'
 import type { DbClient } from './db'
 import { logger } from './logger'
 import { writeAuditLog, AuditAction } from './audit'
+import { checkPreDialCompliance } from './compliance-checker'
 
 const TELNYX_BASE = 'https://api.telnyx.com/v2'
 
@@ -157,10 +158,36 @@ export async function startDialerQueue(
   // Dial the first batch (conservative: 1 call per available agent)
   const dialCount = Math.min(targets.rows.length, agents.rows.length)
   let dialed = 0
+  let complianceBlocked = 0
 
   for (let i = 0; i < dialCount; i++) {
     const target = targets.rows[i]
     try {
+      // ── Pre-dial compliance gate (TCPA/FDCPA/Reg F) ──
+      // MUST pass before EVERY outbound call. Fail = block + log.
+      const compliance = await checkPreDialCompliance(db, {
+        phoneNumber: target.target_phone,
+        organizationId,
+        accountId: null, // Resolved by phone lookup inside checker
+      })
+
+      if (!compliance.allowed) {
+        complianceBlocked++
+        logger.info('Dialer: compliance blocked call', {
+          targetPhone: target.target_phone,
+          reason: compliance.reason,
+          blockedBy: compliance.blockedBy,
+        })
+        // Mark campaign_call as compliance-blocked
+        await db.query(
+          `UPDATE campaign_calls SET status = 'failed', outcome = 'compliance_blocked',
+           error_message = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [compliance.reason || 'Compliance check failed', target.id]
+        )
+        continue
+      }
+
       const callResult = await dialNumber(env, db, {
         toNumber: target.target_phone,
         fromNumber,
@@ -184,7 +211,7 @@ export async function startDialerQueue(
     resourceType: 'campaign',
     resourceId: campaignId,
     oldValue: null,
-    newValue: { dialed, total_pending: targets.rows.length },
+    newValue: { dialed, compliance_blocked: complianceBlocked, total_pending: targets.rows.length },
   })
 
   logger.info('Dialer queue started', { campaignId, dialed, agents: agents.rows.length })
@@ -304,6 +331,9 @@ async function dialNumber(
       connection_id: env.TELNYX_CONNECTION_ID || '',
       to: toNumber,
       from: fromNumber,
+      record: 'record-from-answer',
+      record_channels: 'dual',
+      record_format: 'mp3',
       answering_machine_detection: 'detect',
       answering_machine_detection_config: {
         after_greeting_silence_millis: 800,

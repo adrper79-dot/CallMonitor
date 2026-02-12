@@ -10,19 +10,20 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { IVRFlowSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
 import { ivrRateLimit } from '../lib/rate-limit'
 import { startIVRFlow } from '../lib/ivr-flow-engine'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 
 export const ivrRoutes = new Hono<AppEnv>()
 
 // Start an IVR payment flow on a call
 ivrRoutes.post('/start', ivrRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, IVRFlowSchema)
@@ -63,6 +64,16 @@ ivrRoutes.post('/start', ivrRateLimit, async (c) => {
       parsed.data.account_id
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.IVR_FLOW_STARTED,
+      resourceType: 'ivr_flow',
+      resourceId: call.id,
+      oldValue: null,
+      newValue: { call_id: call.id, account_id: parsed.data.account_id },
+    })
+
     return c.json({
       success: true,
       message: 'IVR flow started',
@@ -78,7 +89,7 @@ ivrRoutes.post('/start', ivrRateLimit, async (c) => {
 })
 
 // Get IVR flow status for a call
-ivrRoutes.get('/status/:callId', async (c) => {
+ivrRoutes.get('/status/:callId', ivrRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 

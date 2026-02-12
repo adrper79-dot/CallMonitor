@@ -36,28 +36,14 @@ import { handleSentimentAnalysis } from '../lib/sentiment-processor'
 import { handleGatherResult } from '../lib/ivr-flow-engine'
 import { handleAICallEvent } from '../lib/ai-call-engine'
 import { handleDialerAMD } from '../lib/dialer-engine'
-import { deliverWithRetry, fanOutToSubscribers } from '../lib/webhook-retry'
+import { deliverWithRetry } from '../lib/webhook-retry'
+import { processCompletedTranscript } from '../lib/post-transcription-processor'
+import { enqueueTranscriptionJob } from '../lib/queue-consumer'
+import { logDisclosureEvent } from '../lib/compliance-checker'
 
 export const webhooksRoutes = new Hono<AppEnv>()
 
-// ─── SignalWire LaML Callback ──────────────────────────────────────────────
-// Public endpoint — SignalWire POSTs here when a call connects.
-// Returns minimal LaML XML: greet, pause, hang up.
-
-webhooksRoutes.post('/signalwire/laml/greeting', async (c) => {
-  const xml = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<Response>',
-    '  <Say voice="Polly.Joanna">Hello from Word Is Bond. This is a test call. Goodbye.</Say>',
-    '  <Pause length="1"/>',
-    '  <Hangup/>',
-    '</Response>',
-  ].join('\n')
-
-  return c.body(xml, 200, { 'Content-Type': 'text/xml; charset=utf-8' })
-})
-
-// --- Dead Letter Queue (DLQ) Helper ---
+// ─── Dead Letter Queue (DLQ) Helper ───────────────────────────────────────
 
 /**
  * Store failed webhook processing attempt in KV Dead Letter Queue
@@ -345,7 +331,24 @@ webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
     const authHeader =
       c.req.header('Authorization') || c.req.header('X-AssemblyAI-Webhook-Secret') || ''
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader
-    if (token !== webhookSecret) {
+
+    // BL-SEC: Constant-time comparison to prevent timing side-channel attacks
+    const encoder = new TextEncoder()
+    const a = encoder.encode(token)
+    const b = encoder.encode(webhookSecret)
+    if (a.byteLength !== b.byteLength) {
+      logger.error('AssemblyAI webhook signature verification failed')
+      return c.json({ error: 'Invalid webhook authentication' }, 401)
+    }
+    const aKey = await crypto.subtle.importKey('raw', a, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const aSig = new Uint8Array(await crypto.subtle.sign('HMAC', aKey, b))
+    const bKey = await crypto.subtle.importKey('raw', b, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const bSig = new Uint8Array(await crypto.subtle.sign('HMAC', bKey, b))
+    let mismatch = 0
+    for (let i = 0; i < aSig.length; i++) {
+      mismatch |= aSig[i] ^ bSig[i]
+    }
+    if (mismatch !== 0) {
       logger.error('AssemblyAI webhook signature verification failed')
       return c.json({ error: 'Invalid webhook authentication' }, 401)
     }
@@ -359,11 +362,16 @@ webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
         // BL-006: Organization-scoped update to prevent cross-tenant transcript injection
         // Prefer to scope updates to a concrete organization_id to avoid cross-tenant updates.
         const callOrgLookup = await db.query(
-          `SELECT organization_id FROM calls WHERE transcript_id = $1 LIMIT 1`,
+          `SELECT id, organization_id FROM calls WHERE transcript_id = $1 LIMIT 1`,
           [transcript_id]
         )
+
+        let callId: string | null = null
+        let orgId: string | null = null
+
         if (callOrgLookup.rows.length > 0) {
-          const orgId = callOrgLookup.rows[0].organization_id
+          callId = callOrgLookup.rows[0].id
+          orgId = callOrgLookup.rows[0].organization_id
           const result = await db.query(
             `UPDATE calls 
              SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
@@ -381,12 +389,32 @@ webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
           const result = await db.query(
             `UPDATE calls 
              SET transcript = $1, transcript_status = 'completed', updated_at = NOW()
-             WHERE transcript_id = $2 AND organization_id IS NOT NULL`,
+             WHERE transcript_id = $2 AND organization_id IS NOT NULL
+             RETURNING id, organization_id`,
             [text, transcript_id]
           )
           if (result.rowCount === 0) {
             logger.warn('AssemblyAI webhook: no matching call found for transcript_id', { transcript_id })
+          } else {
+            callId = result.rows[0].id
+            orgId = result.rows[0].organization_id
           }
+        }
+
+        // Post-transcription enrichment pipeline (fire-and-forget)
+        // Extracts: speaker utterances, auto-highlights, sentiment, AI summary
+        if (callId && orgId) {
+          processCompletedTranscript(c.env, db, {
+            callId,
+            organizationId: orgId,
+            transcriptText: text,
+            payload: body,
+          }).catch((err) => {
+            logger.warn('Post-transcription processing failed (non-fatal)', {
+              callId,
+              error: (err as Error)?.message,
+            })
+          })
         }
       } finally {
         await db.end()
@@ -436,6 +464,31 @@ webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
 
     const event = JSON.parse(body)
 
+    // Stripe event deduplication — use existing stripe_events table
+    // Prevents duplicate processing from Stripe webhook retries
+    if (event.id) {
+      const dupeCheck = await db.query(
+        `SELECT id FROM stripe_events WHERE stripe_event_id = $1 AND processed = true LIMIT 1`,
+        [event.id]
+      )
+      if (dupeCheck.rows.length > 0) {
+        logger.info('Stripe webhook duplicate skipped', { eventId: event.id, type: event.type })
+        return c.json({ received: true, duplicate: true })
+      }
+
+      // Record event as being processed
+      const orgLookup = await db.query(
+        `SELECT id FROM organizations WHERE stripe_customer_id = $1 LIMIT 1`,
+        [event.data?.object?.customer || '']
+      )
+      await db.query(
+        `INSERT INTO stripe_events (stripe_event_id, event_type, organization_id, data, processed, created_at)
+         VALUES ($1, $2, $3, $4::jsonb, false, NOW())
+         ON CONFLICT (stripe_event_id) DO NOTHING`,
+        [event.id, event.type, orgLookup.rows[0]?.id || null, JSON.stringify(event.data || {})]
+      ).catch((err) => logger.warn('stripe_events insert failed (non-fatal)', { error: (err as Error)?.message }))
+    }
+
     switch (event.type) {
       case 'checkout.session.completed':
         await handleCheckoutCompleted(db, event.data.object)
@@ -454,6 +507,14 @@ webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
         await handleInvoiceFailed(db, event.data.object)
         break
       // Silently ignore other event types
+    }
+
+    // Mark event as processed for dedup
+    if (event.id) {
+      await db.query(
+        `UPDATE stripe_events SET processed = true, processed_at = NOW() WHERE stripe_event_id = $1`,
+        [event.id]
+      ).catch(() => { /* non-fatal */ })
     }
 
     return c.json({ received: true })
@@ -555,11 +616,85 @@ async function handleCallInitiated(db: DbClient, payload: any) {
       to,
     })
   } else {
-    logger.warn('webhook-update-no-match and no bridge call found', {
-      call_control_id,
-      from,
-      to,
-    })
+    // No bridge match — check if this is an inbound call to a configured DID
+    const inboundResult = await db.query(
+      `SELECT ipn.organization_id, ipn.auto_record, ipn.auto_transcribe, ipn.greeting_text,
+              ipn.routing_type, ipn.routing_target_id, ipn.label
+       FROM inbound_phone_numbers ipn
+       WHERE ipn.phone_number = $1 AND ipn.is_active = true
+       LIMIT 1`,
+      [to]
+    )
+
+    if (inboundResult.rows.length > 0) {
+      const inboundConfig = inboundResult.rows[0]
+
+      // Create inbound call record with org from DID mapping
+      await db.query(
+        `INSERT INTO calls (
+          organization_id,
+          call_sid,
+          call_control_id,
+          status,
+          from_number,
+          to_number,
+          flow_type,
+          direction,
+          created_at
+        ) VALUES ($1, $2, $3, 'initiated', $4, $5, 'inbound', 'inbound', NOW())`,
+        [inboundConfig.organization_id, call_session_id, call_control_id, from, to]
+      )
+
+      logger.info('Created database record for inbound call via DID mapping', {
+        call_control_id,
+        from,
+        to,
+        organization_id: inboundConfig.organization_id,
+        routing_type: inboundConfig.routing_type,
+        did_label: inboundConfig.label,
+      })
+    } else {
+      // No DID mapping found — try to match caller (from) to an existing account
+      const accountMatch = await db.query(
+        `SELECT a.organization_id
+         FROM collection_accounts a
+         WHERE (a.primary_phone = $1 OR a.secondary_phone = $1)
+         AND a.organization_id IS NOT NULL
+         AND a.is_deleted = false
+         LIMIT 1`,
+        [from]
+      )
+
+      if (accountMatch.rows.length > 0) {
+        await db.query(
+          `INSERT INTO calls (
+            organization_id,
+            call_sid,
+            call_control_id,
+            status,
+            from_number,
+            to_number,
+            flow_type,
+            direction,
+            created_at
+          ) VALUES ($1, $2, $3, 'initiated', $4, $5, 'inbound', 'inbound', NOW())`,
+          [accountMatch.rows[0].organization_id, call_session_id, call_control_id, from, to]
+        )
+
+        logger.info('Created inbound call record via account phone match', {
+          call_control_id,
+          from,
+          to,
+          organization_id: accountMatch.rows[0].organization_id,
+        })
+      } else {
+        logger.warn('webhook-update-no-match: no bridge, DID, or account match found', {
+          call_control_id,
+          from,
+          to,
+        })
+      }
+    }
   }
 }
 
@@ -763,6 +898,70 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         stack: (err as Error)?.stack,
       })
     }
+  } else if (call.flow_type === 'inbound') {
+    // Inbound call answered — start recording and play disclosure if configured
+    logger.info('Inbound call answered', {
+      call_control_id,
+      from: call.from_number,
+      to: call.to_number,
+      organization_id: call.organization_id,
+    })
+
+    try {
+      // Lookup DID config for recording + greeting
+      const didConfig = await db.query(
+        `SELECT auto_record, auto_transcribe, greeting_text
+         FROM inbound_phone_numbers
+         WHERE phone_number = $1 AND organization_id = $2 AND is_active = true
+         LIMIT 1`,
+        [call.to_number, call.organization_id]
+      )
+
+      const config = didConfig.rows[0]
+
+      // Start recording if configured (or default to org voice_config)
+      if (config?.auto_record !== false && env.TELNYX_API_KEY) {
+        fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/record_start`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            format: 'mp3',
+            channels: 'dual',
+          }),
+        }).catch((err) => {
+          logger.warn('Inbound call record_start failed (non-fatal)', {
+            error: (err as Error)?.message,
+          })
+        })
+      }
+
+      // Play greeting text if configured
+      if (config?.greeting_text && env.TELNYX_API_KEY) {
+        fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/speak`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            payload: config.greeting_text,
+            voice: 'female',
+            language: 'en-US',
+          }),
+        }).catch((err) => {
+          logger.warn('Inbound greeting speak failed (non-fatal)', {
+            error: (err as Error)?.message,
+          })
+        })
+      }
+    } catch (err) {
+      logger.warn('Inbound call post-answer setup failed (non-fatal)', {
+        error: (err as Error)?.message,
+      })
+    }
   } else {
     logger.warn('Bridge call conditions not met', {
       flowType: call.flow_type,
@@ -775,7 +974,7 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
   // If live translation is enabled for this call's org, play a brief disclosure
   try {
     const callResult = await db.query(
-      `SELECT c.organization_id FROM calls c
+      `SELECT c.id, c.organization_id, c.account_id FROM calls c
        WHERE (c.call_sid = $1 OR c.call_control_id = $2) AND c.organization_id IS NOT NULL
        LIMIT 1`,
       [call_session_id, call_control_id]
@@ -783,6 +982,7 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
     if (callResult.rows.length > 0) {
       const translationConfig = await getTranslationConfig(db, callResult.rows[0].organization_id)
       if (translationConfig?.live_translate && env.TELNYX_API_KEY) {
+        const disclosureText = 'This call is using AI-assisted live translation for quality and accessibility purposes.'
         // Non-blocking: Play AI disclosure via Telnyx speak command
         fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/speak`, {
           method: 'POST',
@@ -791,14 +991,22 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            payload:
-              'This call is using AI-assisted live translation for quality and accessibility purposes.',
+            payload: disclosureText,
             voice: 'female',
             language: 'en-US',
           }),
         }).catch((err) => {
           logger.warn('AI disclosure speak failed (non-fatal)', { error: (err as Error)?.message })
         })
+
+        // Log disclosure to compliance_events + disclosure_logs + calls columns
+        logDisclosureEvent(db, {
+          organizationId: callResult.rows[0].organization_id,
+          callId: callResult.rows[0].id,
+          accountId: callResult.rows[0].account_id || null,
+          disclosureType: 'ai_translation',
+          disclosureText,
+        }).catch(() => { /* non-fatal */ })
       }
     }
   } catch {
@@ -859,77 +1067,95 @@ async function handleRecordingSaved(env: Env, db: DbClient, payload: any) {
     const shouldTranscribe = configResult.rows[0]?.transcribe === true
     
     if (shouldTranscribe && env.ASSEMBLYAI_API_KEY) {
-      try {
-        // Generate public URL for AssemblyAI to access recording
-        const recordingUrl = env.R2_PUBLIC_URL 
-          ? `${env.R2_PUBLIC_URL}/${key}`
-          : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${callId}`
+      // Try queue-based processing first (resilient, async)
+      // Falls back to inline submission if queue is unavailable
+      const enqueued = await enqueueTranscriptionJob(env, {
+        type: 'submit_transcription',
+        callId,
+        organizationId: orgId,
+        recordingR2Key: key,
+      })
 
-        const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
+      if (enqueued) {
+        // Job enqueued — update status to 'queued' and return
+        await db.query(
+          `UPDATE calls SET transcript_status = 'queued', updated_at = NOW() WHERE id = $1`,
+          [callId]
+        )
+        logger.info('Transcription job enqueued', { callId, organization_id: orgId })
+      } else {
+        // Queue unavailable — fall back to inline submission
+        try {
+          const recordingUrl = env.R2_PUBLIC_URL 
+            ? `${env.R2_PUBLIC_URL}/${key}`
+            : `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/recordings/stream/${callId}`
 
-        // Submit to AssemblyAI
-        const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
-          method: 'POST',
-          headers: {
-            Authorization: env.ASSEMBLYAI_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            audio_url: recordingUrl,
-            webhook_url: webhookUrl,
-            speaker_labels: true,
-            auto_highlights: true,
-            sentiment_analysis: true,
-            ...(env.ASSEMBLYAI_WEBHOOK_SECRET
-              ? {
-                  webhook_auth_header_name: 'Authorization',
-                  webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET,
-                }
-              : {}),
-          }),
-        })
+          const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/assemblyai`
 
-        if (assemblyRes.ok) {
-          const assemblyData = await assemblyRes.json<{ id: string }>()
-          
-          // Update call with pending transcription
-          await db.query(
-            `UPDATE calls 
-             SET transcript_status = 'pending', transcript_id = $1
-             WHERE id = $2`,
-            [assemblyData.id, callId]
-          )
-
-          logger.info('Auto-submitted recording for transcription', {
-            callId,
-            transcriptId: assemblyData.id,
-            organization_id: orgId,
+          const assemblyRes = await fetch('https://api.assemblyai.com/v2/transcript', {
+            method: 'POST',
+            headers: {
+              Authorization: env.ASSEMBLYAI_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              audio_url: recordingUrl,
+              webhook_url: webhookUrl,
+              speaker_labels: true,
+              speakers_expected: 2,
+              auto_highlights: true,
+              sentiment_analysis: true,
+              entity_detection: true,
+              content_safety: true,
+              dual_channel: true,
+              ...(env.ASSEMBLYAI_WEBHOOK_SECRET
+                ? {
+                    webhook_auth_header_name: 'Authorization',
+                    webhook_auth_header_value: env.ASSEMBLYAI_WEBHOOK_SECRET,
+                  }
+                : {}),
+            }),
           })
-        } else {
-          const errText = await assemblyRes.text()
-          logger.error('AssemblyAI auto-submission failed', {
+
+          if (assemblyRes.ok) {
+            const assemblyData = await assemblyRes.json<{ id: string }>()
+            
+            await db.query(
+              `UPDATE calls 
+               SET transcript_status = 'pending', transcript_id = $1, updated_at = NOW()
+               WHERE id = $2`,
+              [assemblyData.id, callId]
+            )
+
+            logger.info('Auto-submitted recording for transcription (inline fallback)', {
+              callId,
+              transcriptId: assemblyData.id,
+              organization_id: orgId,
+            })
+          } else {
+            const errText = await assemblyRes.text()
+            logger.error('AssemblyAI auto-submission failed', {
+              callId,
+              status: assemblyRes.status,
+              error: errText,
+            })
+            
+            await db.query(
+              `UPDATE calls SET transcript_status = 'failed', updated_at = NOW() WHERE id = $1`,
+              [callId]
+            )
+          }
+        } catch (err) {
+          logger.error('Transcription submission exception', {
             callId,
-            status: assemblyRes.status,
-            error: errText,
+            error: (err as Error)?.message,
           })
           
-          // Mark as failed so retry cron can pick it up
           await db.query(
-            `UPDATE calls SET transcript_status = 'failed' WHERE id = $1`,
+            `UPDATE calls SET transcript_status = 'failed', updated_at = NOW() WHERE id = $1`,
             [callId]
           )
         }
-      } catch (err) {
-        logger.error('Transcription submission exception', {
-          callId,
-          error: (err as Error)?.message,
-        })
-        
-        // Mark as failed for retry
-        await db.query(
-          `UPDATE calls SET transcript_status = 'failed' WHERE id = $1`,
-          [callId]
-        )
       }
     }
   }
@@ -987,7 +1213,7 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
     const bridgeCallResult = await db.query(
       `SELECT id FROM calls
        WHERE flow_type = 'bridge'
-       AND status IN ('in_progress', 'answered', 'completed')
+       AND status IN ('in_progress', 'answered', 'completed', 'bridged')
        AND ((from_number = $1 AND to_number = $2) OR (from_number = $2 AND to_number = $1))
        AND organization_id = $3
        ORDER BY created_at DESC
@@ -1000,6 +1226,12 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
       logger.info('Associating bridge customer transcription with main call', {
         customerCallId: callResult.rows[0].id,
         mainCallId: callId,
+      })
+    } else {
+      logger.warn('Bridge customer transcription: no main bridge call found', {
+        customerCallId: callResult.rows[0].id,
+        from: callResult.rows[0].from_number,
+        to: callResult.rows[0].to_number,
       })
     }
   }
@@ -1195,10 +1427,6 @@ async function handleCallSpeakEnded(env: Env, db: DbClient, payload: any) {
   }
 }
 
-/**
- * Handle call.machine.detection.ended — AMD result for predictive dialer.
- * Routes to agent, voicemail, or hangup based on detection result.
- */
 async function handleMachineDetectionEnded(env: Env, db: DbClient, payload: any) {
   const { call_control_id, call_session_id, result: amdResult } = payload
 
@@ -1206,6 +1434,27 @@ async function handleMachineDetectionEnded(env: Env, db: DbClient, payload: any)
     callControlId: call_control_id,
     result: amdResult,
   })
+
+  // Update amd_status on the call record
+  const updateResult = await db.query(
+    `UPDATE calls SET amd_status = $1, updated_at = NOW()
+     WHERE (call_control_id = $2 OR call_sid = $3) AND organization_id IS NOT NULL
+     RETURNING id, organization_id`,
+    [amdResult, call_control_id, call_session_id]
+  )
+
+  if (updateResult.rowCount === 0) {
+    logger.warn('AMD webhook: no call record found to update amd_status', {
+      call_control_id,
+      call_session_id,
+      amdResult,
+    })
+  } else {
+    logger.info('AMD status updated on call record', {
+      callId: updateResult.rows[0].id,
+      amdResult,
+    })
+  }
 
   await handleDialerAMD(env, db, call_control_id, call_session_id, amdResult)
 }
@@ -1514,6 +1763,16 @@ async function createWebhookSubscription(c: any) {
       [session.organization_id, url, events, signingSecret, description || '', session.user_id]
     )
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.WEBHOOK_CREATED,
+      resourceType: 'webhook_subscriptions',
+      resourceId: result.rows[0].id,
+      oldValue: null,
+      newValue: { url, events, description },
+    })
+
     return c.json({ success: true, webhook: result.rows[0] }, 201)
   } finally {
     await db.end()
@@ -1554,6 +1813,16 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
       return c.json({ error: 'Webhook not found' }, 404)
     }
 
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.WEBHOOK_UPDATED,
+      resourceType: 'webhook_subscriptions',
+      resourceId: webhookId,
+      oldValue: null,
+      newValue: { url, events, is_active, description },
+    })
+
     return c.json({ success: true, webhook: result.rows[0] })
   } finally {
     await db.end()
@@ -1577,6 +1846,16 @@ async function deleteWebhookSubscription(c: any, webhookId: string) {
     if (result.rows.length === 0) {
       return c.json({ error: 'Webhook not found' }, 404)
     }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.WEBHOOK_DELETED,
+      resourceType: 'webhook_subscriptions',
+      resourceId: webhookId,
+      oldValue: { id: webhookId },
+      newValue: null,
+    })
 
     return c.json({ success: true, message: 'Webhook deleted' })
   } finally {
@@ -1688,10 +1967,11 @@ webhooksRoutes.post('/subscriptions/:id/test', webhookRateLimit, async (c) => {
 })
 
 webhooksRoutes.get('/subscriptions/:id/deliveries', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
   const db = getDb(c.env)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const webhookId = c.req.param('id')
     const page = parseInt(c.req.query('page') || '1')

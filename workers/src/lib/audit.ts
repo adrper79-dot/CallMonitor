@@ -226,6 +226,9 @@ export const AuditAction = {
 
   // Reliability
   WEBHOOK_ACTION_TAKEN: 'reliability:webhook_action_taken',
+  WEBHOOK_CREATED: 'webhook:created',
+  WEBHOOK_UPDATED: 'webhook:updated',
+  WEBHOOK_DELETED: 'webhook:deleted',
 
   // Collections CRM
   COLLECTION_ACCOUNT_CREATED: 'collection:account_created',
@@ -250,6 +253,7 @@ export const AuditAction = {
   // Predictive Dialer (v5.0)
   DIALER_QUEUE_STARTED: 'dialer:queue_started',
   DIALER_QUEUE_PAUSED: 'dialer:queue_paused',
+  DIALER_QUEUE_STOPPED: 'dialer:queue_stopped',
   DIALER_CALL_CONNECTED: 'dialer:call_connected',
   DIALER_AMD_DETECTED: 'dialer:amd_detected',
   DIALER_AGENT_STATUS_UPDATED: 'dialer:agent_status_updated',
@@ -271,5 +275,35 @@ export const AuditAction = {
   // AI LLM Usage (BL-093)
   AI_CHAT_COMPLETED: 'ai:chat_completed',
   AI_ANALYZE_COMPLETED: 'ai:analyze_completed',
+  AI_TTS_GENERATED: 'ai:tts_generated',
+
+  // Pre-Dial Compliance (v5.1)
+  COMPLIANCE_PREDIAL_PASSED: 'compliance:predial_passed',
+  COMPLIANCE_PREDIAL_BLOCKED: 'compliance:predial_blocked',
+  COMPLIANCE_DNC_BLOCKED: 'compliance:dnc_blocked',
+  COMPLIANCE_DISCLOSURE_LOGGED: 'compliance:disclosure_logged',
+  COMPLIANCE_CONSENT_CAPTURED: 'compliance:consent_captured',
+  COMPLIANCE_GUIDE_VIEWED: 'compliance:guide_viewed',
+
+  // Scheduled Payments / Dunning (v5.1)
+  SCHEDULED_PAYMENT_PROCESSED: 'payment:scheduled_processed',
+  SCHEDULED_PAYMENT_FAILED: 'payment:scheduled_failed',
+  DUNNING_ESCALATED: 'dunning:escalated',
+  PAYMENT_PLAN_CREATED: 'payment:plan_created',
+  PAYMENT_PLAN_DEFAULTED: 'payment:plan_defaulted',
+
+  // Audio Intelligence (v5.2)
+  ENTITY_DETECTED: 'audio:entity_detected',
+  CONTENT_SAFETY_FLAGGED: 'audio:content_safety_flagged',
+  TASK_AUTO_CREATED: 'task:auto_created',
+
+  // Productivity Features (v5.2)
+  LIKELIHOOD_SCORED: 'collections:likelihood_scored',
+  NOTE_TEMPLATE_CREATED: 'note_template:created',
+  NOTE_TEMPLATE_UPDATED: 'note_template:updated',
+  NOTE_TEMPLATE_DELETED: 'note_template:deleted',
+  OBJECTION_REBUTTAL_CREATED: 'objection_rebuttal:created',
+  OBJECTION_REBUTTAL_UPDATED: 'objection_rebuttal:updated',
+  OBJECTION_REBUTTAL_DELETED: 'objection_rebuttal:deleted',
 } as const
 

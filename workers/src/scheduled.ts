@@ -12,7 +12,7 @@
 import type { Env } from './index'
 import { getDb } from './lib/db'
 import { logger } from './lib/logger'
-
+import { processScheduledPayments, processDunningEscalation } from './lib/payment-scheduler'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -82,6 +82,11 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         break
       case '0 0 * * *':
         await trackCronExecution(env, 'aggregate_usage', () => aggregateUsage(env))
+        break
+      case '0 6 * * *':
+        // Process scheduled collection payments + dunning escalation (6am daily)
+        await trackCronExecution(env, 'process_payments', () => processScheduledPayments(env))
+        await trackCronExecution(env, 'dunning_escalation', () => processDunningEscalation(env))
         break
     }
   } catch (error) {
