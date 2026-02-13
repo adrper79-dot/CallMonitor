@@ -1,83 +1,116 @@
-# Word Is Bond Architecture Documentation
+# Word Is Bond — Architecture Documentation
 
-**Last Updated:** February 11, 2026
-**Version:** 4.53 — Deep Audit & Remediation (38-Defect Scan + 3 Migrations + RBAC Hardening + Cleanup)
-**Status:** ✅ Production Deployed (Static UI + Workers API)
+**Last Updated:** February 14, 2026  
+**Version:** 4.65 — ARCH_DOCS Reorganization (92→43 files, zero stale refs)  
+**Status:** Production Deployed (Cloudflare Pages + Workers API)
 
 > **"The System of Record for Business Conversations"**  
 > _Company: Latimer + Woods Tech LLC_
 
 ---
 
-## 🚨 **CRITICAL STANDARDS (Read First)**
+## CRITICAL STANDARDS (Read First)
 
-- **[DATABASE_CONNECTION_STANDARD.md](DATABASE_CONNECTION_STANDARD.md)** 🔴 **CRITICAL** — Neon vs Hyperdrive connection rules (8+ hours lost to violations)
-- **[02-FEATURES/TELNYX_WEBRTC_STANDARD.md](02-FEATURES/TELNYX_WEBRTC_STANDARD.md)** 🔴 **CRITICAL** — WebRTC audio device selection (virtual mic filtering required for two-way audio)
+- **[01-CORE/DATABASE_CONNECTION_STANDARD.md](01-CORE/DATABASE_CONNECTION_STANDARD.md)** — Neon before Hyperdrive. Never reverse.
+- **[02-FEATURES/TELNYX_WEBRTC_STANDARD.md](02-FEATURES/TELNYX_WEBRTC_STANDARD.md)** — WebRTC mic filtering required for two-way audio
+- **[01-CORE/AI_ROLE_POLICY.md](01-CORE/AI_ROLE_POLICY.md)** — AI operates as notary/stenographer, never autonomous
 
 ---
 
-## 📖 **Quick Navigation**
+## Quick Navigation
 
-### **🎯 Start Here (Gospel Truth):**
+### Gospel Docs (start here):
+- **[MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md)** — Complete system design, data flows, security
+- **[03-INFRASTRUCTURE/CLOUDFLARE_DEPLOYMENT.md](03-INFRASTRUCTURE/CLOUDFLARE_DEPLOYMENT.md)** — Hybrid deployment (Pages + Workers)
+- **[01-CORE/FINAL_STACK.md](01-CORE/FINAL_STACK.md)** — Production tech stack (edge-first)
+- **[CURRENT_STATUS.md](CURRENT_STATUS.md)** — Live system status, health metrics
+- **[06-REFERENCE/QUICK_REFERENCE.md](06-REFERENCE/QUICK_REFERENCE.md)** — One-page cheat sheet
+- **[../ROADMAP.md](../ROADMAP.md)** — Development roadmap
 
-- **[CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md)** ⭐ **GOSPEL** — Hybrid architecture (Pages + Workers), deployment guide, best practices
-- **[MASTER_ARCHITECTURE.md](MASTER_ARCHITECTURE.md)** ⭐ **CANONICAL** — Complete system design, data flows, security architecture
-- **[../ROADMAP.md](../ROADMAP.md)** - Development roadmap with progress tracking (109/109 items ✅)
-- **[FINAL_STACK.md](FINAL_STACK.md)** - Final consolidated production stack (edge-first)
-- **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - System overview, health metrics, known gaps
-- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - One-page cheat sheet
-
-### **📁 Folder Structure:**
+### Folder Structure:
 
 ```
 ARCH_DOCS/
-├── 00-README.md (this file) - Navigation index
-├── CLOUDFLARE_DEPLOYMENT.md ⭐ Gospel deployment guide
-├── MASTER_ARCHITECTURE.md ⭐ System architecture reference
-├── CURRENT_STATUS.md - System status & health (Session 16: Deep Audit & Remediation)
-├── QUICK_REFERENCE.md - Quick cheat sheet
-├── 01-CORE/ - Core architecture & system design
-├── 02-FEATURES/ - Feature-specific documentation (NEW: Collections Module)
-├── 03-INFRASTRUCTURE/ - Infrastructure & deployment (NEW: Security Hardening)
-├── 04-DESIGN/ - Design principles & UX guidelines
-├── 04-GUIDES/ - Implementation guides (NEW: Data Fetching Patterns)
-├── 05-AI-OPTIMIZATION/ ⭐ NEW - AI cost optimization (38% savings)
-├── 05-REFERENCE/ - Reference materials & samples
-└── DECISIONS/ - Architecture decisions & migration history
+├── 00-README.md              ← You are here
+├── CURRENT_STATUS.md         ← Live system status
+├── MASTER_ARCHITECTURE.md    ← System gospel
+│
+├── 01-CORE/                  ← Standards, policies, contracts
+│   ├── AI_ROLE_POLICY.md
+│   ├── ARTIFACT_AUTHORITY_CONTRACT.md
+│   ├── CLIENT_API_GUIDE.md
+│   ├── DATABASE_CONNECTION_STANDARD.md
+│   ├── DATABASE_SCHEMA_REGISTRY.md
+│   ├── FINAL_STACK.md
+│   ├── SCHEMA_DRIFT_QUICK_ACTIONS.md
+│   └── SYSTEM_OF_RECORD_COMPLIANCE.md
+│
+├── 02-FEATURES/              ← Feature specifications
+│   ├── BOOKING_SCHEDULING.md
+│   ├── COLLECTIONS_CRM.md
+│   ├── FUTURE_INTEGRATIONS.md
+│   ├── LIVE_TRANSLATION_CALL_FLOW.md
+│   ├── SECRET_SHOPPER_INFRASTRUCTURE.md
+│   └── TELNYX_WEBRTC_STANDARD.md
+│
+├── 03-INFRASTRUCTURE/        ← Deployment, security, operations
+│   ├── CLOUDFLARE_DEPLOYMENT.md
+│   ├── LOAD_TESTING_GUIDE.md
+│   ├── MONITORING.md
+│   ├── SECURITY_HARDENING.md
+│   └── TELNYX_ACCOUNT_TIER.md
+│
+├── 04-DESIGN/                ← UX, design system, patterns
+│   ├── DATA_FETCHING_PATTERNS.md
+│   ├── DESIGN_SYSTEM.md
+│   ├── UI_REBUILD_BLUEPRINT.md
+│   └── UX_WORKFLOW_PATTERNS.md
+│
+├── 05-AI/                    ← AI/ML architecture & costs
+│   ├── AI_ROUTER_ARCHITECTURE.md
+│   ├── BAKEOFF_GROK_GROQ_ELEVENLABS.md
+│   └── COST_OPTIMIZATION_STRATEGY.md
+│
+├── 06-REFERENCE/             ← Quick refs, testing, validation
+│   ├── CODEBASE_REFERENCE.md
+│   ├── DEPLOYMENT_RUNBOOK.md
+│   ├── FEATURE_GATING.md
+│   ├── QUICK_REFERENCE.md
+│   ├── TESTING.md
+│   └── VALIDATION_PROCESS.md
+│
+├── DECISIONS/                ← Architecture Decision Records
+│   ├── 000-use-architecture-decision-records.md
+│   ├── 001-telnyx-over-signalwire.md
+│   ├── 002-custom-auth-over-nextauth.md
+│   └── MIGRATION_CHANGELOG.md
+│
+└── LESSONS_LEARNED/          ← Institutional knowledge
+    ├── MAIN.md
+    ├── NAV_OVERHAUL_QA_REPORT.md
+    ├── SECURITY_AUDIT.md
+    ├── TELNYX_TRANSCRIPTION_API.md
+    └── TYPESCRIPT_BUILD_BUG.md
 ```
+
+**43 files. Zero stale vendor references. No duplicate numbering.**
 
 ---
 
-## 📊 **Current System Status**
+## Current System Status
 
-| Metric               | Value                                       | Status      |
-| -------------------- | ------------------------------------------- | ----------- |
-| **Architecture**     | Hybrid (Pages+Workers)                      | ✅ Deployed |
-| **Pages Deployment** | https://wordis-bond.com                     | ✅ Live     |
-| **Workers API**      | https://wordisbond-api.adrper79.workers.dev | ✅ Live     |
-| **Build**            | Clean (31 pages)                            | ✅          |
-| **Tests**            | 451 passing, 87 skipped                     | ✅          |
-| **Lint**             | 0 errors, 0 warnings                        | ✅          |
-| **API Migration**    | ✅ Complete — 120+ endpoints in Workers     | ✅ Done     |
-| **Client Pages**     | 31 pages (all static export)                | ✅ Done     |
-| **AI Optimization**  | 38% cost reduction via smart routing        | ✅ Active   |
-| **Security**         | RLS on 39+ tables, PII redaction active     | ✅ Hardened |
-
-**Current State (Feb 11, 2026):**
-
-- ✅ v4.47 deployed — 147/160 Backlog items complete (92%)
-- ✅ AI optimization active — 38% cost reduction via Groq routing
-- ✅ Security hardening complete — RLS, PII redaction, prompt sanitization
-- ✅ New features: Collections module, onboarding flow, data fetching hooks
-- ✅ 120+ API endpoints operational in Workers
-- ✅ 31/31 static pages building successfully
-
-**Services Integrated:**
-
-- ✅ Neon (DB) + Cloudflare R2 (Storage) + KV (Sessions/Cache)
-- ✅ Telnyx (Voice/WebRTC)
-- ✅ AssemblyAI (Transcription)
-- ✅ Groq (Ultra-fast inference) - **NEW**
+| Metric | Value | Status |
+|--------|-------|--------|
+| **Architecture** | Hybrid (Pages + Workers) | Deployed |
+| **UI** | https://wordis-bond.com | Live |
+| **API** | https://wordisbond-api.adrper79.workers.dev | Live |
+| **Navigation** | 3 Role Shells (agent/manager/admin) + Cockpit | Active |
+| **RBAC** | 9 roles, unified vocabulary | Enforced |
+| **Tables** | 96 (61 active, 35 orphan) | Needs cleanup |
+| **RLS** | 5/96 tables | App-code isolation |
+| **Tests** | 850+ (753 pass, 53 new nav/RBAC) | Green |
+| **API Routes** | 48 route files, 120+ endpoints | Operational |
+| **AI** | Groq (primary LLM) + Grok (TTS) | 38% cost savings |
 - ✅ Grok Voice (TTS) - **NEW**
 - ✅ OpenAI (LLM + TTS)
 - ✅ ElevenLabs (Premium TTS)

@@ -28,7 +28,7 @@ sentimentRoutes.get('/config', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT id, enabled, alert_threshold, objection_keywords, alert_channels, webhook_url,
@@ -64,7 +64,7 @@ sentimentRoutes.put('/config', sentimentRateLimit, async (c) => {
   const parsed = await validateBody(c, SentimentConfigSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const { enabled, alert_threshold, objection_keywords, alert_channels, webhook_url } =
       parsed.data
@@ -119,7 +119,7 @@ sentimentRoutes.get('/live/:callId', async (c) => {
   const callId = c.req.param('callId')
   const after = c.req.query('after') // segment_index to fetch after
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const query = after
       ? `SELECT segment_index, score, objections, escalation_recommended, created_at
@@ -159,7 +159,7 @@ sentimentRoutes.get('/summary/:callId', async (c) => {
 
   const callId = c.req.param('callId')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT avg_score, min_score, max_score, total_segments,
@@ -190,7 +190,7 @@ sentimentRoutes.get('/history', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
   const offset = parseInt(c.req.query('offset') || '0')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT s.call_id, s.avg_score, s.min_score, s.max_score,

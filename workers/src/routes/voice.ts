@@ -22,7 +22,7 @@ voiceRoutes.get('/targets', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT *
@@ -51,7 +51,7 @@ voiceRoutes.get('/config', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get voice config from database
     const result = await db.query(
@@ -95,7 +95,7 @@ voiceRoutes.put('/config', voiceRateLimit, async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, VoiceConfigSchema)
     if (!parsed.success) return parsed.response
@@ -227,7 +227,7 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateCallSchema)
     if (!parsed.success) return parsed.response
@@ -517,7 +517,7 @@ voiceRoutes.post('/targets', voiceRateLimit, async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, VoiceTargetSchema)
     if (!parsed.success) return parsed.response
@@ -564,7 +564,7 @@ voiceRoutes.delete('/targets/:id', voiceRateLimit, async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const targetId = c.req.param('id')
 

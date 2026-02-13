@@ -23,12 +23,12 @@ export const bookingsRoutes = new Hono<AppEnv>()
 
 // GET / — list bookings
 bookingsRoutes.get('/', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const limit = c.req.query('limit') || '10'
     const status = c.req.query('status') || null
@@ -62,12 +62,12 @@ bookingsRoutes.get('/', async (c) => {
 
 // POST / — create a booking
 bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const parsed = await validateBody(c, CreateBookingSchema)
     if (!parsed.success) return parsed.response
@@ -133,12 +133,12 @@ bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
 
 // PATCH /:id — update booking (cancel, reschedule, etc.)
 bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const bookingId = c.req.param('id')
     const parsed = await validateBody(c, UpdateBookingSchema)
@@ -183,12 +183,12 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
 
 // DELETE /:id — delete a booking
 bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const bookingId = c.req.param('id')
 

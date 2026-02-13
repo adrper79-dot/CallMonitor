@@ -33,7 +33,7 @@ dialerRoutes.post('/start', predictiveDialerRateLimit, async (c) => {
   const parsed = await validateBody(c, DialerQueueSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify campaign belongs to org
     const campResult = await db.query(
@@ -71,7 +71,7 @@ dialerRoutes.post('/pause', predictiveDialerRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const campaignId = parsed.data.campaign_id
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     await pauseDialerQueue(db, campaignId, session.organization_id, session.user_id)
 
@@ -103,7 +103,7 @@ dialerRoutes.post('/stop', predictiveDialerRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const campaignId = parsed.data.campaign_id
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     await db.query(
       `UPDATE campaigns SET status = 'completed', updated_at = NOW()
@@ -144,7 +144,7 @@ dialerRoutes.get('/stats/:campaignId', dialerRateLimit, async (c) => {
 
   const campaignId = c.req.param('campaignId')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify campaign belongs to org
     const campResult = await db.query(
@@ -179,7 +179,7 @@ dialerRoutes.put('/agent-status', dialerRateLimit, async (c) => {
   const parsed = await validateBody(c, DialerAgentStatusSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `INSERT INTO dialer_agent_status
@@ -223,7 +223,7 @@ dialerRoutes.get('/agents', dialerRateLimit, async (c) => {
 
   const campaignId = c.req.query('campaign_id')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const params: any[] = [session.organization_id]
     let query = `

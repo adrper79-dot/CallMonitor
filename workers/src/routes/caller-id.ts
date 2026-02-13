@@ -29,7 +29,7 @@ async function listCallerIds(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT * FROM caller_ids
@@ -55,7 +55,7 @@ async function initiateVerification(c: any) {
   if (!parsed.success) return parsed.response
   const { phone_number, label } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Check for duplicate
     const existing = await db.query(
@@ -163,7 +163,7 @@ callerIdRoutes.put('/verify', callerIdVerifyRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const { phone_number, code } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT id, verification_code FROM caller_ids
@@ -211,7 +211,7 @@ callerIdRoutes.delete('/:id', callerIdRateLimit, async (c) => {
 
   const callerId = c.req.param('id')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `DELETE FROM caller_ids

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useSession } from '@/components/AuthProvider'
-import { AppShell } from '@/components/layout/AppShell'
 import { useRBAC } from '@/hooks/useRBAC'
 import { apiGet } from '@/lib/apiClient'
 import { formatCurrency, formatNumber } from '@/lib/utils'
@@ -53,19 +52,16 @@ export default function AdminMetricsPage() {
 
   if (!isAuthorized) {
     return (
-      <AppShell>
-        <div className="max-w-7xl mx-auto px-6 py-8 text-center text-destructive">
-          Super-admin access required.
-        </div>
-      </AppShell>
+      <div className="max-w-7xl mx-auto px-6 py-8 text-center text-destructive">
+        Super-admin access required.
+      </div>
     )
   }
 
   if (error) {
     return (
-      <AppShell>
-        <div className="max-w-7xl mx-auto px-6 py-8 space-y-4">
-          <h1 className="text-2xl font-semibold text-gray-900">Platform Metrics</h1>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-4">
+        <h1 className="text-2xl font-semibold text-gray-900">Platform Metrics</h1>
         <div className="text-destructive">{error}</div>
         <button
           onClick={fetchMetrics}
@@ -73,13 +69,12 @@ export default function AdminMetricsPage() {
         >
           <RefreshCw className="w-4 h-4 mr-2" /> Retry
         </button>
-        </div>
-      </AppShell>
+      </div>
     )
   }
 
   return (
-    <AppShell>
+    <>
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
@@ -170,6 +165,6 @@ export default function AdminMetricsPage() {
         </Card>
       </div>
       </div>
-    </AppShell>
+    </>
   )
 }

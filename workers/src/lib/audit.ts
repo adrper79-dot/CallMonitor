@@ -128,7 +128,9 @@ export const AuditAction = {
   SUBSCRIPTION_CANCELLED: 'billing:subscription_cancelled',
   PAYMENT_RECEIVED: 'billing:payment_received',
   PAYMENT_FAILED: 'billing:payment_failed',
+  PAYMENT_METHOD_ADDED: 'billing:payment_method_added',
   PAYMENT_METHOD_REMOVED: 'billing:payment_method_removed',
+  BILLING_DATA_SYNC: 'billing:data_sync',
 
   // Bookings
   BOOKING_CREATED: 'booking:created',
@@ -305,5 +307,14 @@ export const AuditAction = {
   OBJECTION_REBUTTAL_CREATED: 'objection_rebuttal:created',
   OBJECTION_REBUTTAL_UPDATED: 'objection_rebuttal:updated',
   OBJECTION_REBUTTAL_DELETED: 'objection_rebuttal:deleted',
+
+  // Feature Flags (admin management)
+  FEATURE_FLAG_CREATED: 'feature_flag:created',
+  FEATURE_FLAG_UPDATED: 'feature_flag:updated',
+  FEATURE_FLAG_DELETED: 'feature_flag:deleted',
+
+  // DNC List Management
+  DNC_ENTRY_CREATED: 'dnc:created',
+  DNC_ENTRY_DELETED: 'dnc:deleted',
 } as const
 

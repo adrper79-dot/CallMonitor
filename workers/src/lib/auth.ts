@@ -25,9 +25,12 @@ export interface Session {
 export async function computeFingerprint(
   c: Context<{ Bindings: Env; Variables: { session: Session } }>
 ): Promise<string> {
+  // M-3: Fingerprint uses stable headers only — Origin varies with navigation context
+  // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — M-3: Origin changes break sessions
   const userAgent = c.req.header('User-Agent') || 'unknown'
-  const origin = c.req.header('Origin') || c.req.header('Referer') || 'unknown'
-  const raw = `${userAgent}|${origin}`
+  const acceptLang = c.req.header('Accept-Language') || 'unknown'
+  const secChUa = c.req.header('Sec-CH-UA') || 'unknown'
+  const raw = `${userAgent}|${acceptLang}|${secChUa}`
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -56,11 +59,21 @@ export function parseSessionToken(
   return null
 }
 
+/**
+ * Verify a session token against the database.
+ *
+ * @param c - Hono context
+ * @param token - Session token to verify
+ * @param externalDb - Optional shared DbClient. When provided, the function uses
+ *   this connection instead of opening its own pool. The caller is responsible for
+ *   closing it. Fixes H-3: double-pool per request.
+ */
 export async function verifySession(
   c: Context<{ Bindings: Env; Variables: { session: Session } }>,
-  token: string
+  token: string,
+  externalDb?: import('./db').DbClient
 ): Promise<Session | null> {
-  const db = getDb(c.env)
+  const db = externalDb || getDb(c.env)
   try {
     logger.info('[verifySession] Verifying session token', {
       token_prefix: token.substring(0, 8) + '...',
@@ -138,7 +151,10 @@ export async function verifySession(
     logger.error('[verifySession] Session verification failed', { error: error?.message || error })
     return null
   } finally {
-    await db.end()
+    // Only close the pool if we created it (no externalDb was passed)
+    if (!externalDb) {
+      await db.end()
+    }
   }
 }
 
@@ -214,7 +230,7 @@ export async function requireRole(
  * Used for hash comparison, fingerprint validation, and token verification.
  * BL-057 / BL-079: Replaces vulnerable === comparisons.
  */
-function timingSafeEqual(a: string, b: string): boolean {
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   const encoder = new TextEncoder()
   const bufA = encoder.encode(a)

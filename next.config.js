@@ -35,6 +35,8 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev',
+    // Feature flag: set to 'true' to enable new role-based navigation
+    NEXT_PUBLIC_NEW_NAV: process.env.NEXT_PUBLIC_NEW_NAV || 'false',
   },
 
   typescript: {

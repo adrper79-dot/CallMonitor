@@ -30,7 +30,7 @@ async function listScripts(c: any) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT * FROM shopper_scripts
@@ -60,7 +60,7 @@ async function upsertScript(c: any) {
   if (!parsed.success) return parsed.response
   const { id, name, content, scenario, is_active } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     if (id) {
       // Update existing
@@ -159,7 +159,7 @@ shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const scriptId = c.req.param('id')
     const parsed = await validateBody(c, UpdateShopperSchema)
@@ -206,7 +206,7 @@ shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const scriptId = c.req.param('id')
 
@@ -246,7 +246,7 @@ shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Try to get id from query or body
     let scriptId = c.req.query('id')

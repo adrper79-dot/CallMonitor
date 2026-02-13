@@ -30,7 +30,7 @@ adminRoutes.get('/auth-providers', async (c) => {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
   if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT id, provider, enabled, client_id, config, created_at, updated_at
@@ -70,7 +70,7 @@ adminRoutes.post('/auth-providers', adminRateLimit, async (c) => {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
   if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, UpdateAuthProviderSchema)
     if (!parsed.success) return parsed.response

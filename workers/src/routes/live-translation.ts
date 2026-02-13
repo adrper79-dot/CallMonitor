@@ -43,7 +43,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
 
   // Plan gating: live translation requires 'business' plan
   {
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const planCheck = await db.query(
         `SELECT o.plan FROM organizations o WHERE o.id = $1 LIMIT 1`,
@@ -89,7 +89,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
     const MAX_HEARTBEATS = 1800 // 30 minutes max at 1/s
 
     while (heartbeatCount < MAX_HEARTBEATS) {
-      const pollDb = getDb(c.env)
+      const pollDb = getDb(c.env, session.organization_id)
       try {
         // Check call status
         const statusResult = await pollDb.query(
@@ -166,7 +166,7 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
     }
 
     // Audit stream end (fire-and-forget with its own connection)
-    const auditDb = getDb(c.env)
+    const auditDb = getDb(c.env, session.organization_id)
     try {
       writeAuditLog(auditDb, {
         organizationId: session.organization_id,
@@ -189,10 +189,10 @@ liveTranslationRoutes.get('/stream', voiceRateLimit, async (c) => {
  * Useful for post-call review of live-translated content.
  */
 liveTranslationRoutes.get('/history', voiceRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const callId = c.req.query('callId')
     if (!callId) return c.json({ error: 'callId query parameter required' }, 400)

@@ -21,7 +21,7 @@ organizationsRoutes.post('/', orgRateLimit, async (c) => {
   const { user_id } = session
 
   // Use centralized DB client
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Check if user already has an organization
     const existingOrg = await db.query(
@@ -98,7 +98,7 @@ organizationsRoutes.get('/current', async (c) => {
   }
 
   // Use centralized DB client
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT o.id, o.name, o.plan, om.role
@@ -127,6 +127,49 @@ organizationsRoutes.get('/current', async (c) => {
     })
   } catch (err: any) {
     logger.error('GET /api/organizations/current error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch organization' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// GET /:id — Get organization by ID (admin/owner only)
+organizationsRoutes.get('/:id', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const orgId = c.req.param('id')
+  const db = getDb(c.env, session.organization_id)
+  try {
+    // Verify membership
+    const result = await db.query(
+      `SELECT o.id, o.name, o.plan, o.created_at, om.role,
+              (SELECT COUNT(*)::int FROM org_members WHERE organization_id = o.id) AS member_count
+       FROM organizations o
+       JOIN org_members om ON om.organization_id = o.id AND om.user_id = $1
+       WHERE o.id = $2`,
+      [session.user_id, orgId]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Organization not found' }, 404)
+    }
+
+    const org = result.rows[0]
+    return c.json({
+      success: true,
+      organization: {
+        id: org.id,
+        name: org.name,
+        plan: org.plan || 'free',
+        plan_status: 'active',
+        member_count: org.member_count,
+        created_at: org.created_at,
+      },
+      role: org.role,
+    })
+  } catch (err: any) {
+    logger.error('GET /api/organizations/:id error', { error: err?.message })
     return c.json({ error: 'Failed to fetch organization' }, 500)
   } finally {
     await db.end()

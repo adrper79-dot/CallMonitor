@@ -25,7 +25,7 @@ scorecardsRoutes.get('/', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const tableCheck = await db.query(
       `SELECT EXISTS (
@@ -61,7 +61,7 @@ scorecardsRoutes.post('/', scorecardsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateScorecardSchema)
     if (!parsed.success) return parsed.response
@@ -105,7 +105,7 @@ scorecardsRoutes.get('/alerts', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Check if alerts table exists
     const tableCheck = await db.query(
@@ -143,7 +143,7 @@ scorecardsRoutes.get('/:id', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const scorecardId = c.req.param('id')
 

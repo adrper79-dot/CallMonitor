@@ -25,6 +25,11 @@ interface RateLimitEntry {
   resetAt: number // epoch ms
 }
 
+// M-7: In-memory fallback counter per isolate — used when KV is unavailable
+// @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — M-7: Rate limiter fails open
+const memoryFallback = new Map<string, RateLimitEntry>()
+const MEM_FALLBACK_MAX = 5000 // cap map size to prevent unbounded growth
+
 /**
  * Create a rate-limiting middleware for Hono routes.
  *
@@ -51,43 +56,22 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
       c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
       'unknown'
 
-    // TEST ORGANIZATION BYPASS: Skip rate limiting for test org to prevent 429s in integration tests
-    // Check session for test org ID (3cc2cb3c-2f6c-4418-8c98-a7948aea9625)
+    // TEST ORGANIZATION BYPASS: Skip rate limiting for test org to prevent 429s in integration tests.
+    // Uses KV flag set at login time instead of querying DB per request.
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — C-1: DB connection in rate limiter was DoS amplifier
     try {
       const authHeader = c.req.header('authorization')
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.substring(7)
-        // Check if this is a test session by looking up the user's organization
-        const db = c.env.NEON_PG_CONN || c.env.HYPERDRIVE?.connectionString
-        if (db) {
-          const { Client } = await import('pg')
-          const client = new Client({ connectionString: db })
-          await client.connect()
-          try {
-            const result = await client.query(
-              `
-              SELECT om.organization_id
-              FROM public.sessions s
-              JOIN public.users u ON u.id = s.user_id
-              LEFT JOIN org_members om ON om.user_id = u.id
-              WHERE s.session_token = $1 AND s.expires > NOW()
-              LIMIT 1
-            `,
-              [token]
-            )
-            if (result.rows.length > 0 && result.rows[0].organization_id === '3cc2cb3c-2f6c-4418-8c98-a7948aea9625') {
-              logger.info('[rate-limit] Test organization session detected, bypassing rate limit', { prefix, ip })
-              await client.end()
-              return next()
-            }
-          } finally {
-            await client.end()
-          }
+        const isTestSession = await kv.get(`test-bypass:${token}`)
+        if (isTestSession === '1') {
+          logger.info('[rate-limit] Test organization session detected, bypassing rate limit', { prefix, ip })
+          return next()
         }
       }
     } catch (err) {
       logger.warn('[rate-limit] Error checking test session bypass', { error: err })
-      // Ignore auth parsing errors — proceed with rate limiting
+      // Ignore — proceed with rate limiting
     }
 
     const key = `${prefix}:${ip}`
@@ -133,8 +117,30 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
         c.header('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)))
       }
     } catch (err) {
-      // KV failure should never block requests — fail open
-      logger.error('[rate-limit] KV error, failing open', { error: (err as Error).message })
+      // M-7: KV failure — use in-memory per-isolate fallback instead of failing open
+      logger.error('[rate-limit] KV error, using memory fallback', { error: (err as Error).message })
+
+      const memKey = `${prefix}:${ip}`
+      const now = Date.now()
+      const existing = memoryFallback.get(memKey)
+
+      if (existing && now < existing.resetAt) {
+        if (existing.count >= limit) {
+          const retryAfter = Math.ceil((existing.resetAt - now) / 1000)
+          c.header('Retry-After', String(retryAfter))
+          return c.json({ error: 'Too many requests. Please try again later.', code: 'RATE_LIMIT', retry_after: retryAfter }, 429)
+        }
+        existing.count++
+      } else {
+        // Evict stale entries if map grows too large
+        if (memoryFallback.size > MEM_FALLBACK_MAX) {
+          const cutoff = now
+          for (const [k, v] of memoryFallback) {
+            if (v.resetAt < cutoff) memoryFallback.delete(k)
+          }
+        }
+        memoryFallback.set(memKey, { count: 1, resetAt: now + windowSeconds * 1000 })
+      }
     }
 
     return next()

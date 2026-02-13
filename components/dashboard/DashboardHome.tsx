@@ -94,7 +94,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
   return (
     <div className="space-y-8">
       {/* Key Metrics — differentiated by role */}
-      <section aria-label="Key Metrics" className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <section aria-label="Key Metrics" className="grid grid-cols-2 md:grid-cols-4 gap-4" data-tour="metrics">
         <MetricCard
           label={isOwnerOrAdmin ? 'Total Calls (Org)' : 'My Calls'}
           value={stats?.totalCalls || 0}
@@ -149,7 +149,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-tour="dashboard-grid">
         {/* Quick Actions */}
-        <section aria-label="Quick Actions" className="space-y-4">
+        <section aria-label="Quick Actions" className="space-y-4" data-tour="quick-actions">
           <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
 
           {stats?.totalCalls === 0 ? (
@@ -184,7 +184,7 @@ export default function DashboardHome({ organizationId }: { organizationId: stri
         </section>
 
         {/* Recent Calls */}
-        <section aria-label="Recent Calls" className="space-y-4">
+        <section aria-label="Recent Calls" className="space-y-4" data-tour="recent-calls">
           <h2 className="text-lg font-semibold text-gray-900">Recent Calls</h2>
 
           <div className="bg-white border border-gray-200 rounded-md overflow-hidden">

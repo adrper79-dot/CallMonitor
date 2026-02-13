@@ -16,12 +16,12 @@ export const userRoutes = new Hono<AppEnv>()
 
 // Get current authenticated user profile
 userRoutes.get('/me', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const result = await db.query(
       `SELECT u.id, u.email, u.name, u.created_at,
@@ -64,12 +64,12 @@ userRoutes.get('/me', async (c) => {
 
 // Get user's organization info
 userRoutes.get('/:id/organization', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const userId = c.req.param('id')
 

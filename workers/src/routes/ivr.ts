@@ -29,7 +29,7 @@ ivrRoutes.post('/start', ivrRateLimit, async (c) => {
   const parsed = await validateBody(c, IVRFlowSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify account belongs to org
     const acctResult = await db.query(
@@ -95,7 +95,7 @@ ivrRoutes.get('/status/:callId', ivrRateLimit, async (c) => {
 
   const callId = c.req.param('callId')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get recent collection payments for this call
     const paymentResult = await db.query(

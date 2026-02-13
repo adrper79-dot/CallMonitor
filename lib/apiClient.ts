@@ -274,6 +274,11 @@ export async function apiPostNoAuth<T = any>(url: string, body?: any): Promise<T
   if (!res.ok) {
     throw new ApiError(res.status, data.error?.message || data.error || `HTTP ${res.status}`)
   }
+  // H-1: Read session token from header (not JSON body) for login/signup flows
+  const sessionToken = res.headers.get('X-Session-Token')
+  if (sessionToken) {
+    data.session_token = sessionToken
+  }
   return data as T
 }
 

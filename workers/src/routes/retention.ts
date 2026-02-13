@@ -28,7 +28,7 @@ export const retentionRoutes = new Hono<AppEnv>()
 retentionRoutes.get('/', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT * FROM retention_policies
@@ -58,7 +58,7 @@ retentionRoutes.get('/', async (c) => {
 retentionRoutes.put('/', retentionRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, UpdateRetentionSchema)
     if (!parsed.success) return parsed.response
@@ -117,7 +117,7 @@ retentionRoutes.put('/', retentionRateLimit, async (c) => {
 retentionRoutes.get('/legal-holds', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
     const offset = parseInt(c.req.query('offset') || '0', 10)
@@ -143,7 +143,7 @@ retentionRoutes.get('/legal-holds', async (c) => {
 retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateLegalHoldSchema)
     if (!parsed.success) return parsed.response
@@ -185,7 +185,7 @@ retentionRoutes.post('/legal-holds', retentionRateLimit, async (c) => {
 retentionRoutes.delete('/legal-holds/:id', retentionRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const holdId = c.req.param('id')
 

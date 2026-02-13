@@ -120,6 +120,38 @@ webrtcRoutes.get('/token', telnyxVoiceRateLimit, async (c) => {
       )
     }
 
+    // M-1: Cache WebRTC credentials in KV to prevent orphaned credentials
+    // Each credential lasts 1 hour — cache for 55 minutes to allow 5-min buffer
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — M-1: Credential orphaning
+    const cacheKey = `webrtc-cred:${session.user_id}`
+    try {
+      const cached = await c.env.KV.get(cacheKey, 'json') as {
+        token: string
+        username: string
+        credential_id: string
+        expires: string
+      } | null
+      if (cached && new Date(cached.expires).getTime() > Date.now() + 5 * 60 * 1000) {
+        logger.info('Returning cached WebRTC credential', { user_id: session.user_id })
+        return c.json({
+          success: true,
+          token: cached.token,
+          username: cached.username,
+          credential_id: cached.credential_id,
+          caller_id: c.env.TELNYX_NUMBER || '',
+          expires: cached.expires,
+          rtcConfig: {
+            iceServers: [
+              { urls: 'stun:stun.telnyx.com:3478' },
+              { urls: 'stun:stun.l.google.com:19302' },
+            ],
+          },
+        })
+      }
+    } catch (kvErr) {
+      logger.warn('KV cache read failed, creating new credential', { error: (kvErr as Error)?.message })
+    }
+
     // Step 1: Create a telephony credential for this user session
     logger.info('Creating telephony credential')
     const createCredResponse = await fetch('https://api.telnyx.com/v2/telephony_credentials', {
@@ -210,6 +242,18 @@ webrtcRoutes.get('/token', telnyxVoiceRateLimit, async (c) => {
 
     logger.info('Successfully obtained token')
 
+    // M-1: Cache credential in KV (55-min TTL — 5-min buffer before 1-hour expiry)
+    try {
+      await c.env.KV.put(cacheKey, JSON.stringify({
+        token: jwtToken,
+        username: credData.data.sip_username,
+        credential_id: credentialId,
+        expires: credData.data.expires_at,
+      }), { expirationTtl: 55 * 60 })
+    } catch (kvErr) {
+      logger.warn('KV cache write failed', { error: (kvErr as Error)?.message })
+    }
+
     return c.json({
       success: true,
       token: jwtToken,
@@ -246,7 +290,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
   }
 
   // Use centralized DB client to create call record
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Create call record - using actual schema columns
     const callResult = await db.query(
@@ -303,7 +347,9 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     }
 
     // Create idempotency key for safe retries
-    const idempotencyKey = `webrtc_dial_${callId}_${Date.now()}`
+    // Uses only callId — Date.now() would make every retry unique, defeating idempotency
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — L-4
+    const idempotencyKey = `webrtc_dial_${callId}`
 
     const telnyxResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',

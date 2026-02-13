@@ -49,7 +49,7 @@ async function getBillingInfo(c: any) {
   }
 
   // Query real subscription data from organizations table
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Safe query: only select columns guaranteed to exist (id, name)
     // 'plan' column may not exist — use COALESCE/fallback pattern
@@ -228,44 +228,119 @@ billingRoutes.get('/payment-methods', async (c) => {
   }
 
   // Look up stripe_customer_id for this org
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query('SELECT stripe_customer_id FROM organizations WHERE id = $1', [
       session.organization_id,
     ])
     const customerId = result.rows?.[0]?.stripe_customer_id
 
-    if (!customerId || !c.env.STRIPE_SECRET_KEY) {
+    if (!customerId) {
       return c.json({
         success: true,
         methods: [],
-        note: 'No Stripe customer linked or Stripe not configured',
+        note: 'No Stripe customer linked',
       })
     }
 
-    // Fetch payment methods from Stripe API
-    const stripeRes = await fetch(
-      `https://api.stripe.com/v1/payment_methods?customer=${customerId}&type=card&limit=10`,
-      {
-        headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
-      }
-    )
-
-    if (!stripeRes.ok) {
-      logger.error('Stripe payment methods fetch failed', { status: stripeRes.status })
-      return c.json({ success: true, methods: [] })
+    // First try to get payment methods from mirror table
+    let methods: any = null
+    try {
+      const mirrorResult = await db.query(
+        `SELECT 
+          stripe_payment_method_id as id,
+          card_brand,
+          card_last4,
+          card_exp_month,
+          card_exp_year,
+          is_default
+        FROM stripe_payment_methods
+        WHERE organization_id = $1
+        ORDER BY created_at DESC`,
+        [session.organization_id]
+      )
+      methods = mirrorResult.rows.map((row: any) => ({
+        id: row.id,
+        card: {
+          brand: row.card_brand,
+          last4: row.card_last4,
+          exp_month: row.card_exp_month,
+          exp_year: row.card_exp_year,
+        },
+        is_default: row.is_default,
+      }))
+    } catch (err) {
+      logger.warn('Failed to query stripe_payment_methods mirror table', { error: String(err) })
     }
 
-    const stripeData = (await stripeRes.json()) as any
+    // If mirror table is empty or unavailable, fallback to Stripe API
+    if (!methods || methods.length === 0) {
+      if (!c.env.STRIPE_SECRET_KEY) {
+        return c.json({
+          success: true,
+          methods: [],
+          note: 'Stripe not configured',
+        })
+      }
 
-    const methods = (stripeData.data || []).map((pm: any) => ({
-      id: pm.id,
-      brand: pm.card?.brand,
-      last4: pm.card?.last4,
-      exp_month: pm.card?.exp_month,
-      exp_year: pm.card?.exp_year,
-      is_default: false, // Would need to check default_payment_method on customer
-    }))
+      // Fetch payment methods from Stripe API
+      const stripeRes = await fetch(
+        `https://api.stripe.com/v1/payment_methods?customer=${customerId}&type=card&limit=10`,
+        {
+          headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+        }
+      )
+
+      if (!stripeRes.ok) {
+        logger.error('Stripe payment methods fetch failed', { status: stripeRes.status })
+        return c.json({ success: true, methods: [] })
+      }
+
+      const stripeData = (await stripeRes.json()) as any
+
+      methods = (stripeData.data || []).map((pm: any) => ({
+        id: pm.id,
+        card: {
+          brand: pm.card?.brand,
+          last4: pm.card?.last4,
+          exp_month: pm.card?.exp_month,
+          exp_year: pm.card?.exp_year,
+        },
+        is_default: false, // Would need to check default_payment_method on customer
+      }))
+
+      // Cache in mirror table for future requests
+      for (const pm of methods) {
+        try {
+          await db.query(
+            `INSERT INTO stripe_payment_methods (
+              organization_id, stripe_customer_id, stripe_payment_method_id,
+              type, is_default, card_brand, card_last4, card_exp_month, card_exp_year
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (stripe_payment_method_id) DO UPDATE SET
+              is_default = EXCLUDED.is_default,
+              card_brand = EXCLUDED.card_brand,
+              card_last4 = EXCLUDED.card_last4,
+              card_exp_month = EXCLUDED.card_exp_month,
+              card_exp_year = EXCLUDED.card_exp_year,
+              updated_at = NOW()`,
+            [
+              session.organization_id,
+              customerId,
+              pm.id,
+              'card',
+              pm.is_default,
+              pm.card.brand,
+              pm.card.last4,
+              pm.card.exp_month,
+              pm.card.exp_year,
+            ]
+          )
+        } catch (cacheErr) {
+          logger.warn('Failed to cache payment method in mirror table', { error: String(cacheErr) })
+        }
+      }
+    }
 
     return c.json({ success: true, methods })
   } catch (err: any) {
@@ -278,12 +353,12 @@ billingRoutes.get('/payment-methods', async (c) => {
 
 // Delete a payment method
 billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     const pmId = c.req.param('id')
 
@@ -340,7 +415,7 @@ billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
   }
 })
 
-// Get invoices — queries real billing_events from database
+// Get invoices — queries stripe_invoices mirror table with Stripe API fallback
 billingRoutes.get('/invoices', async (c) => {
   const session = await requireAuth(c)
   if (!session) {
@@ -351,30 +426,113 @@ billingRoutes.get('/invoices', async (c) => {
     return c.json({ success: true, invoices: [] })
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const page = Math.max(1, parseInt(c.req.query('page') || '1'))
     const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
     const offset = (page - 1) * limit
 
-    const invoices = await db.query(
-      `SELECT 
-        id,
-        event_type,
-        amount,
-        invoice_id,
-        created_at
-      FROM billing_events
-      WHERE organization_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2
-      OFFSET $3`,
-      [session.organization_id, limit, offset]
-    )
+    // First try to get invoices from mirror table
+    let invoices: any = null
+    try {
+      const result = await db.query(
+        `SELECT 
+          id,
+          stripe_invoice_id as number,
+          amount_paid_cents / 100.0 as amount_paid,
+          currency,
+          status,
+          invoice_date as created,
+          hosted_invoice_url,
+          invoice_pdf_url as invoice_pdf
+        FROM stripe_invoices
+        WHERE organization_id = $1
+        ORDER BY invoice_date DESC
+        LIMIT $2
+        OFFSET $3`,
+        [session.organization_id, limit, offset]
+      )
+      invoices = result.rows
+    } catch (err) {
+      logger.warn('Failed to query stripe_invoices mirror table', { error: String(err) })
+    }
+
+    // If mirror table is empty or unavailable, fallback to Stripe API
+    if (!invoices || invoices.length === 0) {
+      if (!c.env.STRIPE_SECRET_KEY) {
+        return c.json({ success: true, invoices: [] })
+      }
+
+      // Get customer ID
+      const customerResult = await db.query(
+        'SELECT stripe_customer_id FROM organizations WHERE id = $1',
+        [session.organization_id]
+      )
+      const customerId = customerResult.rows?.[0]?.stripe_customer_id
+
+      if (!customerId) {
+        return c.json({ success: true, invoices: [] })
+      }
+
+      // Fetch from Stripe API
+      const stripeRes = await fetch(
+        `https://api.stripe.com/v1/invoices?customer=${customerId}&limit=${limit}`,
+        {
+          headers: { Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}` },
+        }
+      )
+
+      if (stripeRes.ok) {
+        const stripeData = (await stripeRes.json()) as any
+        invoices = (stripeData.data || []).map((inv: any) => ({
+          id: inv.id,
+          number: inv.number,
+          amount_paid: inv.amount_paid / 100,
+          currency: inv.currency,
+          status: inv.status,
+          created: inv.created,
+          hosted_invoice_url: inv.hosted_invoice_url,
+          invoice_pdf: inv.invoice_pdf,
+        }))
+
+        // Cache in mirror table for future requests
+        for (const inv of invoices) {
+          try {
+            await db.query(
+              `INSERT INTO stripe_invoices (
+                organization_id, stripe_invoice_id, stripe_customer_id,
+                status, amount_due_cents, amount_paid_cents, currency,
+                invoice_date, hosted_invoice_url, invoice_pdf_url
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              ON CONFLICT (stripe_invoice_id) DO UPDATE SET
+                status = EXCLUDED.status,
+                amount_paid_cents = EXCLUDED.amount_paid_cents,
+                hosted_invoice_url = EXCLUDED.hosted_invoice_url,
+                invoice_pdf_url = EXCLUDED.invoice_pdf_url,
+                updated_at = NOW()`,
+              [
+                session.organization_id,
+                inv.id,
+                customerId,
+                inv.status,
+                0, // amount_due_cents - not available in list
+                Math.round(inv.amount_paid * 100),
+                inv.currency,
+                new Date(inv.created * 1000).toISOString(),
+                inv.hosted_invoice_url,
+                inv.invoice_pdf,
+              ]
+            )
+          } catch (cacheErr) {
+            logger.warn('Failed to cache invoice in mirror table', { error: String(cacheErr) })
+          }
+        }
+      }
+    }
 
     return c.json({
       success: true,
-      invoices: invoices.rows || [],
+      invoices: invoices || [],
       page,
       limit,
     })
@@ -403,7 +561,7 @@ billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
     const { priceId, planId } = parsed.data
 
     // Look up or create Stripe customer
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const orgResult = await db.query(
         'SELECT stripe_customer_id FROM organizations WHERE id = $1',
@@ -499,7 +657,7 @@ billingRoutes.post('/portal', billingRateLimit, idempotent(), async (c) => {
     }
 
     // Look up Stripe customer
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const orgResult = await db.query(
         'SELECT stripe_customer_id FROM organizations WHERE id = $1',
@@ -558,7 +716,7 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
     }
 
     // Look up subscription ID
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const orgResult = await db.query('SELECT subscription_id FROM organizations WHERE id = $1', [
         session.organization_id,
@@ -638,7 +796,7 @@ billingRoutes.post('/resume', billingRateLimit, idempotent(), async (c) => {
     return c.json({ error: 'Stripe not configured' }, 503)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const orgResult = await db.query(
       'SELECT subscription_id, subscription_status FROM organizations WHERE id = $1',
@@ -705,7 +863,7 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
   if (!parsed.success) return parsed.response
   const { priceId, planId } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const orgResult = await db.query(
       'SELECT subscription_id, plan_id FROM organizations WHERE id = $1',
@@ -778,5 +936,42 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
     return c.json({ error: 'Failed to change plan' }, 500)
   } finally {
     await db.end()
+  }
+})
+
+// Sync Stripe data into mirror tables (admin only)
+billingRoutes.post('/sync-stripe-data', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  // Only allow owner/admin
+  if (!session.role || !['owner', 'admin'].includes(session.role)) {
+    return c.json({ error: 'Insufficient permissions' }, 403)
+  }
+
+  try {
+    const { syncStripeData } = await import('../lib/stripe-sync')
+    const result = await syncStripeData({
+      organizationId: session.organization_id,
+      force: true,
+      limit: 50
+    })
+
+    writeAuditLog(await getDb(c.env, session.organization_id), {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.BILLING_DATA_SYNC,
+      resourceType: 'billing',
+      resourceId: 'stripe_sync',
+      oldValue: null,
+      newValue: { result },
+    })
+
+    return c.json(result)
+  } catch (err: any) {
+    logger.error('POST /api/billing/sync-stripe-data error', { error: err?.message })
+    return c.json({ error: 'Failed to sync Stripe data' }, 500)
   }
 })

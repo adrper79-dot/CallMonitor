@@ -44,7 +44,7 @@ aiTranscribeRoutes.post(
       return c.json({ error: 'Transcription service not configured' }, 503)
     }
 
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const body = await c.req.json<{
         audio_url?: string
@@ -131,7 +131,7 @@ aiTranscribeRoutes.get('/status/:id', aiTranscriptionRateLimit, async (c) => {
   const transcriptId = c.req.param('id')
 
   // Verify transcript belongs to this org before hitting AssemblyAI
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const ownerCheck = await db.query(
       `SELECT id FROM ai_summaries WHERE external_id = $1 AND organization_id = $2`,
@@ -175,7 +175,7 @@ aiTranscribeRoutes.get('/result/:id', aiTranscriptionRateLimit, async (c) => {
   }
 
   const transcriptId = c.req.param('id')
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
 
   try {
     const aaiResponse = await fetch(`${ASSEMBLYAI_BASE}/transcript/${transcriptId}`, {

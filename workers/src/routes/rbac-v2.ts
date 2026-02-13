@@ -37,10 +37,10 @@ const ROLE_INHERITANCE: Record<string, string[]> = {
 
 // Get permissions context for current user
 rbacRoutes.get('/context', rbacRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const orgId = c.req.query('orgId') || session.organization_id
     const userRole = session.role || 'viewer'
@@ -105,10 +105,10 @@ rbacRoutes.get('/context', rbacRateLimit, async (c) => {
 
 // Check if user has a specific permission
 rbacRoutes.get('/check', rbacRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const resource = c.req.query('resource')
     const action = c.req.query('action')
@@ -143,10 +143,10 @@ rbacRoutes.get('/check', rbacRateLimit, async (c) => {
 
 // List all available roles and their permissions (admin+)
 rbacRoutes.get('/roles', rbacRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = ROLE_HIERARCHY[session.role] || 0
     if (roleLevel < 4) {

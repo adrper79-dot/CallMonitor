@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import { BookingModal } from '@/components/voice/BookingModal'
 import { ClientDate } from '@/components/ui/ClientDate'
 import { logger } from '@/lib/logger'
@@ -113,6 +114,7 @@ export default function BookingsPage() {
 
   return (
     <AppShell>
+      <FeatureFlagRedirect to="/schedule" />
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">

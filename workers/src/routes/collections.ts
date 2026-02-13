@@ -42,7 +42,7 @@ collectionsRoutes.get('/', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     if (!session.organization_id) {
       return c.json({ success: true, accounts: [] })
@@ -89,7 +89,7 @@ collectionsRoutes.get('/stats', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT
@@ -149,7 +149,7 @@ collectionsRoutes.get('/imports', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT * FROM collection_csv_imports
@@ -173,7 +173,7 @@ collectionsRoutes.post('/', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateCollectionAccountSchema)
     if (!parsed.success) return parsed.response
@@ -229,7 +229,7 @@ collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
   const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CollectionCsvImportSchema)
     if (!parsed.success) return parsed.response
@@ -386,7 +386,7 @@ collectionsRoutes.get('/:id', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -419,7 +419,7 @@ collectionsRoutes.put('/:id', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
     const parsed = await validateBody(c, UpdateCollectionAccountSchema)
@@ -499,7 +499,7 @@ collectionsRoutes.delete('/:id', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'operator')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -539,7 +539,7 @@ collectionsRoutes.get('/:id/payments', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -564,7 +564,7 @@ collectionsRoutes.post('/:id/payments', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -640,7 +640,7 @@ collectionsRoutes.get('/:id/tasks', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -665,7 +665,7 @@ collectionsRoutes.post('/:id/tasks', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
 
@@ -726,7 +726,7 @@ collectionsRoutes.put('/:id/tasks/:taskId', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
     const taskId = c.req.param('taskId')
@@ -786,7 +786,7 @@ collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) =
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('id')
     const taskId = c.req.param('taskId')
@@ -816,6 +816,74 @@ collectionsRoutes.delete('/:id/tasks/:taskId', collectionsRateLimit, async (c) =
   } catch (err: any) {
     logger.error('DELETE /api/collections/:id/tasks/:taskId error', { error: err?.message })
     return c.json({ error: 'Failed to delete task' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Get notes for account ───────────────────────────────────────────────────
+collectionsRoutes.get('/:id/notes', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const accountId = c.req.param('id')
+
+    const result = await db.query(
+      `SELECT cn.*, u.name AS author_name, u.email AS author_email
+       FROM collection_notes cn
+       LEFT JOIN users u ON cn.user_id = u.id
+       WHERE cn.account_id = $1 AND cn.organization_id = $2
+       ORDER BY cn.created_at DESC
+       LIMIT 100`,
+      [accountId, session.organization_id]
+    )
+
+    return c.json({ success: true, notes: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/:id/notes error', { error: err?.message })
+    return c.json({ success: true, notes: [] })
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Add note to account ─────────────────────────────────────────────────────
+collectionsRoutes.post('/:id/notes', collectionsRateLimit, async (c) => {
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const accountId = c.req.param('id')
+    const body = await c.req.json()
+    const { content } = body
+
+    if (!content?.trim()) {
+      return c.json({ error: 'content is required' }, 400)
+    }
+
+    // Verify account belongs to org
+    const acctCheck = await db.query(
+      `SELECT id FROM collection_accounts WHERE id = $1 AND organization_id = $2`,
+      [accountId, session.organization_id]
+    )
+    if (acctCheck.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    const result = await db.query(
+      `INSERT INTO collection_notes (organization_id, account_id, user_id, content)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [session.organization_id, accountId, session.user_id, content.trim()]
+    )
+
+    return c.json({ success: true, note: result.rows[0] }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/collections/:id/notes error', { error: err?.message })
+    return c.json({ error: 'Failed to add note' }, 500)
   } finally {
     await db.end()
   }

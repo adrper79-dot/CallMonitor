@@ -10,7 +10,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'
-import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { apiGet, apiPost, resolveApiUrl } from '@/lib/apiClient'
@@ -144,8 +143,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <AppShell organizationName={undefined} userEmail={session?.user?.email || undefined}>
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -245,7 +243,6 @@ export default function ReportsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </AppShell>
+    </div>
   )
 }

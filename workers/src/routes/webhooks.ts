@@ -43,6 +43,46 @@ import { logDisclosureEvent } from '../lib/compliance-checker'
 
 export const webhooksRoutes = new Hono<AppEnv>()
 
+// ─── PII Sanitizer for DLQ Payloads ──────────────────────────────────────
+
+/**
+ * H-5: Strip PII from webhook payloads before storing in KV DLQ.
+ * Retains event structure + IDs for replay, redacts phone numbers,
+ * transcripts, billing details, and personal info.
+ * @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — H-5
+ */
+function sanitizeDLQPayload(payload: any, source: string): Record<string, any> {
+  if (!payload || typeof payload !== 'object') return { _redacted: true }
+
+  // PII field patterns to redact
+  const piiKeys = /phone|number|email|name|address|transcript|text|body|card|bank|account_number|ssn|dob|billing|audio_url|recording_url/i
+
+  function redactObject(obj: any, depth = 0): any {
+    if (depth > 5) return '[nested]'
+    if (obj === null || obj === undefined) return obj
+    if (typeof obj === 'string') return obj
+    if (Array.isArray(obj)) return obj.map((item) => redactObject(item, depth + 1))
+    if (typeof obj !== 'object') return obj
+
+    const clean: Record<string, any> = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (piiKeys.test(key)) {
+        clean[key] = '[REDACTED]'
+      } else if (typeof value === 'object' && value !== null) {
+        clean[key] = redactObject(value, depth + 1)
+      } else {
+        clean[key] = value
+      }
+    }
+    return clean
+  }
+
+  const sanitized = redactObject(payload)
+  sanitized._dlq_source = source
+  sanitized._pii_redacted = true
+  return sanitized
+}
+
 // ─── Dead Letter Queue (DLQ) Helper ───────────────────────────────────────
 
 /**
@@ -68,10 +108,14 @@ async function storeDLQ(
     const timestamp = Date.now()
     const key = `webhook-dlq:${source}:${timestamp}`
 
+    // H-5: Strip PII from DLQ payloads — store only metadata + event type
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — H-5: Full PII in KV DLQ
+    const sanitizedPayload = sanitizeDLQPayload(payload, source)
+
     const dlqEntry = {
       source,
       event_type: eventType,
-      payload,
+      payload: sanitizedPayload,
       error,
       timestamp: new Date(timestamp).toISOString(),
       replay_url: `/api/internal/webhook-dlq/replay/${source}/${timestamp}`,
@@ -441,26 +485,28 @@ webhooksRoutes.post('/assemblyai', externalWebhookRateLimit, async (c) => {
 
 // Stripe billing webhook — verified via HMAC-SHA256 signature
 webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
+  // M-4 fix: Verify signature BEFORE opening DB connection.
+  // Unsigned webhook spam no longer exhausts the connection pool.
+  const signature = c.req.header('stripe-signature')
+  const body = await c.req.text()
+
+  const stripeSecret = (c.env as any).STRIPE_WEBHOOK_SECRET
+  if (!stripeSecret) {
+    logger.error('STRIPE_WEBHOOK_SECRET not configured')
+    return c.json({ error: 'Webhook verification not configured' }, 500)
+  }
+
+  if (!signature) {
+    return c.json({ error: 'Missing stripe-signature header' }, 401)
+  }
+
+  const valid = await verifyStripeSignature(body, signature, stripeSecret)
+  if (!valid) {
+    return c.json({ error: 'Invalid webhook signature' }, 401)
+  }
+
   const db = getDb(c.env)
   try {
-    const signature = c.req.header('stripe-signature')
-    const body = await c.req.text()
-
-    // Verify Stripe webhook signature
-    const stripeSecret = (c.env as any).STRIPE_WEBHOOK_SECRET
-    if (!stripeSecret) {
-      logger.error('STRIPE_WEBHOOK_SECRET not configured')
-      return c.json({ error: 'Webhook verification not configured' }, 500)
-    }
-
-    if (!signature) {
-      return c.json({ error: 'Missing stripe-signature header' }, 401)
-    }
-
-    const valid = await verifyStripeSignature(body, signature, stripeSecret)
-    if (!valid) {
-      return c.json({ error: 'Invalid webhook signature' }, 401)
-    }
 
     const event = JSON.parse(body)
 
@@ -505,6 +551,12 @@ webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
         break
       case 'invoice.payment_failed':
         await handleInvoiceFailed(db, event.data.object)
+        break
+      case 'payment_method.attached':
+        await handlePaymentMethodAttached(db, event.data.object)
+        break
+      case 'payment_method.detached':
+        await handlePaymentMethodDetached(db, event.data.object)
         break
       // Silently ignore other event types
     }
@@ -1585,6 +1637,44 @@ export async function handleSubscriptionUpdate(db: DbClient, subscription: any) 
     [subscription.status, subscription.id, planId, orgId, subscription.customer]
   )
 
+  // Also populate stripe_subscriptions mirror table
+  try {
+    const price = subscription.items.data[0]?.price
+    await db.query(
+      `INSERT INTO stripe_subscriptions (
+        organization_id, stripe_customer_id, stripe_subscription_id, stripe_price_id,
+        plan, status, current_period_start, current_period_end, cancel_at_period_end,
+        canceled_at, amount_cents, currency, interval, trial_start, trial_end
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT (stripe_subscription_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        current_period_start = EXCLUDED.current_period_start,
+        current_period_end = EXCLUDED.current_period_end,
+        cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+        canceled_at = EXCLUDED.canceled_at,
+        updated_at = NOW()`,
+      [
+        orgId,
+        subscription.customer,
+        subscription.id,
+        price?.id,
+        price?.metadata?.plan || 'free', // Map price to plan name
+        subscription.status,
+        new Date(subscription.current_period_start * 1000).toISOString(),
+        new Date(subscription.current_period_end * 1000).toISOString(),
+        subscription.cancel_at_period_end,
+        subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+        price?.unit_amount || 0,
+        price?.currency || 'usd',
+        price?.recurring?.interval || 'month',
+        subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null,
+        subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+      ]
+    )
+  } catch (err) {
+    logger.warn('Failed to update stripe_subscriptions mirror table', { error: String(err) })
+  }
+
   writeAuditLog(db, {
     organizationId: orgId,
     userId: 'system',
@@ -1643,6 +1733,41 @@ async function handleInvoicePaid(db: DbClient, invoice: any) {
 
   const orgId = result.rows[0]?.organization_id
   if (orgId) {
+    // Also populate stripe_invoices mirror table
+    try {
+      await db.query(
+        `INSERT INTO stripe_invoices (
+          organization_id, stripe_invoice_id, stripe_customer_id, stripe_subscription_id,
+          status, amount_due_cents, amount_paid_cents, currency,
+          invoice_date, due_date, paid_at, hosted_invoice_url, invoice_pdf_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (stripe_invoice_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          amount_paid_cents = EXCLUDED.amount_paid_cents,
+          paid_at = EXCLUDED.paid_at,
+          hosted_invoice_url = EXCLUDED.hosted_invoice_url,
+          invoice_pdf_url = EXCLUDED.invoice_pdf_url,
+          updated_at = NOW()`,
+        [
+          orgId,
+          invoice.id,
+          invoice.customer,
+          invoice.subscription,
+          invoice.status,
+          invoice.amount_due,
+          invoice.amount_paid,
+          invoice.currency,
+          invoice.created ? new Date(invoice.created * 1000).toISOString() : null,
+          invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
+          invoice.status_transitions?.paid_at ? new Date(invoice.status_transitions.paid_at * 1000).toISOString() : null,
+          invoice.hosted_invoice_url,
+          invoice.invoice_pdf,
+        ]
+      )
+    } catch (err) {
+      logger.warn('Failed to update stripe_invoices mirror table', { error: String(err) })
+    }
+
     writeAuditLog(db, {
       organizationId: orgId,
       userId: 'system',
@@ -1662,38 +1787,39 @@ export async function handleInvoiceFailed(db: DbClient, invoice: any) {
     [invoice.customer]
   )
 
-  if (!orgResult.rows[0]) {
-    logger.warn('Stripe webhook for unknown customer', {
-      customer_id: invoice.customer,
-      event_type: 'invoice.payment_failed',
-    })
+  const orgId = orgResult.rows[0]?.organization_id
+  if (!orgId) {
+    logger.warn('Invoice failed for unknown customer', { customer_id: invoice.customer })
     return
   }
 
-  const orgId = orgResult.rows[0].id
-
-  // Use verified org ID for update with additional WHERE clause safety
-  await db.query(
-    `UPDATE organizations
-     SET subscription_status = 'past_due'
-     WHERE id = $1 AND stripe_customer_id = $2`,
-    [orgId, invoice.customer]
-  )
-
-  // Log the failed payment using verified orgId
-  await db.query(
-    `INSERT INTO billing_events (organization_id, event_type, amount, invoice_id, metadata, created_at)
-     VALUES ($1, 'invoice_payment_failed', $2, $3, $4::jsonb, NOW())`,
-    [
-      orgId,
-      invoice.amount_due,
-      invoice.id,
-      JSON.stringify({
-        attempt_count: invoice.attempt_count,
-        next_payment_attempt: invoice.next_payment_attempt,
-      }),
-    ]
-  )
+  // Mirror to stripe_invoices
+  try {
+    await db.query(
+      `INSERT INTO stripe_invoices (
+        organization_id, stripe_invoice_id, stripe_customer_id, stripe_subscription_id,
+        status, amount_due_cents, amount_paid_cents, currency,
+        invoice_date, due_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (stripe_invoice_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        updated_at = NOW()`,
+      [
+        orgId,
+        invoice.id,
+        invoice.customer,
+        invoice.subscription,
+        invoice.status || 'open',
+        invoice.amount_due,
+        invoice.amount_paid || 0,
+        invoice.currency,
+        invoice.created ? new Date(invoice.created * 1000).toISOString() : null,
+        invoice.due_date ? new Date(invoice.due_date * 1000).toISOString() : null,
+      ]
+    )
+  } catch (err) {
+    logger.warn('Failed to mirror failed invoice', { error: String(err) })
+  }
 
   writeAuditLog(db, {
     organizationId: orgId,
@@ -1702,7 +1828,101 @@ export async function handleInvoiceFailed(db: DbClient, invoice: any) {
     resourceType: 'invoice',
     resourceId: invoice.id,
     oldValue: null,
-    newValue: { amount: invoice.amount_due, attempt_count: invoice.attempt_count },
+    newValue: { amount: invoice.amount_due, status: 'failed' },
+  })
+}
+
+async function handlePaymentMethodAttached(db: DbClient, paymentMethod: any) {
+  // Find organization by customer ID
+  const orgResult = await db.query(
+    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+    [paymentMethod.customer]
+  )
+
+  if (!orgResult.rows[0]) {
+    logger.warn('Stripe webhook for unknown customer', {
+      customer_id: paymentMethod.customer,
+      event_type: 'payment_method.attached',
+    })
+    return
+  }
+
+  const orgId = orgResult.rows[0].id
+
+  // Insert/update payment method in mirror table
+  try {
+    await db.query(
+      `INSERT INTO stripe_payment_methods (
+        organization_id, stripe_customer_id, stripe_payment_method_id,
+        type, card_brand, card_last4, card_exp_month, card_exp_year
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (stripe_payment_method_id) DO UPDATE SET
+        card_brand = EXCLUDED.card_brand,
+        card_last4 = EXCLUDED.card_last4,
+        card_exp_month = EXCLUDED.card_exp_month,
+        card_exp_year = EXCLUDED.card_exp_year,
+        updated_at = NOW()`,
+      [
+        orgId,
+        paymentMethod.customer,
+        paymentMethod.id,
+        paymentMethod.type,
+        paymentMethod.card?.brand,
+        paymentMethod.card?.last4,
+        paymentMethod.card?.exp_month,
+        paymentMethod.card?.exp_year,
+      ]
+    )
+  } catch (err) {
+    logger.warn('Failed to update stripe_payment_methods mirror table', { error: String(err) })
+  }
+
+  writeAuditLog(db, {
+    organizationId: orgId,
+    userId: 'system',
+    action: AuditAction.PAYMENT_METHOD_ADDED,
+    resourceType: 'payment_method',
+    resourceId: paymentMethod.id,
+    oldValue: null,
+    newValue: { type: paymentMethod.type, brand: paymentMethod.card?.brand },
+  })
+}
+
+async function handlePaymentMethodDetached(db: DbClient, paymentMethod: any) {
+  // Find organization by customer ID
+  const orgResult = await db.query(
+    `SELECT id FROM organizations WHERE stripe_customer_id = $1`,
+    [paymentMethod.customer]
+  )
+
+  if (!orgResult.rows[0]) {
+    logger.warn('Stripe webhook for unknown customer', {
+      customer_id: paymentMethod.customer,
+      event_type: 'payment_method.detached',
+    })
+    return
+  }
+
+  const orgId = orgResult.rows[0].id
+
+  // Remove payment method from mirror table
+  try {
+    await db.query(
+      `DELETE FROM stripe_payment_methods WHERE stripe_payment_method_id = $1 AND organization_id = $2`,
+      [paymentMethod.id, orgId]
+    )
+  } catch (err) {
+    logger.warn('Failed to delete from stripe_payment_methods mirror table', { error: String(err) })
+  }
+
+  writeAuditLog(db, {
+    organizationId: orgId,
+    userId: 'system',
+    action: AuditAction.PAYMENT_METHOD_REMOVED,
+    resourceType: 'payment_method',
+    resourceId: paymentMethod.id,
+    oldValue: { type: paymentMethod.type, brand: paymentMethod.card?.brand },
+    newValue: null,
   })
 }
 

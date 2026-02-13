@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmationPrompts } from './ConfirmationPrompts'
+import { AdaptiveVoiceUI } from './AdaptiveVoiceUI'
 import { logger } from '@/lib/logger'
 import { apiPost } from '@/lib/apiClient'
 import type { ConfirmationType, ConfirmerRole } from '@/lib/confirmation/promptDefinitions'
@@ -149,6 +150,23 @@ export function ActiveCallPanel({
           {config.label}
         </Badge>
       </div>
+
+      {/* Adaptive Voice UI - AI-Powered Interface Adaptation */}
+      {isActive && organizationId && (
+        <div className="border-t border-gray-200">
+          <AdaptiveVoiceUI
+            callId={callId}
+            organizationId={organizationId}
+            callDuration={duration}
+            aiInsights={{
+              likelihoodToPay: 0.75, // This would come from AI analysis
+              recommendedStrategy: 'ai-guided',
+              objectionProbability: 0.25,
+              paymentAmount: 1250.00
+            }}
+          />
+        </div>
+      )}
 
       {/* Call Details */}
       <div className="p-4 space-y-3">

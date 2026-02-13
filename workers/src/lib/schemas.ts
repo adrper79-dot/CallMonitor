@@ -282,7 +282,8 @@ export const UpdateAIConfigSchema = z.object({
   enabled: z.boolean().optional(),
   model: z.string().max(50).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().min(1).max(128_000).optional(),
+  // H-2 fix: Server-side cap at 4096 to prevent cost explosion
+  max_tokens: z.number().int().min(1).max(4096).optional(),
   system_prompt: z.string().max(50_000).optional(),
   sentiment_analysis: z.boolean().optional(),
   auto_summarize: z.boolean().optional(),
@@ -724,4 +725,30 @@ export const UpdateObjectionRebuttalSchema = z.object({
   objection_text: z.string().min(1).max(2000).optional(),
   rebuttal_text: z.string().min(1).max(5000).optional(),
   compliance_note: z.string().max(2000).optional().nullable(),
+})
+
+// ─── Feature Flag Schemas ────────────────────────────────────────────────────
+
+export const CreateGlobalFeatureFlagSchema = z.object({
+  feature: z.string().min(1).max(100).describe('Feature name'),
+  enabled: z.boolean().default(true).describe('Whether the feature is enabled'),
+})
+
+export const UpdateGlobalFeatureFlagSchema = z.object({
+  enabled: z.boolean().optional(),
+})
+
+export const CreateOrgFeatureFlagSchema = z.object({
+  feature: z.string().min(1).max(100).describe('Feature name'),
+  enabled: z.boolean().default(true).describe('Whether the feature is enabled'),
+  disabled_reason: z.string().max(500).optional(),
+  daily_limit: z.number().int().min(0).optional(),
+  monthly_limit: z.number().int().min(0).optional(),
+})
+
+export const UpdateOrgFeatureFlagSchema = z.object({
+  enabled: z.boolean().optional(),
+  disabled_reason: z.string().max(500).optional(),
+  daily_limit: z.number().int().min(0).optional(),
+  monthly_limit: z.number().int().min(0).optional(),
 })

@@ -2,7 +2,6 @@
 
 import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { AppShell } from '@/components/layout/AppShell'
 import { apiPost, apiGet, apiFetch, API_BASE } from '@/lib/apiClient'
 
 type TestStatus = 'idle' | 'running' | 'passed' | 'failed' | 'warning' | 'service_down'
@@ -284,7 +283,7 @@ export default function TestPage() {
     counts.passed === counts.total ? 'passed' : 'idle'
 
   return (
-    <AppShell>
+    <>
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -441,6 +440,6 @@ export default function TestPage() {
           <p>CLI: <code className="bg-gray-100 px-1.5 py-0.5 rounded">npm run test:live</code> | API: <code className="bg-gray-100 px-1.5 py-0.5 rounded">{API_BASE}/api/test/catalog</code></p>
         </footer>
       </div>
-    </AppShell>
+    </>
   )
 }

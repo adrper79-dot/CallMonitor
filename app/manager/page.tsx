@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'
-import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { logger } from '@/lib/logger'
 import { apiGet } from '@/lib/apiClient'
@@ -155,7 +155,8 @@ export default function ManagerDashboardPage() {
   }
 
   return (
-    <AppShell organizationName={organizationName} userEmail={session.user.email || undefined}>
+    <>
+      <FeatureFlagRedirect to="/command" />
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
@@ -315,6 +316,6 @@ export default function ManagerDashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </AppShell>
+    </>
   )
 }

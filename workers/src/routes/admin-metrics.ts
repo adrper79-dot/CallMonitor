@@ -18,7 +18,7 @@ adminMetricsRoutes.get('/', adminRateLimit, async (c) => {
   if (session.platform_role !== 'platform-admin')
     return c.json({ error: 'Platform-admin access required' }, 403)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Active concurrent calls
     const activeCalls = await db.query(

@@ -26,7 +26,7 @@ export const surveysRoutes = new Hono<AppEnv>()
 surveysRoutes.get('/', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const page = parseInt(c.req.query('page') || '1', 10)
     const limit = Math.min(parseInt(c.req.query('limit') || '25', 10), 200)
@@ -83,7 +83,7 @@ surveysRoutes.get('/', async (c) => {
 surveysRoutes.post('/', surveyRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateSurveySchema)
     if (!parsed.success) return parsed.response
@@ -134,7 +134,7 @@ surveysRoutes.post('/', surveyRateLimit, async (c) => {
 surveysRoutes.delete('/:id', surveyRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
 

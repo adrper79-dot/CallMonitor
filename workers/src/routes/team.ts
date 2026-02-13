@@ -17,12 +17,12 @@ export const teamRoutes = new Hono<AppEnv>()
 
 // Get team members
 teamRoutes.get('/members', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (!session.organization_id) {
       return c.json({ success: true, members: [], total: 0 })
@@ -55,12 +55,12 @@ teamRoutes.get('/members', async (c) => {
 
 // Get pending invites for organization
 teamRoutes.get('/invites', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (!session.organization_id) {
       return c.json({ success: true, invites: [] })
@@ -87,12 +87,12 @@ teamRoutes.get('/invites', async (c) => {
 
 // Create invite
 teamRoutes.post('/invites', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (!session.organization_id) {
       return c.json({ error: 'You must belong to an organization to invite members' }, 400)
@@ -229,12 +229,12 @@ teamRoutes.get('/invites/validate/:token', async (c) => {
 
 // Accept invite (called after signup or by existing user)
 teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized - please sign in first' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized - please sign in first' }, 401)
-    }
 
     const token = c.req.param('token')
 
@@ -311,12 +311,12 @@ teamRoutes.post('/invites/accept/:token', teamRateLimit, async (c) => {
 
 // Cancel/revoke invite
 teamRoutes.delete('/invites/:id', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (session.role !== 'admin' && session.role !== 'owner') {
       return c.json({ error: 'Only admins can cancel invites' }, 403)
@@ -376,12 +376,12 @@ teamRoutes.post('/members', teamRateLimit, async (c) => {
 
 // Remove team member
 teamRoutes.delete('/members/:id', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (session.role !== 'admin' && session.role !== 'owner') {
       return c.json({ error: 'Only admins can remove team members' }, 403)

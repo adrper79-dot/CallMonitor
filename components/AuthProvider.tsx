@@ -161,6 +161,47 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }
   }, [fetchSession])
 
+  // ─── Auto-refresh session before expiry ──────────────────────────────────
+  // Checks every 30 min; if <24h left the backend extends to 7 more days.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+
+    const REFRESH_INTERVAL = 30 * 60 * 1000 // 30 minutes
+
+    const tryRefresh = async () => {
+      try {
+        const token = getStoredToken()
+        if (!token) return
+
+        // Check stored expiry — only refresh if <24h remaining
+        const expiresStr = typeof window !== 'undefined'
+          ? localStorage.getItem('wb-session-token-expires')
+          : null
+        if (expiresStr) {
+          const hoursLeft = (new Date(expiresStr).getTime() - Date.now()) / (1000 * 60 * 60)
+          if (hoursLeft > 24) return // Plenty of time, skip
+        }
+
+        const data = await apiPost('/api/auth/refresh', {})
+        if (data.refreshed && data.expires) {
+          localStorage.setItem('wb-session-token-expires', data.expires)
+          logger.info('Session refreshed', { expires: data.expires })
+        }
+      } catch {
+        // Non-critical — next interval will retry
+      }
+    }
+
+    // Initial check after 5s (avoid hammering on page load)
+    const initialTimer = setTimeout(tryRefresh, 5000)
+    const interval = setInterval(tryRefresh, REFRESH_INTERVAL)
+
+    return () => {
+      clearTimeout(initialTimer)
+      clearInterval(interval)
+    }
+  }, [status])
+
   return (
     <AuthContext.Provider value={{ data: session, status, update: fetchSession }}>
       {children}

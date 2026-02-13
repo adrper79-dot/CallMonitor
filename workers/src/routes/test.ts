@@ -985,8 +985,12 @@ testRoutes.post('/run', async (c) => {
 
   try {
     session = await requireAuth(c)
+    // L-1: Gate test execution behind admin/owner role in production
+    if (session.role !== 'owner' && session.role !== 'admin') {
+      return c.json({ passed: false, error: 'Forbidden — admin role required', correlation_id }, 403)
+    }
   } catch (_) {
-    // Allow unauthenticated access for infrastructure tests
+    return c.json({ passed: false, error: 'Authentication required', correlation_id }, 401)
   }
 
   try {

@@ -36,7 +36,7 @@ aiToggleRoutes.post('/activate', aiToggleRateLimit, async (c) => {
     return c.json({ error: 'Use /deactivate to switch to human mode' }, 400)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Find the call and its control ID
     const callResult = await db.query(
@@ -101,7 +101,7 @@ aiToggleRoutes.post('/deactivate', aiToggleRateLimit, async (c) => {
   const parsed = await validateBody(c, AIToggleSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const callResult = await db.query(
       `SELECT id, call_control_id FROM calls
@@ -145,7 +145,7 @@ aiToggleRoutes.get('/status/:callId', async (c) => {
 
   const callId = c.req.param('callId')
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const callResult = await db.query(
       `SELECT id, call_control_id, status FROM calls
@@ -192,7 +192,7 @@ aiToggleRoutes.put('/prompt-config', aiToggleRateLimit, async (c) => {
   const parsed = await validateBody(c, AIPromptConfigSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const { ai_agent_prompt, ai_agent_model, ai_agent_temperature, ai_features_enabled } =
       parsed.data
@@ -254,7 +254,7 @@ aiToggleRoutes.get('/prompt-config', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT ai_agent_prompt, ai_agent_model, ai_agent_temperature,

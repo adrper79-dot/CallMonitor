@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
-import { parseSessionToken, verifySession, computeFingerprint } from '../lib/auth'
+import { parseSessionToken, verifySession, computeFingerprint, timingSafeEqual } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import {
   ValidateKeySchema,
@@ -197,7 +197,12 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
           )
         }
       } catch (orgErr: any) {
-        // Don't fail signup if org creation fails
+        // L-3: Log org creation failure so it can be diagnosed
+        logger.error('[signup] Organization creation failed', {
+          error: orgErr?.message || String(orgErr),
+          user_id: user.id,
+          org_name: name,
+        })
       }
     }
 
@@ -240,10 +245,10 @@ authRoutes.get('/csrf', async (c) => {
     return c.json({ csrf_token })
   } catch (err: any) {
     logger.error('CSRF token generation error', { error: err?.message })
-    // Return a token even on KV failure — form will still work via cookie
-    const fallbackToken = crypto.randomUUID()
-    c.header('Set-Cookie', `csrf-token=${fallbackToken}; Path=/; SameSite=None; Secure; HttpOnly`)
-    return c.json({ csrf_token: fallbackToken })
+    // KV failure means token can't be validated server-side — return 503
+    // so the client retries instead of submitting an unverifiable token.
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — H-4
+    return c.json({ error: 'CSRF service temporarily unavailable' }, 503)
   }
 })
 
@@ -372,6 +377,15 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
       await c.env.KV.put(`fp:${sessionToken}`, fingerprint, {
         expirationTtl: 7 * 24 * 60 * 60,
       })
+
+      // C-1 fix: Mark test org sessions in KV so rate limiter can bypass
+      // without opening a DB connection on every request.
+      // Test org ID: 3cc2cb3c-2f6c-4418-8c98-a7948aea9625
+      if (org?.organization_id === '3cc2cb3c-2f6c-4418-8c98-a7948aea9625') {
+        await c.env.KV.put(`test-bypass:${sessionToken}`, '1', {
+          expirationTtl: 7 * 24 * 60 * 60,
+        })
+      }
     } catch (sessionError: any) {
       logger.error('[login] Session creation failed', {
         error: sessionError?.message || sessionError,
@@ -398,11 +412,15 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
       newValue: { email: user.email, role: org?.role || null },
     })
 
+    // H-1: Session token returned only via header — never in JSON body
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — H-1: Token in body leaks via logs/proxies
+    c.header('X-Session-Token', sessionToken)
+    c.header('Cache-Control', 'no-store')
+
     return c.json({
       url: '/dashboard',
       ok: true,
       status: 200,
-      session_token: sessionToken,
       expires: expires.toISOString(),
       user: {
         id: user.id,
@@ -755,7 +773,7 @@ async function verifyPassword(
       KEY_BYTES * 8
     )
 
-    const valid = hexEncode(derived) === expectedHash
+    const valid = timingSafeEqual(hexEncode(derived), expectedHash)
     // Rehash if iteration count has been bumped since this hash was created
     return { valid, needsRehash: valid && iterations < PBKDF2_ITERATIONS }
   }
@@ -767,7 +785,7 @@ async function verifyPassword(
     const data = encoder.encode(saltHex + password)
     const hashBuffer = await crypto.subtle.digest('SHA-256', data)
     const computedHash = hexEncode(hashBuffer)
-    const valid = computedHash === expectedHash
+    const valid = timingSafeEqual(computedHash, expectedHash)
     return { valid, needsRehash: valid } // Always rehash legacy hashes
   }
 

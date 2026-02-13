@@ -2,12 +2,50 @@
  * RBAC (Role-Based Access Control) and Plan Gating
  *
  * Per MASTER_ARCHITECTURE.txt RBAC matrix:
- * - Roles: Owner, Admin, Operator, Analyst, Viewer
+ * - Canonical roles: Owner, Admin, Manager/Operator/Compliance, Agent/Analyst, Viewer/Member
  * - Plans: Base, Pro, Insights, Global
  * - Plan controls availability, Role controls authority
+ *
+ * Role hierarchy (matches workers/src/lib/auth.ts):
+ *   owner(5) > admin(4) > manager=operator=compliance(3) > agent=analyst(2) > viewer=member(1)
  */
 
-export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
+export type UserRole =
+  | 'owner'
+  | 'admin'
+  | 'manager'
+  | 'operator'
+  | 'compliance'
+  | 'agent'
+  | 'analyst'
+  | 'viewer'
+  | 'member'
+
+/**
+ * Role hierarchy levels — must stay in sync with workers/src/lib/auth.ts
+ */
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  viewer: 1,
+  member: 1,
+  agent: 2,
+  analyst: 2,
+  operator: 3,
+  manager: 3,
+  compliance: 3,
+  admin: 4,
+  owner: 5,
+}
+
+/**
+ * Normalize any role string to a canonical UserRole.
+ * Unknown strings fall back to 'member' (lowest privilege).
+ */
+export function normalizeRole(raw: string | undefined | null): UserRole {
+  if (!raw) return 'member'
+  const lowered = raw.toLowerCase().trim()
+  if (lowered in ROLE_HIERARCHY) return lowered as UserRole
+  return 'member'
+}
 export type Plan =
   | 'base'
   | 'pro'
@@ -65,6 +103,16 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     secret_shopper: ['read', 'write', 'execute'],
     booking: ['read', 'write', 'execute'], // Full booking access
   },
+  manager: {
+    voice_config: ['read'],
+    call: ['read', 'execute'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read', 'execute'],
+    booking: ['read', 'write', 'execute'],
+  },
   operator: {
     voice_config: ['read'],
     call: ['read', 'execute'],
@@ -74,6 +122,26 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     survey: ['read'],
     secret_shopper: ['read', 'execute'],
     booking: ['read', 'write', 'execute'], // Can create/manage bookings
+  },
+  compliance: {
+    voice_config: ['read'],
+    call: ['read'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read'],
+    booking: ['read'],
+  },
+  agent: {
+    voice_config: ['read'],
+    call: ['read', 'execute'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read'],
+    booking: ['read', 'write'],
   },
   analyst: {
     voice_config: ['read'],
@@ -95,6 +163,16 @@ const ROLE_PERMISSIONS: Record<UserRole, Record<string, ('read' | 'write' | 'exe
     secret_shopper: ['read'], // masked
     booking: ['read'], // View only, masked
   },
+  member: {
+    voice_config: ['read'],
+    call: ['read'],
+    recording: ['read'],
+    transcript: ['read'],
+    translation: ['read'],
+    survey: ['read'],
+    secret_shopper: ['read'],
+    booking: ['read'],
+  },
 }
 
 /**
@@ -107,7 +185,7 @@ export function hasPermission(
   action: 'read' | 'write' | 'execute'
 ): boolean {
   // Normalize role and plan
-  const normalizedRole = role.toLowerCase() as UserRole
+  const normalizedRole = normalizeRole(role)
   const normalizedPlan = plan.toLowerCase() as Plan
 
   // Check plan availability first
@@ -161,7 +239,7 @@ export function canPerformAction(
   resource: string,
   action: 'read' | 'write' | 'execute'
 ): boolean {
-  const normalizedRole = role.toLowerCase() as UserRole
+  const normalizedRole = normalizeRole(role)
   const rolePerms = ROLE_PERMISSIONS[normalizedRole]
   if (!rolePerms) {
     return false
@@ -183,7 +261,7 @@ export const API_PERMISSIONS: Record<
   { role: UserRole[]; plan?: Plan[]; action: 'read' | 'write' | 'execute' }
 > = {
   'POST /api/voice/call': {
-    role: ['owner', 'admin', 'operator'],
+    role: ['owner', 'admin', 'manager', 'operator', 'agent'],
     plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
     action: 'execute',
   },
@@ -193,27 +271,27 @@ export const API_PERMISSIONS: Record<
     action: 'write',
   },
   'GET /api/voice/config': {
-    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    role: ['owner', 'admin', 'manager', 'operator', 'compliance', 'agent', 'analyst', 'viewer', 'member'],
     plan: ['base', 'pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
     action: 'read',
   },
   'GET /api/recordings': {
-    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    role: ['owner', 'admin', 'manager', 'operator', 'compliance', 'agent', 'analyst', 'viewer', 'member'],
     plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
     action: 'read',
   },
   'GET /api/transcripts': {
-    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    role: ['owner', 'admin', 'manager', 'operator', 'compliance', 'agent', 'analyst', 'viewer', 'member'],
     plan: ['pro', 'insights', 'global', 'business', 'enterprise', 'standard', 'active'],
     action: 'read',
   },
   'GET /api/surveys/results': {
-    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    role: ['owner', 'admin', 'manager', 'operator', 'compliance', 'agent', 'analyst', 'viewer', 'member'],
     plan: ['insights', 'global', 'business', 'enterprise'],
     action: 'read',
   },
   'GET /api/shopper/results': {
-    role: ['owner', 'admin', 'operator', 'analyst', 'viewer'],
+    role: ['owner', 'admin', 'manager', 'operator', 'compliance', 'analyst', 'viewer'],
     plan: ['insights', 'global', 'business', 'enterprise'],
     action: 'read',
   },

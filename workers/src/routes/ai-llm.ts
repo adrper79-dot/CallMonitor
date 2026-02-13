@@ -43,7 +43,7 @@ aiLlmRoutes.post('/chat', aiLlmRateLimit, authMiddleware, requirePlan('pro'), as
     return c.json({ error: 'LLM service not configured' }, 503)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, AiLlmChatSchema)
     if (!parsed.success) return parsed.response
@@ -123,7 +123,7 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, authMiddleware, requirePlan('star
     return c.json({ error: 'LLM service not configured' }, 503)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, AiLlmSummarizeSchema)
     if (!parsed.success) return parsed.response
@@ -143,7 +143,8 @@ aiLlmRoutes.post('/summarize', aiLlmRateLimit, authMiddleware, requirePlan('star
             content:
               'You are a professional call center analyst. Summarize the following call transcript concisely, highlighting key points, action items, and any compliance concerns. Be factual and objective.',
           },
-          { role: 'user', content: body.text.substring(0, 100000) },
+          // H-6 fix: Cap input to 20K chars (~5K tokens) for summarize
+          { role: 'user', content: body.text.substring(0, 20000) },
         ],
         max_tokens: Math.min(body.max_length || 1000, 2000),
         temperature: 0.2,
@@ -206,7 +207,7 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
     return c.json({ error: 'LLM service not configured' }, 503)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, AiLlmAnalyzeSchema)
     if (!parsed.success) return parsed.response
@@ -237,7 +238,8 @@ aiLlmRoutes.post('/analyze', aiLlmRateLimit, authMiddleware, requirePlan('pro'),
             role: 'system',
             content: `You are a call center compliance and quality analyst for the Word Is Bond platform. ${analysisPrompts[analysisType]}. Return your analysis in JSON format.`,
           },
-          { role: 'user', content: body.text.substring(0, 100000) },
+          // H-6 fix: Cap input to 30K chars (~8K tokens) for analyze
+          { role: 'user', content: body.text.substring(0, 30000) },
         ],
         max_tokens: MAX_TOKENS,
         temperature: 0.1,

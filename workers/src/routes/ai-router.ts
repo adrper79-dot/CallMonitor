@@ -14,6 +14,7 @@ import { aiLlmRateLimit, aiTtsRateLimit, complianceRateLimit } from '../lib/rate
 import { validateBody } from '../lib/validate'
 import { AiLlmChatSchema, TTSGenerateSchema } from '../lib/schemas'
 import { writeAuditLog, AuditAction } from '../lib/audit'
+import { getFeatureFlag } from '../lib/feature-flags'
 import { createGrokVoiceClient, getVoiceForLanguage } from '../lib/grok-voice-client'
 import { buildComplianceGuidePayload } from '../lib/compliance-guides'
 
@@ -35,7 +36,8 @@ async function callGrokChat(apiKey: string, body: any) {
     body: JSON.stringify({
       model: body.model || GROK_CHAT_MODEL,
       messages: body.messages,
-      max_tokens: body.max_tokens,
+      // H-2 fix: Server-side cap prevents cost explosion from user-supplied values
+      max_tokens: Math.min(body.max_tokens || 4096, 4096),
       temperature: body.temperature ?? 0.3,
     }),
   })
@@ -62,7 +64,8 @@ async function callOpenAIChat(apiKey: string, body: any) {
     body: JSON.stringify({
       model: body.model || OPENAI_FALLBACK_MODEL,
       messages: body.messages,
-      max_tokens: body.max_tokens,
+      // H-2 fix: Server-side cap prevents cost explosion from user-supplied values
+      max_tokens: Math.min(body.max_tokens || 4096, 4096),
       temperature: body.temperature ?? 0.3,
     }),
   })
@@ -125,7 +128,7 @@ aiRouterRoutes.post('/chat', aiLlmRateLimit, authMiddleware, async (c) => {
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const startedAt = Date.now()
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, AiLlmChatSchema)
     if (!parsed.success) return parsed.response
@@ -134,22 +137,30 @@ aiRouterRoutes.post('/chat', aiLlmRateLimit, authMiddleware, async (c) => {
     const grokKey = c.env.GROK_API_KEY
     const openaiKey = c.env.OPENAI_API_KEY
 
-    if (!grokKey && !openaiKey) {
-      return c.json({ error: 'No chat provider configured' }, 503)
+    // Check feature flags
+    const grokChatEnabled = await getFeatureFlag(db, 'grok_chat_enabled', session.organization_id)
+    const openaiChatEnabled = await getFeatureFlag(db, 'openai_chat_enabled', session.organization_id)
+
+    if ((!grokChatEnabled || !grokKey) && (!openaiChatEnabled || !openaiKey)) {
+      return c.json({ error: 'No chat provider enabled' }, 503)
     }
 
     let result: any = null
     let provider = 'grok'
     try {
-      if (!grokKey) throw new Error('Grok key missing')
-      result = await callGrokChat(grokKey, body)
-    } catch (err: any) {
-      logger.warn('Grok chat failed, falling back', { error: err?.message })
-      provider = 'openai'
-      if (!openaiKey) {
-        return c.json({ error: 'All chat providers unavailable' }, 503)
+      if (grokChatEnabled && grokKey) {
+        result = await callGrokChat(grokKey, body)
+      } else {
+        throw new Error('Grok chat not enabled')
       }
-      result = await callOpenAIChat(openaiKey, body)
+    } catch (err: any) {
+      logger.warn('Grok chat failed or not enabled, falling back', { error: err?.message })
+      provider = 'openai'
+      if (openaiChatEnabled && openaiKey) {
+        result = await callOpenAIChat(openaiKey, body)
+      } else {
+        return c.json({ error: 'No available chat provider' }, 503)
+      }
     }
 
     writeAuditLog(db, {
@@ -200,22 +211,26 @@ aiRouterRoutes.post('/tts', aiTtsRateLimit, async (c) => {
       return c.json({ error: 'Invalid organization' }, 400)
     }
 
-    db = getDb(c.env)
+    db = getDb(c.env, session.organization_id)
 
     const grokKey = c.env.GROK_API_KEY
     const elevenLabsKey = c.env.ELEVENLABS_API_KEY
 
-    if (!grokKey && !elevenLabsKey) {
-      return c.json({ error: 'No TTS provider configured' }, 503)
+    // Check feature flags
+    const grokTtsEnabled = await getFeatureFlag(db, 'grok_tts_enabled', session.organization_id)
+    const elevenLabsTtsEnabled = await getFeatureFlag(db, 'elevenlabs_tts_enabled', session.organization_id)
+
+    if ((!grokTtsEnabled || !grokKey) && (!elevenLabsTtsEnabled || !elevenLabsKey)) {
+      return c.json({ error: 'No TTS provider enabled' }, 503)
     }
 
     // Try Grok Voice first
     try {
-      if (!grokKey) throw new Error('Grok key missing')
-      const grokClient = createGrokVoiceClient(c.env)
-      const voice = getVoiceForLanguage(language || 'en')
-      const grokStart = Date.now()
-      const grokResult = await grokClient.textToSpeech(text, {
+      if (grokTtsEnabled && grokKey) {
+        const grokClient = createGrokVoiceClient(c.env)
+        const voice = getVoiceForLanguage(language || 'en')
+        const grokStart = Date.now()
+        const grokResult = await grokClient.textToSpeech(text, {
         voice,
         model: 'grok-voice-1',
         response_format: 'mp3',
@@ -262,12 +277,15 @@ aiRouterRoutes.post('/tts', aiTtsRateLimit, async (c) => {
 
       // No R2 available — return raw audio
       return new Response(grokResult.audio, { headers: { 'Content-Type': 'audio/mpeg' } })
+      } else {
+        throw new Error('Grok TTS not enabled')
+      }
     } catch (err: any) {
-      logger.warn('Grok TTS failed, falling back', { error: err?.message })
+      logger.warn('Grok TTS failed or not enabled, falling back', { error: err?.message })
     }
 
     // ElevenLabs fallback with global concurrency cap
-    if (!elevenLabsKey) {
+    if (!elevenLabsTtsEnabled || !elevenLabsKey) {
       return c.json({ error: 'All TTS providers unavailable' }, 503)
     }
 
@@ -363,7 +381,7 @@ aiRouterRoutes.get('/compliance-guide', complianceRateLimit, authMiddleware, asy
   const session = c.get('session') as any
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const payload = buildComplianceGuidePayload()
 

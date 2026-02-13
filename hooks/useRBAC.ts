@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { apiGet } from '@/lib/apiClient'
+import { type UserRole, type Plan, normalizeRole } from '@/lib/rbac'
 
-export type UserRole = 'owner' | 'admin' | 'operator' | 'analyst' | 'viewer'
-export type Plan = 'base' | 'pro' | 'insights' | 'global' | 'business' | 'free' | 'enterprise' | 'trial' | 'standard' | 'active'
+export type { UserRole, Plan }
 
 export interface RBACState {
   role: UserRole | null
@@ -36,7 +36,7 @@ export function useRBAC(organizationId: string | null): RBACState {
         // Fetch user's role and org plan using apiGet (includes credentials)
         const data = await apiGet(`/api/rbac/context?orgId=${encodeURIComponent(organizationId)}`)
         setState({
-          role: data.role || null,
+          role: normalizeRole(data.role),
           plan: data.plan || null,
           loading: false,
           error: null
@@ -76,11 +76,16 @@ export function usePermission(
   }
 
   // Import and use permission check
-  // For client-side, we'll do a simple check
+  // For client-side, we'll do a simple hierarchy check
   // Full validation happens on backend
-  const roleCanDo = ['owner', 'admin'].includes(role) || 
-    (action === 'read' && ['operator', 'analyst', 'viewer'].includes(role)) ||
-    (action === 'execute' && role === 'operator')
+  const WRITE_ROLES: UserRole[] = ['owner', 'admin']
+  const EXEC_ROLES: UserRole[] = ['owner', 'admin', 'manager', 'operator', 'agent']
+  const READ_ROLES: UserRole[] = ['owner', 'admin', 'manager', 'operator', 'compliance', 'agent', 'analyst', 'viewer', 'member']
+
+  const roleCanDo = 
+    (action === 'read' && READ_ROLES.includes(role)) ||
+    (action === 'write' && WRITE_ROLES.includes(role)) ||
+    (action === 'execute' && EXEC_ROLES.includes(role))
 
   // Plan check would be done here too
   const planSupports = plan !== 'free' || feature === 'call'

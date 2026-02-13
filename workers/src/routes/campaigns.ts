@@ -26,7 +26,7 @@ export const campaignsRoutes = new Hono<AppEnv>()
 campaignsRoutes.get('/', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     if (!session.organization_id) {
       return c.json({ success: true, campaigns: [] })
@@ -67,7 +67,7 @@ campaignsRoutes.get('/', async (c) => {
 campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateCampaignSchema)
     if (!parsed.success) return parsed.response
@@ -111,7 +111,7 @@ campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
 campaignsRoutes.get('/:id', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
 
@@ -143,7 +143,7 @@ campaignsRoutes.get('/:id', async (c) => {
 campaignsRoutes.get('/:id/stats', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
 
@@ -206,7 +206,7 @@ campaignsRoutes.get('/:id/stats', async (c) => {
 campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
     const parsed = await validateBody(c, UpdateCampaignSchema)
@@ -259,7 +259,7 @@ campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
 campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
 
@@ -288,6 +288,140 @@ campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('DELETE /api/campaigns/:id error', { error: err?.message })
     return c.json({ error: 'Failed to delete campaign' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Sequences CRUD ──────────────────────────────────────────────────────────
+
+// GET /sequences — List all sequences for org
+campaignsRoutes.get('/sequences', async (c) => {
+  // Note: Must be registered BEFORE /:id routes, but since Hono matches exact
+  // paths first, "sequences" won't collide with /:id (UUID pattern)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+
+    const result = await db.query(
+      `SELECT cs.*, c.name AS campaign_name
+       FROM campaign_sequences cs
+       LEFT JOIN campaigns c ON cs.campaign_id = c.id
+       WHERE cs.organization_id = $1
+       ORDER BY cs.created_at DESC
+       LIMIT $2`,
+      [session.organization_id, limit]
+    )
+
+    return c.json({ success: true, sequences: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/campaigns/sequences error', { error: err?.message })
+    return c.json({ success: true, sequences: [] })
+  } finally {
+    await db.end()
+  }
+})
+
+// POST /sequences — Create a sequence
+campaignsRoutes.post('/sequences', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const body = await c.req.json()
+    const { campaign_id, name, steps, status: seqStatus } = body
+
+    if (!name) {
+      return c.json({ error: 'name is required' }, 400)
+    }
+
+    const result = await db.query(
+      `INSERT INTO campaign_sequences
+        (organization_id, campaign_id, name, steps, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        session.organization_id,
+        campaign_id || null,
+        name,
+        steps ? JSON.stringify(steps) : '[]',
+        seqStatus || 'draft',
+        session.user_id,
+      ]
+    )
+
+    return c.json({ success: true, sequence: result.rows[0] }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/campaigns/sequences error', { error: err?.message })
+    return c.json({ error: 'Failed to create sequence' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// PUT /sequences/:seqId — Update a sequence
+campaignsRoutes.put('/sequences/:seqId', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const seqId = c.req.param('seqId')
+    const body = await c.req.json()
+    const { name, steps, status: seqStatus } = body
+
+    const result = await db.query(
+      `UPDATE campaign_sequences
+       SET name = COALESCE($1, name),
+           steps = COALESCE($2, steps),
+           status = COALESCE($3, status),
+           updated_at = NOW()
+       WHERE id = $4 AND organization_id = $5
+       RETURNING *`,
+      [
+        name || null,
+        steps ? JSON.stringify(steps) : null,
+        seqStatus || null,
+        seqId,
+        session.organization_id,
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Sequence not found' }, 404)
+    }
+
+    return c.json({ success: true, sequence: result.rows[0] })
+  } catch (err: any) {
+    logger.error('PUT /api/campaigns/sequences/:seqId error', { error: err?.message })
+    return c.json({ error: 'Failed to update sequence' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// DELETE /sequences/:seqId — Delete a sequence
+campaignsRoutes.delete('/sequences/:seqId', campaignsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const seqId = c.req.param('seqId')
+
+    const result = await db.query(
+      `DELETE FROM campaign_sequences WHERE id = $1 AND organization_id = $2 RETURNING id`,
+      [seqId, session.organization_id]
+    )
+
+    if (result.rows.length === 0) {
+      return c.json({ error: 'Sequence not found' }, 404)
+    }
+
+    return c.json({ success: true, message: 'Sequence deleted' })
+  } catch (err: any) {
+    logger.error('DELETE /api/campaigns/sequences/:seqId error', { error: err?.message })
+    return c.json({ error: 'Failed to delete sequence' }, 500)
   } finally {
     await db.end()
   }

@@ -48,6 +48,7 @@ export default function CallDetailView({
   const { config } = useVoiceConfig(organizationId)
   const { toast } = useToast()
   const [exporting, setExporting] = useState(false)
+  const [organizationPlan, setOrganizationPlan] = useState<string | null>(null)
   const [callOutcome, setCallOutcome] = useState<CallOutcome | null>(null)
   const [outcomeLoading, setOutcomeLoading] = useState(false)
 
@@ -77,6 +78,19 @@ export default function CallDetailView({
       setCallOutcome(null)
     }
   }, [callId, call?.status, fetchOutcome])
+
+  // Fetch organization plan for feature gating
+  useEffect(() => {
+    if (!organizationId) return
+
+    apiGet(`/api/organizations/${organizationId}`)
+      .then((data) => {
+        if (data.organization?.plan) {
+          setOrganizationPlan(data.organization.plan)
+        }
+      })
+      .catch((err) => logger.error('Failed to fetch organization plan', { error: err }))
+  }, [organizationId])
 
   // Handle outcome saved
   const handleOutcomeSaved = useCallback(
@@ -441,10 +455,12 @@ export default function CallDetailView({
           </section>
         )}
 
-      {/* Bond AI Call Co-Pilot */}
-      <section aria-label="AI Co-Pilot">
-        <BondAICopilot callId={call.id} />
-      </section>
+      {/* Bond AI Call Co-Pilot - Pro Plan Only */}
+      {organizationPlan === 'pro' && (
+        <section aria-label="AI Co-Pilot">
+          <BondAICopilot callId={call.id} />
+        </section>
+      )}
 
       {/* Modulations Used (Read-only Metadata) */}
       {organizationId && (

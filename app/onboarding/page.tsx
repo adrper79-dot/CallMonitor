@@ -8,18 +8,32 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { apiPost } from '@/lib/apiClient'
 
+type Step = 'plan' | 'number' | 'compliance' | 'import' | 'call' | 'team' | 'tour' | 'launch'
+
+const STEP_LABELS: { key: Step; label: string }[] = [
+  { key: 'plan', label: '1. Trial Plan' },
+  { key: 'number', label: '2. Claim Number' },
+  { key: 'compliance', label: '3. Compliance' },
+  { key: 'import', label: '4. Import Contacts' },
+  { key: 'call', label: '5. Test Call' },
+  { key: 'team', label: '6. Invite Team' },
+  { key: 'tour', label: '7. Get Started' },
+]
+
 export default function OnboardingPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [step, setStep] = useState<'plan' | 'number' | 'import' | 'call' | 'tour' | 'launch'>(
-    'plan'
-  )
+  const [step, setStep] = useState<Step>('plan')
   const [loading, setLoading] = useState(false)
   const [provisionedNumber, setProvisionedNumber] = useState('')
   const [trialEndsAt, setTrialEndsAt] = useState('')
   const [callStarted, setCallStarted] = useState(false)
   const [testPhone, setTestPhone] = useState('')
   const [importSkipped, setImportSkipped] = useState(false)
+  const [callingHoursStart, setCallingHoursStart] = useState('08:00')
+  const [callingHoursEnd, setCallingHoursEnd] = useState('21:00')
+  const [orgTimezone, setOrgTimezone] = useState('America/New_York')
+  const [teamEmails, setTeamEmails] = useState('')
 
   const handleSetupOnboarding = async () => {
     setLoading(true)
@@ -37,20 +51,13 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleStepProgress = async (nextStep: typeof step) => {
+  const handleStepProgress = async (nextStep: Step) => {
     setStep(nextStep)
     try {
-      const stepNum =
-        nextStep === 'number'
-          ? 2
-          : nextStep === 'import'
-            ? 3
-            : nextStep === 'call'
-              ? 4
-              : nextStep === 'tour'
-                ? 5
-                : 6
-      await apiPost('/api/onboarding/progress', { step: stepNum })
+      const stepMap: Record<Step, number> = {
+        plan: 1, number: 2, compliance: 3, import: 4, call: 5, team: 6, tour: 7, launch: 8,
+      }
+      await apiPost('/api/onboarding/progress', { step: stepMap[nextStep] })
     } catch (err) {
       // Progress update failed — non-critical
     }
@@ -118,32 +125,15 @@ export default function OnboardingPage() {
               <div className="text-xs text-gray-500">Estimated time: 3 minutes</div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-              <span
-                className={`px-2 py-1 rounded ${step === 'plan' ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
-              >
-                1. Trial Plan
-              </span>
-              <span
-                className={`px-2 py-1 rounded ${step === 'number' ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
-              >
-                2. Claim Number
-              </span>
-              <span
-                className={`px-2 py-1 rounded ${step === 'import' ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
-              >
-                3. Import Contacts
-              </span>
-              <span
-                className={`px-2 py-1 rounded ${step === 'call' ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
-              >
-                4. Test Call
-              </span>
-              <span
-                className={`px-2 py-1 rounded ${step === 'tour' ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
-              >
-                5. Platform Tour
-              </span>
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              {STEP_LABELS.map((s) => (
+                <span
+                  key={s.key}
+                  className={`px-2 py-1 rounded ${step === s.key ? 'bg-primary-50 text-primary-700 font-medium' : 'bg-gray-100'}`}
+                >
+                  {s.label}
+                </span>
+              ))}
             </div>
           </div>
 
@@ -211,8 +201,109 @@ export default function OnboardingPage() {
                     ? `Trial active until ${new Date(trialEndsAt).toLocaleDateString()}`
                     : 'Powered by Telnyx Voice API. Number includes SMS and voice support.'}
                 </p>
-                <Button onClick={() => handleStepProgress('import')} disabled={!provisionedNumber}>
-                  Next: Import Contacts
+                <Button onClick={() => handleStepProgress('compliance')} disabled={!provisionedNumber}>
+                  Next: Compliance Setup
+                </Button>
+              </div>
+            </section>
+          )}
+
+          {step === 'compliance' && (
+            <section className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-gray-900">Compliance Configuration</h2>
+                <p className="text-gray-500">
+                  Set your FDCPA/TCPA calling hours and timezone. These protect your agents from
+                  regulatory violations.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 uppercase mb-1">
+                    Organization Timezone
+                  </label>
+                  <select
+                    value={orgTimezone}
+                    onChange={(e) => setOrgTimezone(e.target.value)}
+                    className="w-full max-w-xs px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                  >
+                    <option value="America/New_York">Eastern Time (ET)</option>
+                    <option value="America/Chicago">Central Time (CT)</option>
+                    <option value="America/Denver">Mountain Time (MT)</option>
+                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                    <option value="America/Anchorage">Alaska Time (AKT)</option>
+                    <option value="Pacific/Honolulu">Hawaii Time (HST)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 max-w-xs">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 uppercase mb-1">
+                      Calling Starts
+                    </label>
+                    <input
+                      type="time"
+                      value={callingHoursStart}
+                      onChange={(e) => setCallingHoursStart(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 uppercase mb-1">
+                      Calling Ends
+                    </label>
+                    <input
+                      type="time"
+                      value={callingHoursEnd}
+                      onChange={(e) => setCallingHoursEnd(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    <strong>FDCPA Requirement:</strong> Calls to consumers must be between 8:00 AM
+                    and 9:00 PM in the <em>consumer&apos;s</em> local time zone. Our compliance engine
+                    enforces this per-account based on debtor location.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="dnc-enabled" defaultChecked className="rounded" />
+                  <label htmlFor="dnc-enabled" className="text-sm text-gray-700">
+                    Enable Do-Not-Call list enforcement
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="disclosure" defaultChecked className="rounded" />
+                  <label htmlFor="disclosure" className="text-sm text-gray-700">
+                    Enable call recording disclosure announcements
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-xs text-gray-500">
+                  You can adjust these settings anytime in Settings → Compliance.
+                </p>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await apiPost('/api/onboarding/compliance', {
+                        timezone: orgTimezone,
+                        calling_hours_start: callingHoursStart,
+                        calling_hours_end: callingHoursEnd,
+                        dnc_enabled: true,
+                        disclosure_enabled: true,
+                      })
+                    } catch { /* Non-critical during onboarding */ }
+                    handleStepProgress('import')
+                  }}
+                >
+                  Save & Continue
                 </Button>
               </div>
             </section>
@@ -343,7 +434,7 @@ export default function OnboardingPage() {
                           caller_id: provisionedNumber,
                         })
                         setCallStarted(true)
-                        handleStepProgress('tour')
+                        handleStepProgress('team')
                       } catch (err) {
                         alert('Failed to place call. Check number format.')
                       } finally {
@@ -354,10 +445,63 @@ export default function OnboardingPage() {
                   >
                     {loading ? 'Dialing...' : 'Call Me Now'}
                   </Button>
-                  <Button variant="outline" onClick={() => handleStepProgress('tour')}>
+                  <Button variant="outline" onClick={() => handleStepProgress('team')}>
                     Skip Test Call
                   </Button>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {step === 'team' && (
+            <section className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-gray-900">Invite Your Team</h2>
+                <p className="text-gray-500">
+                  Add agents, managers, or admins to your organization. They&apos;ll receive an email
+                  invitation to join.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 uppercase mb-1">
+                    Email Addresses (one per line)
+                  </label>
+                  <textarea
+                    value={teamEmails}
+                    onChange={(e) => setTeamEmails(e.target.value)}
+                    placeholder={'agent1@company.com\nagent2@company.com\nmanager@company.com'}
+                    className="w-full max-w-md px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                    rows={4}
+                  />
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg max-w-md">
+                  <p className="text-xs text-blue-700">
+                    <strong>Roles:</strong> You can assign specific roles (agent, manager, admin) after
+                    they accept the invitation in Settings → Teams.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={() => handleStepProgress('tour')}>
+                  Skip for Now
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (teamEmails.trim()) {
+                      try {
+                        const emails = teamEmails.split('\n').map(e => e.trim()).filter(Boolean)
+                        await apiPost('/api/teams/invite-batch', { emails, role: 'agent' })
+                      } catch { /* Non-critical */ }
+                    }
+                    handleStepProgress('tour')
+                  }}
+                >
+                  {teamEmails.trim() ? 'Send Invitations' : 'Continue'}
+                </Button>
               </div>
             </section>
           )}

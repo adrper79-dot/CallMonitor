@@ -11,7 +11,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
-import { AppShell } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { apiGet } from '@/lib/apiClient'
@@ -27,6 +26,7 @@ import {
 import { formatDate } from '@/lib/utils'
 import { Loader2, Plus, PlayCircle, PauseCircle, XCircle } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { useRBAC } from '@/hooks/useRBAC'
 
 interface Campaign {
   id: string
@@ -49,6 +49,8 @@ export default function CampaignsPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null)
 
   const userId = (session?.user as any)?.id
+  const { role } = useRBAC(organizationId)
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin'
 
   const fetchOrganization = useCallback(async () => {
     try {
@@ -121,8 +123,7 @@ export default function CampaignsPage() {
   }
 
   return (
-    <AppShell organizationName={undefined} userEmail={session?.user?.email || undefined}>
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -131,10 +132,12 @@ export default function CampaignsPage() {
               Manage bulk call campaigns for secret shopper, surveys, and outbound calls
             </p>
           </div>
-          <Button onClick={() => router.push('/campaigns/new')}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Campaign
-          </Button>
+          {isOwnerOrAdmin && (
+            <Button onClick={() => router.push('/campaigns/new')}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Campaign
+            </Button>
+          )}
         </div>
 
         {/* Content */}
@@ -276,7 +279,6 @@ export default function CampaignsPage() {
             </Card>
           </div>
         )}
-      </div>
-    </AppShell>
+    </div>
   )
 }

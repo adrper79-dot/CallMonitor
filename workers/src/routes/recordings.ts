@@ -119,6 +119,8 @@ recordingsRoutes.get('/:id', async (c) => {
         if (r2Object) {
           // Serve via a streaming endpoint with auth — don't expose raw R2 keys
           const signedUrl = `/api/recordings/stream/${recordingId}`
+          // M-2: Cache-Control prevents CDN/browser caching of signed URLs
+          c.header('Cache-Control', 'private, no-store, max-age=0')
           return c.json({
             success: true,
             recording,
@@ -132,6 +134,7 @@ recordingsRoutes.get('/:id', async (c) => {
     }
 
     // Fallback: return recording_url as-is (may be an external URL)
+    c.header('Cache-Control', 'private, no-store, max-age=0')
     return c.json({
       success: true,
       recording,

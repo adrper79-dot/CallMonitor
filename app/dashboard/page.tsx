@@ -4,9 +4,10 @@ import React, { useEffect, useState } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import DashboardHome from '@/components/dashboard/DashboardHome'
-import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { BondAIAlertsPanel } from '@/components/bond-ai'
+import { ProductTour, DASHBOARD_TOUR } from '@/components/tour'
 import { logger } from '@/lib/logger'
 import { apiGet } from '@/lib/apiClient'
 
@@ -68,7 +69,8 @@ export default function DashboardPage() {
   const userEmail = session.user.email || undefined
 
   return (
-    <AppShell organizationName={organizationName} userEmail={userEmail}>
+    <>
+      <FeatureFlagRedirect to="/work" />
       {/* Page Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
@@ -88,6 +90,9 @@ export default function DashboardPage() {
           <BondAIAlertsPanel compact />
         </div>
       </div>
-    </AppShell>
+
+      {/* Tutorial Tour */}
+      <ProductTour tourId="dashboard" steps={DASHBOARD_TOUR} />
+    </>
   )
 }

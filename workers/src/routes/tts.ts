@@ -41,10 +41,10 @@ async function ttsCacheKey(text: string, voiceId: string): Promise<string> {
 
 // POST /generate — Generate TTS audio
 ttsRoutes.post('/generate', elevenLabsTtsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, TTSGenerateSchema)
     if (!parsed.success) return parsed.response

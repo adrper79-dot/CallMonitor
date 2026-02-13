@@ -27,7 +27,7 @@ audioRoutes.post('/upload', audioRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const formData = await c.req.formData()
     const file = formData.get('file') as File | null
@@ -80,7 +80,7 @@ audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, TranscribeSchema)
     if (!parsed.success) return parsed.response
@@ -194,7 +194,7 @@ audioRoutes.get('/transcriptions/:id', audioRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
 

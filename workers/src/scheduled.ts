@@ -91,7 +91,10 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
     }
   } catch (error) {
     logger.error('Scheduled job failed', { error: (error as Error)?.message, cron })
-    // Don't throw - let the job complete so it can retry next interval
+    // Re-throw so Cloudflare Workers dashboard shows the failure.
+    // trackCronExecution already records the error in KV metrics.
+    // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — M-5
+    throw error
   }
 }
 

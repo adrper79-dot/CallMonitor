@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/auth/FeatureFlagRedirect'
 import TeamsManager from '@/components/teams/TeamsManager'
 import RoleManager from '@/components/teams/RoleManager'
 
@@ -11,7 +11,8 @@ export default function TeamsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('teams')
 
   return (
-    <AppShell>
+    <>
+      <FeatureFlagRedirect />
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Page Header */}
         <div className="mb-6">
@@ -81,6 +82,6 @@ export default function TeamsPage() {
         {activeTab === 'teams' && <TeamsManager />}
         {activeTab === 'roles' && <RoleManager />}
       </div>
-    </AppShell>
+    </>
   )
 }

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { apiGet, apiFetch } from '@/lib/apiClient'
+import { BondAICopilot } from '@/components/bond-ai'
+import { logger } from '@/lib/logger'
 
 interface CallWithArtifacts {
   id: string
@@ -77,6 +79,7 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [organizationPlan, setOrganizationPlan] = useState<string | null>(null)
   const { toast } = useToast()
 
   // Fetch call with all artifacts
@@ -101,6 +104,19 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
 
     fetchCallDetails()
   }, [callId])
+
+  // Fetch organization plan for feature gating
+  useEffect(() => {
+    if (!organizationId) return
+
+    apiGet(`/api/organizations/${organizationId}`)
+      .then((data) => {
+        if (data.organization?.plan) {
+          setOrganizationPlan(data.organization.plan)
+        }
+      })
+      .catch((err) => logger.error('Failed to fetch organization plan', { error: err }))
+  }, [organizationId])
 
   // Export evidence bundle (ZIP format)
   async function handleExport() {
@@ -359,6 +375,13 @@ export default function ReviewMode({ callId, organizationId }: ReviewModeProps) 
         </h3>
         <ReviewTimeline artifacts={artifacts} />
       </div>
+
+      {/* Bond AI Call Co-Pilot - Pro Plan Only */}
+      {organizationPlan === 'pro' && call && (
+        <div className="mb-6">
+          <BondAICopilot callId={call.id} />
+        </div>
+      )}
 
       {/* Provenance Summary */}
       <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">

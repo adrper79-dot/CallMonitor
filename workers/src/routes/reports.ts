@@ -26,10 +26,10 @@ export const reportsRoutes = new Hono<AppEnv>()
 
 // GET / — List reports
 reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
-  const db = getDb(c.env)
+  const session = c.get('session')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = c.get('session')
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
     const page = parseInt(c.req.query('page') || '1')
     const limit = Math.min(parseInt(c.req.query('limit') || '20', 10), 200)
     const offset = (page - 1) * limit
@@ -59,10 +59,10 @@ reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
 
 // POST / — Generate a new report
 reportsRoutes.post('/', authMiddleware, requirePlan('business'), reportRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = c.get('session')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = c.get('session')
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, GenerateReportSchema)
     if (!parsed.success) return parsed.response
@@ -104,10 +104,10 @@ reportsRoutes.post('/', authMiddleware, requirePlan('business'), reportRateLimit
 
 // GET /:id/export — Export/download report
 reportsRoutes.get('/:id/export', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const reportId = c.req.param('id')
 
@@ -150,10 +150,10 @@ reportsRoutes.get('/:id/export', async (c) => {
 
 // GET /schedules — List report schedules
 reportsRoutes.get('/schedules', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const page = parseInt(c.req.query('page') || '1', 10)
     const limit = Math.min(parseInt(c.req.query('limit') || '25', 10), 200)
@@ -184,10 +184,10 @@ reportsRoutes.get('/schedules', async (c) => {
 
 // POST /schedules — Create report schedule
 reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, ScheduleReportSchema)
     if (!parsed.success) return parsed.response
@@ -230,10 +230,10 @@ reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
 
 // PATCH /schedules/:id — Update report schedule (toggle active, etc.)
 reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scheduleId = c.req.param('id')
     const parsed = await validateBody(c, UpdateScheduleSchema)
@@ -275,10 +275,10 @@ reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
 
 // DELETE /schedules/:id — Delete report schedule
 reportsRoutes.delete('/schedules/:id', reportRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const scheduleId = c.req.param('id')
 

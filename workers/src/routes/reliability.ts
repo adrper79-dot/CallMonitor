@@ -25,7 +25,7 @@ export const reliabilityRoutes = new Hono<AppEnv>()
 reliabilityRoutes.get('/webhooks', async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const status = c.req.query('status') || 'all'
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 200)
@@ -88,7 +88,7 @@ reliabilityRoutes.get('/webhooks', async (c) => {
 reliabilityRoutes.put('/webhooks', reliabilityRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, WebhookActionSchema)
     if (!parsed.success) return parsed.response

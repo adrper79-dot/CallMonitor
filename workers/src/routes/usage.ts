@@ -30,7 +30,7 @@ async function getUsageData(c: any) {
     })
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get this month's usage from actual tables
     const now = new Date()

@@ -81,12 +81,12 @@ const PLAN_CAPABILITIES: Record<string, any> = {
 
 // GET / — capabilities for the caller's organization plan
 callCapabilitiesRoutes.get('/', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     let plan = 'free'
 

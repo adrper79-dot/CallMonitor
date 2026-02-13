@@ -29,10 +29,10 @@ export const teamsRoutes = new Hono<AppEnv>()
 
 // List teams in org
 teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
-  const db = getDb(c.env)
+  const session = c.get('session')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = c.get('session')
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     if (!session.organization_id) {
       return c.json({ success: true, teams: [] })
@@ -69,10 +69,10 @@ teamsRoutes.get('/', authMiddleware, requirePlan('pro'), async (c) => {
 
 // Create team (manager+ role)
 teamsRoutes.post('/', authMiddleware, requirePlan('pro'), teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = c.get('session')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = c.get('session')
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
@@ -121,10 +121,10 @@ teamsRoutes.post('/', authMiddleware, requirePlan('pro'), teamRateLimit, async (
 
 // Update team
 teamsRoutes.put('/:id', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
@@ -185,10 +185,10 @@ teamsRoutes.put('/:id', teamRateLimit, async (c) => {
 
 // Delete team (admin+ role)
 teamsRoutes.delete('/:id', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 4) {
@@ -227,10 +227,10 @@ teamsRoutes.delete('/:id', teamRateLimit, async (c) => {
 
 // Get members of a team
 teamsRoutes.get('/:id/members', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const teamId = c.req.param('id')
 
@@ -265,10 +265,10 @@ teamsRoutes.get('/:id/members', async (c) => {
 
 // Add member to team
 teamsRoutes.post('/:id/members', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
@@ -326,10 +326,10 @@ teamsRoutes.post('/:id/members', teamRateLimit, async (c) => {
 
 // Remove member from team
 teamsRoutes.delete('/:id/members/:userId', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
     if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
@@ -374,10 +374,10 @@ teamsRoutes.delete('/:id/members/:userId', teamRateLimit, async (c) => {
 
 // List all organizations user belongs to
 teamsRoutes.get('/my-orgs', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const result = await db.query(
       `SELECT o.id, o.name, o.plan, o.plan_status,
@@ -404,10 +404,10 @@ teamsRoutes.get('/my-orgs', async (c) => {
 
 // Switch active org (updates session)
 teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, SwitchOrgSchema)
     if (!parsed.success) return parsed.response
@@ -463,10 +463,10 @@ teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
 
 // Update member role
 teamsRoutes.patch('/members/:userId/role', teamRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const roleLevel: Record<string, number> = {
       viewer: 1,

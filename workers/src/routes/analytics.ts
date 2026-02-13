@@ -31,10 +31,10 @@ function parseDateRange(c: any) {
 
 // GET /kpis — Top-level KPIs dashboard
 analyticsRoutes.get('/kpis', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -162,10 +162,10 @@ analyticsRoutes.get('/kpis', analyticsRateLimit, async (c) => {
 // Provides a stable 200 response for clients expecting this endpoint while
 // longer-running trend computations are implemented.
 analyticsRoutes.get('/trends', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -184,10 +184,10 @@ analyticsRoutes.get('/trends', analyticsRateLimit, async (c) => {
 
 // GET /calls — Call volume & duration analytics
 analyticsRoutes.get('/calls', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -250,10 +250,10 @@ analyticsRoutes.get('/calls', analyticsRateLimit, async (c) => {
 
 // GET /sentiment — Sentiment breakdown
 analyticsRoutes.get('/sentiment', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -295,10 +295,10 @@ analyticsRoutes.get('/sentiment', analyticsRateLimit, async (c) => {
 
 // GET /performance — Agent/queue performance
 analyticsRoutes.get('/performance', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -342,10 +342,10 @@ analyticsRoutes.get('/performance', analyticsRateLimit, async (c) => {
 
 // GET /surveys — Survey/CSAT analytics
 analyticsRoutes.get('/surveys', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -385,10 +385,10 @@ analyticsRoutes.get('/surveys', analyticsRateLimit, async (c) => {
 
 // GET /scorecards — Scorecard trends and results
 analyticsRoutes.get('/scorecards', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -462,10 +462,10 @@ analyticsRoutes.get('/scorecards', analyticsRateLimit, async (c) => {
 
 // GET /usage — Feature usage statistics
 analyticsRoutes.get('/usage', analyticsRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const { start, end } = parseDateRange(c)
 
@@ -617,10 +617,10 @@ analyticsRoutes.get('/usage', analyticsRateLimit, async (c) => {
 
 // GET /export — CSV export (strict rate limit — heavy operation)
 analyticsRoutes.get('/export', analyticsExportRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
     const { start, end } = parseDateRange(c)
     const type = c.req.query('type') || 'calls'
 
@@ -670,6 +670,97 @@ analyticsRoutes.get('/export', analyticsExportRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('GET /api/analytics/export error', { error: err?.message })
     return c.json({ error: 'Export failed' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// GET /agents — Agent leaderboard / performance summary
+analyticsRoutes.get('/agents', analyticsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const { start, end } = parseDateRange(c)
+
+    const result = await db.query(
+      `SELECT
+        u.id AS user_id,
+        u.name,
+        u.email,
+        COUNT(cl.id)::int AS total_calls,
+        COUNT(cl.id) FILTER (WHERE cl.status = 'completed')::int AS completed_calls,
+        COALESCE(AVG(cl.duration), 0)::int AS avg_call_duration,
+        COUNT(DISTINCT cl.account_id)::int AS accounts_contacted
+      FROM users u
+      JOIN org_members om ON om.user_id = u.id AND om.organization_id = $1
+      LEFT JOIN calls cl ON cl.created_by = u.id
+        AND cl.organization_id = $1
+        AND cl.created_at >= $2::timestamptz
+        AND cl.created_at <= $3::timestamptz
+      WHERE om.role IN ('agent', 'operator')
+      GROUP BY u.id, u.name, u.email
+      ORDER BY total_calls DESC`,
+      [session.organization_id, start, end]
+    )
+
+    return c.json({ success: true, agents: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/analytics/agents error', { error: err?.message })
+    return c.json({ success: true, agents: [] })
+  } finally {
+    await db.end()
+  }
+})
+
+// GET /agent/:userId — Individual agent stats
+analyticsRoutes.get('/agent/:userId', analyticsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const userId = c.req.param('userId')
+    const { start, end } = parseDateRange(c)
+
+    // Verify user belongs to org
+    const memberCheck = await db.query(
+      `SELECT u.id, u.name, u.email, om.role
+       FROM users u JOIN org_members om ON om.user_id = u.id
+       WHERE u.id = $1 AND om.organization_id = $2`,
+      [userId, session.organization_id]
+    )
+    if (memberCheck.rows.length === 0) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    const agent = memberCheck.rows[0]
+
+    // Call metrics
+    const callMetrics = await db.query(
+      `SELECT
+        COUNT(*)::int AS total_calls,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+        COALESCE(AVG(duration), 0)::int AS avg_duration,
+        COALESCE(MAX(duration), 0)::int AS max_duration
+      FROM calls
+      WHERE created_by = $1
+        AND organization_id = $2
+        AND created_at >= $3::timestamptz
+        AND created_at <= $4::timestamptz`,
+      [userId, session.organization_id, start, end]
+    )
+
+    return c.json({
+      success: true,
+      agent: {
+        ...agent,
+        metrics: callMetrics.rows[0] || {},
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/analytics/agent/:userId error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch agent stats' }, 500)
   } finally {
     await db.end()
   }

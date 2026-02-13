@@ -21,7 +21,7 @@ managerRoutes.get('/team-members', async (c) => {
   const session = await requireRole(c, 'manager')
   if (!session) return c.json({ error: 'Manager role required' }, 403)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get all users in the organization with their current status
     const result = await db.query(`
@@ -83,7 +83,7 @@ managerRoutes.get('/team-stats', async (c) => {
   const session = await requireRole(c, 'manager')
   if (!session) return c.json({ error: 'Manager role required' }, 403)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get comprehensive team stats
     const statsResult = await db.query(`

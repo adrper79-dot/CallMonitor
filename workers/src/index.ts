@@ -60,6 +60,10 @@ import { aiToggleRoutes } from './routes/ai-toggle'
 import { adminMetricsRoutes } from './routes/admin-metrics'
 import { productivityRoutes } from './routes/productivity'
 import { managerRoutes } from './routes/manager'
+import { featureFlagRoutes } from './routes/feature-flags'
+import { paymentsRoutes } from './routes/payments'
+import { dncRoutes } from './routes/dnc'
+import { feedbackRoutes } from './routes/feedback'
 import {
   buildErrorContext,
   logError,
@@ -154,8 +158,9 @@ app.use(
         'http://localhost:3000',
       ]
 
-      // Also allow any *.wordisbond.pages.dev preview URLs
-      if (origin && origin.endsWith('.wordisbond.pages.dev')) {
+      // L-2: Allow only known preview hostnames — no wildcard subdomain match
+      // @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — L-2: Wildcard .pages.dev CORS
+      if (origin && /^https:\/\/[a-f0-9]{8}\.wordisbond\.pages\.dev$/.test(origin)) {
         return origin
       }
 
@@ -180,6 +185,7 @@ app.use(
       'X-AI-Mode',
       'X-Dialer-Session',
       'X-IVR-Flow-Id',
+      'X-Session-Token',
     ],
   })
 )
@@ -247,6 +253,10 @@ app.route('/api/internal', internalRoutes) // Monitoring and health endpoints
 app.route('/api/admin/metrics', adminMetricsRoutes)
 app.route('/api/productivity', productivityRoutes)
 app.route('/api/manager', managerRoutes)
+app.route('/api/feature-flags', featureFlagRoutes)
+app.route('/api/payments', paymentsRoutes)
+app.route('/api/dnc', dncRoutes)
+app.route('/api/feedback', feedbackRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

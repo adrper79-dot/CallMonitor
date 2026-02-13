@@ -45,7 +45,7 @@ productivityRoutes.get('/note-templates', collectionsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `SELECT id, shortcode, title, content, tags, usage_count, created_at, updated_at
@@ -68,7 +68,7 @@ productivityRoutes.post('/note-templates', collectionsRateLimit, async (c) => {
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateNoteTemplateSchema)
     if (!parsed.success) return parsed.response
@@ -120,7 +120,7 @@ productivityRoutes.put('/note-templates/:id', collectionsRateLimit, async (c) =>
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
     const parsed = await validateBody(c, UpdateNoteTemplateSchema)
@@ -179,7 +179,7 @@ productivityRoutes.delete('/note-templates/:id', collectionsRateLimit, async (c)
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
     const result = await db.query(
@@ -215,7 +215,7 @@ productivityRoutes.post('/note-templates/expand/:shortcode', collectionsRateLimi
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const shortcode = '/' + c.req.param('shortcode')
     const result = await db.query(
@@ -244,7 +244,7 @@ productivityRoutes.get('/objection-rebuttals', collectionsRateLimit, async (c) =
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const category = c.req.query('category')
     const search = c.req.query('search')
@@ -290,7 +290,7 @@ productivityRoutes.post('/objection-rebuttals', collectionsRateLimit, async (c) 
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateObjectionRebuttalSchema)
     if (!parsed.success) return parsed.response
@@ -334,7 +334,7 @@ productivityRoutes.put('/objection-rebuttals/:id', collectionsRateLimit, async (
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
     const parsed = await validateBody(c, UpdateObjectionRebuttalSchema)
@@ -393,7 +393,7 @@ productivityRoutes.delete('/objection-rebuttals/:id', collectionsRateLimit, asyn
   const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
     const result = await db.query(
@@ -429,7 +429,7 @@ productivityRoutes.post('/objection-rebuttals/:id/use', collectionsRateLimit, as
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')
     await db.query(
@@ -454,7 +454,7 @@ productivityRoutes.get('/daily-planner', collectionsRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // 1. Due tasks (callbacks, follow-ups, promise follow-ups)
     const dueTasks = await db.query(
@@ -562,7 +562,7 @@ productivityRoutes.get('/likelihood/:accountId', collectionsRateLimit, async (c)
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const accountId = c.req.param('accountId')
     const result = await computeLikelihoodScore(db, session.organization_id, accountId)

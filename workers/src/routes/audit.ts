@@ -13,12 +13,12 @@ export const auditRoutes = new Hono<AppEnv>()
 
 // Get audit logs for organization
 auditRoutes.get('/', auditRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
 
     if (!session.organization_id) {
       // Return empty array if no organization (user might be in setup)

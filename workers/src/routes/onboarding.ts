@@ -22,7 +22,7 @@ onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
   const parsed = await validateBody(c, OnboardingSetupSchema)
   if (!parsed.success) return parsed.response
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // 1. Create Stripe Customer if missing
     let stripeCustomerId = ''
@@ -130,7 +130,7 @@ onboardingRoutes.post('/progress', onboardingRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
 
   const { step } = parsed.data
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     await db.query('UPDATE organizations SET onboarding_step = $1 WHERE id = $2', [
       step,

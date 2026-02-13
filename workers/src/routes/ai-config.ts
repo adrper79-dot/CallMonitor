@@ -34,10 +34,10 @@ const DEFAULT_CONFIG = {
 
 // GET / — Get AI configuration
 aiConfigRoutes.get('/', async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const result = await db.query(
       `SELECT config, updated_at
@@ -66,10 +66,10 @@ aiConfigRoutes.get('/', async (c) => {
 
 // PUT / — Update AI configuration
 aiConfigRoutes.put('/', aiConfigRateLimit, async (c) => {
-  const db = getDb(c.env)
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const db = getDb(c.env, session.organization_id)
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
     const parsed = await validateBody(c, UpdateAIConfigSchema)
     if (!parsed.success) return parsed.response

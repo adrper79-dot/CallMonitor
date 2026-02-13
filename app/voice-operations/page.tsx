@@ -6,7 +6,7 @@ import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
-import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import { AlertTriangle } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
 
@@ -89,13 +89,14 @@ export default function VoiceOperationsPage() {
   }
 
   return (
-    <AppShell organizationName={organizationName || 'Your Organization'} userEmail={session?.user?.email || undefined}>
+    <>
+      <FeatureFlagRedirect to="/work/call" />
       <VoiceOperationsClient
         initialCalls={calls}
         organizationId={organizationId}
         organizationName={organizationName || undefined}
       />
       <TroubleshootChatToggle />
-    </AppShell>
+    </>
   )
 }

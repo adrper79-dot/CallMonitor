@@ -63,7 +63,7 @@ callsRoutes.get('/', async (c) => {
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200)
   const offset = (page - 1) * limit
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Build query
     let sql = `
@@ -122,7 +122,7 @@ callsRoutes.get('/:id', async (c) => {
   }
 
   const callId = c.req.param('id')
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(`SELECT * FROM calls WHERE id = $1 AND organization_id = $2`, [
       callId,
@@ -153,7 +153,7 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
   if (!parsed.success) return parsed.response
   const { phone_number, caller_id, system_id } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Create call record - matching actual schema columns
     // Schema has: id, organization_id, system_id, status, started_at, created_by, call_sid, caller_id_used
@@ -276,7 +276,7 @@ callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
   }
 
   const callId = c.req.param('id')
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const result = await db.query(
       `UPDATE calls 
@@ -373,7 +373,7 @@ callsRoutes.get('/:id/outcome', async (c) => {
     )
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify call belongs to organization
     const { rows: calls } = await db.query(
@@ -483,7 +483,7 @@ callsRoutes.post('/:id/outcome', callMutationRateLimit, async (c) => {
     )
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Parse + validate request body
     const parsed = await validateBody(c, CallOutcomeSchema)
@@ -612,7 +612,7 @@ callsRoutes.put('/:id/outcome', callMutationRateLimit, async (c) => {
     )
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Parse + validate request body
     const parsed = await validateBody(c, CallOutcomeUpdateSchema)
@@ -766,7 +766,7 @@ callsRoutes.post('/:id/summary', aiSummaryRateLimit, async (c) => {
     )
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Parse + validate request body
     const parsed = await validateBody(c, GenerateSummarySchema)
@@ -1018,7 +1018,7 @@ callsRoutes.get('/:id/timeline', async (c) => {
     return c.json({ success: false, error: 'Invalid call ID' }, 400)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify call belongs to org
     const { rows: calls } = await db.query(
@@ -1058,7 +1058,7 @@ callsRoutes.get('/:id/notes', async (c) => {
     return c.json({ success: false, error: 'Invalid call ID' }, 400)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const { rows: calls } = await db.query(
       `SELECT id FROM calls WHERE id = $1 AND organization_id = $2`,
@@ -1102,7 +1102,7 @@ callsRoutes.post('/:id/notes', callMutationRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const { content } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify call belongs to org
     const { rows: calls } = await db.query(
@@ -1150,7 +1150,7 @@ callsRoutes.put('/:id/disposition', callMutationRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const { disposition, disposition_notes } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     const { rows: updated } = await db.query(
       `UPDATE calls 
@@ -1197,7 +1197,7 @@ callsRoutes.post('/:id/confirmations', callMutationRateLimit, async (c) => {
   if (!parsed.success) return parsed.response
   const { confirmation_type, details, confirmed_by } = parsed.data
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Verify call belongs to org
     const { rows: calls } = await db.query(
@@ -1248,7 +1248,7 @@ callsRoutes.get('/:id/export', async (c) => {
     return c.json({ success: false, error: 'Invalid call ID' }, 400)
   }
 
-  const db = getDb(c.env)
+  const db = getDb(c.env, session.organization_id)
   try {
     // Get call with all related data
     const { rows: calls } = await db.query(
@@ -1332,7 +1332,7 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
     const { recipients } = parsed.data
 
     // Fetch call details for the email
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
     try {
       const callResult = await db.query(
         `SELECT id, caller_id_used, started_at, status, disposition FROM calls WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,

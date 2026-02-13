@@ -67,3 +67,6 @@ worker-configuration.d.ts
 # Database backups (contain production data)
 backups/db/
 workers/dist_test/
+
+# Temporary files
+deleteme

@@ -19,6 +19,27 @@ import { analyticsRateLimit } from '../lib/rate-limit'
 
 export const internalRoutes = new Hono<AppEnv>()
 
+/**
+ * Internal routes security middleware.
+ * Validates X-Internal-Key header against INTERNAL_API_KEY secret.
+ * These routes expose monitoring data (cron health, webhook DLQ, schema)
+ * and MUST NOT be publicly accessible.
+ *
+ * @see ARCH_DOCS/FORENSIC_DEEP_DIVE_REPORT.md — C-2
+ */
+const requireInternalKey = async (c: any, next: any) => {
+  const key = c.req.header('X-Internal-Key')
+  const expected = (c.env as any).INTERNAL_API_KEY
+  if (!expected) {
+    logger.error('[internal] INTERNAL_API_KEY not configured — blocking all internal routes')
+    return c.json({ error: 'Internal routes not configured' }, 503)
+  }
+  if (!key || key !== expected) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+  return next()
+}
+
 interface CronMetrics {
   last_run: string
   last_success: string | null
@@ -54,7 +75,7 @@ interface CronHealth {
  * - down: Job hasn't run in expected interval
  * - unknown: No metrics available (job never ran)
  */
-internalRoutes.get('/cron-health', analyticsRateLimit, async (c) => {
+internalRoutes.get('/cron-health', requireInternalKey, analyticsRateLimit, async (c) => {
   try {
     const jobs = [
       { name: 'retry_transcriptions', interval_minutes: 5 },
@@ -147,7 +168,7 @@ internalRoutes.get('/cron-health', analyticsRateLimit, async (c) => {
  * - source: Filter by webhook source (telnyx, stripe, assemblyai)
  * - limit: Max results (default 50, max 100)
  */
-internalRoutes.get('/webhook-dlq', analyticsRateLimit, async (c) => {
+internalRoutes.get('/webhook-dlq', requireInternalKey, analyticsRateLimit, async (c) => {
   try {
     const source = c.req.query('source')
     const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100)
@@ -193,7 +214,7 @@ internalRoutes.get('/webhook-dlq', analyticsRateLimit, async (c) => {
  * - users table: organization_id, role, etc.
  * - organizations table: plan, stripe_customer_id, etc.
  */
-internalRoutes.get('/schema-health', analyticsRateLimit, async (c) => {
+internalRoutes.get('/schema-health', requireInternalKey, analyticsRateLimit, async (c) => {
   const db = getDb(c.env)
 
   try {

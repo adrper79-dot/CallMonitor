@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useState, useEffect } from 'react'
 import { useSession } from '@/components/AuthProvider'
-import { AppShell } from '@/components/layout/AppShell'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import ReviewMode from '@/components/review/ReviewMode'
 import ScorecardTemplateLibrary from '@/components/voice/ScorecardTemplateLibrary'
 import { ProductTour, REVIEW_TOUR } from '@/components/tour'
@@ -44,7 +44,8 @@ function ReviewPageContent() {
   ]
 
   return (
-    <AppShell>
+    <>
+      <FeatureFlagRedirect to="/work/call" />
       {/* Page Header with Tabs */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 pt-6">
@@ -93,7 +94,7 @@ function ReviewPageContent() {
 
       {/* Tutorial Tour */}
       <ProductTour tourId="review" steps={REVIEW_TOUR} />
-    </AppShell>
+    </>
   )
 }
 
