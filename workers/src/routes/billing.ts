@@ -18,7 +18,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
-import { getDb } from '../lib/db'
+import { getDb, withTransaction } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CheckoutSchema, ChangePlanSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
@@ -569,37 +569,41 @@ billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
       )
       let customerId = orgResult.rows?.[0]?.stripe_customer_id
 
-      // If no Stripe customer yet, create one
+      // If no Stripe customer yet, create one and persist atomically
       if (!customerId) {
-        const userResult = await db.query('SELECT email FROM users WHERE id = $1', [
-          session.user_id,
-        ])
-        const email = userResult.rows?.[0]?.email || ''
+        customerId = await withTransaction(db, async (tx) => {
+          const userResult = await tx.query('SELECT email FROM users WHERE id = $1', [
+            session.user_id,
+          ])
+          const email = userResult.rows?.[0]?.email || ''
 
-        const createRes = await fetch('https://api.stripe.com/v1/customers', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            email,
-            'metadata[organization_id]': session.organization_id,
-          }),
+          const createRes = await fetch('https://api.stripe.com/v1/customers', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              email,
+              'metadata[organization_id]': session.organization_id,
+            }),
+          })
+
+          if (!createRes.ok) {
+            throw new Error('Failed to create Stripe customer')
+          }
+
+          const customer = (await createRes.json()) as any
+          const newCustomerId = customer.id
+
+          // Save the stripe_customer_id
+          await tx.query('UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2', [
+            newCustomerId,
+            session.organization_id,
+          ])
+
+          return newCustomerId
         })
-
-        if (!createRes.ok) {
-          return c.json({ error: 'Failed to create Stripe customer' }, 500)
-        }
-
-        const customer = (await createRes.json()) as any
-        customerId = customer.id
-
-        // Save the stripe_customer_id
-        await db.query('UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2', [
-          customerId,
-          session.organization_id,
-        ])
       }
 
       // Create Checkout Session
@@ -745,26 +749,29 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
         return c.json({ error: 'Failed to cancel subscription' }, 500)
       }
 
-      // Capture old state for audit trail (BL-SEC-004)
-      const oldStatusResult = await db.query(
-        `SELECT subscription_status FROM organizations WHERE id = $1`,
-        [session.organization_id]
-      )
-      const oldStatus = oldStatusResult.rows[0]?.subscription_status
+      // Capture old state and update local status atomically
+      const oldStatus = await withTransaction(db, async (tx) => {
+        const oldStatusResult = await tx.query(
+          `SELECT subscription_status FROM organizations WHERE id = $1`,
+          [session.organization_id]
+        )
+        const prevStatus = oldStatusResult.rows[0]?.subscription_status
 
-      // Update local status
-      await db.query(`UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`, [
-        session.organization_id,
-      ])
+        await tx.query(`UPDATE organizations SET subscription_status = 'cancelling' WHERE id = $1`, [
+          session.organization_id,
+        ])
 
-      // Audit log: subscription cancelled
+        return prevStatus
+      })
+
+      // Audit log: subscription cancelled (fire-and-forget, outside transaction)
       writeAuditLog(db, {
         organizationId: session.organization_id,
         userId: session.user_id,
         resourceType: 'billing',
         resourceId: subscriptionId,
         action: AuditAction.SUBSCRIPTION_CANCELLED,
-        oldValue: { subscription_status: oldStatus },
+        oldValue: { subscription_status: oldStatus as string },
         newValue: {
           subscription_id: subscriptionId,
           subscription_status: 'cancelling',

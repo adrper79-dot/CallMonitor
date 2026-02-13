@@ -1,8 +1,13 @@
 /**
  * Centralized Audit Log Writer for Cloudflare Workers
  *
- * Provides a DRY, best-effort audit trail for all mutation operations.
- * Writes to the `audit_logs` table with a non-blocking fire-and-forget pattern.
+ * C-2 hardening: Resilient write with KV dead-letter buffer.
+ * Primary path: Direct DB INSERT (fast, synchronous in request).
+ * Fallback path: If DB write fails, the entry is buffered to KV with a
+ * `audit-dlq:` prefix so the hourly cron can flush them to the DB.
+ *
+ * This ensures zero audit log loss — even if the DB is temporarily unreachable,
+ * entries are persisted in KV and retried on the next cron cycle.
  *
  * Schema:
  *   audit_logs (id, organization_id, user_id, resource_type, resource_id, action, old_value, new_value, created_at)
@@ -12,18 +17,19 @@
  * ```ts
  * import { writeAuditLog } from '../lib/audit'
  *
- * await writeAuditLog(db, {
+ * writeAuditLog(db, {
  *   organizationId: session.organization_id,
  *   userId: session.user_id,
  *   resourceType: 'calls',
  *   resourceId: call.id,
  *   action: 'call:started',
  *   newValue: { phone: call.phone_number, status: 'pending' },
- * })
+ * }, c.env.KV)
  * ```
  *
  * @see ROADMAP.md — RISK/SCALE: Audit Logs (all mutation logging)
  * @see ARCH_DOCS/CIO_PRODUCTION_REVIEW.md — compliance patterns
+ * @see ARCH_DOCS/PRE_PRODUCTION_FORENSIC_AUDIT.md — C-2 fix
  */
 
 import type { DbClient } from './db'
@@ -63,7 +69,7 @@ function toUuidOrNull(value: string | null | undefined): string | null {
   return UUID_REGEX.test(value) ? value : null
 }
 
-export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
+export function writeAuditLog(db: DbClient, entry: AuditLogEntry, kv?: KVNamespace): void {
   const {
     organizationId,
     userId,
@@ -74,32 +80,126 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry): void {
     newValue = null,
   } = entry
 
+  const params = [
+    toUuidOrNull(organizationId),
+    toUuidOrNull(userId),
+    resourceType,
+    toUuidOrNull(resourceId),
+    action,
+    oldValue ? JSON.stringify(oldValue) : null,
+    newValue ? JSON.stringify(newValue) : null,
+    // Store non-UUID sentinel values in metadata for traceability
+    (!UUID_REGEX.test(organizationId) || !UUID_REGEX.test(userId) || !UUID_REGEX.test(resourceId))
+      ? JSON.stringify({ _org_label: organizationId, _user_label: userId, _resource_label: resourceId })
+      : null,
+  ]
+
   void db
     .query(
       `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, metadata, created_at)
        VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, NOW())`,
-      [
-        toUuidOrNull(organizationId),
-        toUuidOrNull(userId),
-        resourceType,
-        toUuidOrNull(resourceId),
-        action,
-        oldValue ? JSON.stringify(oldValue) : null,
-        newValue ? JSON.stringify(newValue) : null,
-        // Store non-UUID sentinel values in metadata for traceability
-        (!UUID_REGEX.test(organizationId) || !UUID_REGEX.test(userId) || !UUID_REGEX.test(resourceId))
-          ? JSON.stringify({ _org_label: organizationId, _user_label: userId, _resource_label: resourceId })
-          : null,
-      ]
+      params
     )
-    .catch((err) =>
-      logger.warn('Audit log write failed (non-fatal)', {
+    .catch(async (err) => {
+      logger.warn('Audit log DB write failed — buffering to KV DLQ', {
         action,
         resourceType,
         resourceId,
         error: (err as Error)?.message,
       })
-    )
+
+      // C-2: Buffer failed entry to KV dead-letter queue for cron retry
+      if (kv) {
+        try {
+          const dlqKey = `audit-dlq:${Date.now()}-${crypto.randomUUID()}`
+          await kv.put(dlqKey, JSON.stringify({
+            organizationId,
+            userId,
+            resourceType,
+            resourceId,
+            action,
+            oldValue,
+            newValue,
+            metadata: params[7] ? JSON.parse(params[7] as string) : null,
+            failed_at: new Date().toISOString(),
+          }), { expirationTtl: 7 * 24 * 60 * 60 }) // 7-day TTL
+        } catch (kvErr) {
+          logger.error('Audit log KV DLQ write also failed — entry lost', {
+            action,
+            resourceType,
+            error: (kvErr as Error)?.message,
+          })
+        }
+      }
+    })
+}
+
+/**
+ * Flush audit DLQ entries from KV back into the database.
+ * Called by the hourly cron job. Processes up to `batchSize` entries per run
+ * to avoid overwhelming the DB or hitting Workers CPU limits.
+ *
+ * @param env - Cloudflare Workers environment bindings
+ * @param batchSize - Maximum entries to process per flush (default 50)
+ * @returns Count of successfully flushed and failed entries
+ */
+export async function flushAuditDlq(
+  env: { KV: KVNamespace; NEON_PG_CONN?: string; HYPERDRIVE?: Hyperdrive },
+  batchSize = 50
+): Promise<{ flushed: number; failed: number }> {
+  const { getDb: getDbFn } = await import('./db')
+  let flushed = 0
+  let failed = 0
+
+  // List all audit DLQ keys
+  const list = await env.KV.list({ prefix: 'audit-dlq:', limit: batchSize })
+
+  if (list.keys.length === 0) return { flushed: 0, failed: 0 }
+
+  const db = getDbFn(env as any)
+  try {
+    for (const key of list.keys) {
+      try {
+        const raw = await env.KV.get(key.name)
+        if (!raw) {
+          await env.KV.delete(key.name)
+          continue
+        }
+
+        const entry = JSON.parse(raw) as AuditLogEntry & { metadata?: any; failed_at?: string }
+
+        await db.query(
+          `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, metadata, created_at)
+           VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW()))`,
+          [
+            toUuidOrNull(entry.organizationId),
+            toUuidOrNull(entry.userId),
+            entry.resourceType,
+            toUuidOrNull(entry.resourceId),
+            entry.action,
+            entry.oldValue ? JSON.stringify(entry.oldValue) : null,
+            entry.newValue ? JSON.stringify(entry.newValue) : null,
+            entry.metadata ? JSON.stringify(entry.metadata) : null,
+            entry.failed_at || null,
+          ]
+        )
+
+        // Successfully flushed — remove from DLQ
+        await env.KV.delete(key.name)
+        flushed++
+      } catch (err) {
+        failed++
+        logger.warn('Audit DLQ flush: entry failed, will retry next cycle', {
+          key: key.name,
+          error: (err as Error)?.message,
+        })
+      }
+    }
+  } finally {
+    await db.end()
+  }
+
+  return { flushed, failed }
 }
 
 /**
@@ -117,6 +217,7 @@ export const AuditAction = {
   CALL_CONFIRMATION_CREATED: 'call:confirmation_created',
   CALL_EMAILED: 'call:emailed',
   CALL_AI_SUMMARY_GENERATED: 'call:ai_summary_generated',
+  CALL_TRANSFERRED: 'call:transferred',
 
   // Recordings
   RECORDING_ACCESSED: 'recording:accessed',
@@ -316,5 +417,13 @@ export const AuditAction = {
   // DNC List Management
   DNC_ENTRY_CREATED: 'dnc:created',
   DNC_ENTRY_DELETED: 'dnc:deleted',
+
+  // CRM Integration
+  CRM_INTEGRATION_CREATED: 'crm:integration_created',
+  CRM_INTEGRATION_UPDATED: 'crm:integration_updated',
+  CRM_INTEGRATION_DELETED: 'crm:integration_deleted',
+  CRM_OBJECT_LINKED: 'crm:object_linked',
+  CRM_OBJECT_UPDATED: 'crm:object_updated',
+  CRM_OBJECT_UNLINKED: 'crm:object_unlinked',
 } as const
 

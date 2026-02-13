@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { getDb } from '../lib/db'
+import { getDb, withTransaction } from '../lib/db'
 import { requireAuth, requireRole } from '../lib/auth'
 import { isValidUUID } from '../lib/utils'
 import { validateBody } from '../lib/validate'
@@ -1391,5 +1391,244 @@ callsRoutes.post('/:id/email', emailRateLimit, async (c) => {
   } catch (error: any) {
     logger.error('POST email error', { error: error?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  }
+})
+
+// ─────────────────────────────────────────────
+// Transcript polling (for live transcript in Cockpit)
+// ─────────────────────────────────────────────
+callsRoutes.get('/:id/transcript', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  const afterIndex = parseInt(c.req.query('after') || '0', 10)
+  const db = getDb(c.env, session.organization_id)
+
+  try {
+    const result = await db.query(
+      `SELECT id, speaker, content, confidence, segment_index, timestamp_ms, created_at
+       FROM call_transcript_segments
+       WHERE call_id = $1 AND organization_id = $2 AND segment_index > $3
+       ORDER BY segment_index ASC
+       LIMIT 50`,
+      [callId, session.organization_id, afterIndex]
+    )
+
+    return c.json({
+      success: true,
+      segments: result.rows,
+      count: result.rows.length,
+      last_index: result.rows.length > 0
+        ? result.rows[result.rows.length - 1].segment_index
+        : afterIndex,
+    })
+  } catch (err: any) {
+    logger.error('GET transcript error', { callId, error: err?.message })
+    return c.json({ error: 'Failed to fetch transcript' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─────────────────────────────────────────────
+// AI Suggestion (real-time agent assist during calls)
+// ─────────────────────────────────────────────
+callsRoutes.get('/:id/ai-suggest', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  const db = getDb(c.env, session.organization_id)
+
+  try {
+    // Get the last 10 transcript segments for context
+    const transcriptResult = await db.query(
+      `SELECT speaker, content FROM call_transcript_segments
+       WHERE call_id = $1 AND organization_id = $2
+       ORDER BY segment_index DESC LIMIT 10`,
+      [callId, session.organization_id]
+    )
+
+    if (transcriptResult.rows.length === 0) {
+      return c.json({ suggestion: null, reason: 'no_transcript' })
+    }
+
+    // Get account context for the call
+    const callResult = await db.query(
+      `SELECT c.system_id, c.disposition, c.status
+       FROM calls c WHERE c.id = $1 AND c.organization_id = $2 LIMIT 1`,
+      [callId, session.organization_id]
+    )
+
+    const lines = transcriptResult.rows.reverse().map(
+      (r: any) => `${r.speaker}: ${r.content}`
+    ).join('\n')
+
+    const systemPrompt = `You are a real-time AI assistant for a debt collection agent on a live call.
+Your job is to provide SHORT, actionable suggestions based on the conversation.
+Rules:
+- Keep suggestions under 2 sentences
+- Focus on compliance (FDCPA, TCPA, Reg F)
+- Suggest de-escalation when tone is negative
+- Recommend next best action (payment plan, callback, dispute process)
+- Never suggest threatening or harassing language
+- If the customer mentions hardship, suggest empathy + payment options`
+
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${c.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Live call transcript:\n${lines}\n\nProvide a brief coaching suggestion for the agent:` },
+        ],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    })
+
+    if (!openaiRes.ok) {
+      logger.warn('AI suggest OpenAI error', { status: openaiRes.status })
+      return c.json({ suggestion: null, reason: 'ai_error' })
+    }
+
+    const aiData = await openaiRes.json<{ choices: Array<{ message: { content: string } }> }>()
+    const suggestion = aiData.choices?.[0]?.message?.content?.trim() || null
+
+    return c.json({ suggestion })
+  } catch (err: any) {
+    logger.error('GET ai-suggest error', { callId, error: err?.message })
+    return c.json({ suggestion: null, reason: 'error' })
+  } finally {
+    await db.end()
+  }
+})
+
+// ─────────────────────────────────────────────
+// Hold / Unhold a call via Telnyx Call Control
+// ─────────────────────────────────────────────
+callsRoutes.post('/:id/hold', callMutationRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  const body = await c.req.json<{ hold: boolean }>().catch(() => ({ hold: true }))
+  const db = getDb(c.env, session.organization_id)
+
+  try {
+    const callResult = await db.query(
+      `SELECT call_control_id FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [callId, session.organization_id]
+    )
+
+    const callControlId = callResult.rows[0]?.call_control_id
+    if (!callControlId) {
+      return c.json({ error: 'Call not found or no active telephony session' }, 404)
+    }
+
+    const action = body.hold ? 'hold' : 'unhold'
+    const telnyxRes = await fetch(
+      `https://api.telnyx.com/v2/calls/${callControlId}/actions/${action}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      }
+    )
+
+    if (!telnyxRes.ok) {
+      const errBody = await telnyxRes.text().catch(() => '')
+      logger.warn(`Telnyx ${action} failed`, { callId, status: telnyxRes.status, body: errBody.substring(0, 200) })
+      return c.json({ error: `Failed to ${action} call` }, 502)
+    }
+
+    return c.json({ success: true, held: body.hold })
+  } catch (err: any) {
+    logger.error('POST hold error', { callId, error: err?.message })
+    return c.json({ error: 'Failed to hold call' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─────────────────────────────────────────────
+// Transfer a call via Telnyx Call Control
+// ─────────────────────────────────────────────
+callsRoutes.post('/:id/transfer', callMutationRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const callId = c.req.param('id')
+  const body = await c.req.json<{ to: string }>().catch(() => ({ to: '' }))
+  if (!body.to) {
+    return c.json({ error: 'Transfer target (to) is required' }, 400)
+  }
+
+  const db = getDb(c.env, session.organization_id)
+
+  try {
+    const callResult = await db.query(
+      `SELECT call_control_id, caller_id_used FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+      [callId, session.organization_id]
+    )
+
+    const call = callResult.rows[0]
+    if (!call?.call_control_id) {
+      return c.json({ error: 'Call not found or no active telephony session' }, 404)
+    }
+
+    const webhookUrl = `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`
+
+    const telnyxRes = await fetch(
+      `https://api.telnyx.com/v2/calls/${call.call_control_id}/actions/transfer`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: body.to,
+          from: call.caller_id_used || c.env.TELNYX_NUMBER,
+          webhook_url: webhookUrl,
+        }),
+      }
+    )
+
+    if (!telnyxRes.ok) {
+      const errBody = await telnyxRes.text().catch(() => '')
+      logger.warn('Telnyx transfer failed', { callId, to: body.to, status: telnyxRes.status })
+      return c.json({ error: 'Failed to transfer call' }, 502)
+    }
+
+    // Update call status
+    await db.query(
+      `UPDATE calls SET status = 'transferred', ended_at = NOW() WHERE id = $1 AND organization_id = $2`,
+      [callId, session.organization_id]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'calls',
+      resourceId: callId,
+      action: AuditAction.CALL_TRANSFERRED,
+      newValue: { transferred_to: body.to },
+    })
+
+    return c.json({ success: true, transferred_to: body.to })
+  } catch (err: any) {
+    logger.error('POST transfer error', { callId, error: err?.message })
+    return c.json({ error: 'Failed to transfer call' }, 500)
+  } finally {
+    await db.end()
   }
 })

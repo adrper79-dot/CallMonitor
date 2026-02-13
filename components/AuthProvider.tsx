@@ -185,7 +185,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const data = await apiPost('/api/auth/refresh', {})
         if (data.refreshed && data.expires) {
           localStorage.setItem('wb-session-token-expires', data.expires)
-          logger.info('Session refreshed', { expires: data.expires })
+          // H-3: If token was rotated, store the new token
+          if (data.session_token) {
+            storeToken(data.session_token, data.expires)
+            logger.info('Session token rotated', { expires: data.expires })
+          } else {
+            logger.info('Session refreshed', { expires: data.expires })
+          }
         }
       } catch {
         // Non-critical — next interval will retry

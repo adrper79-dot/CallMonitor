@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiGet } from '@/lib/apiClient'
 
-export type CallStatus = 'queued' | 'initiating' | 'ringing' | 'in-progress' | 'completed' | 'failed' | 'busy' | 'no-answer' | 'canceled' | null
+export type CallStatus = 'queued' | 'initiated' | 'initiating' | 'ringing' | 'in-progress' | 'bridged' | 'completed' | 'failed' | 'busy' | 'no-answer' | 'canceled' | null
 
 interface UseActiveCallResult {
     status: CallStatus

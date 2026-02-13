@@ -13,6 +13,7 @@ import type { Env } from './index'
 import { getDb } from './lib/db'
 import { logger } from './lib/logger'
 import { processScheduledPayments, processDunningEscalation } from './lib/payment-scheduler'
+import { flushAuditDlq } from './lib/audit'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -79,6 +80,11 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         break
       case '0 * * * *':
         await trackCronExecution(env, 'cleanup_sessions', () => cleanupExpiredSessions(env))
+        // C-2: Flush any audit log entries that failed to write to DB
+        await trackCronExecution(env, 'flush_audit_dlq', async () => {
+          const result = await flushAuditDlq(env)
+          return { processed: result.flushed, errors: result.failed }
+        })
         break
       case '0 0 * * *':
         await trackCronExecution(env, 'aggregate_usage', () => aggregateUsage(env))

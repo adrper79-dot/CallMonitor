@@ -1260,6 +1260,25 @@ async function handleCallTranscription(env: Env, db: DbClient, payload: any) {
 
   let { id: callId, organization_id: orgId, flow_type } = callResult.rows[0]
 
+  // Store raw transcript segment for Cockpit live-transcript polling
+  try {
+    const segCountResult = await db.query(
+      `SELECT COALESCE(MAX(segment_index), -1) + 1 AS next_index
+       FROM call_transcript_segments
+       WHERE call_id = $1 AND organization_id = $2`,
+      [callId, orgId]
+    )
+    const nextSegIndex = segCountResult.rows[0]?.next_index ?? 0
+    const speaker = transcription_data?.channel === 'inbound' ? 'customer' : 'agent'
+    await db.query(
+      `INSERT INTO call_transcript_segments (call_id, organization_id, speaker, content, confidence, segment_index)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [callId, orgId, speaker, transcript, confidence, nextSegIndex]
+    )
+  } catch (segErr) {
+    logger.warn('Failed to store transcript segment', { callId, error: (segErr as Error)?.message })
+  }
+
   // If this is a bridge customer call, associate transcription with the main bridge call
   if (flow_type === 'bridge_customer') {
     const bridgeCallResult = await db.query(
@@ -1476,6 +1495,28 @@ async function handleCallSpeakEnded(env: Env, db: DbClient, payload: any) {
     })
   } else if (flowContext.flow === 'ivr_payment') {
     await handleGatherResult(db, call_control_id, '', 'speak_ended', env, flowContext)
+  } else if (flowContext.flow === 'voicemail_hangup') {
+    // C-3 FIX: Voicemail message finished playing — hang up the call.
+    // This replaces the unreliable setTimeout pattern in dialer-engine.
+    logger.info('Voicemail speak ended — hanging up', { call_control_id })
+    try {
+      await fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/hangup`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      })
+    } catch (hangupErr) {
+      logger.warn('Voicemail hangup failed (call may already be ended)', {
+        call_control_id,
+        error: (hangupErr as Error)?.message,
+      })
+    }
+  } else if (flowContext.flow === 'dialer_hold') {
+    // Agent hold message finished — re-check for available agent or replay hold
+    logger.info('Hold message ended for dialer call', { call_control_id })
   }
 }
 

@@ -125,7 +125,7 @@ export default function DispositionBar({
         setSubmitting(false)
       }
     },
-    [callId, accountId, disabled, submitting, submitted, onDisposition]
+    [callId, disabled, submitting, submitted, onDisposition]
   )
 
   // Keyboard shortcuts: 1-7 maps to dispositions

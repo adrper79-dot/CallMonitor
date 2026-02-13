@@ -427,3 +427,17 @@ export const reliabilityRateLimit = rateLimit({
   prefix: 'rl:reliability',
 })
 
+/** CRM integration mutations: 20 per 5 minutes per IP */
+export const crmRateLimit = rateLimit({
+  limit: 20,
+  windowSeconds: 5 * 60,
+  prefix: 'rl:crm',
+})
+
+/** Generic import operations: 5 per 15 minutes per IP (heavy operations) */
+export const importRateLimit = rateLimit({
+  limit: 5,
+  windowSeconds: 15 * 60,
+  prefix: 'rl:import',
+})
+

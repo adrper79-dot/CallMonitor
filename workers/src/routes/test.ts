@@ -962,7 +962,18 @@ function probeToResult(id: string, name: string, category: string, probe: ProbeR
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 // GET /api/test/catalog — List all available tests
+// H-2 fix: Auth-gated — requires admin/owner to prevent test infrastructure leak
 testRoutes.get('/catalog', async (c) => {
+  let session: any = null
+  try {
+    session = await requireAuth(c)
+    if (session.role !== 'owner' && session.role !== 'admin') {
+      return c.json({ error: 'Forbidden — admin role required' }, 403)
+    }
+  } catch (_) {
+    return c.json({ error: 'Authentication required' }, 401)
+  }
+
   const catalog = Object.entries(TEST_REGISTRY).map(([categoryId, tests]) => ({
     id: categoryId,
     name: categoryId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Human-readable name

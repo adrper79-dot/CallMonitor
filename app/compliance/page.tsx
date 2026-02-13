@@ -7,14 +7,15 @@
  */
 
 import React, { useState } from 'react'
-import { ShieldCheck, AlertTriangle, FileWarning, PhoneOff, ScrollText } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, FileWarning, PhoneOff, ScrollText, Award } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 const ViolationDashboard = dynamic(() => import('@/components/compliance/ViolationDashboard'), { ssr: false })
 const AuditLogBrowser = dynamic(() => import('@/components/compliance/AuditLogBrowser'), { ssr: false })
 const DNCManager = dynamic(() => import('@/components/compliance/DNCManager'), { ssr: false })
+const SOC2CertificationTracker = dynamic(() => import('@/components/compliance/SOC2CertificationTracker'), { ssr: false })
 
-type Tab = 'violations' | 'disputes' | 'dnc' | 'audit'
+type Tab = 'violations' | 'disputes' | 'dnc' | 'audit' | 'soc2'
 
 export default function CompliancePage() {
   const [tab, setTab] = useState<Tab>('violations')
@@ -24,6 +25,7 @@ export default function CompliancePage() {
     { key: 'disputes', label: 'Disputes', icon: <FileWarning className="w-4 h-4" /> },
     { key: 'dnc', label: 'DNC List', icon: <PhoneOff className="w-4 h-4" /> },
     { key: 'audit', label: 'Audit Log', icon: <ScrollText className="w-4 h-4" /> },
+    { key: 'soc2', label: 'SOC 2', icon: <Award className="w-4 h-4" /> },
   ]
 
   return (
@@ -64,6 +66,7 @@ export default function CompliancePage() {
       )}
       {tab === 'dnc' && <DNCManager />}
       {tab === 'audit' && <AuditLogBrowser />}
+      {tab === 'soc2' && <SOC2CertificationTracker />}
     </div>
   )
 }

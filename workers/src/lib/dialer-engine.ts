@@ -303,10 +303,10 @@ async function dialNumber(
 ): Promise<boolean> {
   const { toNumber, fromNumber, organizationId, campaignCallId, campaignId } = params
 
-  // Create a call record first
+  // Create a call record — columns aligned with DB schema
   const callInsert = await db.query(
-    `INSERT INTO calls (organization_id, direction, from_number, to_number, status, campaign_id, created_at)
-     VALUES ($1, 'outbound', $2, $3, 'dialing', $4, NOW())
+    `INSERT INTO calls (organization_id, direction, from_number, to_number, status, campaign_id, started_at, caller_id_used)
+     VALUES ($1, 'outbound', $2, $3, 'dialing', $4, NOW(), $2)
      RETURNING id`,
     [organizationId, fromNumber, toNumber, campaignId]
   )
@@ -321,6 +321,8 @@ async function dialNumber(
   )
 
   // Place the call via Telnyx with AMD enabled
+  // C-5 FIX: webhook_url MUST be set so Telnyx sends events (AMD, hangup, etc.)
+  const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`
   const res = await fetch(`${TELNYX_BASE}/calls`, {
     method: 'POST',
     headers: {
@@ -331,6 +333,7 @@ async function dialNumber(
       connection_id: env.TELNYX_CONNECTION_ID || '',
       to: toNumber,
       from: fromNumber,
+      webhook_url: webhookUrl,
       record: 'record-from-answer',
       record_channels: 'dual',
       record_format: 'mp3',
@@ -340,6 +343,7 @@ async function dialNumber(
         greeting_duration_millis: 3500,
         total_analysis_time_millis: 5000,
       },
+      client_state: btoa(JSON.stringify({ flow: 'dialer', campaign_call_id: campaignCallId, call_id: callId })),
     }),
   })
 
@@ -415,9 +419,60 @@ async function bridgeToAgent(
         payload: 'Please hold while we connect you with an agent.',
         voice: 'female',
         language: 'en-US',
+        client_state: btoa(JSON.stringify({ flow: 'dialer_hold', campaign_call_id: record.campaign_call_id })),
       }),
     }).catch(() => {})
 
+    return
+  }
+
+  const agentUserId = agentResult.rows[0].user_id
+
+  // C-2 FIX: Actually bridge the call to the agent via Telnyx transfer.
+  // Transfer routes the answered leg to the agent's Telnyx Connection (WebRTC endpoint).
+  const webhookUrl = `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`
+  try {
+    const transferRes = await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/transfer`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: `sip:${agentUserId}@sip.telnyx.com`,
+        from: record.target_phone,
+        webhook_url: webhookUrl,
+        client_state: btoa(JSON.stringify({
+          flow: 'dialer_bridge',
+          campaign_call_id: record.campaign_call_id,
+          agent_user_id: agentUserId,
+        })),
+      }),
+    })
+
+    if (!transferRes.ok) {
+      const errText = await transferRes.text().catch(() => '')
+      logger.error('Telnyx transfer to agent failed', {
+        callControlId,
+        agentUserId,
+        status: transferRes.status,
+        body: errText.substring(0, 200),
+      })
+      // Revert agent status to available
+      await db.query(
+        `UPDATE dialer_agent_status SET status = 'available', current_call_id = NULL, updated_at = NOW()
+         WHERE user_id = $1 AND organization_id = $2`,
+        [agentUserId, record.organization_id]
+      )
+      return
+    }
+  } catch (err) {
+    logger.error('Telnyx transfer exception', { callControlId, error: (err as Error)?.message })
+    await db.query(
+      `UPDATE dialer_agent_status SET status = 'available', current_call_id = NULL, updated_at = NOW()
+       WHERE user_id = $1 AND organization_id = $2`,
+      [agentUserId, record.organization_id]
+    )
     return
   }
 
@@ -431,12 +486,12 @@ async function bridgeToAgent(
     resourceType: 'campaign_call',
     resourceId: record.campaign_call_id,
     oldValue: null,
-    newValue: { agent_user_id: agentResult.rows[0].user_id },
+    newValue: { agent_user_id: agentUserId },
   })
 
-  logger.info('Dialer call bridged to agent', {
+  logger.info('Dialer call transferred to agent', {
     callControlId,
-    agentUserId: agentResult.rows[0].user_id,
+    agentUserId,
   })
 }
 
@@ -449,7 +504,8 @@ async function handleVoicemail(
   callControlId: string,
   record: any
 ): Promise<void> {
-  // Play a brief voicemail message
+  // C-3 FIX: Use client_state so the call.speak.ended webhook triggers hangup.
+  // DO NOT use setTimeout — it does not fire reliably in Cloudflare Workers.
   try {
     await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/speak`, {
       method: 'POST',
@@ -462,17 +518,16 @@ async function handleVoicemail(
           'Hello, this is an automated call. Please call us back at your earliest convenience. Thank you.',
         voice: 'female',
         language: 'en-US',
+        client_state: btoa(JSON.stringify({
+          flow: 'voicemail_hangup',
+          call_control_id: callControlId,
+          campaign_call_id: record.campaign_call_id,
+        })),
       }),
     })
-
-    // Wait a moment for the message to play, then hangup
-    // (In practice, the speak.ended webhook would trigger the hangup,
-    //  but we schedule hangup as a safety net)
-    setTimeout(async () => {
-      await hangupCall(env, callControlId)
-    }, 15000) // 15 second safety timeout
+    // Hangup will be triggered by handleCallSpeakEnded webhook when speak completes.
   } catch (err) {
-    logger.warn('Voicemail speak failed', { error: (err as Error)?.message })
+    logger.warn('Voicemail speak failed — hanging up immediately', { error: (err as Error)?.message })
     await hangupCall(env, callControlId)
   }
 
@@ -504,11 +559,14 @@ async function updateCampaignCallOutcome(
   outcome: string,
   organizationId: string
 ): Promise<void> {
+  // H-6 FIX: Include organization_id in WHERE for multi-tenant isolation.
+  // campaign_calls doesn't directly have org_id, so join through campaigns.
   await db.query(
     `UPDATE campaign_calls
      SET outcome = $1, status = 'completed', updated_at = NOW()
-     WHERE id = $2`,
-    [outcome, campaignCallId]
+     WHERE id = $2
+       AND campaign_id IN (SELECT id FROM campaigns WHERE organization_id = $3)`,
+    [outcome, campaignCallId, organizationId]
   )
 }
 

@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { getDb } from '../lib/db'
+import { getDb, withTransaction } from '../lib/db'
 import { parseSessionToken, verifySession, computeFingerprint, timingSafeEqual } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import {
@@ -146,67 +146,43 @@ authRoutes.post('/signup', signupRateLimit, async (c) => {
     // Hash password
     const passwordHash = await hashPassword(password)
 
-    // Create user
-    try {
-      await db.query(
+    // C-1 fix: Wrap user+org+member creation in a transaction
+    const user = await withTransaction(db, async (tx) => {
+      // Create user
+      const insertResult = await tx.query(
         `INSERT INTO users (id, email, name, password_hash, created_at, updated_at)
-         VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,
+         VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
+         RETURNING id, email, name`,
         [email.toLowerCase(), name || email.split('@')[0], passwordHash]
       )
-    } catch (insertError: any) {
-      return c.json({ error: 'Signup failed' }, 500)
-    }
 
-    // Get the created user
-    let userResult
-    try {
-      userResult = await db.query('SELECT id, email, name FROM users WHERE email = $1', [
-        email.toLowerCase(),
-      ])
-    } catch (selectError: any) {
-      return c.json({ error: 'Signup failed' }, 500)
-    }
+      const newUser = insertResult.rows[0]
+      if (!newUser?.id) {
+        throw new Error('User insert returned no row')
+      }
 
-    if (!userResult.rows || userResult.rows.length === 0) {
-      return c.json({ error: 'Signup failed' }, 500)
-    }
-
-    const user = userResult.rows[0]
-
-    if (!user || !user.id) {
-      return c.json({ error: 'Signup failed' }, 500)
-    }
-
-    // Create organization if name provided
-    if (organizationName) {
-      try {
-        const orgInsertResult = await db.query(
+      // Create organization if name provided (inside same transaction)
+      if (organizationName) {
+        const orgInsertResult = await tx.query(
           `INSERT INTO organizations (id, name, created_by, created_at)
            VALUES (gen_random_uuid(), $1, $2, NOW())
            RETURNING id`,
-          [organizationName, user.id]
+          [organizationName, newUser.id]
         )
-
         const orgId = orgInsertResult.rows[0]?.id
-
         if (orgId) {
-          await db.query(
+          await tx.query(
             `INSERT INTO org_members (id, user_id, organization_id, role, created_at)
              VALUES (gen_random_uuid(), $1, $2, 'admin', NOW())`,
-            [user.id, orgId]
+            [newUser.id, orgId]
           )
         }
-      } catch (orgErr: any) {
-        // L-3: Log org creation failure so it can be diagnosed
-        logger.error('[signup] Organization creation failed', {
-          error: orgErr?.message || String(orgErr),
-          user_id: user.id,
-          org_name: name,
-        })
       }
-    }
 
-    // Audit: user signup (fire-and-forget)
+      return newUser
+    })
+
+    // Audit: user signup (fire-and-forget, outside transaction)
     writeAuditLog(db, {
       organizationId: 'signup',
       userId: user.id,
@@ -445,7 +421,7 @@ authRoutes.post('/_log', async (c) => {
 })
 
 // BL-023: Session refresh — extend session without re-login
-// Call this when user is actively using the app to prevent 7-day expiry
+// H-3 fix: Rotate token on refresh to limit stolen-token window
 authRoutes.post('/refresh', async (c) => {
   try {
     const token = parseSessionToken(c)
@@ -471,42 +447,60 @@ authRoutes.post('/refresh', async (c) => {
       })
     }
 
-    // Extend session by 7 days from now
+    // H-3: Generate new token + session ID (rotate, don't extend)
+    const newSessionId = crypto.randomUUID()
+    const newToken = crypto.randomUUID()
     const newExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
     const db = getDb(c.env)
     try {
-      await db.query(`UPDATE public.sessions SET expires = $1 WHERE session_token = $2`, [
-        newExpires.toISOString(),
-        token,
-      ])
+      // C-1: Wrap token rotation (insert new + delete old) in a transaction
+      await withTransaction(db, async (tx) => {
+        // Insert new session row
+        await tx.query(
+          `INSERT INTO public.sessions (id, session_token, user_id, expires)
+           VALUES ($1, $2, $3, $4)`,
+          [newSessionId, newToken, session.user_id, newExpires.toISOString()]
+        )
 
-      // Refresh KV fingerprint TTL
-      const fingerprint = await computeFingerprint(c)
-      await c.env.KV.put(`fp:${token}`, fingerprint, {
-        expirationTtl: 7 * 24 * 60 * 60,
+        // Delete old session row (invalidates old token)
+        await tx.query(`DELETE FROM public.sessions WHERE session_token = $1`, [token])
       })
 
-      // Update cookie expiry
+      // Rotate KV fingerprint: set new, delete old
+      const fingerprint = await computeFingerprint(c)
+      await c.env.KV.put(`fp:${newToken}`, fingerprint, {
+        expirationTtl: 7 * 24 * 60 * 60,
+      })
+      await c.env.KV.delete(`fp:${token}`)
+
+      // Update cookie with new token
       c.header(
         'Set-Cookie',
-        `session-token=${token}; Path=/; Expires=${newExpires.toUTCString()}; SameSite=None; Secure; HttpOnly`
+        `session-token=${newToken}; Path=/; Expires=${newExpires.toUTCString()}; SameSite=None; Secure; HttpOnly`
       )
 
-      // Audit: session refreshed (fire-and-forget)
+      // Return new token via header so client can update localStorage
+      c.header('X-Session-Token', newToken)
+      c.header('Cache-Control', 'no-store')
+
+      // Audit: session rotated (fire-and-forget)
       writeAuditLog(db, {
         organizationId: session.organization_id || 'none',
         userId: session.user_id,
         resourceType: 'session',
-        resourceId: token,
+        resourceId: newSessionId,
         action: AuditAction.SESSION_REFRESHED,
-        newValue: { expires: newExpires.toISOString() },
+        oldValue: { token_prefix: token.substring(0, 8) },
+        newValue: { expires: newExpires.toISOString(), rotated: true },
       })
 
       return c.json({
         success: true,
         refreshed: true,
+        rotated: true,
         expires: newExpires.toISOString(),
+        session_token: newToken,
       })
     } finally {
       await db.end()

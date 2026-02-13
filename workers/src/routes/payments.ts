@@ -18,7 +18,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { requireAuth } from '../lib/auth'
-import { getDb } from '../lib/db'
+import { getDb, withTransaction } from '../lib/db'
 import { logger } from '../lib/logger'
 import { collectionsRateLimit } from '../lib/rate-limit'
 
@@ -147,38 +147,42 @@ paymentsRoutes.post('/plans', collectionsRateLimit, async (c) => {
       return c.json({ error: 'Account not found' }, 404)
     }
 
-    // Create plan
-    const planResult = await db.query(
-      `INSERT INTO payment_plans
-        (organization_id, account_id, total_amount, down_payment, installment_amount,
-         frequency, num_payments, start_date, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        session.organization_id,
-        account_id,
-        total_amount,
-        down_payment || 0,
-        installment_amount || 0,
-        frequency || 'monthly',
-        num_payments || 1,
-        start_date || new Date().toISOString(),
-        session.user_id,
-      ]
-    )
+    // Create plan + scheduled payments in a transaction
+    const plan = await withTransaction(db, async (tx) => {
+      const planResult = await tx.query(
+        `INSERT INTO payment_plans
+          (organization_id, account_id, total_amount, down_payment, installment_amount,
+           frequency, num_payments, start_date, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
+        [
+          session.organization_id,
+          account_id,
+          total_amount,
+          down_payment || 0,
+          installment_amount || 0,
+          frequency || 'monthly',
+          num_payments || 1,
+          start_date || new Date().toISOString(),
+          session.user_id,
+        ]
+      )
 
-    const plan = planResult.rows[0]
+      const created = planResult.rows[0]
 
-    // Create scheduled payments from schedule array if provided
-    if (schedule && Array.isArray(schedule)) {
-      for (const entry of schedule) {
-        await db.query(
-          `INSERT INTO scheduled_payments (plan_id, due_date, amount, status)
-           VALUES ($1, $2, $3, 'pending')`,
-          [plan.id, entry.date, entry.amount]
-        )
+      // Create scheduled payments from schedule array if provided
+      if (schedule && Array.isArray(schedule)) {
+        for (const entry of schedule) {
+          await tx.query(
+            `INSERT INTO scheduled_payments (plan_id, due_date, amount, status)
+             VALUES ($1, $2, $3, 'pending')`,
+            [created.id, entry.date, entry.amount]
+          )
+        }
       }
-    }
+
+      return created
+    })
 
     return c.json({ success: true, data: plan }, 201)
   } catch (err: any) {

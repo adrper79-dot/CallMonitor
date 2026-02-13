@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger'
 import dynamic from 'next/dynamic'
 
 const WebhookOverview = dynamic(() => import('@/components/settings/WebhookOverview').then(mod => mod.WebhookOverview), { ssr: false })
+const WebhookList = dynamic(() => import('@/components/settings/WebhookList').then(mod => mod.WebhookList), { ssr: false })
 
 type Tab = 'webhooks' | 'keys'
 
@@ -59,7 +60,7 @@ export default function AdminAPIPage() {
         ))}
       </div>
 
-      {tab === 'webhooks' && <WebhookOverview organizationId={orgId} />}
+      {tab === 'webhooks' && <WebhookList organizationId={orgId} canEdit={true} />}
       {tab === 'keys' && (
         <div className="text-center py-12 text-gray-500">
           <Key className="w-12 h-12 mx-auto mb-3 text-gray-300" />

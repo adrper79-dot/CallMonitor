@@ -64,6 +64,9 @@ import { featureFlagRoutes } from './routes/feature-flags'
 import { paymentsRoutes } from './routes/payments'
 import { dncRoutes } from './routes/dnc'
 import { feedbackRoutes } from './routes/feedback'
+import { crmRoutes } from './routes/crm'
+import { importRoutes } from './routes/import'
+import { crmRoutes } from './routes/crm'
 import {
   buildErrorContext,
   logError,
@@ -257,6 +260,8 @@ app.route('/api/feature-flags', featureFlagRoutes)
 app.route('/api/payments', paymentsRoutes)
 app.route('/api/dnc', dncRoutes)
 app.route('/api/feedback', feedbackRoutes)
+app.route('/api/crm', crmRoutes)
+app.route('/api/import', importRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

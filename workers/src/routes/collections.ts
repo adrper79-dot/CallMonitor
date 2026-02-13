@@ -30,7 +30,7 @@ import {
   UpdateCollectionTaskSchema,
   CollectionCsvImportSchema,
 } from '../lib/schemas'
-import { getDb } from '../lib/db'
+import { getDb, withTransaction } from '../lib/db'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { collectionsRateLimit, collectionsImportRateLimit } from '../lib/rate-limit'
@@ -585,37 +585,42 @@ collectionsRoutes.post('/:id/payments', collectionsRateLimit, async (c) => {
 
     // Ensure account_id from URL matches
     const paymentAccountId = accountId
-
-    const result = await db.query(
-      `INSERT INTO collection_payments
-        (organization_id, account_id, amount, method, stripe_payment_id,
-         reference_number, notes, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *`,
-      [
-        session.organization_id,
-        paymentAccountId,
-        data.amount,
-        data.method || 'other',
-        data.stripe_payment_id || null,
-        data.reference_number || null,
-        data.notes || null,
-        session.user_id,
-      ]
-    )
-
-    // Update account balance
     const currentBalance = parseFloat(accountCheck.rows[0].balance_due)
     const newBalance = Math.max(0, currentBalance - data.amount)
     const newStatus = newBalance === 0 ? 'paid' : newBalance < currentBalance ? 'partial' : 'active'
 
-    await db.query(
-      `UPDATE collection_accounts
-      SET balance_due = $1, status = $2, updated_at = NOW()
-      WHERE id = $3 AND organization_id = $4`,
-      [newBalance, newStatus, paymentAccountId, session.organization_id]
-    )
+    // Insert payment + update balance atomically
+    const result = await withTransaction(db, async (tx) => {
+      const paymentResult = await tx.query(
+        `INSERT INTO collection_payments
+          (organization_id, account_id, amount, method, stripe_payment_id,
+           reference_number, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *`,
+        [
+          session.organization_id,
+          paymentAccountId,
+          data.amount,
+          data.method || 'other',
+          data.stripe_payment_id || null,
+          data.reference_number || null,
+          data.notes || null,
+          session.user_id,
+        ]
+      )
 
+      // Update account balance
+      await tx.query(
+        `UPDATE collection_accounts
+        SET balance_due = $1, status = $2, updated_at = NOW()
+        WHERE id = $3 AND organization_id = $4`,
+        [newBalance, newStatus, paymentAccountId, session.organization_id]
+      )
+
+      return paymentResult
+    })
+
+    // Audit log: fire-and-forget, outside transaction
     writeAuditLog(db, {
       organizationId: session.organization_id,
       userId: session.user_id,
@@ -884,6 +889,160 @@ collectionsRoutes.post('/:id/notes', collectionsRateLimit, async (c) => {
   } catch (err: any) {
     logger.error('POST /api/collections/:id/notes error', { error: err?.message })
     return c.json({ error: 'Failed to add note' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Get promises to pay ─────────────────────────────────────────────────────
+collectionsRoutes.get('/promises', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const limit = parseInt(c.req.query('limit') || '100')
+    const offset = parseInt(c.req.query('offset') || '0')
+
+    const result = await db.query(
+      `SELECT
+        ca.id,
+        ca.name,
+        ca.balance_due,
+        ca.promise_date,
+        ca.promise_amount,
+        ca.status,
+        ca.last_contacted_at,
+        ca.created_at,
+        ca.updated_at,
+        u.name AS created_by_name
+      FROM collection_accounts ca
+      LEFT JOIN users u ON ca.created_by = u.id
+      WHERE ca.organization_id = $1
+        AND ca.promise_date IS NOT NULL
+        AND ca.promise_amount IS NOT NULL
+        AND ca.is_deleted = false
+        AND ca.status IN ('active', 'partial', 'disputed')
+      ORDER BY ca.promise_date ASC
+      LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
+
+    return c.json({ success: true, promises: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/promises error', { error: err?.message })
+    return c.json({ error: 'Failed to get promises' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── CSV Bulk Import ──────────────────────────────────────────────────────────
+collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const parsed = await validateBody(c, CollectionCsvImportSchema)
+    if (!parsed.success) return parsed.response
+    const data = parsed.data
+
+    const results = []
+    const errors = []
+
+    // Process each account
+    for (let i = 0; i < data.accounts.length; i++) {
+      const account = data.accounts[i]
+      try {
+        const result = await db.query(
+          `INSERT INTO collection_accounts
+            (organization_id, external_id, source, name, balance_due,
+             primary_phone, secondary_phone, email, address, custom_fields,
+             status, notes, promise_date, promise_amount, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           RETURNING *`,
+          [
+            session.organization_id,
+            account.external_id || null,
+            data.source || 'csv_import',
+            account.name,
+            account.balance_due,
+            account.primary_phone,
+            account.secondary_phone || null,
+            account.email || null,
+            account.address || null,
+            account.custom_fields ? JSON.stringify(account.custom_fields) : null,
+            account.status || 'active',
+            account.notes || null,
+            account.promise_date || null,
+            account.promise_amount || null,
+            session.user_id,
+          ]
+        )
+
+        results.push(result.rows[0])
+      } catch (err: any) {
+        errors.push({
+          row: i + 1,
+          account: account.name,
+          error: err.message || 'Import failed',
+        })
+      }
+    }
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'collection_accounts',
+      resourceId: 'bulk_import',
+      action: AuditAction.COLLECTION_CSV_IMPORTED,
+      oldValue: null,
+      newValue: { imported_count: results.length, errors_count: errors.length },
+    }).catch(() => {})
+
+    return c.json({
+      success: true,
+      imported: results.length,
+      errors: errors.length,
+      accounts: results,
+      import_errors: errors,
+    }, 201)
+  } catch (err: any) {
+    logger.error('POST /api/collections/import error', { error: err?.message })
+    return c.json({ error: 'Failed to import collection accounts' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── List Import History ──────────────────────────────────────────────────────
+collectionsRoutes.get('/imports', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+
+    // Get import history from audit logs
+    const result = await db.query(
+      `SELECT al.id, al.created_at, al.new_value, u.name AS imported_by
+       FROM audit_logs al
+       LEFT JOIN users u ON al.user_id = u.id
+       WHERE al.organization_id = $1
+         AND al.resource_type = 'collection_accounts'
+         AND al.action = 'collection:csv_imported'
+       ORDER BY al.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
+
+    return c.json({ success: true, imports: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/imports error', { error: err?.message })
+    return c.json({ error: 'Failed to get import history' }, 500)
   } finally {
     await db.end()
   }

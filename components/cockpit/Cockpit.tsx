@@ -14,7 +14,7 @@
  * └──────────────┴──────────────────────────┴──────────────────┘
  */
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useActiveCall } from '@/hooks/useActiveCall'
 import { useKeyboardShortcuts, type KeyboardShortcut } from '@/hooks/useKeyboardShortcuts'
 import { apiGet, apiPost, apiPut } from '@/lib/apiClient'
@@ -22,6 +22,12 @@ import { logger } from '@/lib/logger'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import PreDialChecker from '@/components/cockpit/PreDialChecker'
+import DispositionBar from '@/components/cockpit/DispositionBar'
+import {
+  PaymentLinkModal, AddNoteModal, ScheduleCallbackModal,
+  FileDisputeModal, TransferCallModal,
+} from '@/components/cockpit/QuickActionModals'
 import {
   Phone, PhoneOff, Pause, Play, Mic, MicOff, ArrowRight,
   CreditCard, FileText, CalendarClock, AlertTriangle, PhoneForwarded,
@@ -196,20 +202,29 @@ function CallCenter({
   onDialNext: () => void
   onCallStarted?: (callId: string | null) => void
 }) {
-  const [callState, setCallState] = useState<'idle' | 'dialing' | 'connected' | 'ended'>('idle')
   const [activeCallId, setActiveCallId] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
   const [held, setHeld] = useState(false)
-  const [transcript, setTranscript] = useState<string[]>([])
+  const [transcript, setTranscript] = useState<{ speaker: string; content: string }[]>([])
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
-  const [callDuration, setCallDuration] = useState(0)
+  const [showPreDial, setShowPreDial] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
+  const lastTranscriptIndex = useRef(0)
 
-  // Timer for call duration
-  useEffect(() => {
-    if (callState !== 'connected') return
-    const interval = setInterval(() => setCallDuration((d) => d + 1), 1000)
-    return () => clearInterval(interval)
-  }, [callState])
+  // ── useActiveCall: server-synced call status + duration ──
+  const { status: serverStatus, duration, isActive, reset: resetActiveCall } = useActiveCall(activeCallId)
+
+  // Derive local call state from server status
+  const callState: 'idle' | 'dialing' | 'connected' | 'ended' = !activeCallId
+    ? 'idle'
+    : serverStatus === 'completed' || serverStatus === 'failed' ||
+      serverStatus === 'busy' || serverStatus === 'no-answer' || serverStatus === 'canceled'
+    ? 'ended'
+    : serverStatus === 'in-progress' || serverStatus === 'bridged'
+    ? 'connected'
+    : serverStatus === 'queued' || serverStatus === 'initiating' || serverStatus === 'ringing' || serverStatus === 'initiated'
+    ? 'dialing'
+    : activeCallId ? 'dialing' : 'idle'
 
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -217,23 +232,63 @@ function CallCenter({
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  const handleDial = async () => {
+  // ── Transcript polling (3s interval while call is active) ──
+  useEffect(() => {
+    if (!activeCallId || callState !== 'connected') {
+      return
+    }
+    const fetchTranscript = async () => {
+      try {
+        const data = await apiGet(
+          `/api/calls/${activeCallId}/transcript?after=${lastTranscriptIndex.current}`
+        )
+        if (data.segments && data.segments.length > 0) {
+          setTranscript((prev) => [
+            ...prev,
+            ...data.segments.map((s: any) => ({ speaker: s.speaker, content: s.content })),
+          ])
+          lastTranscriptIndex.current = data.last_index
+        }
+      } catch {
+        // Silently fail — transcript polling is non-critical
+      }
+    }
+    const interval = setInterval(fetchTranscript, 3000)
+    return () => clearInterval(interval)
+  }, [activeCallId, callState])
+
+  // ── AI Suggestion (debounced, fires when transcript grows) ──
+  useEffect(() => {
+    if (!activeCallId || transcript.length < 3) {
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const data = await apiGet(`/api/calls/${activeCallId}/ai-suggest`)
+        if (data.suggestion) {
+          setAiSuggestion(data.suggestion)
+        }
+      } catch {
+        // Non-critical
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [activeCallId, transcript.length])
+
+  // ── handleDial: show PreDialChecker gate first ──
+  const handleDial = () => {
     if (!selectedAccount || !organizationId) return
-    setCallState('dialing')
-    setCallDuration(0)
+    setShowPreDial(true)
+  }
+
+  // ── handleDialConfirmed: called by PreDialChecker.onApproved ──
+  const handleDialConfirmed = async () => {
+    if (!selectedAccount || !organizationId) return
+    setShowPreDial(false)
     setTranscript([])
     setAiSuggestion(null)
+    lastTranscriptIndex.current = 0
     try {
-      // Pre-dial compliance check
-      const compliance = await apiGet(
-        `/api/compliance/pre-dial?accountId=${selectedAccount.id}`
-      )
-      if (!compliance.allowed) {
-        setCallState('idle')
-        logger.warn('Pre-dial check failed', { reason: compliance.reason })
-        return
-      }
-      // Initiate call via Telnyx
       const callRes = await apiPost('/api/calls/start', {
         phone_number: selectedAccount.primary_phone,
         system_id: selectedAccount.id,
@@ -241,26 +296,52 @@ function CallCenter({
       const newCallId = callRes.call?.id || null
       setActiveCallId(newCallId)
       onCallStarted?.(newCallId)
-      setCallState('connected')
+      // Status will be tracked by useActiveCall — don't set 'connected' manually
     } catch (err: any) {
       logger.error('Dial failed', { error: err?.message })
-      setCallState('idle')
+      setActiveCallId(null)
     }
   }
 
+  // ── C-1 FIX: handleHangUp calls the API to actually terminate the Telnyx call ──
   const handleHangUp = async () => {
-    setCallState('ended')
+    if (activeCallId) {
+      try {
+        await apiPost(`/api/calls/${activeCallId}/end`, {})
+      } catch (err: any) {
+        logger.error('Hangup API failed', { error: err?.message })
+      }
+    }
+    // useActiveCall will detect terminal status via polling
   }
 
-  const DISPOSITIONS = [
-    { code: 'promise_to_pay', label: 'Promise to Pay', shortcut: '1', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800' },
-    { code: 'refused', label: 'Refused', shortcut: '2', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800' },
-    { code: 'no_answer', label: 'No Answer', shortcut: '3', color: 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700' },
-    { code: 'left_voicemail', label: 'Left VM', shortcut: '4', color: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800' },
-    { code: 'wrong_number', label: 'Wrong #', shortcut: '5', color: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800' },
-    { code: 'disputed', label: 'Disputed', shortcut: '6', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800' },
-    { code: 'callback', label: 'Callback', shortcut: '7', color: 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800' },
-  ]
+  // ── Hold toggle via API ──
+  const handleHold = async () => {
+    if (!activeCallId) return
+    try {
+      await apiPost(`/api/calls/${activeCallId}/hold`, { hold: !held })
+      setHeld(!held)
+    } catch (err: any) {
+      logger.error('Hold failed', { error: err?.message })
+    }
+  }
+
+  // ── Transfer via API ──
+  const handleTransfer = async (to: string) => {
+    if (!activeCallId) return
+    await apiPost(`/api/calls/${activeCallId}/transfer`, { to })
+    setActiveCallId(null)
+  }
+
+  // ── Disposition callback: reset after disposition ──
+  const handleDispositionDone = (code: string) => {
+    onDisposition(code)
+    // Reset for next call
+    setTimeout(() => {
+      setActiveCallId(null)
+      resetActiveCall()
+    }, 1500)
+  }
 
   // ─── Idle state: show instruction ───
   if (!selectedAccount) {
@@ -277,6 +358,29 @@ function CallCenter({
 
   return (
     <div className="flex flex-col h-full">
+      {/* ─── Pre-Dial Compliance Gate ─── */}
+      {showPreDial && (
+        <div className="p-4">
+          <PreDialChecker
+            accountId={selectedAccount.id}
+            phone={selectedAccount.primary_phone}
+            accountName={selectedAccount.name}
+            onApproved={handleDialConfirmed}
+            onCancel={() => setShowPreDial(false)}
+            inline
+          />
+        </div>
+      )}
+
+      {/* ─── Transfer Modal ─── */}
+      {showTransfer && activeCallId && (
+        <TransferCallModal
+          callId={activeCallId}
+          onClose={() => setShowTransfer(false)}
+          onTransfer={handleTransfer}
+        />
+      )}
+
       {/* ─── Call Controls Bar ─── */}
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="flex items-center justify-between">
@@ -291,7 +395,7 @@ function CallCenter({
             {callState === 'connected' && (
               <>
                 <Badge variant="secondary" className="text-xs font-mono">
-                  {formatDuration(callDuration)}
+                  {formatDuration(duration)}
                 </Badge>
                 <Button
                   variant="outline"
@@ -304,12 +408,12 @@ function CallCenter({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setHeld(!held)}
+                  onClick={handleHold}
                   className={held ? 'text-amber-600 border-amber-200' : ''}
                 >
                   {held ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </Button>
-                <Button variant="outline" size="sm" title="Transfer">
+                <Button variant="outline" size="sm" title="Transfer" onClick={() => setShowTransfer(true)}>
                   <PhoneForwarded className="w-4 h-4" />
                 </Button>
               </>
@@ -321,6 +425,7 @@ function CallCenter({
                 onClick={handleDial}
                 className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
                 size="sm"
+                disabled={showPreDial}
               >
                 <Phone className="w-4 h-4" />
                 Dial
@@ -362,7 +467,14 @@ function CallCenter({
                 <p className="text-gray-400 italic text-xs">Waiting for speech...</p>
               ) : (
                 transcript.map((line, i) => (
-                  <p key={i} className="text-gray-700 dark:text-gray-300">{line}</p>
+                  <p key={i} className="text-gray-700 dark:text-gray-300">
+                    <span className={`text-xs font-semibold mr-1.5 ${
+                      line.speaker === 'agent' ? 'text-blue-600' : 'text-green-600'
+                    }`}>
+                      {line.speaker === 'agent' ? 'Agent:' : 'Customer:'}
+                    </span>
+                    {line.content}
+                  </p>
                 ))
               )}
             </div>
@@ -387,7 +499,7 @@ function CallCenter({
         )}
 
         {/* Call ended → show empty state or disposition */}
-        {callState === 'idle' && (
+        {callState === 'idle' && !showPreDial && (
           <div className="p-4">
             <Card>
               <CardContent className="p-6 text-center">
@@ -404,30 +516,15 @@ function CallCenter({
         )}
       </div>
 
-      {/* ─── Disposition Bar (always visible when call ended) ─── */}
+      {/* ─── DispositionBar (canonical component, visible when call ended or connected) ─── */}
       {(callState === 'ended' || callState === 'connected') && (
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              {callState === 'ended' ? 'Disposition' : 'Quick Dispose'}
-            </span>
-            <span className="text-[10px] text-gray-400">(press 1-7)</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {DISPOSITIONS.map((d) => (
-              <button
-                key={d.code}
-                onClick={() => onDisposition(d.code)}
-                className={`
-                  px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors
-                  ${d.color}
-                `}
-              >
-                <span className="opacity-50 mr-1">{d.shortcut}</span>
-                {d.label}
-              </button>
-            ))}
-          </div>
+          <DispositionBar
+            callId={activeCallId}
+            accountId={selectedAccount.id}
+            onDisposition={handleDispositionDone}
+            compact={callState === 'connected'}
+          />
           {callState === 'ended' && (
             <Button
               onClick={onDialNext}
@@ -479,7 +576,7 @@ function ContextPanel({
       })
       .catch(() => setCompliance(null))
       .finally(() => setLoadingCompliance(false))
-  }, [selectedAccount?.id, organizationId])
+  }, [selectedAccount, organizationId])
 
   if (!selectedAccount) {
     return (
@@ -632,6 +729,11 @@ export default function Cockpit({ organizationId, organizationName }: CockpitPro
   // Desktop: collapsible left/right panels
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
+  // Quick action modal states
+  const [showPaymentLink, setShowPaymentLink] = useState(false)
+  const [showNote, setShowNote] = useState(false)
+  const [showCallback, setShowCallback] = useState(false)
+  const [showDispute, setShowDispute] = useState(false)
 
   // ─── Fetch queue ───
   const fetchQueue = useCallback(async () => {
@@ -664,6 +766,7 @@ export default function Cockpit({ organizationId, organizationName }: CockpitPro
     } finally {
       setQueueLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId])
 
   useEffect(() => {
@@ -695,22 +798,25 @@ export default function Cockpit({ organizationId, organizationName }: CockpitPro
     }
   }, [selectedAccount, organizationId, activeCallId])
 
-  // ─── Quick action stubs ───
+  // ─── Quick action openers ───
   const handlePaymentLink = useCallback(() => {
-    // TODO: open payment link modal
-    logger.info('Payment link requested', { account: selectedAccount?.id })
+    if (!selectedAccount) return
+    setShowPaymentLink(true)
   }, [selectedAccount])
 
   const handleCallback = useCallback(() => {
-    logger.info('Callback requested', { account: selectedAccount?.id })
+    if (!selectedAccount) return
+    setShowCallback(true)
   }, [selectedAccount])
 
   const handleNote = useCallback(() => {
-    logger.info('Note requested', { account: selectedAccount?.id })
+    if (!selectedAccount) return
+    setShowNote(true)
   }, [selectedAccount])
 
   const handleDispute = useCallback(() => {
-    logger.info('Dispute requested', { account: selectedAccount?.id })
+    if (!selectedAccount) return
+    setShowDispute(true)
   }, [selectedAccount])
 
   // ─── Keyboard shortcuts ───
@@ -826,6 +932,38 @@ export default function Cockpit({ organizationId, organizationName }: CockpitPro
           ))}
         </div>
       </div>
+
+      {/* ═══ Quick Action Modals ═══ */}
+      {showPaymentLink && selectedAccount && (
+        <PaymentLinkModal
+          accountId={selectedAccount.id}
+          accountName={selectedAccount.name}
+          balanceDue={selectedAccount.balance_due}
+          onClose={() => setShowPaymentLink(false)}
+        />
+      )}
+      {showNote && selectedAccount && (
+        <AddNoteModal
+          accountId={selectedAccount.id}
+          callId={activeCallId}
+          onClose={() => setShowNote(false)}
+        />
+      )}
+      {showCallback && selectedAccount && (
+        <ScheduleCallbackModal
+          accountId={selectedAccount.id}
+          accountName={selectedAccount.name}
+          onClose={() => setShowCallback(false)}
+        />
+      )}
+      {showDispute && selectedAccount && (
+        <FileDisputeModal
+          accountId={selectedAccount.id}
+          accountName={selectedAccount.name}
+          callId={activeCallId}
+          onClose={() => setShowDispute(false)}
+        />
+      )}
     </div>
   )
 }

@@ -30,6 +30,45 @@ export interface DbClient {
 }
 
 /**
+ * Transaction-scoped database client.
+ * All queries within the callback run on a single connection inside BEGIN/COMMIT.
+ * On error, ROLLBACK is issued automatically.
+ *
+ * @example
+ * ```ts
+ * const db = getDb(c.env, session.organization_id)
+ * try {
+ *   const result = await withTransaction(db, async (tx) => {
+ *     const org = await tx.query('INSERT INTO organizations ... RETURNING id', [...])
+ *     await tx.query('INSERT INTO org_members ...', [org.rows[0].id, ...])
+ *     return org
+ *   })
+ * } finally {
+ *   await db.end()
+ * }
+ * ```
+ */
+export async function withTransaction<T>(
+  db: DbClient,
+  callback: (tx: DbClient) => Promise<T>
+): Promise<T> {
+  await db.query('BEGIN')
+  try {
+    const result = await callback(db)
+    await db.query('COMMIT')
+    return result
+  } catch (err) {
+    await db.query('ROLLBACK').catch((rollbackErr) => {
+      logger.error('Transaction ROLLBACK failed', {
+        error: (rollbackErr as Error)?.message,
+        originalError: (err as Error)?.message,
+      })
+    })
+    throw err
+  }
+}
+
+/**
  * Get database client using Neon serverless Pool
  * Creates a new Pool per request (edge-compatible)
  *
