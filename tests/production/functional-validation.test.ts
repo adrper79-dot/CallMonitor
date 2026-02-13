@@ -129,10 +129,15 @@ describe('L3 — Functional Integration Tests', () => {
       console.log(`  ✅ Invalid test → ${status} (graceful error)`)
     })
 
-    test('GET /api/test/health returns structured probes', async () => {
+    test('GET /api/test/health returns structured probes (auth-gated)', async () => {
       if (apiHealth.status === 'down') return
       const { status, data } = await apiCall('GET', '/api/test/health')
-      expect([200, 503]).toContain(status)
+      // Auth-gated since Issue #4 security fix: 401 without session
+      expect([200, 401, 503]).toContain(status)
+      if (status === 401) {
+        console.log(`  🔒 Test health: ${status} (auth required)`)
+        return
+      }
       expect(data).toHaveProperty('overall')
       expect(data).toHaveProperty('results')
       expect(Array.isArray(data.results)).toBe(true)

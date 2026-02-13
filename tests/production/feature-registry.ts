@@ -771,9 +771,9 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       {
         method: 'GET',
         path: '/api/test/health',
-        requiresAuth: false,
-        unauthStatus: [200, 503],
-        description: 'Infrastructure probes',
+        requiresAuth: true,
+        unauthStatus: [401],
+        description: 'Infrastructure probes (auth-gated)',
       },
       {
         method: 'POST',

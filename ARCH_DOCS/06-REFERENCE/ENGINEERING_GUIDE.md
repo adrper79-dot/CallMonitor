@@ -3,7 +3,7 @@
 > **TOGAF Phase:** Phase C (Information Systems Architecture) + Phase D (Technology Architecture)
 
 **Last Updated:** February 13, 2026
-**Platform Version:** v4.65
+**Platform Version:** v4.30
 **Scope:** Complete feature-level engineering reference for all 31 application functions
 **Companion Document:** `ARCH_DOCS/APPLICATION_FUNCTIONS.md`
 
@@ -63,24 +63,50 @@
 
 ### Flow Diagram
 
-```
-User → /signin → AuthProvider.signIn()
-  → POST /api/auth/callback/credentials { email, password }
-  → Workers: hash + compare PBKDF2
-  → Create session row in `sessions` table
-  → Return JWT-like token
-  → AuthProvider stores in localStorage (wb-session-token)
-  → All subsequent apiGet/apiPost calls include Bearer header
-  → Workers: verifySession() → decode token → lookup session in DB
-  → Attach session to Hono context: c.set('session', {...})
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Next.js UI
+    participant API as Workers API
+    participant DB as Neon PostgreSQL
 
-Password Reset Flow:
-  /forgot-password → POST /api/auth/forgot-password
-  → Generate token → store in `verification_tokens`
-  → Send email via Resend
-  → User clicks link → /reset-password?token=xxx
-  → POST /api/auth/reset-password { token, password }
-  → Verify token → hash new password → update `users` table
+    User->>UI: Visit /signin
+    UI->>API: POST /api/auth/callback/credentials {email, password}
+    API->>DB: Validate PBKDF2 hash
+    DB-->>API: User data
+    API->>DB: INSERT sessions
+    API-->>UI: JWT token
+    UI->>UI: Store in localStorage (wb-session-token)
+
+    Note over UI,DB: Subsequent requests
+    UI->>API: apiGet/apiPost with Bearer header
+    API->>DB: verifySession() → lookup session
+    DB-->>API: Session data
+    API->>API: c.set('session', {...})
+
+    Note over User,DB: Password Reset Flow
+    User->>UI: Visit /forgot-password
+    UI->>API: POST /api/auth/forgot-password
+    API->>DB: Generate token → INSERT verification_tokens
+    API->>Resend: Send reset email
+    User->>UI: Click reset link → /reset-password?token=xxx
+    UI->>API: POST /api/auth/reset-password {token, password}
+    API->>DB: Verify token → UPDATE users.password_hash
+```
+
+### API Request Flow
+
+```mermaid
+flowchart LR
+    Client[React Component] --> AuthProvider[AuthProvider.useSession]
+    AuthProvider --> APIClient[apiGet/apiPost/apiPut/apiDelete]
+    APIClient --> Workers[Hono Route Handler]
+    Workers --> Auth[requireAuth middleware]
+    Auth --> RBAC[requireRole middleware]
+    RBAC --> DB[Database Query with RLS]
+    DB --> Workers
+    Workers --> APIClient
+    APIClient --> Client
 ```
 
 ### Tests
@@ -103,7 +129,38 @@ Password Reset Flow:
 | `sessions` | `id`, `user_id`, `token`, `expires_at`, `fingerprint` | Active sessions |
 | `verification_tokens` | `token`, `email`, `expires` | Password reset tokens |
 | `login_attempts` | `email`, `ip`, `attempt_at`, `success` | Brute-force tracking |
-| `auth_providers` | `provider`, `enabled`, `config` | Auth provider configuration |
+| `
+
+### RBAC Permission Matrix
+
+```mermaid
+flowchart TD
+    A[User Action] --> B{Platform Role?}
+    B -->|owner| C[Full Access]
+    B -->|admin| D{Org Role?}
+    D -->|owner| C
+    D -->|admin| E[Org Admin + Billing]
+    D -->|manager| F[Team + Campaign Mgmt]
+    D -->|analyst| G[Read Analytics]
+    D -->|operator| H[Call Operations]
+    D -->|agent| I[Basic Agent Tasks]
+    D -->|viewer| J[Read Only]
+```auth_providers` | `provider`, `enabled`, `config` | Auth provider configuration |
+| `api_keys` | `organization_id`, `key_hash`, `label`, `scopes` | API key authentication |
+| `accounts` | `id`, `organization_id` | Base account records (retained for schema validation scripts) |
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ users : "has_members"
+    users ||--o{ sessions : "creates"
+    users ||--o{ api_keys : "owns"
+    users ||--o{ accounts : "has"
+    organizations ||--o{ auth_providers : "configures"
+    users ||--o{ login_attempts : "tracked"
+    users ||--o{ verification_tokens : "requests"
+```
 
 ### Requirements & Dependencies
 
@@ -131,29 +188,2290 @@ Password Reset Flow:
 | Backend Lib | `workers/src/lib/ai-call-engine.ts` | AI call state machine (KV-backed) |
 | Backend Lib | `workers/src/lib/compliance-checker.ts` | Pre-dial compliance checks |
 | Frontend | `components/voice/VoiceOperationsClient.tsx` (967 lines) | Main voice operations UI |
-| Frontend | `components/voice/ActiveCallPanel.tsx` | Active call display |
-| Frontend | `components/voice/WebRTCCallControls.tsx` | Browser-based calling controls |
-| Frontend | `components/voice/CallDisposition.tsx` | Call disposition interface |
-| Frontend | `components/voice/CallTimeline.tsx` | Call event timeline |
-| Frontend | `components/voice/CallNotes.tsx` | Call notes interface |
-| Frontend | `components/cockpit/PreDialChecker.tsx` | Pre-dial compliance UI |
-| Hooks | `hooks/useWebRTC.ts` | WebRTC browser calling |
-| Hooks | `hooks/WebRTCProvider.tsx` | WebRTC context |
-| Hooks | `hooks/useActiveCall.ts` | Active call state |
-| Hooks | `hooks/useCallDetails.ts` | Call detail fetching |
-| Frontend Pages | `app/voice-operations/page.tsx` | Legacy voice page |
-| Frontend Pages | `app/work/call/page.tsx` | New Cockpit call page |
-| Frontend Pages | `app/work/dialer/page.tsx` | Dialer page |
+| Fmermaid
+sequenceDiagram
+    participant Agent
+    participant Cockpit as Cockpit UI
+    participant API as Workers API
+    participant DB as Neon PostgreSQL
+    participant Telnyx
+    participant R2 as Cloudflare R2
+    participant AssemblyAI
 
-### Flow Diagram
+    Agent->>Cockpit: Click "Dial"
+    Cockpit->>API: GET /api/compliance/pre-dial?phone=xxx
+    API->>DB: Check DNC, consent, time-of-day, frequency, legal hold, bankruptcy
+    DB-->>API: Compliance status
+    API-->>Cockpit: Clear to dial
 
+    Cockpit->>API: POST /api/calls/start {to, from, callerId}
+    API->>DB: INSERT calls (status='initiated')
+    DB-->>API: Call ID
+    API->>Telnyx: POST Call Control v2 API
+    Telnyx-->>API: Call SID
+
+    Telnyx->>API: POST /webhooks/telnyx (call.answered)
+    API->>DB: UPDATE calls status='in_progress'
+
+    Telnyx->>API: POST /webhooks/telnyx (call.hangup)
+    API->>DB: UPDATE calls status='completed'
+
+    Telnyx->>API: POST /webhooks/telnyx (call.recording.saved)
+    API->>R2: Store recording
+
+    Telnyx->>API: POST /webhooks/telnyx (call.machine.detection)
+    API->>DB: Store AMD result
+
+    Note over Cockpit: WebRTC Flow
+    Cockpit->>API: GET /api/webrtc/token
+    API->>Telnyx: Request JWT
+    Telnyx-->>API: JWT token (cached in KV)
+    API-->>Cockpit: JWT token
+    Cockpit->>Telnyx: WebRTC session
+    Cockpit->>API: POST /api/webrtc/dial
+    API->>Telnyx: Outbound dial
+
+    Note over Agent: Call End Flow
+    Agent->>Cockpit: Click Hang Up
+    Cockpit->>API: POST /api/calls/:id/end
+    API->>Cockpit: Show disposition modal
+    Cockpit->>API: PUT /api/calls/:id/disposition
+    API->>DB: UPDATE calls disposition
+    Cockpit->>API: POST /api/calls/:id/outcome
+    API->>DB: INSERT call_outcomes
+    API->>AssemblyAI: POST webhook (if recording)
+    AssemblyAI->>API: Transcription result
+    API->>DB: Store transcription
 ```
-Agent clicks "Dial" in Cockpit
-  → PreDialChecker runs compliance checks
-    → GET /api/compliance/pre-dial?phone=xxx
-    → Checks: DNC, consent, time-of-day, frequency, legal hold, bankruptcy
-  → If clear: POST /api/calls/start { to, from, callerId }
-    → Workers: creates `calls` row with status='initiated'
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ calls : "has_calls"
+    calls ||--o{ call_notes : "has_notes"
+    calls ||--o{ call_confirmations : "has_confirmations"
+    calls ||--o{ call_outcomes : "has_outcomes"
+    calls ||--o{ recordings : "has_recordings"
+    calls ||--o{ call_translations : "has_translations"
+    calls ||--o{ audio_injections : "has_injections"
+    calls ||--o{ call_sentiment_scores : "has_sentiment"
+    organizations ||--o{ voice_configs : "configures"
+    organizations ||--o{ voice_targets : "has_targets"
+    organizations ||--o{ caller_id_numbers : "owns"
+    organizations ||--o{ caller_ids : "owns"
+    users ||--o{ webrtc_sessions : "creates"
+    calls }o--|| systems : "belongs_to"
+    recordings }o--|| tools : "scored_by"
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Agent Action] --> B{Cockpit UI}
+    B --> C[Compliance Check]
+    C --> D[Call Initiation]
+    D --> E[WebRTC Setup]
+    E --> F[Call Management]
+    F --> G[Disposition]
+    G --> H[Transcription]
+
+   mermaid
+sequenceDiagram
+    participant Caller
+    participant Telnyx
+    participant API as Workers API
+    participant Groq
+    participant DB as Neon PostgreSQL
+    participant Frontend
+    participant ElevenLabs
+
+    Caller->>Telnyx: Speaks (Spanish)
+    Telnyx->>Telnyx: Transcribes speech
+    Telnyx->>API: POST /webhooks/telnyx (call.transcription)
+    API->>Groq: translateAndStore() - Spanish → English
+    Groq-->>API: Translated text
+    API->>DB: INSERT call_translations
+    Frontend->>API: GET /api/voice/translate/stream (SSE)
+    API-->>Frontend: Server-Sent Events (real-time translation)
+
+    Note over API: Optional Audio Injection
+    API->>ElevenLabs: TTS request
+    ElevenLabs-->>API: Audio file
+    API->>Telnyx: Audio fork injection
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    calls ||--o{ call_translations : "has_translations"
+    calls ||--o{ audio_injections : "has_injections"
+    organizations ||--o{ call_translations : "scoped_to"
+    call_translations {
+        uuid id
+        uuid call_id
+        text source_lang
+        text target_lang
+        text original_text
+        text translated_text
+        timestamp created_at
+    }
+    audio_injections {
+        uuid id
+        uuid call_id
+        text audio_url
+        text injection_type
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Transcription Event] --> B[Webhook Handler]
+    B --> C[Translation Processing]
+    C --> D[Database Storage]
+    D --> E[SSE Stream]
+    E --> F[Frontend Display]
+    F --> G{Audio Injection?}
+   mermaid
+flowchart TD
+    A[AI Task Request] --> B{Task Classification}
+    B -->|Chat| C{Complexity?}
+    B -->|Summarize| D[Groq]
+    B -->|Analyze| E{Complexity?}
+    B -->|Translate| F[Groq]
+    B -->|TTS| G{Provider Choice}
+
+    C -->|Simple| D
+    C -->|Complex| H[OpenAI GPT-4o-mini]
+    E -->|Simple| D
+    E -->|Complex| H
+    G -->|Quality| I[ElevenLabs]
+    G -->|Cost-effective| J[Grok/xAI]
+
+    D --> K[Fast, Cheap]
+    H --> L[Advanced Capabilities]
+    I --> M[High Quality Voice]
+    J --> N[Cost-effective TTS]
+```
+
+```mermaid
+sequenceDiagram
+    participant AssemblyAI
+    participant API as Workers API
+    participant DB as Neon PostgreSQL
+
+    AssemblyAI->>API: POST webhook (completed transcription)
+    API->>API: processCompletedTranscript()
+    API->>API: PII Redaction
+    API->>API: Summary Generation
+    API->>API: Sentiment Analysis
+    API->>API: Entity Extraction
+    API->>API: Content Safety Check
+    API->>DB: Store in transcriptions
+    API->>DB: Store in ai_summaries
+    API->>DB: Store in call_sentiment_scores
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ ai_configs : "configures"
+    calls ||--o{ transcriptions : "has_transcriptions"
+    transcriptions ||--o{ ai_summaries : "summarized"
+    calls ||--o{ call_sentiment_scores : "analyzed"
+    organizations ||--o{ ai_agent_audit_log : "logs"
+    organizations ||--o{ ai_runs : "tracks"
+    ai_configs {
+        uuid id
+        uuid organization_id
+        jsonb config
+        timestamp created_at
+    }
+    transcriptions {
+        uuid id
+        uuid call_id
+        text content
+        jsonb metadata
+        timestamp created_at
+    }
+    ai_summaries {
+        uuid id
+        uuid transcription_id
+   mermaid
+flowchart TD
+    subgraph "Tier 1 - Chat"
+        A1[User] --> B1[POST /api/bond-ai/chat]
+        B1 --> C1[buildSystemPrompt]
+        C1 --> D1[OpenAI GPT-4o-mini]
+        D1 --> E1[Store in DB]
+    end
+
+    subgraph "Tier 2 - Alerts"
+        A2[Cron/Events] --> B2[AI Pattern Analysis]
+        B2 --> C2[INSERT bond_ai_alerts]
+        C2 --> D2[GET /api/bond-ai/alerts]
+        D2 --> E2[BondAIAlertsPanel]
+        E2 --> F2[PATCH /api/bond-ai/alerts/:id]
+        F2 --> G2[POST /api/bond-ai/alerts/bulk-action]
+    end
+
+    subgraph "Tier 3 - Copilot"
+        A3[SearchbarCopilot] --> B3[POST /api/bond-ai/copilot]
+        B3 --> C3[Context-aware Response]
+    end
+
+    A1 --> A2
+    A2 --> A3
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ bond_ai_alerts : "generates"
+    bond_ai_alerts ||--o{ bond_ai_alert_rules : "governed_by"
+    organizations ||--o{ bond_ai_conversations : "has_conversations"
+    bond_ai_conversations ||--o{ bond_ai_messages : "contains"
+    organizations ||--o{ bond_ai_custom_prompts : "uses"
+    organizations ||--o{ kpi_settings : "configures"
+    bond_ai_alerts {
+        uuid id
+        uuid organization_id
+        text severity
+        text message
+        uuid account_id
+        boolean acknowledged
+        timestamp created_at
+    }
+    bond_ai_conversations {
+        uuid id
+        uuid organization_id
+        text title
+        timestamp created_at
+    }
+    bond_ai_messages {
+        uuid id
+        uuid conversation_id
+        text role
+        text content
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Bond AI Request] --> B{Endpoint}
+    B -->|Chat| C[POST /api/bond-ai/chat]
+    B -->|Alerts| D[GET /api/bond-ai/alerts]
+   mermaid
+flowchart TD
+    subgraph "Left Rail - Work Queue"
+        A[fetchQueue()]
+        A --> B[GET /api/collections?limit=25&sort=priority]
+        B --> C[Account List]
+        C --> D[AI-scored by likelihood]
+    end
+
+    subgraph "Center Stage - Call Center"
+        E[CallCenter Component]
+        E --> F[PreDialChecker]
+        F --> G[useActiveCall Hook]
+        G --> H[WebRTC/SIP Calling]
+        H --> I[Live Transcript]
+        I --> J[Disposition Bar]
+        J --> K[Keyboard Shortcuts]
+        K --> L[Ctrl+P: Payment Link]
+        K --> M[Ctrl+N: Add Note]
+        K --> N[Ctrl+B: Callback]
+        K --> O[Ctrl+D: Dispute]
+        K --> P[Ctrl+S: Save & Next]
+    end
+
+    subgraph "Right Rail - Context Panel"
+        Q[ContextPanel]
+        Q --> R[Account Info]
+        R --> S[Payment Tools]
+        S --> T[Compliance]
+        T --> U[Quick Actions]
+        U --> V[Modals]
+        V --> W[PaymentLink]
+        V --> X[AddNote]
+        V --> Y[ScheduleCallback]
+        V --> Z[FileDispute]
+        V --> AA[TransferCall]
+    end
+
+    A --> E
+    E --> Q
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ collection_accounts : "manages"
+    collection_accounts ||--o{ collection_payments : "receives"
+    collection_accounts ||--o{ collection_tasks : "has_tasks"
+    collection_accounts ||--o{ collection_csv_imports : "imported_via"
+    calls ||--o{ call_notes : "has_notes"
+    calls ||--o{ call_outcomes : "has_outcomes"
+    organizations ||--o{ compliance_violations : "tracks"
+    organizations ||--o{ compliance_events : "logs"
+    organizations ||--o{ dnc_lists : "maintains"
+   mermaid
+sequenceDiagram
+    participant UI as Frontend UI
+    participant API as Workers API
+    participant DB as Neon PostgreSQL
+    participant Telnyx
+
+    UI->>API: POST /api/dialer/start {campaign_id, pacing_mode, max_concurrent}
+    API->>API: startDialerQueue()
+    API->>DB: Query campaign_calls WHERE status='pending'
+    DB-->>API: Pending calls
+    loop For each call
+        API->>API: POST /api/calls/start
+        API->>Telnyx: Call Control API
+        Telnyx-->>API: AMD result
+        alt Machine detected
+            API->>DB: Skip call
+        else Human detected
+            API->>API: GET /api/dialer/agents
+            API->>DB: Check agent availability
+            DB-->>API: Available agents
+            API->>Telnyx: Bridge call to agent
+        end
+    end
+
+    UI->>API: POST /api/dialer/pause
+    API->>API: Pause queue processing
+
+    UI->>API: POST /api/dialer/stop
+    API->>API: Stop and clean up
+
+    UI->>API: GET /api/dialer/stats/:campaignId
+    API->>DB: Real-time stats query
+    DB-->>API: Stats data
+    API-->>UI: Stats response
+
+    UI->>API: PUT /api/dialer/agent-status
+    API->>DB: Update agent availability
+
+    UI->>API: GET /api/dialer/agents
+    API->>DB: List agents and status
+    DB-->>API: Agents data
+    API-->>UI: Agents response
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ campaigns : "owns"
+    campaigns ||--o{ campaign_calls : "contains"
+    organizations ||--o{ dialer_agent_status : "tracks"
+    campaigns {
+        uuid id
+        uuid organization_id
+        text name
+        text status
+        timestamp created_at
+    }
+    campaign_calls {
+        uuid id
+        uuid campaign_id
+        uuid account_id
+        text status
+   mermaid
+flowchart TD
+    subgraph "Account Lifecycle"
+        A[Import CSV] --> B[POST /api/collections/import]
+        B --> C[Validate Rows]
+        C --> D[INSERT collection_accounts]
+        D --> E[Log to collection_csv_imports]
+
+        F[Work Account] --> G[GET /api/collections?limit=25&sort=priority]
+        G --> H[Cockpit: Select Account]
+        H --> I[PreDialChecker]
+        I --> J[Call Initiation]
+        J --> K[Disposition]
+
+        L[Record Payment] --> M[POST /api/collections/:id/payments]
+        M --> N[INSERT collection_payments]
+        N --> O[UPDATE balance_due]
+        O --> P{Balance = 0?}
+        P -->|Yes| Q[Status → 'paid']
+
+        R[Create Task] --> S[POST /api/collections/:id/tasks]
+        S --> T[INSERT collection_tasks]
+
+        U[Promise to Pay] --> V[UPDATE collection_accounts]
+        V --> W[Set promise_date, promise_amount]
+        W --> X[Daily Cron]
+        X --> Y[Check Overdue Promises]
+        Y --> Z[Create Follow-up Tasks]
+    end
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ collection_accounts : "manages"
+    collection_accounts ||--o{ collection_payments : "receives"
+    collection_accounts ||--o{ collection_tasks : "has"
+    collection_accounts ||--o{ collection_csv_imports : "imported_via"
+    collection_csv_imports {
+        uuid id
+        uuid organization_id
+        text filename
+        integer rows_imported
+        integer rows_failed
+        timestamp created_at
+    }
+    collection_accounts {
+        uuid id
+        uuid organization_id
+        text account_number
+        decimal balance_due
+        text status
+        date promise_date
+        decimal promise_amount
+    }
+    collection_payments {
+        uuid id
+        uuid account_id
+        decimal amount
+        text method
+        timestamp created_at
+    }
+    collection_tasks {
+        uuid id
+        uuid account_id
+        text type
+        date due_date
+        text description
+        text status
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Collections Operation] --> B{Action}
+    B -->|Import| C[POST /api/collections/import]
+    B -->|List| D[GET /api/collections]
+    B -->|Payment| E[POST /api/collections/:id/payments]
+    B -->|Task| F[POST /api/collections/:id/tasks]
+    B -->|Update| G[PUT /api/collections/:id]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Campaign Management] --> B{Create Campaign}
+    B --> C[POST /api/campaigns]
+    C --> D[INSERT campaigns]
+
+    A --> E[Add Accounts]
+    E --> F[POST /api/campaigns/:id/accounts]
+    F --> G[INSERT campaign_calls]
+
+    A --> H[Sequence Builder]
+    H --> I[POST /api/campaigns/sequences]
+    I --> J[Configure Contact Sequence]
+
+    A --> K[Survey Management]
+    K --> L[POST /api/surveys]
+    L --> M[INSERT surveys]
+    M --> N[POST /api/surveys/:id/responses]
+    N --> O[INSERT survey_responses]
+
+    A --> P[Launch Dialer]
+    P --> Q[POST /api/dialer/start]
+    Q --> R[Campaign Calling]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ campaigns : "owns"
+    campaigns ||--o{ campaign_calls : "contains"
+    campaigns ||--o{ surveys : "has"
+    surveys ||--o{ survey_responses : "collects"
+    campaigns {
+        uuid id
+        uuid organization_id
+        text name
+        text description
+        text status
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Analytics Request] --> B{Type}
+    B -->|Real-time| C[GET /api/analytics/realtime]
+    B -->|Historical| D[GET /api/analytics/historical]
+    B -->|Agent| E[GET /api/analytics/agents]
+    B -->|Collections| F[GET /api/analytics/collections]
+    B -->|Sentiment| G[GET /api/analytics/sentiment]
+
+    C --> H[Live Data Query]
+    D --> I[Aggregated Data]
+    E --> J[Agent Performance]
+    F --> K[Collection Metrics]
+    G --> L[Sentiment Analysis]
+
+    A --> M[Reports]
+    M --> N[GET /api/reports]
+    N --> O[Report Builder]
+    O --> P[POST /api/reports/generate]
+    P --> Q[Export Options]
+    Q --> R[PDF/CSV/Excel]
+
+    A --> S[Scheduled Reports]
+    S --> T[GET /api/reports/schedules]
+    T --> U[POST /api/reports/schedules]
+    U --> V[Cron Execution]
+    V --> W[Email Delivery]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ reports : "generates"
+    reports ||--o{ report_schedules : "schedules"
+    organizations ||--o{ usage_stats : "aggregates"
+    organizations ||--o{ reliability_metrics : "tracks"
+    reports {
+        uuid id
+        uuid organization_id
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Call Recording] --> B[QA Review]
+    B --> C[GET /api/review/calls]
+    C --> D[Call Review Mode]
+    D --> E[Scorecard Template]
+    E --> F[Scoring Criteria]
+    F --> G[Score Assignment]
+    G --> H[POST /api/scorecards]
+    H --> I[INSERT scorecards]
+
+    A --> J[Alerts Generation]
+    J --> K[Threshold Check]
+    K --> L[INSERT scorecard_alerts]
+    L --> M[Notification System]
+
+    A --> N[Shopper Scripts]
+    N --> O[GET /api/shopper/scripts]
+    O --> P[Mystery Shopper Evaluation]
+    P --> Q[Script Execution]
+    Q --> R[POST /api/shopper/results]
+    R --> S[INSERT test_results]
+
+    A --> T[Coaching Queue]
+    T --> U[Manager Review]
+    U --> V[Feedback Loop]
+    V --> W[Training Actions]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ scorecards : "manages"
+    scorecards ||--o{ scorecard_alerts : "generates"
+    scorecards ||--o{ scored_recordings : "links"
+    organizations ||--o{ shopper_scripts : "defines"
+    shopper_scripts ||--o{ test_configs : "configures"
+    test_configs ||--o{ test_results : "produces"
+    recordings ||--o{ scored_recordings : "associated"
+    tools ||--o{ scorecards : "used_for"
+    tools ||--o{ recordings : "categorizes"
+    scorecards {
+        uuid id
+        uuid organization_id
+        uuid call_id
+        uuid user_id
+   mermaid
+sequenceDiagram
+    participant User
+    participant UI as Next.js UI
+    participant API as Workers API
+    participant Stripe
+    participant DB as Neon PostgreSQL
+
+    User->>UI: Visit /pricing
+    UI->>API: POST /api/billing/checkout { planId }
+    API->>Stripe: Create Checkout Session
+    Stripe-->>API: Session URL
+    API-->>UI: Redirect to Stripe
+    User->>Stripe: Complete payment
+    Stripe->>API: POST /webhooks/stripe (checkout.session.completed)
+    API->>DB: Process event → UPDATE organizations.plan
+    API->>API: syncStripeData()
+    API->>DB: Mirror to stripe_* tables
+
+    Note over UI,DB: Feature Gating
+    UI->>API: Protected endpoint
+    API->>API: requirePlan('pro') middleware
+    API->>DB: Check org.plan vs feature matrix
+    alt Insufficient plan
+        API-->>UI: 403 { error: 'Plan upgrade required' }
+    end
+
+    Note over API,DB: Usage Tracking
+    API->>API: Cron: aggregate_usage (daily)
+    API->>DB: Count calls, minutes, recordings per org
+    API->>DB: INSERT usage_stats
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ stripe_events : "receives"
+    organizations ||--o{ billing_events : "generates"
+    organizations ||--o{ stripe_subscriptions : "has"
+    organizations ||--o{ stripe_payment_methods : "owns"
+    organizations ||--o{ stripe_invoices : "receives"
+    stripe_events {
+        uuid id
+        uuid organization_id
+        text event_type
+        jsonb event_data
+        boolean processed
+        timestamp created_at
+    }
+    billing_events {
+        uuid id
+        uuid organization_id
+        text event_type
+        jsonb metadata
+        timestamp created_at
+    }
+    stripe_subscriptions {
+        uuid id
+        uuid organization_id
+        text stripe_subscription_id
+        text status
+        text plan_id
+        timestamp created_at
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Team Management] --> B[Organization Creation]
+    B --> C[POST /api/organizations]
+    C --> D[INSERT organizations]
+    D --> E[Owner Assignment]
+
+    A --> F[Team Creation]
+    F --> G[POST /api/teams]
+    G --> H[INSERT teams]
+
+    A --> I[Invite Members]
+    I --> J[POST /api/teams/invites]
+    J --> K[Generate Token]
+    K --> L[INSERT team_invites]
+    L --> M[Send Email]
+    M --> N[Resend Invite]
+
+    A --> O[Member Management]
+    O --> P[PUT /api/teams/:id/members]
+    P --> Q[INSERT org_members]
+    Q --> R[Role Assignment]
+
+    A --> S[Role Management]
+    S --> T[GET /api/teams/roles]
+    T --> U[PUT /api/teams/roles]
+    U --> V[Permission Updates]
+
+    A --> W[Org Switching]
+    W --> X[GET /api/organizations]
+    X --> Y[Switch Context]
+    Y --> Z[Session Update]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ org_members : "has_members"
+    org_members ||--o{ users : "links"
+    organizations ||--o{ teams : "contains"
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Compliance Check] --> B{Type}
+    B -->|Pre-dial| C[GET /api/compliance/pre-dial]
+    C --> D[DNC Check]
+    D --> E[Consent Verification]
+    E --> F[Time-of-day Rules]
+    F --> G[Frequency Limits]
+    G --> H[Legal Hold Check]
+    H --> I[Bankruptcy Status]
+    I --> J[Log Event]
+    J --> K[INSERT compliance_events]
+
+    B -->|PII Redaction| L[Transcription Processing]
+    L --> M[Detect PII]
+    M --> N[Redact Content]
+    N --> O[Store Clean Version]
+
+    B -->|Audit| P[GET /api/audit/logs]
+    P --> Q[Query audit_logs]
+    Q --> R[Filter by org_id]
+    R --> S[Return Events]
+
+    B -->|DNC Management| T[GET /api/dnc]
+    T --> U[Query dnc_lists]
+    U --> V[POST /api/dnc]
+    V --> W[INSERT dnc_lists]
+
+    B -->|Violations| X[GET /api/compliance/violations]
+    X --> Y[Query compliance_violations]
+    Y --> Z[Report Generation]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ compliance_violations : "tracks"
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Inbound Call] --> B[Telnyx Webhook]
+    B --> C[POST /webhooks/telnyx]
+    C --> D[IVR Flow Engine]
+    D --> E{Account Lookup}
+    E -->|Found| F[Balance Check]
+    E -->|Not Found| G[Transfer to Agent]
+
+    F --> H{Payment Due?}
+    H -->|Yes| I[Payment Options]
+    I --> J[Credit Card]
+    I --> K[Bank Transfer]
+    I --> L[Promise to Pay]
+
+    H -->|No| M[Account Status]
+    M --> N[Transfer to Agent]
+
+    J --> O[Stripe Payment]
+    O --> P[Payment Success]
+    P --> Q[Update Balance]
+
+    K --> R[ACH Setup]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Webhook Event] --> B[Event Generation]
+    B --> C[Workers Route]
+    C --> D[webhookRetry()]
+    D --> E{Delivery Attempt}
+    E -->|Success| F[Log Success]
+    E -->|Failure| G[Retry Logic]
+    G --> H{Retry Count < Max}
+    H -->|Yes| I[Queue Retry]
+    I --> J[Exponential Backoff]
+    J --> E
+    H -->|No| K[Log Failure]
+    K --> L[INSERT webhook_failures]
+
+    A --> M[Subscription Management]
+    M --> N[POST /api/webhooks/subscriptions]
+    N --> O[INSERT webhook_subscriptions]
+    O --> P[Validate URL]
+    P --> Q[Send Test Event]
+
+    A --> R[Reliability Monitoring]
+    R --> S[GET /api/reliability/metrics]
+    S --> T[Calculate Success Rate]
+    T --> U[Response Time Analysis]
+    U --> V[Alert on Degradation]
+```
+
+### Database Relationships
+
+```mermaid
+erDiFlow Diagram
+
+```mermaid
+flowchart TD
+    A[CRM Integration] --> B[Configuration]
+    B --> C[POST /api/crm/integrations]
+    C --> D[INSERT integrations]
+    D --> E[API Key Storage]
+    E --> F[Connection Test]
+
+    A --> G[Data Sync]
+    G --> H[POST /api/crm/sync]
+    H --> I[Fetch CRM Data]
+    I --> J[Map to Internal Schema]
+    J --> K[INSERT crm_object_links]
+    K --> L[Log Sync Event]
+    L --> M[INSERT crm_sync_log]
+
+    A --> N[Object Linking]
+    N --> O[POST /api/crm/objects/link]
+    O --> P[Associate CRM Object]
+    P --> Q[Update collection_accounts]
+    Q --> R[Bidirectional Sync]
+
+    A --> S[Sync Monitoring]
+    S --> T[GET /api/crm/sync/status]
+    T --> U[Last Sync Time]
+    U --> V[Error Reporting]
+    V --> W[Retry Failed Syncs]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ integrations : "configures"
+    integrations ||--o{ crm_object_links : "manages"
+    integrations ||--o{ crm_sync_log : "logs"
+    collection_accounts ||--o{ crm_object_links : "links"
+    crm_object_links {
+        uuid id
+        uuid integration_id
+        text crm_object_type
+        text crm_object_id
+        uuid internal_id
+        text internal_type
+        timestamp linked_at
+    }
+    crm_sync_log {
+        uuid id
+        uuid integration_id
+        text operation
+        text status
+        text error_message
+        integer records_processed
+        timestamp started_at
+        timestamp completed_at
+    }
+    integrations {
+        uuid id
+        uuid organization_id
+        text crm_type
+        jsonb config
+        boolean active
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[CRM Framework] --> B[Integration Setup]
+    B --> C[POST /api/crm/integrations]
+    C --> D[CRM Type Selection]
+    D --> E[Salesforce/HubSpot/etc]
+
+    A --> F[Object Management]
+    F --> G[GET /api/crm/objects]
+    F --> H[POST /api/crm/objects/link]
+    F --> I[DELETE /api/crm/objects/:id]
+
+    A --> J[Sync Operations]
+    J --> K[POST /api/crm/sync]
+    J --> L[GET /api/crm/sync/status]
+    J --> M[POST /api/crm/sync/retry]
+
+    A --> N[Field Mapping]
+    N --> O[GET /api/crm/mappings]
+    N --> P[PUT /api/crm/mappings]
+    P --> Q[Custom Field Rules]
+```
+        integer attempt_count
+        integer response_time_ms
+        timestamp created_at
+    }
+    webhook_failures {
+        uuid id
+        uuid subscription_id
+        text event_type
+        text error_message
+        jsonb request_payload
+        timestamp failed_at
+    }
+    webhook_subscriptions {
+        uuid id
+        uuid organization_id
+        text name
+        text url
+        jsonb headers
+        jsonb events
+        boolean active
+        timestamp created_at
+    }
+```
+Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Feature Flag Request] --> B{Flag Type}
+    B -->|Global| C[GET /api/feature-flags/global]
+    C --> D[Check platform_admin role]
+    D --> E[Query global_feature_flags]
+    E --> F[Return flag value]
+
+    B -->|Org| G[GET /api/feature-flags/org]
+    G --> H[Check session.organization_id]
+    H --> I[Query org_feature_flags]
+    I --> J{Fallback to global?}
+    J -->|Yes| K[Check global if not set]
+    J -->|No| L[Return org value]
+
+    A --> M[Flag Management]
+    M --> N[POST /api/feature-flags]
+    N --> O[INSERT global_feature_flags]
+    O --> P[Role validation]
+
+    A --> Q[Flag Updates]
+    Q --> R[PUT /api/feature-flags/:id]
+    R --> S[Update flag value]
+    S --> T[Cache invalidation]
+Flow Diagram
+
+```mermaid
+flowchart TD
+    A[New User Signup] --> B[Email Verification]
+    B --> C[POST /api/auth/signup]
+    C --> D[Send verification email]
+    D --> E[User clicks link]
+    E --> F[GET /auth/verify?token=xxx]
+    F --> G[Mark email verified]
+
+    A --> H[Onboarding Check]
+    H --> I{Onboarding completed?}
+    I -->|No| J[Redirect to /onboarding]
+    I -->|Yes| K[Allow access]
+
+    J --> L[7-Step Wizard]
+    L --> M[Step 1: Account Setup]
+    M --> N[Step 2: Phone Number]
+    N --> O[Step 3: Team Invites]
+    O --> P[Step 4: Collections Import]
+    P --> Q[Step 5: Campaign Setup]
+    Q --> R[Step 6: Compliance Review]
+    R --> S[Step 7: Go Live]
+Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Payment Plan Creation] --> B[POST /api/payments/plans]
+    B --> C[INSERT payment_plans]
+    C --> D[Calculate installments]
+    D --> E[INSERT scheduled_payments]
+
+    A --> F[Payment Processing]
+    F --> G[Cron: process_payments]
+    G --> H[Query due payments]
+    H --> I[Payment gateway call]
+    I --> J{Success?}
+    J -->|Yes| K[Update balance]
+    J -->|No| L[Log failure]
+
+    A --> M[Dunning Process]
+    M --> N[Cron: dunning_escalation]
+    N --> O[Find overdue accounts]
+    O --> P[Check dunning level]
+    P --> Q[Send notice/email]
+    Q --> R[INSERT dunning_events]
+    R --> S[Escalate if needed]
+
+    A --> T[Promise to Pay]
+    T --> U[UPDATE collection_accounts]
+    U --> V[Set promise_date]
+    V --> W[Monitor compliance]
+    W --> X{Broken promise?}
+    X -->|Yes| Y[Trigger dunning]
+    X -->|No| Z[Clear promise]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Callback Request] --> B[POST /api/bookings]
+    B --> C[Validate availability]
+    C --> D[Check conflicts]
+    D --> E[INSERT booking_events]
+    E --> F[Send confirmation]
+    F --> G[Calendar integration]
+
+    A --> H[Follow-up Scheduling]
+    H --> I[Agent selects time]
+    I --> J[POST /api/bookings/followup]
+    J --> K[Link to account]
+    K --> L[Set reminder]
+
+    A --> M[Booking Management]
+    M --> N[GET /api/bookings]
+    N --> O[Filter by status]
+    O --> P[Display calendar]
+
+    A --> Q[Booking Updates]
+    Q --> R[PUT /api/bookings/:id]
+    R --> S[Reschedule logic]
+    S --> T[Notification update]
+
+    A --> U[Automated Reminders]
+    U --> V[Cron job]
+    V --> W[Query upcoming bookings]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Productivity Tools] --> B[Note Templates]
+    B --> C[GET /api/productivity/templates]
+    C --> D[Display library]
+    D --> E[Agent selects template]
+    E --> F[Insert into call notes]
+    F --> G[POST /api/calls/:id/notes]
+
+    A --> H[Objection Library]
+    H --> I[GET /api/productivity/objections]
+    I --> J[Search by objection type]
+    J --> K[Show rebuttals]
+    K --> L[Copy to clipboard]
+    L --> M[Use in call]
+
+    A --> N[Likelihood Scoring]
+    N --> O[GET /api/productivity/scores]
+    O --> P[Analyze account history]
+    P --> Q[Calculate likelihood]
+    Q --> R[Update queue priority]
+
+    A --> S[Prevention Scan]
+    S --> T[Cron: prevention_scan]
+    T --> U[Identify at-risk accounts]
+    U --> V[Generate tasks]
+    V --> W[INSERT collection_tasks]
+
+    A --> X[Daily Planner]
+    X --> Y[GET /api/productivity/planner]
+    Y --> Z[Aggregate KPIs]
+    Z --> AA[Generate insights]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Sentiment Analysis] --> B[Real-time Processing]
+    B --> C[Transcription Webhook]
+    C --> D[POST /webhooks/assemblyai]
+    D --> E[sentimentProcessor.process()]
+    E --> F[Groq API call]
+    F --> G[Score utterance]
+    G --> H[INSERT call_sentiment_scores]
+
+    A --> I[Batch Processing]
+    I --> J[Cron job]
+    J --> K[Process completed calls]
+    K --> L[Aggregate scores]
+    L --> M[INSERT call_sentiment_summary]
+
+    A --> N[Alert System]
+    N --> O[Threshold check]
+    O --> P{Score < threshold?}
+    P -->|Yes| Q[Generate alert]
+    Q --> R[INSERT sentiment_alert_configs]
+    R --> S[Notify manager]
+
+    A --> T[Dashboard Display]
+    T --> U[GET /api/sentiment/dashboard]
+    U --> V[Aggregate data]
+    V --> W[Chart generation]
+    W --> X[Real-time updates]
+```
+
+### Database Relationships
+
+```mermaid
+erDiFlow Diagram
+
+```mermaid
+flowchart TD
+    A[TTS Request] --> B{Provider Selection}
+    B -->|ElevenLabs| C[POST /api/tts/elevenlabs]
+    B -->|Grok| D[POST /api/tts/grok]
+    C --> E[ElevenLabs API]
+    D --> F[Grok API]
+
+    E --> G[Generate Audio]
+    F --> G
+    G --> H[Upload to R2]
+    H --> I[INSERT tts_audio]
+    I --> J[Return URL]
+
+    A --> K[Audio Injection]
+    K --> L[During Call]
+    L --> M[POST /api/audio/inject]
+    M --> N[Telnyx Audio Fork]
+    N --> O[Play TTS to caller]
+
+    A --> P[Audio Management]
+    P --> Q[GET /api/audio/files]
+    Q --> R[List generated audio]
+    R --> S[Playback/Deletion]
+
+    A --> T[Voice Cloning]
+    T --> U[Upload sample]
+    U --> V[ElevenLabs training]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Recording Creation] --> B[Call Connected]
+    B --> C[Telnyx recording start]
+    C --> D[POST /webhooks/telnyx]
+    D --> E[recording.saved event]
+    E --> F[Download from Telnyx]
+    F --> G[Upload to R2]
+    G --> H[INSERT recordings]
+    H --> I[Generate stream URL]
+
+    A --> J[Recording Access]
+    J --> K[GET /api/recordings]
+    K --> L[List recordings]
+    L --> M[Filter by call/date]
+    M --> N[Return metadata]
+
+    A --> O[Playback Request]
+    O --> P[GET /api/recordings/stream/:id]
+    P --> Q[Authenticate user]
+    Q --> R[Check permissions]
+    R --> S[Fetch from R2]
+    S --> T[Stream audio]
+
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Retention Policy] --> B[Configuration]
+    B --> C[POST /api/retention/policies]
+    C --> D[INSERT retention_policies]
+    D --> E[Set retention periods]
+    E --> F[Apply to data types]
+
+    A --> G[Legal Hold]
+    G --> H[POST /api/retention/holds]
+    H --> I[INSERT legal_holds]
+    I --> J[Freeze data]
+    J --> K[Prevent deletion]
+
+    A --> L[Automated Cleanup]
+    L --> M[Cron job]
+    M --> N[Query expired data]
+    N --> O{Check legal hold?}
+    O -->|No hold| P[Delete data]
+    O -->|Hold active| Q[Skip deletion]
+
+    A --> R[Manual Deletion]
+    R --> S[DELETE /api/retention/data]
+    S --> T[Admin approval]
+    T --> U[Audit logging]
+    U --> V[Execute deletion]
+
+    A --> W[Retention Audit]
+    W --> X[GET /api/retention/audit]
+    X --> Y[Review deletions]
+    Y --> Z[Compliance reporting]
+```
+
+### Database Relationships
+
+```mermaid
+erDiagram
+    organizations ||--o{ retention_policies : "defines"
+    organizations ||--o{ legal_holds : "places"
+    retention_policies {
+        uuid id
+        uuid organization_id
+        text data_type
+        integer retention_days
+        boolean auto_delete
+        timestamp created_at
+    }
+    legal_holds {
+        uuid id
+        uuid organization_id
+        text case_number
+        text description
+        date hold_until
+        boolean active
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Retention Management] --> B[Policy CRUD]
+    B --> C[GET /api/retention/policies]
+    B --> D[POST /api/retention/policies]
+    B --> E[PUT /api/retention/policies/:id]
+    B --> F[DELETE /api/retention/policies/:id]
+
+    A --> G[Legal Holds]
+    G --> H[GET /api/retention/holds]
+    G --> I[POST /api/retention/holds]
+    G --> J[PUT /api/retention/holds/:id]
+    G --> K[DELETE /api/retention/holds/:id]
+
+    A --> L[Data Deletion]
+    L --> M[POST /api/retention/delete]
+    L --> N[Type selection]
+    L --> O[Date range]
+    L --> P[Execute cleanup]
+
+    A --> Q[Audit Trail]
+    Q --> R[GET /api/retention/audit]
+    Q --> S[Deletion history]
+    Q --> T[Compliance logs]
+```
+Flow Diagram
+
+```mermaid
+flowchart TD
+    A[RBAC Check] --> B[API Request]
+    B --> C[requireAuth middleware]
+    C --> D[Verify session]
+    D --> E[Extract user role]
+    E --> F[requireRole middleware]
+    F --> G{Check permission}
+    G -->|Granted| H[Allow access]
+    G -->|Denied| I[403 Forbidden]
+
+    A --> J[Role Hierarchy]
+    J --> K[platform_admin > owner > admin > operator > worker]
+    K --> L[Inheritance check]
+    L --> M[Higher roles include lower permissions]
+
+    A --> N[Frontend Guards]
+    N --> O[useRBAC hook]
+    N --> P[RoleShell component]
+    P --> Q[Conditional rendering]
+    Q --> R[Menu item hiding]
+
+    A --> S[Role Assignment]
+    S --> T[PUT /api/rbac/roles]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Admin Access] --> B[Role Check]
+    B --> C{platform_admin?}
+    C -->|Yes| D[Grant access]
+    C -->|No| E[403 Forbidden]
+
+    A --> F[Metrics Dashboard]
+    F --> G[GET /api/admin/metrics]
+    G --> H[Platform-wide stats]
+    H --> I[Usage analytics]
+    I --> J[Performance monitoring]
+
+    A --> K[Auth Provider Management]
+    K --> L[GET /api/admin/auth-providers]
+    K --> M[PUT /api/admin/auth-providers/:id]
+    M --> N[Provider configuration]
+    N --> O[Enable/disable]
+
+    A --> P[Cron Health]
+    P --> Q[GET /api/internal/cron-health]
+    Q --> R[Job status]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Infrastructure Monitoring] --> B[Health Probes]
+    B --> C[GET /api/health/db]
+    C --> D[Neon connection test]
+    D --> E[Query execution]
+
+    B --> F[GET /api/health/kv]
+    F --> G[Cloudflare KV check]
+    G --> H[Read/write test]
+
+    B --> G[GET /api/health/r2]
+    I --> J[R2 bucket access]
+    J --> K[Upload/download test]
+
+    A --> L[Rate Limiting]
+    L --> M[KV-backed counters]
+    M --> N[Request throttling]
+    N --> O[429 responses]
+
+    A --> P[Idempotency]
+    P --> Q[KV-backed tokens]
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Testing Pipeline] --> B[Unit Tests]
+    B --> C[Vitest]
+    C --> D[Component logic]
+    D --> E[Utility functions]
+
+    A --> F[Production Integration]
+    F --> G[Real API calls]
+    G --> H[No mocks]
+    H --> I[Full stack validation]
+
+    A --> J[E2E Tests]
+    J --> K[Playwright]
+    K --> L[Browser automation]
+    L --> M[User journey testing]
+
+    A --> N[Load Tests]
+    N --> O[k6]
+    O --> P[Performance testing]
+    P --> Q[Scalability validation]
+
+    A --> R[Manual Tests]
+    R --> S[PowerShell scripts]
+    S --> T[Complex scenarios]
+    T --> U[Edge cases]
+
+    A --> V[Schema Validation]
+    V --> W[validate-schema-drift.ts]
+    W --> X[Compare live vs code]
+    X --> Y[Migration verification]
+
+    A --> Z[Contract Testing]
+    Z --> AA[API contract validation]
+    AA --> BB[TypeScript types]
+    BB --> CC[Schema extraction]
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    Flow Diagram
+
+```mermaid
+flowchart TD
+    A[UI Framework] --> B[Root Layout]
+    B --> C[app/layout.tsx]
+    C --> D[Provider stack]
+    D --> E[Theme provider]
+    E --> F[Auth provider]
+    F --> G[Error boundary]
+
+    A --> H[Navigation]
+    H --> I[RoleShell.tsx]
+    I --> J[Role-based menus]
+    J --> K[BottomNav.tsx]
+    K --> L[Mobile navigation]
+    L --> M[CommandPalette.tsx]
+    M --> N[Cmd+K search]
+
+    A --> O[Component Library]
+    O --> P[components/ui/]
+    P --> Q[23 primitives]
+    Q --> R[Design system]
+    R --> S[Consistent styling]
+
+    A --> T[Tour System]
+    T --> U[components/tour/]
+    T --> V[5 components]
+    V --> W[Product onboarding]
+    W --> X[Interactive guides]
+
+    A --> Y[Error Handling]
+    Y --> Z[ErrorBoundary.tsx]
+    Z --> AA[Global error catching]
+    AA --> BB[User-friendly messages]
+    BB --> CC[Fallback UI]
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[UI Architecture] --> B[Layout System]
+    B --> C[AppShell.tsx]
+    C --> D[Legacy navigation]
+    D --> E[Sidebar layout]
+    E --> F[Responsive design]
+
+    A --> G[State Management]
+    G --> H[React Context]
+    G --> I[Custom hooks]
+    I --> J[useApiQuery]
+    J --> K[Data fetching]
+
+    A --> L[Theming]
+    L --> M[theme-provider.tsx]
+    L --> N[Dark/light mode]
+    N --> O[Tailwind CSS]
+    O --> P[Custom variables]
+
+    A --> Q[Component Composition]
+    Q --> R[Higher-order components]
+    Q --> S[Render props]
+    S --> T[Flexible APIs]
+``` C --> D[Live DB comparison]
+    D --> E[Drift detection]
+
+    A --> F[RLS Audit]
+    F --> G[scripts/rls-audit.sql]
+    F --> H[Policy coverage check]
+    H --> I[Security validation]
+
+    A --> J[Validation Orchestrator]
+    J --> K[scripts/validate-all.ts]
+    J --> L[L1-L3 validation]
+    L --> M[Comprehensive checks]
+
+    A --> N[API Contract]
+    N --> O[tools/validate_api_contract.py]
+    N --> P[Endpoint validation]
+    P --> Q[Response schema check]
+
+    A --> R[Schema Extraction]
+    R --> S[tools/extract_schema.py]
+    R --> T[TypeScript generation]
+    T --> U[Type safety]
+```
+    H --> J[GET /api/config/features]
+    J --> K[Runtime settings]
+
+    A --> L[Monitoring]
+    L --> M[GET /api/monitoring/metrics]
+    L --> N[GET /api/monitoring/logs]
+    N --> O[Structured logging]
+    O --> P[JSON format]
+
+    A --> Q[Maintenance]
+    Q --> R[POST /api/maintenance/cleanup]
+    Q --> S[POST /api/maintenance/optimize]
+    S --> T[Database maintenance]
+``
+    A --> F[Organization Management]
+    F --> G[GET /api/admin/organizations]
+    F --> H[PUT /api/admin/organizations/:id]
+    H --> I[Plan changes]
+    I --> J[Feature toggles]
+
+    A --> K[User Management]
+    K --> L[GET /api/admin/users]
+    K --> M[PUT /api/admin/users/:id/role]
+    M --> N[Platform role assignment]
+
+    A --> O[System Health]
+    O --> P[GET /api/internal/health]
+    O --> Q[GET /api/internal/cron-status]
+    O --> R[GET /api/internal/queue-status]
+    R --> S[Infrastructure monitoring]
+``
+
+```mermaid
+erDiagram
+    rbac_permissions {
+        uuid id
+        text role_name
+        text permission
+        text resource
+        text action
+        timestamp created_at
+    }
+    users ||--o{ org_members : "belongs_to"
+    org_members {
+        uuid id
+        uuid organization_id
+        uuid user_id
+        text role
+        timestamp joined_at
+    }
+    organizations ||--o{ org_members : "has_members"
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[RBAC System] --> B[Permission Check]
+    B --> C[GET /api/rbac/check]
+    C --> D[Role validation]
+    D --> E[Permission lookup]
+    E --> F[Boolean response]
+
+    A --> G[Role Management]
+    G --> H[GET /api/rbac/roles]
+    G --> I[PUT /api/rbac/roles/:userId]
+    I --> J[Role update]
+    J --> K[Audit logging]
+
+    A --> L[Permission Matrix]
+    L --> M[GET /api/rbac/matrix]
+    L --> N[Role-permission mapping]
+    N --> O[UI display]
+
+    A --> P[Session Context]
+    P --> Q[session.platform_role]
+    P --> R[session.organization_id]
+    P --> S[Context-aware checks]
+```
+        uuid id
+        uuid call_id
+        text r2_key
+        integer duration
+        integer file_size
+        text format
+        timestamp created_at
+    }
+    scored_recordings {
+        uuid id
+        uuid recording_id
+        uuid scorecard_id
+        jsonb scores
+        timestamp scored_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Recording API] --> B[List Recordings]
+    B --> C[GET /api/recordings]
+    C --> D[Pagination]
+    D --> E[Filtering]
+    E --> F[Sorting]
+
+    A --> G[Stream Recording]
+    G --> H[GET /api/recordings/stream/:id]
+    H --> I[Authentication]
+    I --> J[Authorization]
+    J --> K[R2 streaming]
+
+    A --> L[Recording Details]
+    L --> M[GET /api/recordings/:id]
+    M --> N[Metadata only]
+
+    A --> O[Delete Recording]
+    O --> P[DELETE /api/recordings/:id]
+    P --> Q[Retention check]
+    Q --> R[Soft delete]
+    R --> S[Cleanup job]
+```
+    organizations ||--o{ audio_files : "uploads"
+    calls ||--o{ audio_injections : "uses"
+    transcriptions ||--o{ tts_audio : "converts"
+    tts_audio {
+        uuid id
+        uuid organization_id
+        text provider
+        text voice_id
+        text text_content
+        text audio_url
+        integer duration_ms
+        timestamp created_at
+    }
+    audio_files {
+        uuid id
+        uuid organization_id
+        text filename
+        text r2_key
+        text content_type
+        integer file_size
+        timestamp uploaded_at
+    }
+    audio_injections {
+        uuid id
+        uuid call_id
+        text audio_url
+        text injection_type
+        timestamp injected_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[TTS System] --> B[Synthesis]
+    B --> C[POST /api/tts/synthesize]
+    C --> D[Text input]
+    D --> E[Voice selection]
+    E --> F[Provider routing]
+
+    A --> G[Audio Library]
+    G --> H[GET /api/audio/library]
+    G --> I[POST /api/audio/upload]
+    I --> J[File storage]
+
+    A --> K[Injection Control]
+    K --> L[POST /api/audio/inject]
+    K --> M[During live call]
+    M --> N[Real-time playback]
+
+    A --> O[Voice Management]
+    O --> P[GET /api/tts/voices]
+    O --> Q[POST /api/tts/voices/custom]
+    Q --> R[Voice cloning]
+```
+        timestamp timestamp
+        timestamp created_at
+    }
+    call_sentiment_summary {
+        uuid id
+        uuid call_id
+        float average_score
+        text overall_sentiment
+        integer total_utterances
+        timestamp created_at
+    }
+    sentiment_alert_configs {
+        uuid id
+        uuid organization_id
+        text alert_type
+        float threshold
+        boolean enabled
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Sentiment API] --> B[Real-time Scores]
+    B --> C[GET /api/sentiment/realtime]
+    C --> D[WebSocket stream]
+    D --> E[Live updates]
+
+    A --> F[Historical Analysis]
+    F --> G[GET /api/sentiment/history]
+    F --> H[GET /api/sentiment/trends]
+    H --> I[Time-series data]
+
+    A --> J[Alert Management]
+    J --> K[GET /api/sentiment/alerts]
+    J --> L[POST /api/sentiment/alerts]
+    J --> M[PUT /api/sentiment/alerts/:id]
+
+    A --> N[Configuration]
+    N --> O[GET /api/sentiment/config]
+    N --> P[PUT /api/sentiment/config]
+    P --> Q[Threshold settings]
+```
+        jsonb variables
+        timestamp created_at
+    }
+    objection_rebuttals {
+        uuid id
+        uuid organization_id
+        text objection_type
+        text rebuttal_text
+        text category
+        integer success_rate
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Productivity API] --> B[Templates]
+    B --> C[GET /api/productivity/templates]
+    B --> D[POST /api/productivity/templates]
+    B --> E[PUT /api/productivity/templates/:id]
+    B --> F[DELETE /api/productivity/templates/:id]
+
+    A --> G[Objections]
+    G --> H[GET /api/productivity/objections]
+    G --> I[POST /api/productivity/objections]
+    G --> J[PUT /api/productivity/objections/:id]
+    G --> K[DELETE /api/productivity/objections/:id]
+
+    A --> L[Scoring]
+    L --> M[GET /api/productivity/scores]
+    L --> N[POST /api/productivity/scores/recalculate]
+
+    A --> O[Planner]
+    O --> P[GET /api/productivity/planner]
+    O --> Q[GET /api/productivity/insights]
+    Q --> R[AI-generated tips]
+```
+        uuid user_id
+        uuid account_id
+        text booking_type
+        timestamp scheduled_at
+        text status
+        text notes
+        timestamp created_at
+        timestamp updated_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Booking System] --> B[Create Booking]
+    B --> C[POST /api/bookings]
+    C --> D[Availability check]
+    D --> E[Conflict resolution]
+    E --> F[Confirmation email]
+
+    A --> G[List Bookings]
+    G --> H[GET /api/bookings]
+    H --> I[Calendar view]
+    I --> J[Filtering options]
+
+    A --> K[Update Booking]
+    K --> L[PUT /api/bookings/:id]
+    K --> M[PATCH /api/bookings/:id/status]
+    M --> N[Status transitions]
+
+    A --> O[Delete Booking]
+    O --> P[DELETE /api/bookings/:id]
+    P --> Q[Cancellation logic]
+    Q --> R[Notification send]
+```
+        uuid organization_id
+        text name
+        decimal total_amount
+        integer installments
+        decimal interest_rate
+        timestamp created_at
+    }
+    scheduled_payments {
+        uuid id
+        uuid account_id
+        uuid plan_id
+        decimal amount
+        date due_date
+        text status
+        timestamp processed_at
+    }
+    dunning_events {
+        uuid id
+        uuid account_id
+        text event_type
+        text notice_type
+        timestamp sent_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Payment Management] --> B[Plan Creation]
+    B --> C[POST /api/payments/plans]
+    C --> D[Installment calculation]
+    D --> E[Schedule generation]
+
+    A --> F[Payment Recording]
+    F --> G[POST /api/payments]
+    G --> H[Balance update]
+    H --> I[Plan progress]
+
+    A --> J[Dunning Management]
+    J --> K[GET /api/payments/dunning]
+    J --> L[POST /api/payments/dunning/override]
+    L --> M[Manual intervention]
+
+    A --> N[Promise Tracking]
+    N --> O[PUT /api/collections/:id/promise]
+    O --> P[Promise monitoring]
+    P --> Q[Compliance alerts]
+```al_member"
+    organizations ||--o{ collection_accounts : "imports"
+    organizations ||--o{ campaigns : "sets_up"
+    users {
+        uuid id
+        text email
+        boolean email_verified
+        timestamp created_at
+    }
+    organizations {
+        uuid id
+        text name
+        boolean onboarding_completed
+        timestamp created_at
+    }
+    org_members {
+        uuid id
+        uuid organization_id
+        uuid user_id
+        text role
+        timestamp joined_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Onboarding Wizard] --> B[Step Validation]
+    B --> C[GET /api/onboarding/status]
+    C --> D[Check completion status]
+    D --> E[Return current step]
+
+    A --> F[Step Completion]
+    F --> G[POST /api/onboarding/step/:id]
+    G --> H[Validate step data]
+    H --> I[Execute step logic]
+    I --> J[Mark step complete]
+    J --> K[Advance to next step]
+
+    A --> L[Phone Provisioning]
+    L --> M[POST /api/onboarding/phone]
+    M --> N[Telnyx API call]
+    N --> O[Configure number]
+    O --> P[Update org settings]
+
+    A --> Q[Team Setup]
+    Q --> R[POST /api/onboarding/team]
+    R --> S[Send invites]
+    S --> T[Track responses]
+```
+### Database Relationships
+
+```mermaid
+erDiagram
+    global_feature_flags {
+        uuid id
+        text name
+        text description
+        boolean enabled
+        jsonb config
+        timestamp created_at
+        timestamp updated_at
+    }
+    org_feature_flags {
+        uuid id
+        uuid organization_id
+        text flag_name
+        boolean enabled
+        jsonb config
+        timestamp created_at
+        timestamp updated_at
+    }
+    organizations ||--o{ org_feature_flags : "overrides"
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Feature Flag System] --> B[Global Flags]
+    B --> C[GET /api/feature-flags/global]
+    B --> D[POST /api/feature-flags/global]
+    B --> E[PUT /api/feature-flags/global/:id]
+    B --> F[DELETE /api/feature-flags/global/:id]
+
+    A --> G[Org Flags]
+    G --> H[GET /api/feature-flags/org]
+    G --> I[POST /api/feature-flags/org]
+    G --> J[PUT /api/feature-flags/org/:id]
+    G --> K[DELETE /api/feature-flags/org/:id]
+
+    A --> L[Flag Evaluation]
+    L --> M[GET /api/feature-flags/evaluate]
+    M --> N[Context-aware check]
+    N --> O[Return boolean result]
+
+    A --> P[Admin UI]
+    P --> Q[app/admin/feature-flags/page.tsx]
+    Q --> R[Flag management interface]
+    R --> S[Real-time flag updates]
+```
+    B --> E[PUT /api/webhooks/subscriptions/:id]
+    B --> F[DELETE /api/webhooks/subscriptions/:id]
+
+    A --> G[Delivery History]
+    G --> H[GET /api/webhooks/deliveries]
+    H --> I[Filter by Status]
+    I --> J[Pagination Support]
+
+    A --> K[Failure Analysis]
+    K --> L[GET /api/webhooks/failures]
+    L --> M[Error Patterns]
+    M --> N[Retry Recommendations]
+
+    A --> O[Reliability Config]
+    O --> P[GET /api/reliability/config]
+    O --> Q[PUT /api/reliability/config]
+    Q --> R[Monitoring Settings]
+```
+        uuid organization_id
+        text name
+        jsonb flow_definition
+        boolean active
+        timestamp created_at
+    }
+    inbound_phone_numbers {
+        uuid id
+        uuid organization_id
+        text phone_number
+        text purpose
+        uuid ivr_flow_id
+        timestamp configured_at
+    }
+    collection_accounts {
+        uuid id
+        uuid organization_id
+        text account_number
+        decimal balance_due
+        text status
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[IVR Management] --> B[Flow Configuration]
+    B --> C[POST /api/ivr/flows]
+    C --> D[Define IVR Logic]
+    D --> E[JSON Flow Definition]
+
+    A --> F[Phone Number Setup]
+    F --> G[POST /api/ivr/numbers]
+    G --> H[Telnyx Configuration]
+    H --> I[Webhook Routing]
+
+    A --> J[Flow Testing]
+    J --> K[POST /api/ivr/test]
+    K --> L[Simulate Call]
+    L --> M[Flow Validation]
+
+    A --> N[Analytics]
+    N --> O[GET /api/ivr/analytics]
+    O --> P[Call Flow Metrics]
+    P --> Q[Conversion Tracking]
+```
+        uuid id
+        uuid organization_id
+        text violation_type
+        text description
+        text severity
+        boolean resolved
+        timestamp occurred_at
+    }
+    compliance_events {
+        uuid id
+        uuid organization_id
+        text event_type
+        jsonb details
+        timestamp created_at
+    }
+    audit_logs {
+        uuid id
+        uuid organization_id
+        uuid user_id
+        text action
+        jsonb old_value
+        jsonb new_value
+        timestamp created_at
+    }
+    dnc_lists {
+        uuid id
+        uuid organization_id
+        text phone_number
+        text source
+        timestamp added_at
+    }
+    disclosure_logs {
+        uuid id
+        uuid organization_id
+        uuid call_id
+        text disclosure_type
+        timestamp recorded_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Compliance Center] --> B[Pre-dial Checks]
+    B --> C[GET /api/compliance/pre-dial]
+    C --> D[Multi-factor Validation]
+    D --> E[Compliance Decision]
+
+    A --> F[PII Redaction]
+    F --> G[Automatic Processing]
+    G --> H[Content Sanitization]
+
+    A --> I[Audit Trail]
+    I --> J[GET /api/audit/logs]
+    J --> K[Comprehensive Logging]
+    K --> L[Security Monitoring]
+
+    A --> M[DNC Management]
+    M --> N[GET /api/dnc]
+    M --> O[POST /api/dnc]
+    M --> P[DELETE /api/dnc/:id]
+
+    A --> Q[Violations Dashboard]
+    Q --> R[GET /api/compliance/violations]
+    R --> S[Resolution Tracking]
+    S --> T[Compliance Reporting]
+```
+        uuid id
+        uuid organization_id
+        text name
+        text description
+        timestamp created_at
+    }
+    team_members {
+        uuid id
+        uuid team_id
+        uuid user_id
+        text role
+        timestamp joined_at
+    }
+    team_invites {
+        uuid id
+        uuid organization_id
+        uuid invited_by
+        text email
+        text token
+        text status
+        timestamp expires_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Team API] --> B[Organization CRUD]
+    B --> C[POST /api/organizations]
+    B --> D[GET /api/organizations]
+    B --> E[PUT /api/organizations/:id]
+
+    A --> F[Team CRUD]
+    F --> G[POST /api/teams]
+    F --> H[GET /api/teams]
+    F --> I[PUT /api/teams/:id]
+    F --> J[DELETE /api/teams/:id]
+
+    A --> K[Member Management]
+    K --> L[POST /api/teams/:id/members]
+    K --> M[DELETE /api/teams/:id/members/:userId]
+
+    A --> N[Invites]
+    N --> O[POST /api/teams/invites]
+    N --> P[GET /api/teams/invites]
+    N --> Q[POST /api/teams/invites/:id/resend]
+    N --> R[POST /api/teams/invites/:id/accept]
+```
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Billing Operation] --> B{Purchase Flow}
+    B --> C[POST /api/billing/checkout]
+    C --> D[Stripe Session]
+    D --> E[Payment Completion]
+    E --> F[Webhook Processing]
+    F --> G[Plan Update]
+
+    A --> H[Subscription Management]
+    H --> I[GET /api/billing/subscription]
+    I --> J[PUT /api/billing/subscription]
+    J --> K[Plan Change]
+
+    A --> L[Payment Methods]
+    L --> M[GET /api/billing/payment-methods]
+    M --> N[POST /api/billing/payment-methods]
+    N --> O[Stripe Integration]
+
+    A --> P[Invoices]
+    P --> Q[GET /api/billing/invoices]
+    Q --> R[Download PDF]
+
+    A --> S[Usage]
+    S --> T[GET /api/usage]
+    T --> U[Meter Display]ted_at
+    }
+    test_results {
+        uuid id
+        uuid test_config_id
+        jsonb results
+        text status
+        timestamp completed_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Scorecard System] --> B[Review Mode]
+    B --> C[GET /api/review/calls]
+    C --> D[Call Playback]
+    D --> E[Scorecard Form]
+    E --> F[POST /api/scorecards]
+
+    A --> G[Template Management]
+    G --> H[GET /api/scorecards/templates]
+    H --> I[PUT /api/scorecards/templates/:id]
+
+    A --> J[Shopper Scripts]
+    J --> K[GET /api/shopper/scripts]
+    K --> L[POST /api/shopper/scripts]
+    L --> M[PUT /api/shopper/scripts/:id]
+
+    A --> N[Coaching]
+    N --> O[GET /api/command/coaching]
+    O --> P[Manager Dashboard]
+    P --> Q[Feedback Actions]
+```
+        timestamp created_at
+    }
+    reliability_metrics {
+        uuid id
+        uuid organization_id
+        text endpoint
+        float success_rate
+        integer response_time_ms
+        timestamp measured_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Analytics Hub] --> B[Real-time Dashboard]
+    B --> C[WebSocket Updates]
+    C --> D[Live Metrics]
+
+    A --> E[Historical Reports]
+    E --> F[Date Range Selection]
+    F --> G[Data Aggregation]
+    G --> H[Chart Generation]
+
+    A --> I[Agent Leaderboard]
+    I --> J[Performance Metrics]
+    J --> K[Ranking Algorithm]
+
+    A --> L[Collections Analytics]
+    L --> M[KPI Calculations]
+    M --> N[Trend Analysis]
+
+    A --> O[Sentiment Deep-dive]
+    O --> P[Sentiment Scores]
+    P --> Q[Call Analysis]
+```
+    survey_responses {
+        uuid id
+        uuid survey_id
+        uuid call_id
+        jsonb answers
+        timestamp created_at
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Campaign API] --> B{CRUD Operations}
+    B -->|Create| C[POST /api/campaigns]
+    B -->|Read| D[GET /api/campaigns]
+    B -->|Update| E[PUT /api/campaigns/:id]
+    B -->|Delete| F[DELETE /api/campaigns/:id]
+
+    A --> G[Sequence Management]
+    G --> H[GET /api/campaigns/sequences]
+    G --> I[POST /api/campaigns/sequences]
+
+    A --> J[Survey Management]
+    J --> K[GET /api/surveys]
+    J --> L[POST /api/surveys]
+    J --> M[GET /api/surveys/:id/responses]
+```
+    I --> J[Initiate Calls]
+    J --> K[AMD Check]
+    K --> L[Agent Matching]
+    L --> M[Bridge Call]
+
+    D --> N[Pause Processing]
+    E --> O[Stop & Cleanup]
+    F --> P[Fetch Stats]
+    G --> Q[Update Status]
+    H --> R[List Agents]
+        text method
+        timestamp created_at
+    }
+    collection_tasks {
+        uuid id
+        uuid account_id
+        text type
+        date due_date
+        text description
+    }
+```
+
+### API Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Cockpit Load] --> B[GET /api/collections]
+    B --> C[Queue Population]
+    C --> D[Account Selection]
+    D --> E[PreDialChecker]
+    E --> F[GET /api/compliance/pre-dial]
+    F --> G[Call Initiation]
+    G --> H[POST /api/calls/start]
+    H --> I[WebRTC Setup]
+    I --> J[GET /api/webrtc/token]
+    J --> K[Active Call]
+    K --> L[Disposition]
+    L --> M[PUT /api/calls/:id/disposition]
+    M --> N[Quick Actions]
+    N --> O[Various POST endpoints]
+    E --> J[Provider Selection]
+    J --> K[Groq/OpenAI]
+    F --> L[Multi-provider Routing]
+    G --> M[Live Call AI]
+    H --> N[Config CRUD]
+
+    I --> O[Webhook Processing]
+    O --> P[Post-transcription Pipeline]
+    P --> Q[Store Results]
+
+    G --> T[PUT /api/calls/:id/disposition]
+    T --> U[POST /api/calls/:id/outcome]
+
+    H --> V[AssemblyAI Webhook]
+    V --> W[Store Transcription]
     → Workers: POST to Telnyx Call Control v2 API
     → Telnyx sends webhook events → POST /webhooks/telnyx
       → call.answered → update calls status='in_progress'
@@ -195,12 +2513,14 @@ Call End Flow:
 | `call_confirmations` | `call_id`, `confirmation_type`, `confirmed_at` | Call confirmations |
 | `call_outcomes` | `call_id`, `disposition`, `notes` | Call outcomes |
 | `call_outcome_history` | `call_id`, `old_disposition`, `new_disposition` | Outcome audit trail |
-| `call_timeline_events` | `call_id`, `event_type`, `timestamp`, `data` | Call event timeline |
 | `recordings` | `call_id`, `r2_key`, `duration`, `file_size` | Recording metadata |
+| `transcript_versions` | `transcription_id`, `version`, `content` | Transcript version history (frontend ReviewMode.tsx reference) |
 | `voice_configs` | `organization_id`, `default_caller_id`, `recording_enabled` | Voice settings |
 | `voice_targets` | `organization_id`, `phone_number`, `label` | Voice targets |
 | `caller_id_numbers` | `organization_id`, `phone_number`, `verified` | Caller IDs |
 | `webrtc_sessions` | `user_id`, `session_id`, `connected_at` | WebRTC sessions |
+| `caller_ids` | `organization_id`, `phone_number`, `label` | Registered caller IDs (CRUD via caller-id.ts) |
+| `systems` | `id`, `name` | System references (FK from `calls.system_id`) |
 
 ### Requirements & Dependencies
 
@@ -394,8 +2714,11 @@ Post-Transcription Pipeline:
 | Table | Purpose |
 |-------|---------|
 | `bond_ai_alerts` | AI-generated alerts (**NOTE: missing CREATE TABLE migration**) |
-| `bond_ai_alert_acknowledged` | Alert acknowledgements |
-| `bond_ai_custom_prompts` | Custom prompt configurations |
+| `bond_ai_alert_rules` | Alert rule configurations (CRUD via bond-ai.ts) |
+| `bond_ai_conversations` | Chat conversation threads |
+| `bond_ai_messages` | Individual chat messages within conversations |
+| `bond_ai_custom_prompts` | Custom prompt configurations (**NOT YET CREATED in prod**) |
+| `kpi_settings` | KPI context settings for Bond AI analysis |
 
 ### Activation Requirements
 
@@ -667,7 +2990,8 @@ Account Lifecycle:
 |-------|---------|
 | `reports` | Generated report metadata |
 | `report_schedules` | Scheduled report configurations |
-| `generated_reports` | Report output storage |
+| `usage_stats` | Daily aggregated usage per org (cron-populated) |
+| `reliability_metrics` | Webhook reliability metrics (VIEW, not table) |
 
 ### Activation Requirements
 
@@ -706,11 +3030,12 @@ Account Lifecycle:
 | Table | Purpose |
 |-------|---------|
 | `scorecards` | Agent scorecards |
-| `scorecard_templates` | Scorecard templates |
-| `scorecard_alerts` | QA alerts (**NOTE: missing CREATE TABLE migration**) |
+| `scorecard_alerts` | QA alerts (migration added 2026-02-13) |
 | `scored_recordings` | Scored recording associations |
 | `shopper_scripts` | Mystery shopper scripts |
-| `shopper_results` | Shopper test results |
+| `test_configs` | Test configuration records (used for Bond AI analysis context) |
+| `test_results` | Test result records (fed into Bond AI analysis) |
+| `tools` | Tool references (FK from `recordings.tool_id`, `scorecards.tool_id`) |
 
 ### Activation Requirements
 
@@ -863,8 +3188,12 @@ Usage Tracking:
 | Table | Purpose |
 |-------|---------|
 | `compliance_violations` | Violation records |
+| `compliance_events` | Compliance check audit trail (every pre-dial check logged) |
 | `audit_logs` | Full mutation audit trail |
 | `dnc_lists` | Do Not Call entries |
+| `disclosure_logs` | Mini-Miranda and recording disclosure records |
+| `evidence_bundles` | Evidence bundle packaging (FK/tools dependency, retained) |
+| `evidence_manifests` | Evidence manifest records (FK/frontend dependency, retained) |
 
 ### Activation Requirements
 
@@ -888,14 +3217,11 @@ Usage Tracking:
 
 ### Database Elements
 
-| Table | Purpose |
-|-------|---------|
-| `ivr_flows` | IVR flow definitions |
-| `inbound_phone_numbers` | Inbound number routing |
+No dedicated IVR tables currently exist. The IVR flow engine uses `collection_accounts` for account lookup and inline flow definitions. Tables `ivr_flows` and `inbound_phone_numbers` are planned but not yet created.
 
 ### Activation Requirements
 
-- IVR flow definitions must be created in `ivr_flows` table
+- IVR flow definitions must be created (table creation pending)
 - Telnyx inbound number must be configured with webhook routing
 
 ---
@@ -1246,6 +3572,12 @@ Usage Tracking:
 
 ### Status: **ACTIVE** on website
 
+### Database Elements
+
+| Table | Purpose |
+|-------|---------|
+| `rbac_permissions` | Global role-permission definitions (intentionally not org-scoped) |
+
 ### Activation Requirements
 
 - User must have `role` in `org_members`
@@ -1504,28 +3836,28 @@ Usage Tracking:
 
 | # | Priority | Action | Impact | Effort |
 |---|----------|--------|--------|--------|
-| 1 | **P0** | Add `/api/recordings/stream/:id` endpoint | Unblocks recording playback | 2-3h |
-| 2 | **P0** | Auth-gate `/api/test/health` endpoint | Closes info disclosure | 15min |
-| 3 | **P0** | Remove duplicate collections route handlers | Eliminates dead code confusion | 30min |
-| 4 | **P0** | Remove duplicate `crmRoutes` import | Eliminates build fragility | 1min |
-| 5 | **P1** | Fix global feature flag authorization | Closes privilege escalation | 30min |
-| 6 | **P1** | Remove RBAC `orgId` query param override | Closes plan enumeration | 10min |
+| 1 | **P0** | Add `/api/recordings/stream/:id` endpoint — **RESOLVED 2026-02-13** | Unblocks recording playback | 2-3h |
+| 2 | **P0** | Auth-gate `/api/test/health` endpoint — **RESOLVED 2026-02-13** | Closes info disclosure | 15min |
+| 3 | **P0** | Remove duplicate collections route handlers — **RESOLVED 2026-02-13** | Eliminates dead code confusion | 30min |
+| 4 | **P0** | Remove duplicate `crmRoutes` import — **RESOLVED 2026-02-13** | Eliminates build fragility | 1min |
+| 5 | **P1** | Fix global feature flag authorization — **RESOLVED 2026-02-13** | Closes privilege escalation | 30min |
+| 6 | **P1** | Remove RBAC `orgId` query param override — **RESOLVED 2026-02-13** | Closes plan enumeration | 10min |
 | 7 | **P1** | Harden token storage (format validation, expiry check, tamper detection) — **RESOLVED 2026-02-13** | Mitigates XSS → token theft | 1-2 days |
 | 8 | **P2** | Add RLS to 14 active tables — **RESOLVED 2026-02-13** | Defense-in-depth | 4-6h |
-| 9 | **P2** | Write migration for `bond_ai_alerts`/`scorecard_alerts` | Schema reproducibility | 1h |
+| 9 | **P2** | Write migration for `bond_ai_alerts`/`scorecard_alerts` — **RESOLVED 2026-02-13** | Schema reproducibility | 1h |
 | 10 | **P2** | Wire DialerPanel into campaign detail page — **RESOLVED 2026-02-13** | Enables dialer feature | 2-4h |
-| 11 | **P2** | Clean up duplicate component shims | Code hygiene | 30min |
+| 11 | **P2** | Clean up duplicate component shims — **RESOLVED 2026-02-13** | Code hygiene | 30min |
 | 12 | **P3** | Audit 104 orphan tables — **RESOLVED 2026-02-13** (61 dropped, 152→91) | Schema cleanup | 1-2 days |
 
 ### Cross-Functional Risk Matrix
 
 | Risk | Functions Affected | Severity |
 |------|-------------------|----------|
-| Recording playback broken (Issue #3) | Voice Ops (§2), QA/Scorecards (§11), Compliance (§14) | HIGH |
-| Global feature flag escalation (Issue #6) | All features (§18 controls all) | HIGH |
-| No RLS on active tables (Issue #12) — RESOLVED | Bond AI (§5), Scorecards (§11), Scheduling (§21), Compliance (§14) | MEDIUM |
-| DialerPanel orphaned (Issue #9) — RESOLVED | Predictive Dialer (§7), Campaigns (§9) | MEDIUM |
-| Missing table migrations (Issue #11) | Bond AI (§5), Scorecards (§11) | MEDIUM |
+| Recording playback broken (Issue #3) — RESOLVED | Voice Ops (§2), QA/Scorecards (§11), Compliance (§14) | ~~HIGH~~ FIXED |
+| Global feature flag escalation (Issue #6) — RESOLVED | All features (§18 controls all) | ~~HIGH~~ FIXED |
+| No RLS on active tables (Issue #12) — RESOLVED | Bond AI (§5), Scorecards (§11), Scheduling (§21), Compliance (§14) | ~~MEDIUM~~ FIXED |
+| DialerPanel orphaned (Issue #9) — RESOLVED | Predictive Dialer (§7), Campaigns (§9) | ~~MEDIUM~~ FIXED |
+| Missing table migrations (Issue #11) — RESOLVED | Bond AI (§5), Scorecards (§11) | ~~MEDIUM~~ FIXED |
 
 ### Schema Health Summary
 
