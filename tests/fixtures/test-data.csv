@@ -1,0 +1,13 @@
+account_name,primary_phone,balance_due,days_past_due,email,address,city,state,zip,status,account_number,notes
+"John Smith","+12025551001",1250.00,45,"john.smith@example.com","123 Main St","Atlanta","GA","30301","active","ACCT-001","Payment arrangement pending"
+"Maria Garcia","+12025551002",890.50,30,"maria.garcia@example.com","456 Oak Ave","Atlanta","GA","30302","active","ACCT-002","Spanish speaking preferred"
+"Robert Johnson","+12025551003",2340.00,60,"robert.j@example.com","789 Pine Rd","Decatur","GA","30030","active","ACCT-003","Hardship review requested"
+"Sarah Williams","+12025551004",567.25,15,"sarah.w@example.com","321 Elm St","Marietta","GA","30060","active","ACCT-004","First notice sent"
+"Michael Brown","+12025551005",1875.00,90,"michael.b@example.com","654 Birch Ln","Roswell","GA","30075","active","ACCT-005","Legal review flagged"
+"Jennifer Davis","+12025551006",445.00,20,"jennifer.d@example.com","987 Cedar Dr","Dunwoody","GA","30338","active","ACCT-006","Promise to pay 02/15"
+"David Wilson","+12025551007",3200.00,120,"david.w@example.com","147 Maple Ct","Sandy Springs","GA","30328","active","ACCT-007","Skip trace needed"
+"Lisa Anderson","+12025551008",720.75,35,"lisa.a@example.com","258 Walnut Way","Alpharetta","GA","30009","active","ACCT-008","Payment plan active"
+"James Taylor","+12025551009",1560.00,55,"james.t@example.com","369 Spruce Ave","Kennesaw","GA","30144","active","ACCT-009","Dispute filed"
+"Patricia Thomas","+12025551010",390.00,10,"patricia.t@example.com","481 Peach St","Lawrenceville","GA","30043","active","ACCT-010","New account"
+"Christopher Jackson","+12025551011",2100.50,75,"chris.j@example.com","592 Dogwood Blvd","Smyrna","GA","30080","active","ACCT-011","Insurance claim pending"
+"Amanda White","+12025551012",680.00,25,"amanda.w@example.com","703 Magnolia Rd","Tucker","GA","30084","active","ACCT-012","Callback requested Friday"

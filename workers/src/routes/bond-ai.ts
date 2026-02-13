@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import {
@@ -69,8 +69,8 @@ bondAiRoutes.get('/conversations', async (c) => {
 
 // Create conversation
 bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, AnalyzeCallSchema)
@@ -112,8 +112,8 @@ bondAiRoutes.post('/conversations', bondAiRateLimit, async (c) => {
 
 // Send chat message (the main Tier 1 endpoint)
 bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, async (c) => {
-  const session = c.get('session')
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     if (!c.env.OPENAI_API_KEY) {
@@ -334,8 +334,8 @@ bondAiRoutes.get('/conversations/:id/messages', async (c) => {
 
 // Delete/archive conversation
 bondAiRoutes.delete('/conversations/:id', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const conversationId = c.req.param('id')
@@ -422,8 +422,8 @@ bondAiRoutes.get('/alerts', async (c) => {
 
 // Acknowledge/dismiss alert
 bondAiRoutes.patch('/alerts/:id', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const alertId = c.req.param('id')
@@ -457,8 +457,8 @@ bondAiRoutes.patch('/alerts/:id', async (c) => {
 
 // Bulk acknowledge alerts
 bondAiRoutes.post('/alerts/bulk-action', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, BulkInsightSchema)
@@ -516,16 +516,10 @@ bondAiRoutes.get('/alert-rules', async (c) => {
 })
 
 bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
-    // Require manager+ role
-    const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
-    if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
-      return c.json({ error: 'Manager role required' }, 403)
-    }
-
     const parsed = await validateBody(c, CreateAlertRuleSchema)
     if (!parsed.success) return parsed.response
     const {
@@ -575,15 +569,10 @@ bondAiRoutes.post('/alert-rules', bondAiRateLimit, async (c) => {
 })
 
 bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
-    const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
-    if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 3) {
-      return c.json({ error: 'Manager role required' }, 403)
-    }
-
     const ruleId = c.req.param('id')
     const parsed = await validateBody(c, UpdateAlertRuleSchema)
     if (!parsed.success) return parsed.response
@@ -647,15 +636,10 @@ bondAiRoutes.put('/alert-rules/:id', bondAiRateLimit, async (c) => {
 })
 
 bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
-    const roleLevel = { viewer: 1, agent: 2, manager: 3, admin: 4, owner: 5 }
-    if ((roleLevel[session.role as keyof typeof roleLevel] || 0) < 4) {
-      return c.json({ error: 'Admin role required' }, 403)
-    }
-
     const ruleId = c.req.param('id')
 
     await db.query(`DELETE FROM bond_ai_alert_rules WHERE id = $1 AND organization_id = $2`, [
@@ -687,8 +671,8 @@ bondAiRoutes.delete('/alert-rules/:id', bondAiRateLimit, async (c) => {
 
 // Real-time co-pilot assistance during a call
 bondAiRoutes.post('/copilot', aiLlmRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     if (!c.env.OPENAI_API_KEY) {

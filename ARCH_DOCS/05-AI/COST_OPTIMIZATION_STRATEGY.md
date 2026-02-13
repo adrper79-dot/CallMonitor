@@ -1,5 +1,6 @@
 # AI Cost Optimization Strategy
 
+**TOGAF Phase:** E — Opportunities & Solutions  
 **Created:** February 11, 2026
 **Status:** ✅ Active
 **Target Savings:** 38-83% on AI operations

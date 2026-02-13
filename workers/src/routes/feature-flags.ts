@@ -31,8 +31,17 @@ import { adminRateLimit } from '../lib/rate-limit'
 
 export const featureFlagRoutes = new Hono<AppEnv>()
 
-/** Roles at admin level or above in the RBAC hierarchy */
+/** Roles at admin level or above in the RBAC hierarchy (for org-scoped flags) */
 const ADMIN_ROLES = ['admin', 'owner']
+
+/**
+ * Guard for global feature flag endpoints.
+ * Global flags affect ALL tenants — requires platform_admin role.
+ * @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #6
+ */
+function requirePlatformAdmin(session: { platform_role?: string; role: string }): boolean {
+  return session.platform_role === 'platform_admin'
+}
 
 // Global Feature Flags
 
@@ -40,7 +49,7 @@ const ADMIN_ROLES = ['admin', 'owner']
 featureFlagRoutes.get('/global', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  if (!requirePlatformAdmin(session)) return c.json({ error: 'Platform admin access required' }, 403)
 
   const db = getDb(c.env)
   try {
@@ -61,7 +70,7 @@ featureFlagRoutes.get('/global', adminRateLimit, async (c) => {
 featureFlagRoutes.post('/global', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  if (!requirePlatformAdmin(session)) return c.json({ error: 'Platform admin access required' }, 403)
 
   const parsed = await validateBody(c, CreateGlobalFeatureFlagSchema)
   if (!parsed.success) return c.json({ error: parsed.error }, 400)
@@ -99,7 +108,7 @@ featureFlagRoutes.post('/global', adminRateLimit, async (c) => {
 featureFlagRoutes.get('/global/:feature', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  if (!requirePlatformAdmin(session)) return c.json({ error: 'Platform admin access required' }, 403)
 
   const feature = c.req.param('feature')
   const db = getDb(c.env)
@@ -126,7 +135,7 @@ featureFlagRoutes.get('/global/:feature', adminRateLimit, async (c) => {
 featureFlagRoutes.put('/global/:feature', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  if (!requirePlatformAdmin(session)) return c.json({ error: 'Platform admin access required' }, 403)
 
   const feature = c.req.param('feature')
   const parsed = await validateBody(c, UpdateGlobalFeatureFlagSchema)
@@ -185,7 +194,7 @@ featureFlagRoutes.put('/global/:feature', adminRateLimit, async (c) => {
 featureFlagRoutes.delete('/global/:feature', adminRateLimit, async (c) => {
   const session = await requireAuth(c)
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
-  if (!ADMIN_ROLES.includes(session.role)) return c.json({ error: 'Admin access required' }, 403)
+  if (!requirePlatformAdmin(session)) return c.json({ error: 'Platform admin access required' }, 403)
 
   const feature = c.req.param('feature')
   const db = getDb(c.env)

@@ -560,5 +560,4 @@ crmRoutes.get('/sync-log/:id', async (c) => {
   } finally {
     await db.end()
   }
-})</content>
-<parameter name="filePath">c:\Users\Ultimate Warrior\My project\gemini-project\workers\src\routes\crm.ts
+})

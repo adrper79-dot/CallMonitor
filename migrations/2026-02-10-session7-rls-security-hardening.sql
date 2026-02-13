@@ -615,11 +615,69 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================================================
+-- SECTION 3: ADD updated_at TIMESTAMPS TO TABLES MISSING THEM (BL-136)
+-- ============================================================================
+-- Runs INSIDE the transaction (safe: no CONCURRENTLY involved)
+-- Adds audit trail capability for tracking record modifications
+-- Triggers auto-update updated_at on every UPDATE operation
+-- ============================================================================
+
+-- First verify update_timestamp() function exists (from neon_schema.sql)
+CREATE OR REPLACE FUNCTION update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = now();
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add updated_at column and trigger to tables that don't have it
+DO $$
+DECLARE
+  table_record RECORD;
+  tables_to_update TEXT[] := ARRAY[
+    'ai_call_events', 'bond_ai_copilot_contexts', 'collection_accounts',
+    'collection_calls', 'collection_csv_imports', 'collection_letters',
+    'collection_payments', 'collection_tasks', 'compliance_monitoring',
+    'crm_contacts', 'crm_interactions', 'customer_history',
+    'disposition_outcomes', 'disposition_workflows', 'email_logs',
+    'ivr_sessions', 'org_roles', 'plan_usage_limits', 'role_permissions',
+    'sip_trunks', 'telnyx_call_events', 'webhook_event_types',
+    'webhook_retry_history', 'webrtc_credentials', 'webrtc_sessions',
+    'call_confirmations', 'tool_access', 'usage_meters'
+  ];
+  table_name TEXT;
+BEGIN
+  FOREACH table_name IN ARRAY tables_to_update
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+        AND table_name = table_name 
+        AND column_name = 'updated_at'
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now()', table_name);
+      RAISE NOTICE 'Added updated_at column to %', table_name;
+      EXECUTE format(
+        'CREATE TRIGGER update_%I_timestamp BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION update_timestamp()',
+        table_name, table_name
+      );
+      RAISE NOTICE 'Created update trigger for %', table_name;
+    ELSE
+      RAISE NOTICE 'Table % already has updated_at column', table_name;
+    END IF;
+  END LOOP;
+END $$;
+
+-- ============================================================================
 -- SECTION 2: CREATE PERFORMANCE INDEXES ON organization_id (BL-135)
 -- ============================================================================
--- Using CREATE INDEX CONCURRENTLY to avoid table locks during production deployment
--- Each index enables fast lookups on tenant-scoped queries
+-- ⚠️  IMPORTANT: CREATE INDEX CONCURRENTLY cannot run inside a transaction.
+-- The COMMIT above ends Section 1+3 transaction. Indexes run individually.
+-- If any index fails, re-run it manually — IF NOT EXISTS makes them idempotent.
 -- ============================================================================
+
+COMMIT;
 
 -- Batch 1: AI & Analytics
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ai_call_events_org_id ON public.ai_call_events(organization_id);
@@ -670,69 +728,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_voice_configs_org_id ON public.voice
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sip_trunks_org_id ON public.sip_trunks(organization_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_webrtc_credentials_org_id ON public.webrtc_credentials(organization_id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_webrtc_sessions_org_id ON public.webrtc_sessions(organization_id);
-
--- ============================================================================
--- SECTION 3: ADD updated_at TIMESTAMPS TO TABLES MISSING THEM (BL-136)
--- ============================================================================
--- Adds audit trail capability for tracking record modifications
--- Triggers auto-update updated_at on every UPDATE operation
--- ============================================================================
-
--- First verify update_timestamp() function exists (from neon_schema.sql)
-CREATE OR REPLACE FUNCTION update_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-   NEW.updated_at = now();
-   RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Add updated_at column and trigger to tables that don't have it
--- (Most tables already have updated_at from migrations/neon_schema.sql)
--- This section handles any stragglers
-
-DO $$
-DECLARE
-  table_record RECORD;
-  tables_to_update TEXT[] := ARRAY[
-    'ai_call_events', 'bond_ai_copilot_contexts', 'collection_accounts',
-    'collection_calls', 'collection_csv_imports', 'collection_letters',
-    'collection_payments', 'collection_tasks', 'compliance_monitoring',
-    'crm_contacts', 'crm_interactions', 'customer_history',
-    'disposition_outcomes', 'disposition_workflows', 'email_logs',
-    'ivr_sessions', 'org_roles', 'plan_usage_limits', 'role_permissions',
-    'sip_trunks', 'telnyx_call_events', 'webhook_event_types',
-    'webhook_retry_history', 'webrtc_credentials', 'webrtc_sessions',
-    'call_confirmations', 'tool_access', 'usage_meters'
-  ];
-  table_name TEXT;
-BEGIN
-  FOREACH table_name IN ARRAY tables_to_update
-  LOOP
-    -- Check if updated_at column exists
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns 
-      WHERE table_schema = 'public' 
-        AND table_name = table_name 
-        AND column_name = 'updated_at'
-    ) THEN
-      -- Add updated_at column
-      EXECUTE format('ALTER TABLE public.%I ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now()', table_name);
-      RAISE NOTICE 'Added updated_at column to %', table_name;
-      
-      -- Create trigger for auto-updating timestamp
-      EXECUTE format(
-        'CREATE TRIGGER update_%I_timestamp BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION update_timestamp()',
-        table_name, table_name
-      );
-      RAISE NOTICE 'Created update trigger for %', table_name;
-    ELSE
-      RAISE NOTICE 'Table % already has updated_at column', table_name;
-    END IF;
-  END LOOP;
-END $$;
-
-COMMIT;
 
 -- ============================================================================
 -- VERIFICATION QUERIES (Run separately after migration)

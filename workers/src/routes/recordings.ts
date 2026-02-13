@@ -2,9 +2,10 @@
  * Recordings Routes
  *
  * Endpoints:
- *   GET  /     - List recordings for organization
- *   GET  /:id  - Get a single recording by ID
- *   DELETE /:id - Delete a recording
+ *   GET  /           - List recordings for organization
+ *   GET  /:id        - Get a single recording by ID
+ *   GET  /stream/:id - Stream recording audio from R2
+ *   DELETE /:id      - Delete a recording
  */
 
 import { Hono } from 'hono'
@@ -143,6 +144,80 @@ recordingsRoutes.get('/:id', async (c) => {
   } catch (err: any) {
     logger.error('GET /api/recordings/:id error', { error: (err as Error)?.message })
     return c.json({ success: false, error: 'Internal server error' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// GET /api/recordings/stream/:id — Stream recording audio from R2
+// Referenced by webhooks.ts, scheduled.ts, queue-consumer.ts when generating playback URLs
+// @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md §25 Recording Management
+recordingsRoutes.get('/stream/:id', recordingRateLimit, async (c) => {
+  const db = getDb(c.env)
+  try {
+    const session = await requireRole(c, 'viewer')
+    if (!session) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401)
+    }
+
+    const recordingId = c.req.param('id')
+
+    if (!isValidUUID(recordingId)) {
+      return c.json({ success: false, error: 'Invalid recording ID format' }, 400)
+    }
+
+    // Fetch recording with tenant isolation
+    const res = await db.query(
+      `SELECT id, recording_url, organization_id
+       FROM recordings
+       WHERE id = $1 AND organization_id = $2
+       LIMIT 1`,
+      [recordingId, session.organization_id]
+    )
+
+    const recording = res.rows?.[0]
+    if (!recording) {
+      return c.json({ success: false, error: 'Recording not found' }, 404)
+    }
+
+    const r2Key = recording.recording_url
+    if (!r2Key || !c.env.R2) {
+      return c.json({ success: false, error: 'Recording storage not available' }, 503)
+    }
+
+    // Fetch the object from R2
+    const r2Object = await c.env.R2.get(r2Key)
+    if (!r2Object) {
+      logger.error('R2 object not found for recording', { recordingId, r2Key })
+      return c.json({ success: false, error: 'Recording file not found' }, 404)
+    }
+
+    // Audit log: Recording streamed (sensitive media) — fire-and-forget
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'recordings',
+      resourceId: recordingId,
+      action: AuditAction.RECORDING_ACCESSED,
+      newValue: { streamed_at: new Date().toISOString() },
+    }).catch(() => {})
+
+    // Stream the audio binary with correct headers
+    const contentType = r2Object.httpMetadata?.contentType || 'audio/mpeg'
+    c.header('Content-Type', contentType)
+    c.header('Content-Length', String(r2Object.size))
+    c.header('Cache-Control', 'private, no-store, max-age=0')
+    c.header('Content-Disposition', `inline; filename="recording-${recordingId}.mp3"`)
+    // Prevent MIME-type sniffing
+    c.header('X-Content-Type-Options', 'nosniff')
+
+    return new Response(r2Object.body, {
+      status: 200,
+      headers: c.res.headers,
+    })
+  } catch (err: any) {
+    logger.error('GET /api/recordings/stream/:id error', { error: (err as Error)?.message })
+    return c.json({ success: false, error: 'Failed to stream recording' }, 500)
   } finally {
     await db.end()
   }

@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateCampaignSchema, UpdateCampaignSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
@@ -65,8 +65,8 @@ campaignsRoutes.get('/', async (c) => {
 
 // Create campaign
 campaignsRoutes.post('/', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateCampaignSchema)
@@ -204,8 +204,8 @@ campaignsRoutes.get('/:id/stats', async (c) => {
 
 // Update campaign
 campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
@@ -257,8 +257,8 @@ campaignsRoutes.put('/:id', campaignsRateLimit, async (c) => {
 
 // Delete campaign
 campaignsRoutes.delete('/:id', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const campaignId = c.req.param('id')
@@ -326,8 +326,8 @@ campaignsRoutes.get('/sequences', async (c) => {
 
 // POST /sequences — Create a sequence
 campaignsRoutes.post('/sequences', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const body = await c.req.json()
@@ -363,8 +363,8 @@ campaignsRoutes.post('/sequences', campaignsRateLimit, async (c) => {
 
 // PUT /sequences/:seqId — Update a sequence
 campaignsRoutes.put('/sequences/:seqId', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const seqId = c.req.param('seqId')
@@ -403,8 +403,8 @@ campaignsRoutes.put('/sequences/:seqId', campaignsRateLimit, async (c) => {
 
 // DELETE /sequences/:seqId — Delete a sequence
 campaignsRoutes.delete('/sequences/:seqId', campaignsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const seqId = c.req.param('seqId')

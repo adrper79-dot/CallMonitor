@@ -1,5 +1,7 @@
 # Database Connection Standard
 
+**TOGAF Phase:** G — Implementation Governance  
+
 > **CRITICAL ARCHITECTURAL REQUIREMENT**
 > Last Updated: 2026-02-05
 > Hours Lost to Violation: 8+

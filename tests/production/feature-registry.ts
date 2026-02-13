@@ -76,7 +76,7 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
         method: 'POST',
         path: '/api/auth/callback/credentials',
         requiresAuth: false,
-        unauthStatus: [400, 401, 422],
+        unauthStatus: [400, 422, 429],
         description: 'Login with email/password',
       },
       {
@@ -764,8 +764,8 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       {
         method: 'GET',
         path: '/api/test/catalog',
-        requiresAuth: false,
-        unauthStatus: [200],
+        requiresAuth: true,
+        unauthStatus: [401],
         description: 'Test catalog',
       },
       {
@@ -778,15 +778,15 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
       {
         method: 'POST',
         path: '/api/test/run',
-        requiresAuth: false,
-        unauthStatus: [200, 400],
+        requiresAuth: true,
+        unauthStatus: [401],
         description: 'Run single test',
       },
       {
         method: 'POST',
         path: '/api/test/run-all',
         requiresAuth: false,
-        unauthStatus: [200],
+        unauthStatus: [200, 401, 403],
         description: 'Run all tests',
       },
     ],
@@ -819,17 +819,17 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     endpoints: [
       {
         method: 'GET',
-        path: '/api/dialer/queues',
+        path: '/api/dialer/stats/default',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'List dialer queues',
+        description: 'Get dialer stats',
       },
       {
         method: 'POST',
-        path: '/api/dialer/queues',
+        path: '/api/dialer/start',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'Create dialer queue',
+        description: 'Start dialer campaign',
       },
     ],
   },
@@ -841,11 +841,11 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     status: 'active',
     endpoints: [
       {
-        method: 'GET',
-        path: '/api/ivr/flows',
+        method: 'POST',
+        path: '/api/ivr/start',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'List IVR flows',
+        description: 'Start IVR flow',
       },
     ],
   },
@@ -858,10 +858,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     endpoints: [
       {
         method: 'GET',
-        path: '/api/manager/dashboard',
+        path: '/api/manager/team-members',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'Get manager dashboard data',
+        description: 'Get manager team members',
       },
     ],
   },
@@ -873,11 +873,11 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     status: 'active',
     endpoints: [
       {
-        method: 'GET',
-        path: '/api/onboarding/status',
+        method: 'POST',
+        path: '/api/onboarding/setup',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'Get onboarding status',
+        description: 'Begin onboarding setup',
       },
     ],
   },
@@ -890,24 +890,17 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     endpoints: [
       {
         method: 'GET',
-        path: '/api/productivity/templates',
+        path: '/api/productivity/note-templates',
         requiresAuth: true,
         unauthStatus: [401],
         description: 'List note templates',
       },
       {
         method: 'GET',
-        path: '/api/productivity/rebuttals',
+        path: '/api/productivity/objection-rebuttals',
         requiresAuth: true,
         unauthStatus: [401],
         description: 'List objection rebuttals',
-      },
-      {
-        method: 'GET',
-        path: '/api/productivity/planner',
-        requiresAuth: true,
-        unauthStatus: [401],
-        description: 'Get daily planner data',
       },
     ],
   },
@@ -936,10 +929,10 @@ export const FEATURE_REGISTRY: FeatureDefinition[] = [
     endpoints: [
       {
         method: 'GET',
-        path: '/api/ai-toggle',
+        path: '/api/ai-toggle/prompt-config',
         requiresAuth: true,
         unauthStatus: [401],
-        description: 'Get AI feature toggle state',
+        description: 'Get AI prompt configuration',
       },
     ],
   },

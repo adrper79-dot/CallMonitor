@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { FeatureFlagRedirect } from '@/components/auth/FeatureFlagRedirect'
+import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import TeamsManager from '@/components/teams/TeamsManager'
 import RoleManager from '@/components/teams/RoleManager'
 

@@ -118,12 +118,21 @@ export function getDb(env: Env, orgId?: string): DbClient {
     query: async (sqlString: string, params?: any[]) => {
       const start = Date.now()
       try {
-        // Set RLS session variable on first query if orgId provided
-        // Uses a single SET LOCAL so it applies to the current transaction scope
+        // Set RLS session variables on first query if orgId provided.
+        // Uses set_config with is_local=true so it applies to current transaction scope.
+        //
+        // IMPORTANT: We must set BOTH variable names because RLS policies across
+        // different migrations use inconsistent names:
+        //   - 2026-02-08-rls-enforcement.sql uses: app.current_organization_id
+        //   - 2026-02-10-session7 and later use: app.current_org_id
+        // Setting both ensures ALL policies evaluate correctly.
+        // @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A
         if (orgId && !rlsInitialized) {
-          await pool.query(`SELECT set_config('app.current_org_id', $1, true)`, [
-            orgId.replace(/[^a-f0-9-]/gi, ''),
-          ])
+          const sanitizedOrgId = orgId.replace(/[^a-f0-9-]/gi, '')
+          await pool.query(
+            `SELECT set_config('app.current_org_id', $1, true), set_config('app.current_organization_id', $1, true)`,
+            [sanitizedOrgId]
+          )
           rlsInitialized = true
         }
         const result = await pool.query(sqlString, params)

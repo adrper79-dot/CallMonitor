@@ -1,5 +1,6 @@
 # Live Voice Translation — Complete Call Flow
 
+**TOGAF Phase:** C — Information Systems Architecture  
 **Last Updated:** February 9, 2026  
 **Status:** ✅ Production  
 **Telnyx API Version:** Call Control v2  

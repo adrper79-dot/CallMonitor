@@ -1,7 +1,7 @@
 'use client'
 
 import RoleShell from '@/components/layout/RoleShell'
-import { ProtectedGate } from '@/components/auth/ProtectedGate'
+import { ProtectedGate } from '@/components/ui/ProtectedGate'
 
 export default function PaymentsLayout({ children }: { children: React.ReactNode }) {
   return (

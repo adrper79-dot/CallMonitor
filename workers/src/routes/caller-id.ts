@@ -88,9 +88,30 @@ async function initiateVerification(c: any) {
       )
     }
 
-    // In production, send the code via SMS/call using Telnyx
-    // For now, log it (would be replaced with actual Telnyx verify API)
-    // Verification code generated (do NOT log the code itself)
+    // Send verification code via Telnyx SMS
+    try {
+      const smsRes = await fetch('https://api.telnyx.com/v2/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${c.env.TELNYX_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: c.env.TELNYX_NUMBER,
+          to: phone_number,
+          text: `Your Word Is Bond verification code is: ${verificationCode}. This code expires in 10 minutes.`,
+        }),
+      })
+
+      if (!smsRes.ok) {
+        const smsErr = await smsRes.text()
+        logger.error('Telnyx SMS send failed', { status: smsRes.status, phone: phone_number })
+        return c.json({ error: 'Failed to send verification SMS. Please try again.' }, 502)
+      }
+    } catch (smsError: any) {
+      logger.error('Telnyx SMS exception', { error: smsError?.message, phone: phone_number })
+      return c.json({ error: 'Failed to send verification SMS. Please try again.' }, 502)
+    }
 
     writeAuditLog(db, {
       organizationId: session.organization_id,
@@ -188,6 +209,16 @@ callerIdRoutes.put('/verify', callerIdVerifyRateLimit, async (c) => {
        WHERE id = $1`,
       [result.rows[0].id]
     )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'caller_ids',
+      resourceId: result.rows[0].id,
+      action: AuditAction.CALLER_ID_VERIFIED,
+      oldValue: { status: 'pending' },
+      newValue: { status: 'verified', phone_number },
+    })
 
     return c.json({
       success: true,

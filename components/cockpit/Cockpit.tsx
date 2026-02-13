@@ -737,7 +737,11 @@ export default function Cockpit({ organizationId, organizationName }: CockpitPro
 
   // ─── Fetch queue ───
   const fetchQueue = useCallback(async () => {
-    if (!organizationId) return
+    if (!organizationId) {
+      // No org yet — show empty state instead of infinite loading
+      setQueueLoading(false)
+      return
+    }
     setQueueLoading(true)
     try {
       const data = await apiGet(`/api/collections?limit=25&sort=priority`)

@@ -402,6 +402,7 @@ export const AuditAction = {
 
   // Productivity Features (v5.2)
   LIKELIHOOD_SCORED: 'collections:likelihood_scored',
+  PREVENTION_TASK_CREATED: 'collections:prevention_task_created',
   NOTE_TEMPLATE_CREATED: 'note_template:created',
   NOTE_TEMPLATE_UPDATED: 'note_template:updated',
   NOTE_TEMPLATE_DELETED: 'note_template:deleted',

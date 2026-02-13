@@ -161,6 +161,7 @@ export const CreateCallSchema = z.object({
   campaign_id: z.string().max(200).nullable().optional(),
   modulations: z.record(z.string(), z.unknown()).optional(),
   flow_type: z.string().max(50).optional(),
+  is_test: z.boolean().optional(),
 })
 
 export const VoiceTargetSchema = z.object({

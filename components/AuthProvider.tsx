@@ -36,24 +36,67 @@ export function useSession() {
   return useContext(AuthContext)
 }
 
-// Get stored session token
+// Get stored session token — validates format and expiry before returning
+// @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #7 (XSS hardening)
 function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem(SESSION_KEY)
+  try {
+    const token = localStorage.getItem(SESSION_KEY)
+    if (!token) return null
+
+    // Basic format validation: JWT-like tokens are 3 dot-separated base64 segments,
+    // UUIDs / hex tokens are 32-128 chars of alphanumeric + hyphens.
+    // Reject anything that looks like injected script or exceeds sane length.
+    if (token.length > 2048 || /[<>"']/.test(token)) {
+      logger.warn('Token failed format validation — clearing', { len: token.length })
+      clearToken()
+      return null
+    }
+
+    // Check stored expiry — refuse expired tokens client-side
+    const expiresStr = localStorage.getItem(`${SESSION_KEY}-expires`)
+    if (expiresStr) {
+      const expiresMs = new Date(expiresStr).getTime()
+      if (!Number.isNaN(expiresMs) && expiresMs < Date.now()) {
+        logger.info('Stored token expired — clearing')
+        clearToken()
+        return null
+      }
+    }
+
+    return token
+  } catch {
+    // Storage access can throw in private/restricted contexts
+    return null
+  }
 }
 
-// Store session token
+// Store session token — validates inputs before persisting
 function storeToken(token: string, expires: string) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(SESSION_KEY, token)
-  localStorage.setItem(`${SESSION_KEY}-expires`, expires)
+  // Refuse to store suspicious values
+  if (!token || token.length > 2048 || /[<>"']/.test(token)) {
+    logger.warn('Refused to store invalid token', { len: token?.length })
+    return
+  }
+  try {
+    localStorage.setItem(SESSION_KEY, token)
+    localStorage.setItem(`${SESSION_KEY}-expires`, expires)
+  } catch {
+    // QuotaExceededError or SecurityError in some contexts
+    logger.warn('Failed to persist session token')
+  }
 }
 
-// Clear stored token
+// Clear stored token — called on logout, expiry, or tamper detection
 function clearToken() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(`${SESSION_KEY}-expires`)
+  try {
+    localStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(`${SESSION_KEY}-expires`)
+  } catch {
+    // Ignore storage access errors
+  }
 }
 
 // Wrapper for signIn that works with Workers API
@@ -150,14 +193,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     fetchSession()
     
-    // Listen for auth changes
+    // Listen for auth changes (same tab)
     const handleAuthChange = () => fetchSession()
     window.addEventListener('auth-change', handleAuthChange)
-    window.addEventListener('storage', handleAuthChange)
+
+    // Cross-tab storage event — detect token removal or tampering from another tab
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === SESSION_KEY || e.key === `${SESSION_KEY}-expires` || e.key === null) {
+        // Token was cleared or changed in another tab — re-validate
+        fetchSession()
+      }
+    }
+    window.addEventListener('storage', handleStorage)
     
     return () => {
       window.removeEventListener('auth-change', handleAuthChange)
-      window.removeEventListener('storage', handleAuthChange)
+      window.removeEventListener('storage', handleStorage)
     }
   }, [fetchSession])
 

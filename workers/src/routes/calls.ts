@@ -144,9 +144,9 @@ callsRoutes.get('/:id', async (c) => {
 
 // Start a new call
 callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempotent(), async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Forbidden' }, 403)
   }
 
   const parsed = await validateBody(c, StartCallSchema)
@@ -270,9 +270,9 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
 
 // End a call
 callsRoutes.post('/:id/end', callMutationRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Forbidden' }, 403)
   }
 
   const callId = c.req.param('id')
@@ -1513,8 +1513,8 @@ Rules:
 // Hold / Unhold a call via Telnyx Call Control
 // ─────────────────────────────────────────────
 callsRoutes.post('/:id/hold', callMutationRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const callId = c.req.param('id')
   const body = await c.req.json<{ hold: boolean }>().catch(() => ({ hold: true }))
@@ -1563,8 +1563,8 @@ callsRoutes.post('/:id/hold', callMutationRateLimit, async (c) => {
 // Transfer a call via Telnyx Call Control
 // ─────────────────────────────────────────────
 callsRoutes.post('/:id/transfer', callMutationRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const callId = c.req.param('id')
   const body = await c.req.json<{ to: string }>().catch(() => ({ to: '' }))

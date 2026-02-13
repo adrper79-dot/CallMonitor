@@ -18,6 +18,9 @@ import {
   RefreshCw, Download, ExternalLink
 } from 'lucide-react'
 
+// Client-side only guard
+const isClient = typeof window !== 'undefined'
+
 interface SOC2Criteria {
   id: string
   category: 'security' | 'availability' | 'processing_integrity' | 'confidentiality' | 'privacy'
@@ -59,6 +62,8 @@ export default function SOC2CertificationTracker() {
 
   // Mock data - in real implementation, this would come from API
   useEffect(() => {
+    if (!isClient) return // Only run on client side
+
     const mockCriteria: SOC2Criteria[] = [
       {
         id: 'cc1',

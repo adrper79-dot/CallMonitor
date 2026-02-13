@@ -1,5 +1,6 @@
 # Telnyx Account Configuration
 
+**TOGAF Phase:** D — Technology Architecture  
 **Last Updated:** 2026-02-09  
 **Responsible:** Platform Engineering
 

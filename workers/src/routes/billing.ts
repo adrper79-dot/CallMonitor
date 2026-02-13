@@ -17,7 +17,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb, withTransaction } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CheckoutSchema, ChangePlanSchema } from '../lib/schemas'
@@ -353,10 +353,8 @@ billingRoutes.get('/payment-methods', async (c) => {
 
 // Delete a payment method
 billingRoutes.delete('/payment-methods/:id', billingRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
 
@@ -547,10 +545,8 @@ billingRoutes.get('/invoices', async (c) => {
 // Create Stripe Checkout session for plan upgrade
 billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
+    const session = await requireRole(c, 'admin')
+    if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
     if (!c.env.STRIPE_SECRET_KEY) {
       return c.json({ error: 'Stripe not configured' }, 503)
@@ -651,10 +647,8 @@ billingRoutes.post('/checkout', billingRateLimit, idempotent(), async (c) => {
 // Create Stripe Customer Portal session
 billingRoutes.post('/portal', billingRateLimit, idempotent(), async (c) => {
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
+    const session = await requireRole(c, 'admin')
+    if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
     if (!c.env.STRIPE_SECRET_KEY) {
       return c.json({ error: 'Stripe not configured' }, 503)
@@ -710,10 +704,8 @@ billingRoutes.post('/portal', billingRateLimit, idempotent(), async (c) => {
 // Cancel subscription
 billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
   try {
-    const session = await requireAuth(c)
-    if (!session) {
-      return c.json({ error: 'Unauthorized' }, 401)
-    }
+    const session = await requireRole(c, 'owner')
+    if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
     if (!c.env.STRIPE_SECRET_KEY) {
       return c.json({ error: 'Stripe not configured' }, 503)
@@ -794,10 +786,8 @@ billingRoutes.post('/cancel', billingRateLimit, idempotent(), async (c) => {
 
 // Resume a cancelled subscription (undo cancel_at_period_end)
 billingRoutes.post('/resume', billingRateLimit, idempotent(), async (c) => {
-  const session = await requireAuth(c)
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
   if (!c.env.STRIPE_SECRET_KEY) {
     return c.json({ error: 'Stripe not configured' }, 503)
@@ -857,10 +847,8 @@ billingRoutes.post('/resume', billingRateLimit, idempotent(), async (c) => {
 
 // Change subscription plan (upgrade/downgrade)
 billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => {
-  const session = await requireAuth(c)
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
   if (!c.env.STRIPE_SECRET_KEY) {
     return c.json({ error: 'Stripe not configured' }, 503)
@@ -948,15 +936,8 @@ billingRoutes.post('/change-plan', billingRateLimit, idempotent(), async (c) => 
 
 // Sync Stripe data into mirror tables (admin only)
 billingRoutes.post('/sync-stripe-data', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-
-  // Only allow owner/admin
-  if (!session.role || !['owner', 'admin'].includes(session.role)) {
-    return c.json({ error: 'Insufficient permissions' }, 403)
-  }
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Insufficient permissions' }, 403)
 
   try {
     const { syncStripeData } = await import('../lib/stripe-sync')

@@ -1,0 +1,13 @@
+InvoiceNum,InvoiceDate,DueDate,CustomerName,CustomerPhone,CustomerEmail,OriginalAmount,OpenBalance,DaysOverdue,Status,Memo
+INV-1001,01/15/2026,02/15/2026,Acme Corp,(404) 555-0101,acme@example.com,1250.00,0.00,0,Current,Payment received
+INV-1002,12/01/2025,01/01/2026,Beta LLC,(404) 555-0102,beta@example.com,3450.00,3450.00,43,Overdue,Second notice sent
+INV-1003,11/15/2025,12/15/2025,Gamma Inc,(404) 555-0103,gamma@example.com,890.50,890.50,60,Overdue,Hardship review
+INV-1004,01/20/2026,02/20/2026,Delta Co,(404) 555-0104,delta@example.com,567.25,567.25,0,Current,New invoice
+INV-1005,10/01/2025,11/01/2025,Epsilon Ltd,(404) 555-0105,epsilon@example.com,2100.00,1875.00,104,Overdue,Partial payment received
+INV-1006,01/10/2026,02/10/2026,Zeta Group,(404) 555-0106,zeta@example.com,445.00,445.00,3,Current,Promise to pay
+INV-1007,09/01/2025,10/01/2025,Eta Partners,(404) 555-0107,eta@example.com,5200.00,3200.00,135,Overdue,Legal review
+INV-1008,12/15/2025,01/15/2026,Theta Corp,(404) 555-0108,theta@example.com,720.75,720.75,29,Overdue,Payment plan active
+INV-1009,11/01/2025,12/01/2025,Iota Systems,(404) 555-0109,iota@example.com,1560.00,1560.00,74,Overdue,Dispute filed
+INV-1010,01/25/2026,02/25/2026,Kappa Svcs,(404) 555-0110,kappa@example.com,390.00,390.00,0,Current,New account
+INV-1011,10/15/2025,11/15/2025,Lambda Tech,(404) 555-0111,lambda@example.com,2800.00,2100.50,90,Overdue,Insurance claim
+INV-1012,01/05/2026,02/05/2026,Mu Finance,(404) 555-0112,mu@example.com,680.00,680.00,8,Current,Callback Friday

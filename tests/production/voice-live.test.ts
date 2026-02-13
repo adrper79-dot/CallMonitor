@@ -50,11 +50,11 @@ describe('Live Voice & Telnyx Tests', () => {
       if (apiHealth.status === 'down') return
       const { status, service_reachable } = await apiCall('GET', '/api/webrtc/token')
       expect(service_reachable, 'WEBRTC SERVICE DOWN').toBe(true)
-      // 401 = requires auth (expected), 404 = not mounted
+      // 401 = requires auth (expected), 404 = not mounted, 429 = rate limited
       if (status === 404) {
         console.warn('⚠️ WebRTC token endpoint not found at /api/webrtc/token')
       }
-      expect([401, 403, 404]).toContain(status)
+      expect([401, 403, 404, 429]).toContain(status)
     })
   })
 

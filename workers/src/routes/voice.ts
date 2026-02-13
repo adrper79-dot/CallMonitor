@@ -376,6 +376,12 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
     callPayload.webhook_url = `${webhookUrl}/api/webhooks/telnyx`
     callPayload.webhook_url_method = 'POST'
 
+    // Encode test-call flag into client_state so the webhook knows to play TTS
+    if (parsed.data.is_test) {
+      callPayload.client_state = btoa(JSON.stringify({ is_test: true }))
+      logger.info('Test call flagged — will play TTS greeting on answer')
+    }
+
     const callResponse = await fetch('https://api.telnyx.com/v2/calls', {
       method: 'POST',
       headers: {

@@ -14,6 +14,7 @@ import { getDb } from './lib/db'
 import { logger } from './lib/logger'
 import { processScheduledPayments, processDunningEscalation } from './lib/payment-scheduler'
 import { flushAuditDlq } from './lib/audit'
+import { runPreventionScan } from './lib/prevention-scan'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -93,6 +94,11 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         // Process scheduled collection payments + dunning escalation (6am daily)
         await trackCronExecution(env, 'process_payments', () => processScheduledPayments(env))
         await trackCronExecution(env, 'dunning_escalation', () => processDunningEscalation(env))
+        // Prevention scan: score accounts + create tasks for at-risk accounts (AI Role: flag only)
+        await trackCronExecution(env, 'prevention_scan', async () => {
+          const scan = await runPreventionScan(env)
+          return { processed: scan.tasksCreated, errors: scan.errors }
+        })
         break
     }
   } catch (error) {

@@ -1,5 +1,6 @@
 # AI Role Policy
 
+**TOGAF Phase:** B — Business Architecture  
 **Document:** AI_ROLE_POLICY.md  
 **Version:** 5.0.0  
 **Last Updated:** January 27, 2026  

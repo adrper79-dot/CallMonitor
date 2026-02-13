@@ -1117,8 +1117,20 @@ testRoutes.post('/run-all', async (c) => {
   })
 })
 
-// GET /api/test/health — Quick infrastructure health (no auth required)
+// GET /api/test/health — Infrastructure health (admin-only)
+// Previously unauthenticated — gated 2026-02-13 to prevent information disclosure
+// @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #4
 testRoutes.get('/health', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  // Only platform admins or org owners/admins can probe infrastructure
+  const isAdmin = session.platform_role === 'platform_admin' ||
+    ['admin', 'owner'].includes(session.role)
+  if (!isAdmin) {
+    return c.json({ error: 'Admin access required' }, 403)
+  }
+
   const healthData = await probeAll(c.env)
   return c.json(healthData, healthData.overall === 'down' ? 503 : 200)
 })

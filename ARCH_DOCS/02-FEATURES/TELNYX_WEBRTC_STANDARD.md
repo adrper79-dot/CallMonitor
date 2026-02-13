@@ -1,5 +1,6 @@
 # Telnyx WebRTC Implementation Standard
 
+**TOGAF Phase:** D — Technology Architecture  
 **Status**: ✅ Production Working  
 **Last Updated**: 2026-02-05  
 **SDK Version**: TelnyxRTC v2.25.17

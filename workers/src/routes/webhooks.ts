@@ -751,9 +751,19 @@ async function handleCallInitiated(db: DbClient, payload: any) {
 }
 
 async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
-  const { call_control_id, call_session_id } = payload
+  const { call_control_id, call_session_id, client_state } = payload
 
-  logger.info('handleCallAnswered called', { call_control_id, call_session_id })
+  // Decode client_state to check for test-call flag
+  let callClientState: any = {}
+  if (client_state) {
+    try {
+      callClientState = JSON.parse(atob(client_state))
+    } catch {
+      callClientState = {}
+    }
+  }
+
+  logger.info('handleCallAnswered called', { call_control_id, call_session_id, is_test: !!callClientState.is_test })
 
   const result = await db.query(
     `UPDATE calls 
@@ -768,6 +778,30 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
   }
 
   const call = result.rows[0]
+
+  // ──── TEST CALL TTS ────────────────────────────────────────────────────────
+  // If this call was flagged as a test, play the announcement and hang up.
+  if (callClientState.is_test && env.TELNYX_API_KEY) {
+    logger.info('Test call answered — playing TTS announcement', { call_control_id })
+    fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/speak`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        payload: 'WORD IS BOND TEST CALL. THANKS.',
+        voice: 'female',
+        language: 'en-US',
+        client_state: btoa(JSON.stringify({ flow: 'test_call_hangup' })),
+      }),
+    }).catch((err) => {
+      logger.warn('Test call TTS speak failed (non-fatal)', {
+        error: (err as Error)?.message,
+      })
+    })
+    return // Skip all other call-answered logic for test calls
+  }
 
   // Handle bridge calls: when agent answers, create customer call and bridge
   if (call.flow_type === 'bridge' && call.to_number && env.TELNYX_API_KEY) {
@@ -1510,6 +1544,24 @@ async function handleCallSpeakEnded(env: Env, db: DbClient, payload: any) {
       })
     } catch (hangupErr) {
       logger.warn('Voicemail hangup failed (call may already be ended)', {
+        call_control_id,
+        error: (hangupErr as Error)?.message,
+      })
+    }
+  } else if (flowContext.flow === 'test_call_hangup') {
+    // Test call TTS finished — hang up automatically.
+    logger.info('Test call TTS ended — hanging up', { call_control_id })
+    try {
+      await fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/hangup`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      })
+    } catch (hangupErr) {
+      logger.warn('Test call hangup failed (call may already be ended)', {
         call_control_id,
         error: (hangupErr as Error)?.message,
       })

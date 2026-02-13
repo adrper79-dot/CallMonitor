@@ -1,5 +1,7 @@
 # Feature Gating
 
+**TOGAF Phase:** B — Business Architecture  
+
 **Plans gate features** (org.plan check).
 
 **Code**:

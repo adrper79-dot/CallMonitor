@@ -1,5 +1,6 @@
 # AI Router Architecture
 
+**TOGAF Phase:** C — Information Systems Architecture  
 **Created:** February 11, 2026
 **Status:** ✅ Production Ready
 **Location:** `workers/src/lib/ai-router.ts`

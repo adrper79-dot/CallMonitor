@@ -1,5 +1,6 @@
 # Database Schema Registry
 
+**TOGAF Phase:** Requirements Management  
 **Status**: ✅ Schema Drift Resolved | Updated: Feb 13, 2026  
 **Version**: 1.4 - Session 19 audit fix (users.id type contradiction resolved, id_uuid column removed)  
 **Owner**: Platform Team

@@ -42,13 +42,20 @@ rbacRoutes.get('/context', rbacRateLimit, async (c) => {
   const db = getDb(c.env, session.organization_id)
   try {
 
-    const orgId = c.req.query('orgId') || session.organization_id
+    // Always use session org_id for tenant isolation — never accept orgId from query
+    // @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #5
+    const orgId = session.organization_id
     const userRole = session.role || 'viewer'
 
     // Get inherited roles
     const inheritedRoles = ROLE_INHERITANCE[userRole] || ['viewer']
 
-    // Fetch all permissions for the user's role chain
+    // Fetch all permissions for the user's role chain.
+    // NOTE: rbac_permissions is INTENTIONALLY a global (non-org-scoped) lookup table.
+    // It defines the canonical permission set per role, shared across all orgs.
+    // Tenant isolation is enforced at the data layer (RLS + WHERE organization_id),
+    // while rbac_permissions defines WHAT actions each role is allowed to perform.
+    // @see ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #8
     const placeholders = inheritedRoles.map((_, i) => `$${i + 1}`).join(',')
     const result = await db.query(
       `SELECT role, resource, action, conditions

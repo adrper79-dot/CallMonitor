@@ -1,5 +1,7 @@
 # Final Recommended Production Stack (2026)
 
+**TOGAF Phase:** D — Technology Architecture  
+
 This document is the canonical, consolidated architecture for the product (final, authoritative as of Jan 2026). Use this file as the single source of truth for architecture decisions, tech choices, and high-level flows.
 
 ## Stack Summary

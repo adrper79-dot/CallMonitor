@@ -1,5 +1,6 @@
 # Security Hardening Guide
 
+**TOGAF Phase:** D — Technology Architecture  
 **Created:** February 11, 2026
 **Status:** ✅ Deployed (Session 7-9)
 **Compliance:** HIPAA, GDPR, SOC 2, CCPA

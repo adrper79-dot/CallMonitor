@@ -1,5 +1,5 @@
 /**
- * Productivity Routes — Note Templates, Objection Rebuttals, Daily Planner, Likelihood Scoring
+ * Productivity Routes — Note Templates, Objection Rebuttals, Daily Planner, Likelihood Scoring, Prevention Config
  *
  * Endpoints:
  *   GET    /note-templates              - List note templates
@@ -15,6 +15,8 @@
  *   GET    /daily-planner               - Cross-campaign daily planner
  *   GET    /likelihood/:accountId       - Get/compute likelihood score
  *   POST   /likelihood/batch            - Batch compute likelihood scores
+ *   GET    /prevention-config           - Get prevention scan config
+ *   PUT    /prevention-config           - Update prevention scan threshold
  *
  * @see ARCH_DOCS/01-CORE/COMPREHENSIVE_ARCHITECTURE_WITH_VISUALS.md
  */
@@ -571,6 +573,85 @@ productivityRoutes.get('/likelihood/:accountId', collectionsRateLimit, async (c)
   } catch (err: any) {
     logger.error('GET /api/productivity/likelihood/:accountId error', { error: err?.message })
     return c.json({ error: 'Failed to compute likelihood score' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ═══════════════════════════════════════════════════════════
+// PREVENTION CONFIG
+// ═══════════════════════════════════════════════════════════
+
+// Get prevention scan config (threshold for auto-task creation)
+productivityRoutes.get('/prevention-config', collectionsRateLimit, async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const result = await db.query(
+      `SELECT config_value FROM org_feature_flags
+       WHERE organization_id = $1 AND feature = 'prevention_threshold'
+       LIMIT 1`,
+      [session.organization_id]
+    )
+
+    const threshold = result.rows[0]?.config_value
+      ? parseInt(result.rows[0].config_value)
+      : 35
+
+    return c.json({
+      success: true,
+      config: {
+        threshold,
+        enabled: result.rows.length > 0,
+        description: 'Accounts with likelihood score below this threshold get flagged for agent review in the daily planner.',
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/productivity/prevention-config error', { error: err?.message })
+    return c.json({ error: 'Failed to get prevention config' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// Update prevention scan threshold (manager+ only)
+productivityRoutes.put('/prevention-config', collectionsRateLimit, async (c) => {
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const body = await c.req.json<{ threshold: number }>()
+
+    if (!body.threshold || typeof body.threshold !== 'number' || body.threshold < 1 || body.threshold > 99) {
+      return c.json({ error: 'threshold must be a number between 1 and 99' }, 400)
+    }
+
+    const result = await db.query(
+      `INSERT INTO org_feature_flags (organization_id, feature, config_value, updated_at)
+       VALUES ($1, 'prevention_threshold', $2::text, NOW())
+       ON CONFLICT (organization_id, feature)
+       DO UPDATE SET config_value = $2::text, updated_at = NOW()
+       RETURNING *`,
+      [session.organization_id, body.threshold.toString()]
+    )
+
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.FEATURE_FLAG_UPDATED,
+      resourceType: 'org_feature_flags',
+      resourceId: result.rows[0]?.id || session.organization_id,
+      oldValue: null,
+      newValue: { feature: 'prevention_threshold', threshold: body.threshold },
+    })
+
+    return c.json({ success: true, config: { threshold: body.threshold, enabled: true } })
+  } catch (err: any) {
+    logger.error('PUT /api/productivity/prevention-config error', { error: err?.message })
+    return c.json({ error: 'Failed to update prevention config' }, 500)
   } finally {
     await db.end()
   }

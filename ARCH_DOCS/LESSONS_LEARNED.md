@@ -1,5 +1,6 @@
 # Lessons Learned — Word Is Bond Platform
 
+**TOGAF Phase:** H — Architecture Change Management  
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
 **Last Updated:** February 12, 2026 (Session 16 — Deep Audit & Remediation)
