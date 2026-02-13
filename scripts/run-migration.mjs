@@ -5,7 +5,7 @@ import { neon } from '@neondatabase/serverless';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-const CONN = 'postgresql://neondb_owner:npg_HKXlEiWM9BF2@ep-mute-recipe-ahsibut8-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const CONN = process.env.NEON_PG_CONN || 'postgresql://neondb_owner:npg_HKXlEiWM9BF2@ep-mute-recipe-ahsibut8-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require';
 
 const file = process.argv[2];
 if (!file) {
