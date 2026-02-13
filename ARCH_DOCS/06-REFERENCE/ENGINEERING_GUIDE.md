@@ -1487,14 +1487,14 @@ Usage Tracking:
 | **Fix** | Created `migrations/2026-02-13-rls-hardening-active-tables.sql` — 14 tables hardened with ENABLE ROW LEVEL SECURITY + org_isolation policies + CONCURRENTLY indexes. Tables: call_translations, booking_events, ai_configs, shopper_scripts, shopper_results, bond_ai_conversations, bond_ai_custom_prompts, payment_plans, scheduled_payments, dnc_lists, survey_responses, call_sentiment_scores, call_sentiment_summary, dialer_agent_status. |
 | **Effort** | 4-6 hours for all tables |
 
-#### Issue #13: ~104 orphan database tables
+#### Issue #13: ~104 orphan database tables — RESOLVED 2026-02-13
 
 | Field | Detail |
 |-------|--------|
-| **Tables** | 104 of 170 tables have no API route references |
+| **Tables** | 104 of 170 tables had no API route references |
 | **Impact** | Schema bloat — unnecessary storage, confusing for new developers |
-| **Fix** | Audit for planned features vs. truly dead. Archive/drop confirmed dead tables |
-| **Effort** | 1-2 days |
+| **Fix** | Deep audit (3-pass: workers/src, frontend, tests/scripts, FK deps). 61 confirmed orphans dropped. 11 borderline tables kept (FK deps: `systems`, `tools`, `caller_id_numbers`; frontend refs: `evidence_*`, `transcript_versions`; billing: `stripe_*`; test refs: `ai_*`, `accounts`, `webrtc_sessions`, `verification_tokens`). DB: 152 → 91 tables. |
+| **Commit** | `3713d7a` |
 
 ---
 
@@ -1515,7 +1515,7 @@ Usage Tracking:
 | 9 | **P2** | Write migration for `bond_ai_alerts`/`scorecard_alerts` | Schema reproducibility | 1h |
 | 10 | **P2** | Wire DialerPanel into campaign detail page — **RESOLVED 2026-02-13** | Enables dialer feature | 2-4h |
 | 11 | **P2** | Clean up duplicate component shims | Code hygiene | 30min |
-| 12 | **P3** | Audit 104 orphan tables | Schema cleanup | 1-2 days |
+| 12 | **P3** | Audit 104 orphan tables — **RESOLVED 2026-02-13** (61 dropped, 152→91) | Schema cleanup | 1-2 days |
 
 ### Cross-Functional Risk Matrix
 
@@ -1531,12 +1531,13 @@ Usage Tracking:
 
 | Metric | Value |
 |--------|-------|
-| Total tables | 170 |
-| Active (route-referenced) | ~66 (39%) |
-| Orphan (no route reference) | ~104 (61%) |
-| Tables with RLS | 87+ (51%) |
-| Active tables missing RLS | ~10 (lower priority) |
-| Tables missing CREATE TABLE migration | 2 confirmed |
+| Total tables | 91 (down from 152 after cleanup) |
+| Active (route-referenced) | ~80 (88%) |
+| Borderline-keep (FK/frontend/test refs) | 11 (12%) |
+| Orphan tables dropped | 61 (2026-02-13) |
+| Tables with RLS | 87+ policies (covers all active tables) |
+| Active tables missing RLS | 0 (14-table RLS hardening applied 2026-02-13) |
+| Tables missing CREATE TABLE migration | 1 (`bond_ai_custom_prompts` — not yet in prod) |
 
 ---
 
