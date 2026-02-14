@@ -209,7 +209,10 @@ export async function flushAuditDlq(
 export const AuditAction = {
   // Calls
   CALL_STARTED: 'call:started',
+  CALL_ANSWERED: 'call:answered',
   CALL_ENDED: 'call:ended',
+  CALL_FAILED: 'call:failed',
+  CALL_BRIDGED: 'call:bridged',
   CALL_OUTCOME_DECLARED: 'call:outcome_declared',
   CALL_OUTCOME_UPDATED: 'call:outcome_updated',
   CALL_DISPOSITION_SET: 'call:disposition_set',
@@ -245,6 +248,31 @@ export const AuditAction = {
 
   // Config
   VOICE_CONFIG_UPDATED: 'config:voice_updated',
+
+  // SMS
+  SMS_SENT: 'sms:sent',
+  SMS_BULK_SENT: 'sms:bulk_sent',
+  SMS_CAMPAIGN_SENT: 'sms:campaign_sent',
+  SMS_DELIVERED: 'sms:delivered',
+  SMS_FAILED: 'sms:failed',
+  SMS_COMPLIANCE_BLOCKED: 'sms:compliance_blocked',
+  SMS_TEMPLATE_CREATED: 'sms:template_created',
+  SMS_TEMPLATE_UPDATED: 'sms:template_updated',
+  SMS_TEMPLATE_DELETED: 'sms:template_deleted',
+  SMS_TEMPLATE_USED: 'sms:template_used',
+
+  // Email
+  EMAIL_SENT: 'email:sent',
+  EMAIL_BULK_SENT: 'email:bulk_sent',
+  EMAIL_CAMPAIGN_SENT: 'email:campaign_sent',
+  EMAIL_DELIVERED: 'email:delivered',
+  EMAIL_BOUNCED: 'email:bounced',
+  EMAIL_SPAM_COMPLAINT: 'email:spam_complaint',
+  EMAIL_UNSUBSCRIBED: 'email:unsubscribed',
+  EMAIL_OPENED: 'email:opened',
+  EMAIL_CLICKED: 'email:clicked',
+  EMAIL_COMPLIANCE_BLOCKED: 'email:compliance_blocked',
+  EMAIL_FAILED: 'email:failed',
   AI_CONFIG_UPDATED: 'config:ai_updated',
   VOICE_TARGET_CREATED: 'voice:target_created',
   VOICE_TARGET_DELETED: 'voice:target_deleted',
@@ -295,6 +323,18 @@ export const AuditAction = {
   AI_CONVERSATION_DELETED: 'ai:conversation_deleted',
   AI_ALERT_ACKNOWLEDGED: 'ai:alert_acknowledged',
   AI_ALERTS_BULK_UPDATED: 'ai:alerts_bulk_updated',
+
+  // SMS & Messaging
+  SMS_SENT: 'sms:sent',
+  SMS_BULK_SENT: 'sms:bulk_sent',
+  SMS_CAMPAIGN_SENT: 'sms:campaign_sent',
+  SMS_COMPLIANCE_BLOCKED: 'sms:compliance_blocked',
+  SMS_TEMPLATE_USED: 'sms:template_used',
+  SMS_TEMPLATE_CREATED: 'sms:template_created',
+  SMS_TEMPLATE_UPDATED: 'sms:template_updated',
+  SMS_TEMPLATE_DELETED: 'sms:template_deleted',
+  SMS_OPT_OUT: 'sms:opt_out',
+  SMS_OPT_IN: 'sms:opt_in',
   AI_ALERT_RULE_CREATED: 'ai:alert_rule_created',
   AI_ALERT_RULE_UPDATED: 'ai:alert_rule_updated',
   AI_ALERT_RULE_DELETED: 'ai:alert_rule_deleted',
@@ -426,5 +466,22 @@ export const AuditAction = {
   CRM_OBJECT_LINKED: 'crm:object_linked',
   CRM_OBJECT_UPDATED: 'crm:object_updated',
   CRM_OBJECT_UNLINKED: 'crm:object_unlinked',
+
+  // Messages (SMS/Email)
+  MESSAGE_SENT: 'message:sent',
+
+  // Auto-Advance
+  DIALER_NEXT_ACCOUNT_FETCHED: 'dialer:next_account_fetched',
+  DIALER_AUTO_ADVANCE_TRIGGERED: 'dialer:auto_advance_triggered',
+  DIALER_AUTO_ADVANCE_CANCELLED: 'dialer:auto_advance_cancelled',
+
+  // SMS/Messaging (Omnichannel)
+  MESSAGE_RECEIVED: 'message:received',
+  MESSAGE_SENT: 'message:sent',
+  MESSAGE_DELIVERED: 'message:delivered',
+  MESSAGE_DELIVERY_FAILED: 'message:delivery_failed',
+  OPT_OUT_REQUESTED: 'message:opt_out_requested',
+  OPT_IN_CONFIRMED: 'message:opt_in_confirmed',
+  AUTO_REPLY_SENT: 'message:auto_reply_sent',
 } as const
 

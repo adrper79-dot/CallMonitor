@@ -294,6 +294,9 @@ export const adminRateLimit = rateLimit({
 /** Survey mutations: 20 per 5 minutes per IP */
 export const surveyRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:survey' })
 
+/** Messages/SMS: 50 per minute per IP (prevent SMS spam) */
+export const messagesRateLimit = rateLimit({ limit: 50, windowSeconds: 60, prefix: 'rl:messages' })
+
 /** Bond AI mutations: 20 per 5 minutes per IP */
 export const bondAiRateLimit = rateLimit({ limit: 20, windowSeconds: 5 * 60, prefix: 'rl:bond-ai' })
 

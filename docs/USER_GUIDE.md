@@ -626,6 +626,198 @@ _Nobody wants to explain why 10,000 people got a broken call at 3 AM._
 
 ---
 
+## Part IX: The New Productivity Arsenal 🚀
+
+_(Or: How We Made Your Job Easier Without Making It Complicated)_
+
+### Settlement Calculator: Math You Can Trust
+
+**What it is:** AI-powered settlement recommendations based on how late the account is.
+
+**Why it matters:** Because settling for 40% when you could've gotten 75% is expensive. And settling for 80% when the account is 180 days past due is... optimistic.
+
+**How it works:**
+
+The calculator knows four rules (because sometimes rules are good):
+
+- **30-59 days late:** Offer 75-85% settlements
+- **60-89 days late:** Offer 65-75% settlements
+- **90-179 days late:** Offer 50-65% settlements
+- **180+ days late:** Offer 30-50% settlements
+
+The AI adjusts within those ranges based on likelihood-to-pay scores. High likelihood? Go higher. Low likelihood? Go lower.
+
+**Using it:**
+
+1. Open any account in the Cockpit
+2. Settlement Calculator appears automatically if balance is due
+3. Review the AI recommendation
+4. Adjust if your human judgment says otherwise (we trust you)
+5. Generate payment link with one click
+6. Send via SMS or email
+
+**The payment link:** Stripe-powered. Secure. Professional-looking. Works for one-time payments or payment plans.
+
+**Pro tip:** The Calculator also shows you payment plan options. Monthly vs. bi-weekly. Some people prefer spreading it out. Let them choose.
+
+**When to override:** The AI is smart, but you know the customer. They just lost a job? Go lower. They won the lottery? Go higher. Context beats algorithms.
+
+### Power Dialer Auto-Advance: Keep Moving
+
+**What it is:** After you disposition a call, the system automatically dials the next account. No clicking. No waiting. Just momentum.
+
+**Why it matters:** Top performers make 80-120 calls per day. Average performers make 40-60. The difference? Eliminating dead time between calls.
+
+**How it works:**
+
+1. Finish a call
+2. Select disposition (answered, no answer, callback, etc.)
+3. Countdown appears: **"Next call in 3... 2... 1..."**
+4. Next account auto-dials
+
+**Compliance check:** Before every auto-dial, the system checks:
+- Not on DNC list?
+- Not past frequency limit?
+- Within allowed calling hours?
+
+If any check fails, auto-advance stops. You get a warning. No violations. No mistakes.
+
+**Countdown settings:**
+- Default: 2 seconds (sweet spot for most teams)
+- Range: 1-5 seconds (configure in Voice Operations settings)
+- Preference: Saved per agent (you like 3 seconds, your coworker likes 1)
+
+**Emergency brake:** Press **ESC** to cancel auto-dial. Need a bathroom break? ESC. Need to check notes? ESC. Suddenly want pizza? Still ESC.
+
+**When to use it:**
+- High-volume days
+- Predictable call patterns
+- When you're in "the zone"
+
+**When to turn it off:**
+- Complex accounts requiring research
+- First day on the job
+- When you need breathing room
+
+**Real talk:** Auto-advance isn't for everyone. Some agents love it. Some hate it. That's fine. We built a toggle.
+
+### Multi-Channel Timeline: Everything in One Place
+
+**What it is:** Every touchpoint with an account. Calls. SMS. Emails. Payment links. Notes. All in chronological order.
+
+**Why it matters:** Because scrolling through 5 different tabs to piece together "what happened" is ridiculous. And expensive.
+
+**What you see:**
+
+```
+📞 Feb 14, 2026 2:45 PM — Inbound call (3:21)
+   Agent: Sarah | Disposition: Payment arranged
+   
+💬 Feb 14, 2026 2:47 PM — SMS sent
+   "Payment link for $450 settlement..."
+   Status: Delivered
+   
+💳 Feb 14, 2026 3:15 PM — Payment link created
+   Amount: $450 | Status: Paid ✅
+   
+📧 Feb 14, 2026 3:16 PM — Email sent
+   Subject: "Payment Confirmation"
+   Status: Opened
+   
+📝 Feb 13, 2026 10:30 AM — Note added
+   "Customer prefers morning calls only"
+```
+
+**Filtering:**
+- Show only calls
+- Show only SMS
+- Show only emails
+- Show only payments
+- Show everything (default)
+
+**Search:** Type keywords. Find what you need. Move on with your life.
+
+**Pagination:** 20 items per page. Load more as needed. We're not loading 10,000 records at once. That's just rude to your browser.
+
+**Real-time updates:** Timeline polls every 30 seconds. New activity appears automatically. No manual refresh needed.
+
+**Integration:** Already wired into Collections CRM. Open any account → Timeline tab → See everything.
+
+**Use cases:**
+- Customer disputes a call? Pull up timeline. Show them the SMS they acknowledged.
+- Manager asks "what's the status?" Pull up timeline. Everything's there.
+- Legal review? Export timeline. Hand to counsel. Done.
+
+**Technical note:** Timeline aggregates from 5 data sources (calls, SMS logs, email logs, payment links, tasks). You don't care about that. It just works.
+
+### SMS & Email Delivery: Professional Outreach
+
+**What it is:** Send payment links via SMS or email. Directly from the Cockpit.
+
+**Why it matters:** Because "I'll mail you a check" rarely happens. But "click this link" often does.
+
+**SMS delivery:**
+- Powered by Telnyx
+- Supports E.164 international format
+- Delivery status tracked (sent, delivered, failed)
+- Rate limited to prevent spam
+- Logged for compliance
+
+**Email delivery:**
+- Powered by Resend
+- Professional HTML formatting
+- Plain text fallback
+- Open tracking
+- Click tracking
+- Also logged for compliance
+
+**Using it:**
+
+1. Generate payment link (from Calculator or manually)
+2. Choose delivery method: SMS or Email
+3. Confirm phone/email is correct
+4. Send
+5. Watch delivery status update in real-time
+
+**What gets sent:**
+
+**SMS example:**
+```
+Word Is Bond Collections: Payment link for your account
+[Account Name]: $450.00 settlement
+Pay here: https://wordis-bond.com/pay/abc123
+Questions? Call [Your Number]
+```
+
+**Email example:**
+```
+Subject: Payment Arrangement - [Account Name]
+
+Hello,
+
+Your settlement payment of $450.00 is ready.
+
+[Pay Now Button]
+
+Or copy this link: https://wordis-bond.com/pay/abc123
+
+Questions? Reply to this email or call [Your Number].
+
+Thank you,
+[Your Organization Name]
+```
+
+**Limitations:**
+- Can't send to numbers on DNC list (compliance check runs first)
+- Rate limited: 100 messages per minute per org (trust us, you won't hit it)
+- No MMS support yet (coming soon)
+
+**Privacy:** We log who sent what to whom, when, and what happened. This is evidence. That's the whole point.
+
+**Pro tip:** SMS has higher open rates (98%) than email (20%). But some customers prefer email. When in doubt, send both.
+
+---
+
 ## Part X: The Chrome Extension (Click-to-Call for Sophisticates) 🔌
 
 ### What It Does
@@ -943,7 +1135,7 @@ _More coming. We're working on it._
 
 ---
 
-**Version 2.0** | January 2026 | Word Is Bond, Inc.
+**Version 2.1** | February 14, 2026 | Word Is Bond, Inc.
 
 _Remember what was said. Prove what happened. That's the promise._
 

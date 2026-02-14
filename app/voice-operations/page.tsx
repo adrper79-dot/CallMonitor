@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
+import { DialerPanel } from '@/components/voice/DialerPanel'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
 import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
 import { AlertTriangle } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
+import { NativeSelect as Select } from '@/components/ui/native-select'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -22,9 +24,18 @@ export interface Call {
   call_sid: string | null
 }
 
+export interface Campaign {
+  id: string
+  name: string
+  description: string | null
+  is_active: boolean
+}
+
 export default function VoiceOperationsPage() {
   const { data: session, status } = useSession()
   const [calls, setCalls] = useState<Call[]>([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [organizationName, setOrganizationName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -32,19 +43,30 @@ export default function VoiceOperationsPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      // Fetch calls and organization data from API
+      // Fetch calls, campaigns, and organization data from API
       Promise.all([
         apiGet<{ calls?: Call[] }>('/api/calls'),
+        apiGet<{ campaigns?: Campaign[] }>('/api/campaigns'),
         apiGet<{ organization?: { id: string; name: string } }>('/api/organizations/current'),
       ])
-        .then(([callsData, orgData]) => {
+        .then(([callsData, campaignsData, orgData]) => {
           setCalls(callsData.calls || [])
+          setCampaigns(campaignsData.campaigns || [])
           setOrganizationId(orgData.organization?.id || null)
           setOrganizationName(orgData.organization?.name || null)
+          
+          // Auto-select first active campaign if available
+          const activeCampaign = campaignsData.campaigns?.find((c) => c.is_active)
+          if (activeCampaign) {
+            setSelectedCampaignId(activeCampaign.id)
+          } else if (campaignsData.campaigns && campaignsData.campaigns.length > 0) {
+            setSelectedCampaignId(campaignsData.campaigns[0].id)
+          }
+          
           setLoading(false)
         })
         .catch((err) => {
-          logger.error('Failed to fetch calls data', err)
+          logger.error('Failed to fetch voice operations data', err)
           setError(err.message || 'Failed to load data')
           setLoading(false)
         })
@@ -91,11 +113,52 @@ export default function VoiceOperationsPage() {
   return (
     <>
       <FeatureFlagRedirect to="/work/call" />
-      <VoiceOperationsClient
-        initialCalls={calls}
-        organizationId={organizationId}
-        organizationName={organizationName || undefined}
-      />
+      <div className="min-h-screen bg-background p-4 space-y-4">
+        {/* Dialer Panel Section */}
+        {organizationId && campaigns.length > 0 && (
+          <div className="max-w-7xl mx-auto space-y-4">
+            {/* Campaign Selector */}
+            <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
+              <label htmlFor="campaign-select" className="text-sm font-medium whitespace-nowrap">
+                Campaign:
+              </label>
+              <Select
+                id="campaign-select"
+                value={selectedCampaignId}
+                onChange={(e) => setSelectedCampaignId(e.target.value)}
+                className="flex-1 max-w-md"
+              >
+                <option value="">Select a campaign...</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name} {campaign.is_active ? '(Active)' : '(Inactive)'}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {/* Dialer Panel - Render when campaign is selected */}
+            {selectedCampaignId && (
+              <div className="max-w-2xl mx-auto">
+                <DialerPanel
+                  campaignId={selectedCampaignId}
+                  campaignName={
+                    campaigns.find((c) => c.id === selectedCampaignId)?.name || 'Unknown'
+                  }
+                  organizationId={organizationId}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Main Voice Operations Client */}
+        <VoiceOperationsClient
+          initialCalls={calls}
+          organizationId={organizationId}
+          organizationName={organizationName || undefined}
+        />
+      </div>
       <TroubleshootChatToggle />
     </>
   )

@@ -2,10 +2,10 @@
 
 > **TOGAF Phase:** Phase B (Business Architecture) + Phase C (Information Systems Architecture)
 
-**Last Updated:** February 13, 2026
-**Platform Version:** v4.65
+**Last Updated:** February 14, 2026
+**Platform Version:** v4.66
 **Status:** Production Ready — 109/109 Roadmap Items Complete
-**Audited:** Feb 13, 2026 — Full codebase analysis (82 pages, 53 route files, 260+ endpoints, 37 lib modules)
+**Audited:** Feb 14, 2026 — Full codebase analysis (83 pages, 54 route files, 264+ endpoints, 37 lib modules)
 
 ---
 
@@ -183,11 +183,13 @@
 - Daily stats and callback tracking
 - Account-level disputes
 - Likelihood-to-pay scoring
+- **Settlement Calculator:** AI-powered settlement recommendations based on account aging (30-59d: 75-85%, 60-89d: 65-75%, 90-179d: 50-65%, 180+d: 30-50%) with Stripe payment link integration
+- **Multi-Channel Timeline:** Unified communications view combining calls, SMS, email, payment links, and notes with filtering, search, and pagination
 
-**Backend Routes:** `/api/collections/*` (17+ endpoints), `/api/import/*` (2 endpoints)
+**Backend Routes:** `/api/collections/*` (18+ endpoints), `/api/import/*` (2 endpoints)
 **Frontend Pages:** `/accounts`, `/accounts/[id]`, `/accounts/import`, `/accounts/disputes`, `/voice-operations/accounts`
-**Components:** `BulkImportWizard`, `CollectionsAnalytics`, `CollectionsKPIs`, `PaymentHistoryChart`
-**Database Tables:** `collection_accounts`, `collection_payments`, `collection_tasks`, `collection_csv_imports`
+**Components:** `BulkImportWizard`, `CollectionsAnalytics`, `CollectionsKPIs`, `PaymentHistoryChart`, `SettlementCalculator`, `MultiChannelTimeline`
+**Database Tables:** `collection_accounts`, `collection_payments`, `collection_tasks`, `collection_csv_imports`, `calls`, `sms_logs`, `email_logs`, `payment_links`
 
 ---
 
@@ -418,11 +420,12 @@
 - Daily planner with queue stats and targets
 - Likelihood-to-pay scoring per account
 - Prevention configuration (at-risk account detection)
+- **Power Dialer Auto-Advance:** Configurable auto-dialing with countdown timer (1-5s), ESC cancellation, compliance pre-dial checks, and localStorage persistence
 
 **Backend Routes:** `/api/productivity/*` (13 endpoints)
 **Backend Lib:** `likelihood-scorer.ts`, `prevention-scan.ts`
 **Frontend Pages:** `/tools`, `/tools/templates`, `/tools/scripts`, `/tools/objections`, `/tools/calculator`, `/work` (daily planner)
-**Components:** `NoteTemplates`, `ObjectionLibrary`, `ShopperScriptManager`, `PaymentCalculator`, `DailyPlanner`, `TodayQueue`
+**Components:** `NoteTemplates`, `ObjectionLibrary`, `ShopperScriptManager`, `PaymentCalculator`, `DailyPlanner`, `TodayQueue`, `QuickDisposition` (enhanced with auto-advance), `AutoAdvanceSettings`
 **Database Tables:** `note_templates`, `objection_rebuttals`
 
 ---
@@ -463,11 +466,31 @@
 - Recording listing with filters
 - Signed URL generation for secure playback
 - Recording deletion
+- Recording stream endpoint (`GET /api/recordings/stream/:id`) for media playback
 - Scored recording association for QA
 
-**Backend Routes:** `/api/recordings/*` (3 endpoints)
+**Backend Routes:** `/api/recordings/*` (4 endpoints)
 **Frontend Components:** `RecordingPlayer`, `AudioPlayer`
 **Database Tables:** `recordings`, `scored_recordings`
+
+---
+
+## 25.5 Multi-Channel Communications
+
+- **SMS Delivery:** Telnyx SMS API integration with E.164 phone number validation
+- **Email Delivery:** Resend API integration with HTML/text dual-format support
+- Multi-channel message logging to `email_logs` table (supports both SMS and email)
+- Message delivery status tracking (queued, sent, delivered, failed)
+- Rate limiting per organization (Collections rate limit: 100 req/min)
+- Audit logging for all message deliveries (`MESSAGE_SENT` action)
+- Service health monitoring endpoint
+
+**Backend Routes:** `/api/messages/*` (3 endpoints: POST /send, POST /email, GET /health)
+**Backend Lib:** `audit.ts` (MESSAGE_SENT action)
+**Frontend Components:** `PaymentLinkGenerator` (consumes SMS/Email endpoints)
+**Database Tables:** `email_logs` (dual-purpose: email + SMS), `audit_logs`
+**External Services:** Telnyx SMS API, Resend Email API
+**Environment Variables:** `TELNYX_API_KEY`, `TELNYX_NUMBER`, `RESEND_API_KEY`
 
 ---
 
@@ -573,10 +596,10 @@
 | Layer | Technology | Count |
 |-------|-----------|-------|
 | Frontend Pages | Next.js 15 | 82 |
-| Backend Route Files | Hono on Workers | 53 |
-| HTTP Endpoints | REST API | ~260 |
+| Backend Route Files | Hono on Workers | 54 |
+| HTTP Endpoints | REST API | ~264 |
 | Backend Lib Modules | TypeScript | 37 |
-| Frontend Components | React/TypeScript | ~155 |
+| Frontend Components | React/TypeScript | ~158 |
 | Custom Hooks | React | 13 |
 | Database Tables | Neon PostgreSQL | 170 |
 | Active Tables (route-referenced) | — | ~66 |

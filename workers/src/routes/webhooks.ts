@@ -336,6 +336,20 @@ webhooksRoutes.post('/telnyx', externalWebhookRateLimit, async (c) => {
           await handleCallBridged(c.env, db, body.data.payload)
           break
 
+        // SMS/Messaging events (Omnichannel)
+        case 'message.received':
+          await handleMessageReceived(c.env, db, body.data.payload)
+          break
+        case 'message.sent':
+          await handleMessageSent(db, body.data.payload)
+          break
+        case 'message.delivered':
+          await handleMessageDelivered(db, body.data.payload)
+          break
+        case 'message.failed':
+          await handleMessageFailed(db, body.data.payload)
+          break
+
         // Silently ignore other event types
       }
     } finally {
@@ -589,6 +603,227 @@ webhooksRoutes.post('/stripe', externalWebhookRateLimit, async (c) => {
   }
 })
 
+// ─── POST /resend — Resend Email Delivery Events ────────────────────────────
+
+/**
+ * Resend webhook handler for email deliverability tracking.
+ * Events: email.sent, email.delivered, email.delivery_failed,
+ *         email.complained, email.opened, email.clicked
+ * 
+ * @see https://resend.com/docs/dashboard/webhooks/event-types
+ */
+webhooksRoutes.post('/resend', externalWebhookRateLimit, async (c) => {
+  try {
+    const body = await c.req.json()
+    const { type, data } = body
+
+    if (!type || !data) {
+      logger.warn('Resend webhook: missing type or data', { body })
+      return c.json({ error: 'Invalid webhook payload' }, 400)
+    }
+
+    const db = getDb(c.env)
+
+    try {
+      const { emailId, messageId, from, to, subject, createdAt } = data
+
+      // Find message in DB by external_message_id (Resend email ID)
+      const messageResult = await db.query(
+        `SELECT id, organization_id, account_id, campaign_id FROM messages
+         WHERE external_message_id = $1
+         LIMIT 1`,
+        [emailId || messageId]
+      )
+
+      if (messageResult.rows.length === 0) {
+        logger.warn('Resend webhook: message not found', { emailId, messageId, type })
+        // Still return 200 to prevent Resend retries
+        return c.json({ received: true, warning: 'Message not found' })
+      }
+
+      const message = messageResult.rows[0]
+
+      // Update message status based on event type
+      switch (type) {
+        case 'email.sent':
+          await db.query(
+            `UPDATE messages
+             SET status = 'sent', sent_at = $1, updated_at = NOW()
+             WHERE id = $2 AND organization_id = $3`,
+            [createdAt || new Date().toISOString(), message.id, message.organization_id]
+          )
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_SENT,
+            newValue: { status: 'sent', external_message_id: emailId },
+          }, c.env.KV)
+          break
+
+        case 'email.delivered':
+          await db.query(
+            `UPDATE messages
+             SET status = 'delivered', delivered_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND organization_id = $2`,
+            [message.id, message.organization_id]
+          )
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_DELIVERED,
+            newValue: { status: 'delivered' },
+          }, c.env.KV)
+          break
+
+        case 'email.delivery_failed':
+        case 'email.bounced':
+          const bounceType = data.bounceType || 'unknown' // hard, soft, transient
+          await db.query(
+            `UPDATE messages
+             SET status = 'bounced',
+                 metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+                 updated_at = NOW()
+             WHERE id = $2 AND organization_id = $3`,
+            [JSON.stringify({ bounce_type: bounceType, bounce_reason: data.reason || 'unknown' }), message.id, message.organization_id]
+          )
+
+          // Add to email suppression list if hard bounce
+          if (bounceType === 'hard' && message.account_id) {
+            await db.query(
+              `INSERT INTO opt_out_requests
+               (account_id, request_type, channel, reason, source, created_at)
+               VALUES ($1, 'suppression', 'email', 'hard_bounce', 'resend_webhook', NOW())
+               ON CONFLICT (account_id, channel) DO NOTHING`,
+              [message.account_id]
+            )
+          }
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_BOUNCED,
+            newValue: { status: 'bounced', bounce_type: bounceType },
+          }, c.env.KV)
+          break
+
+        case 'email.complained':
+          // Spam complaint — auto-unsubscribe
+          await db.query(
+            `UPDATE messages
+             SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"spam_complaint": true}'::jsonb,
+                 updated_at = NOW()
+             WHERE id = $1 AND organization_id = $2`,
+            [message.id, message.organization_id]
+          )
+
+          // Unsubscribe account from all email
+          if (message.account_id) {
+            await db.query(
+              `UPDATE collection_accounts
+               SET email_consent = false,
+                   updated_at = NOW()
+               WHERE id = $1 AND organization_id = $2`,
+              [message.account_id, message.organization_id]
+            )
+
+            // Record opt-out
+            await db.query(
+              `INSERT INTO opt_out_requests
+               (account_id, request_type, channel, reason, source, created_at)
+               VALUES ($1, 'opt_out', 'email', 'spam_complaint', 'resend_webhook', NOW())
+               ON CONFLICT (account_id, channel) DO UPDATE SET created_at = NOW()`,
+              [message.account_id]
+            )
+          }
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_SPAM_COMPLAINT,
+            newValue: { spam_complaint: true, account_id: message.account_id },
+          }, c.env.KV)
+          break
+
+        case 'email.opened':
+          await db.query(
+            `UPDATE messages
+             SET opened_at = $1,
+                 metadata = COALESCE(metadata, '{}'::jsonb) || '{"opened": true}'::jsonb,
+                 updated_at = NOW()
+             WHERE id = $2 AND organization_id = $3`,
+            [createdAt || new Date().toISOString(), message.id, message.organization_id]
+          )
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_OPENED,
+            newValue: { opened_at: createdAt },
+          }, c.env.KV)
+          break
+
+        case 'email.clicked':
+          const clickedUrl = data.link || 'unknown'
+          await db.query(
+            `UPDATE messages
+             SET clicked_at = $1,
+                 metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                 updated_at = NOW()
+             WHERE id = $3 AND organization_id = $4`,
+            [
+              createdAt || new Date().toISOString(),
+              JSON.stringify({ clicked: true, clicked_url: clickedUrl }),
+              message.id,
+              message.organization_id
+            ]
+          )
+
+          // Audit log
+          writeAuditLog(db, {
+            organizationId: message.organization_id,
+            userId: 'system',
+            resourceType: 'messages',
+            resourceId: message.id,
+            action: AuditAction.EMAIL_CLICKED,
+            newValue: { clicked_at: createdAt, clicked_url: clickedUrl },
+          }, c.env.KV)
+          break
+
+        default:
+          logger.info('Resend webhook: unhandled event type', { type })
+      }
+
+      logger.info('Resend webhook processed', { type, emailId, messageId })
+      return c.json({ received: true })
+    } catch (err) {
+      logger.error('Resend webhook processing error', { error: (err as Error)?.message, type })
+      return c.json({ error: 'Webhook processing failed' }, 500)
+    } finally {
+      await db.end()
+    }
+  } catch (err) {
+    logger.error('Resend webhook parse error', { error: (err as Error)?.message })
+    return c.json({ error: 'Invalid JSON payload' }, 400)
+  }
+})
+
 // --- Telnyx Handlers ---
 
 async function handleCallInitiated(db: DbClient, payload: any) {
@@ -751,7 +986,7 @@ async function handleCallInitiated(db: DbClient, payload: any) {
 }
 
 async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
-  const { call_control_id, call_session_id, client_state } = payload
+  const { call_control_id, call_session_id, client_state, from, to } = payload
 
   // Decode client_state to check for test-call flag
   let callClientState: any = {}
@@ -763,13 +998,20 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
     }
   }
 
-  logger.info('handleCallAnswered called', { call_control_id, call_session_id, is_test: !!callClientState.is_test })
+  logger.info('Telnyx webhook: call.answered', {
+    call_control_id,
+    call_session_id,
+    is_test: !!callClientState.is_test,
+    flow: callClientState.flow,
+    from,
+    to,
+  })
 
   const result = await db.query(
     `UPDATE calls 
-     SET status = 'in_progress', answered_at = NOW()
+     SET status = 'in_progress', answered_at = NOW(), updated_at = NOW()
      WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL
-     RETURNING flow_type, to_number, from_number, organization_id`,
+     RETURNING id, flow_type, to_number, from_number, organization_id, campaign_id`,
     [call_session_id, call_control_id]
   )
   if (result.rowCount === 0) {
@@ -778,6 +1020,17 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
   }
 
   const call = result.rows[0]
+
+  // Audit log call answered
+  writeAuditLog(db, {
+    organizationId: call.organization_id,
+    userId: 'system',
+    action: AuditAction.CALL_ANSWERED,
+    resourceType: 'call',
+    resourceId: call.id,
+    oldValue: { status: 'initiated' },
+    newValue: { status: 'in_progress', answered_at: new Date().toISOString() },
+  })
 
   // ──── TEST CALL TTS ────────────────────────────────────────────────────────
   // If this call was flagged as a test, play the announcement and hang up.
@@ -1101,16 +1354,78 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
 }
 
 async function handleCallHangup(db: DbClient, payload: any) {
-  const { call_control_id, call_session_id, hangup_cause } = payload
+  const { call_control_id, call_session_id, hangup_cause, client_state } = payload
+
+  // Decode client_state
+  let callMetadata: any = {}
+  if (client_state) {
+    try {
+      callMetadata = JSON.parse(atob(client_state))
+    } catch {
+      callMetadata = {}
+    }
+  }
+
+  logger.info('Telnyx webhook: call.hangup', {
+    call_control_id,
+    call_session_id,
+    hangup_cause,
+    flow: callMetadata.flow,
+  })
 
   const result = await db.query(
     `UPDATE calls 
-     SET status = 'completed', ended_at = NOW(), hangup_cause = $3
-     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL`,
+     SET status = 'completed', ended_at = NOW(), hangup_cause = $3, updated_at = NOW()
+     WHERE (call_sid = $1 OR call_control_id = $2) AND organization_id IS NOT NULL
+     RETURNING id, organization_id, campaign_id, duration`,
     [call_session_id, call_control_id, hangup_cause]
   )
   if (result.rowCount === 0) {
     logger.warn('webhook-update-no-match', { call_control_id, handler: 'handleCallHangup' })
+    return
+  }
+
+  const call = result.rows[0]
+
+  // Audit log call hangup
+  writeAuditLog(db, {
+    organizationId: call.organization_id,
+    userId: 'system',
+    action: AuditAction.CALL_ENDED,
+    resourceType: 'call',
+    resourceId: call.id,
+    oldValue: { status: 'in_progress' },
+    newValue: { status: 'completed', hangup_cause, ended_at: new Date().toISOString() },
+  })
+
+  // Update campaign_call if this was a dialer call
+  if (call.campaign_id && callMetadata.campaign_call_id) {
+    await db.query(
+      `UPDATE campaign_calls
+       SET status = 'completed', updated_at = NOW()
+       WHERE id = $1 AND campaign_id IN (SELECT id FROM campaigns WHERE organization_id = $2)`,
+      [callMetadata.campaign_call_id, call.organization_id]
+    ).catch((err) => {
+      logger.warn('Failed to update campaign_call on hangup', {
+        error: err?.message,
+        campaign_call_id: callMetadata.campaign_call_id,
+      })
+    })
+  }
+
+  // Release agent from dialer queue if applicable
+  if (callMetadata.flow === 'dialer' && callMetadata.agent_user_id) {
+    await db.query(
+      `UPDATE dialer_agent_status
+       SET status = 'wrap_up', current_call_id = NULL, last_call_ended_at = NOW(), updated_at = NOW()
+       WHERE user_id = $1 AND organization_id = $2`,
+      [callMetadata.agent_user_id, call.organization_id]
+    ).catch((err) => {
+      logger.warn('Failed to update agent status on hangup', {
+        error: err?.message,
+        agent_user_id: callMetadata.agent_user_id,
+      })
+    })
   }
 }
 
@@ -1573,18 +1888,31 @@ async function handleCallSpeakEnded(env: Env, db: DbClient, payload: any) {
 }
 
 async function handleMachineDetectionEnded(env: Env, db: DbClient, payload: any) {
-  const { call_control_id, call_session_id, result: amdResult } = payload
+  const { call_control_id, call_session_id, result: amdResult, client_state } = payload
 
-  logger.info('AMD detection ended', {
+  // Decode client_state
+  let callMetadata: any = {}
+  if (client_state) {
+    try {
+      callMetadata = JSON.parse(atob(client_state))
+    } catch {
+      callMetadata = {}
+    }
+  }
+
+  logger.info('Telnyx webhook: call.machine_detection.ended', {
     callControlId: call_control_id,
+    callSessionId: call_session_id,
     result: amdResult,
+    flow: callMetadata.flow,
+    campaignId: callMetadata.campaign_id,
   })
 
   // Update amd_status on the call record
   const updateResult = await db.query(
     `UPDATE calls SET amd_status = $1, updated_at = NOW()
      WHERE (call_control_id = $2 OR call_sid = $3) AND organization_id IS NOT NULL
-     RETURNING id, organization_id`,
+     RETURNING id, organization_id, campaign_id`,
     [amdResult, call_control_id, call_session_id]
   )
 
@@ -1594,13 +1922,29 @@ async function handleMachineDetectionEnded(env: Env, db: DbClient, payload: any)
       call_session_id,
       amdResult,
     })
-  } else {
-    logger.info('AMD status updated on call record', {
-      callId: updateResult.rows[0].id,
-      amdResult,
-    })
+    return
   }
 
+  const call = updateResult.rows[0]
+
+  logger.info('AMD status updated on call record', {
+    callId: call.id,
+    amdResult,
+    campaignId: call.campaign_id,
+  })
+
+  // Audit log AMD result
+  writeAuditLog(db, {
+    organizationId: call.organization_id,
+    userId: 'system',
+    action: AuditAction.DIALER_AMD_DETECTED,
+    resourceType: 'call',
+    resourceId: call.id,
+    oldValue: null,
+    newValue: { amd_result: amdResult, call_control_id },
+  })
+
+  // Handle AMD result for dialer calls
   await handleDialerAMD(env, db, call_control_id, call_session_id, amdResult)
 }
 
@@ -2360,6 +2704,509 @@ async function handlePlaybackEnded(env: Env, db: DbClient, payload: any) {
     playbackId: playback_id,
     success,
   })
+}
+
+// ─── SMS/Messaging Webhook Handlers ─────────────────────────────────────────
+
+/**
+ * SCHEMA REQUIREMENT: messages table
+ * 
+ * The following handlers require a messages table with this structure:
+ * 
+ * CREATE TABLE public.messages (
+ *   id uuid NOT NULL DEFAULT gen_random_uuid(),
+ *   organization_id uuid NOT NULL,
+ *   account_id uuid,  -- Link to collection_accounts
+ *   campaign_id uuid,  -- Optional link to campaigns
+ *   direction text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+ *   channel text NOT NULL CHECK (channel IN ('sms', 'email', 'call')),
+ *   from_number text,  -- E.164 format
+ *   to_number text,    -- E.164 format
+ *   message_body text,
+ *   subject text,      -- For email, null for SMS
+ *   status text NOT NULL CHECK (status IN ('pending', 'sent', 'delivered', 'failed', 'received')),
+ *   external_message_id text,  -- Telnyx message ID
+ *   error_message text,
+ *   sent_at timestamp with time zone,
+ *   delivered_at timestamp with time zone,
+ *   read_at timestamp with time zone,
+ *   created_at timestamp with time zone NOT NULL DEFAULT now(),
+ *   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+ *   CONSTRAINT messages_pkey PRIMARY KEY (id),
+ *   CONSTRAINT messages_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+ *   CONSTRAINT messages_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.collection_accounts(id)
+ * );
+ * 
+ * CREATE INDEX messages_organization_id_idx ON public.messages(organization_id);
+ * CREATE INDEX messages_account_id_idx ON public.messages(account_id);
+ * CREATE INDEX messages_external_message_id_idx ON public.messages(external_message_id);
+ * CREATE INDEX messages_created_at_idx ON public.messages(created_at DESC);
+ * 
+ * If this table does not exist, the handlers will fail gracefully and log errors.
+ */
+
+/**
+ * Opt-out keywords (case-insensitive)
+ */
+const OPT_OUT_KEYWORDS = ['STOP', 'UNSUBSCRIBE', 'QUIT', 'CANCEL', 'END', 'OPTOUT', 'REMOVE']
+const OPT_IN_KEYWORDS = ['START', 'UNSTOP', 'YES', 'SUBSCRIBE']
+
+/**
+ * Normalize phone number to E.164 format (basic implementation)
+ */
+function normalizePhone(phone: string): string {
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '')
+  
+  // If doesn't start with +, assume US/Canada (+1)
+  if (digits.length === 10) {
+    return `+1${digits}`
+  } else if (digits.length === 11 && digits[0] === '1') {
+    return `+${digits}`
+  } else if (phone.startsWith('+')) {
+    return phone
+  }
+  
+  return `+${digits}`
+}
+
+/**
+ * Check if message contains opt-out keyword
+ */
+function isOptOutMessage(text: string): boolean {
+  const upperText = text.trim().toUpperCase()
+  return OPT_OUT_KEYWORDS.some(keyword => upperText === keyword || upperText.startsWith(keyword + ' '))
+}
+
+/**
+ * Check if message contains opt-in keyword  
+ */
+function isOptInMessage(text: string): boolean {
+  const upperText = text.trim().toUpperCase()
+  return OPT_IN_KEYWORDS.some(keyword => upperText === keyword || upperText.startsWith(keyword + ' '))
+}
+
+/**
+ * Send auto-reply SMS via Telnyx
+ */
+async function sendAutoReply(
+  env: Env,
+  fromNumber: string,
+  toNumber: string,
+  message: string
+): Promise<boolean> {
+  if (!env.TELNYX_API_KEY || !fromNumber) {
+    logger.warn('Cannot send auto-reply: missing TELNYX_API_KEY or from number')
+    return false
+  }
+
+  try {
+    const response = await fetch('https://api.telnyx.com/v2/messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromNumber,
+        to: toNumber,
+        text: message,
+        type: 'SMS',
+      }),
+    })
+
+    if (response.ok) {
+      logger.info('Auto-reply sent successfully', { to: toNumber, from: fromNumber })
+      return true
+    } else {
+      const errorText = await response.text().catch(() => 'Unknown error')
+      logger.error('Auto-reply failed', {
+        status: response.status,
+        error: errorText.substring(0, 200),
+        to: toNumber,
+      })
+      return false
+    }
+  } catch (err) {
+    logger.error('Auto-reply exception', {
+      error: (err as Error)?.message,
+      to: toNumber,
+    })
+    return false
+  }
+}
+
+/**
+ * Handle message.received — Inbound SMS received
+ */
+async function handleMessageReceived(env: Env, db: DbClient, payload: any) {
+  const {
+    id: external_message_id,
+    from: { phone_number: from },
+    to: to_array,
+    received_at,
+    text,
+  } = payload
+
+  // Telnyx sends 'to' as an array, take first element
+  const to = to_array && to_array.length > 0 ? to_array[0]?.phone_number : null
+
+  if (!from || !to || !text) {
+    logger.warn('Inbound SMS missing required fields', { from, to, hasText: !!text })
+    return
+  }
+
+  const normalizedFrom = normalizePhone(from)
+  const normalizedTo = normalizePhone(to)
+
+  logger.info('Inbound SMS received', {
+    from: normalizedFrom,
+    to: normalizedTo,
+    external_id: external_message_id,
+    preview: text.substring(0, 50),
+  })
+
+  try {
+    // 1. Find matching account by phone number
+    const accountResult = await db.query(
+      `SELECT id, organization_id, campaign_id, primary_phone, secondary_phone, sms_consent
+       FROM collection_accounts
+       WHERE (primary_phone = $1 OR secondary_phone = $1)
+       AND is_deleted = false
+       LIMIT 1`,
+      [normalizedFrom]
+    )
+
+    let accountId: string | null = null
+    let organizationId: string | null = null
+    let campaignId: string | null = null
+    let currentSmsConsent = false
+
+    if (accountResult.rows.length > 0) {
+      const account = accountResult.rows[0]
+      accountId = account.id
+      organizationId = account.organization_id
+      campaignId = account.campaign_id
+      currentSmsConsent = account.sms_consent || false
+
+      logger.info('Matched inbound SMS to account', {
+        accountId,
+        organizationId,
+        from: normalizedFrom,
+      })
+
+      // Update last_contact_at
+      await db.query(
+        `UPDATE collection_accounts
+         SET last_contact_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2`,
+        [accountId, organizationId]
+      )
+    } else {
+      logger.warn('No account match for inbound SMS (orphaned message)', {
+        from: normalizedFrom,
+        to: normalizedTo,
+      })
+      
+      // Try to find organization from the receiving number (DID mapping)
+      const didResult = await db.query(
+        `SELECT organization_id FROM inbound_phone_numbers
+         WHERE phone_number = $1 AND is_active = true
+         LIMIT 1`,
+        [normalizedTo]
+      )
+      
+      if (didResult.rows.length > 0) {
+        organizationId = didResult.rows[0].organization_id
+        logger.info('Matched inbound SMS to org via DID', { organizationId, to: normalizedTo })
+      }
+    }
+
+    // 2. Check for opt-out/opt-in keywords
+    const isOptOut = isOptOutMessage(text)
+    const isOptIn = isOptInMessage(text)
+
+    if (isOptOut && accountId && organizationId) {
+      logger.info('Opt-out keyword detected', { accountId, from: normalizedFrom })
+
+      // Update sms_consent = false
+      await db.query(
+        `UPDATE collection_accounts
+         SET sms_consent = false, updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2`,
+        [accountId, organizationId]
+      )
+
+      // Fire audit log
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.OPT_OUT_REQUESTED,
+        resourceType: 'collection_account',
+        resourceId: accountId,
+        oldValue: { sms_consent: currentSmsConsent },
+        newValue: { sms_consent: false, opt_out_at: new Date().toISOString() },
+      })
+
+      // Send auto-reply confirmation
+      await sendAutoReply(
+        env,
+        normalizedTo,
+        normalizedFrom,
+        'You have been unsubscribed from SMS messages. Reply START to opt back in.'
+      )
+
+      // Log auto-reply
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.AUTO_REPLY_SENT,
+        resourceType: 'message',
+        resourceId: external_message_id || 'unknown',
+        newValue: { type: 'opt_out_confirmation', to: normalizedFrom },
+      })
+    } else if (isOptIn && accountId && organizationId) {
+      logger.info('Opt-in keyword detected', { accountId, from: normalizedFrom })
+
+      // Update sms_consent = true
+      await db.query(
+        `UPDATE collection_accounts
+         SET sms_consent = true, updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2`,
+        [accountId, organizationId]
+      )
+
+      // Fire audit log
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.OPT_IN_CONFIRMED,
+        resourceType: 'collection_account',
+        resourceId: accountId,
+        oldValue: { sms_consent: currentSmsConsent },
+        newValue: { sms_consent: true, opt_in_at: new Date().toISOString() },
+      })
+
+      // Send auto-reply confirmation
+      await sendAutoReply(
+        env,
+        normalizedTo,
+        normalizedFrom,
+        'You have been subscribed to SMS updates. Reply STOP to unsubscribe.'
+      )
+
+      // Log auto-reply
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.AUTO_REPLY_SENT,
+        resourceType: 'message',
+        resourceId: external_message_id || 'unknown',
+        newValue: { type: 'opt_in_confirmation', to: normalizedFrom },
+      })
+    }
+
+    // 3. Store message in database (if messages table exists)
+    // Only store if we have an organization (either from account or DID)
+    if (organizationId) {
+      try {
+        await db.query(
+          `INSERT INTO messages (
+            organization_id,
+            account_id,
+            campaign_id,
+            direction,
+            channel,
+            from_number,
+            to_number,
+            message_body,
+            status,
+            external_message_id,
+            created_at
+          ) VALUES ($1, $2, $3, 'inbound', 'sms', $4, $5, $6, 'received', $7, $8)`,
+          [
+            organizationId,
+            accountId,
+            campaignId,
+            normalizedFrom,
+            normalizedTo,
+            text,
+            external_message_id,
+            received_at || new Date().toISOString(),
+          ]
+        )
+
+        // Fire audit log for message received
+        writeAuditLog(db, {
+          organizationId,
+          userId: 'system',
+          action: AuditAction.MESSAGE_RECEIVED,
+          resourceType: 'message',
+          resourceId: external_message_id || 'unknown',
+          newValue: {
+            from: normalizedFrom,
+            to: normalizedTo,
+            channel: 'sms',
+            direction: 'inbound',
+            account_id: accountId,
+            is_opt_out: isOptOut,
+            is_opt_in: isOptIn,
+          },
+        })
+
+        logger.info('Inbound SMS stored successfully', {
+          external_id: external_message_id,
+          organization_id: organizationId,
+          account_id: accountId,
+        })
+      } catch (dbErr) {
+        // Table might not exist yet - log warning but don't fail
+        logger.warn('Failed to store inbound SMS (messages table may not exist)', {
+          error: (dbErr as Error)?.message,
+          external_id: external_message_id,
+        })
+      }
+    }
+  } catch (err) {
+    logger.error('Failed to process inbound SMS', {
+      error: (err as Error)?.message,
+      external_id: external_message_id,
+      from,
+      to,
+    })
+  }
+}
+
+/**
+ * Handle message.sent — Outbound SMS sent confirmation
+ */
+async function handleMessageSent(db: DbClient, payload: any) {
+  const { id: external_message_id, sent_at } = payload
+
+  if (!external_message_id) {
+    logger.warn('message.sent missing message ID')
+    return
+  }
+
+  logger.info('Outbound SMS sent', { external_id: external_message_id })
+
+  try {
+    // Update message status to 'sent'
+    const result = await db.query(
+      `UPDATE messages
+       SET status = 'sent', sent_at = $1, updated_at = NOW()
+       WHERE external_message_id = $2
+       RETURNING organization_id`,
+      [sent_at || new Date().toISOString(), external_message_id]
+    )
+
+    if (result.rows.length > 0) {
+      const organizationId = result.rows[0].organization_id
+
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.MESSAGE_SENT,
+        resourceType: 'message',
+        resourceId: external_message_id,
+        newValue: { status: 'sent', sent_at: sent_at || new Date().toISOString() },
+      })
+    }
+  } catch (err) {
+    logger.warn('Failed to update SMS sent status (table may not exist)', {
+      error: (err as Error)?.message,
+      external_id: external_message_id,
+    })
+  }
+}
+
+/**
+ * Handle message.delivered — SMS delivered to recipient
+ */
+async function handleMessageDelivered(db: DbClient, payload: any) {
+  const { id: external_message_id, completed_at } = payload
+
+  if (!external_message_id) {
+    logger.warn('message.delivered missing message ID')
+    return
+  }
+
+  logger.info('SMS delivered', { external_id: external_message_id })
+
+  try {
+    const result = await db.query(
+      `UPDATE messages
+       SET status = 'delivered', delivered_at = $1, updated_at = NOW()
+       WHERE external_message_id = $2
+       RETURNING organization_id`,
+      [completed_at || new Date().toISOString(), external_message_id]
+    )
+
+    if (result.rows.length > 0) {
+      const organizationId = result.rows[0].organization_id
+
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.MESSAGE_DELIVERED,
+        resourceType: 'message',
+        resourceId: external_message_id,
+        newValue: { status: 'delivered', delivered_at: completed_at || new Date().toISOString() },
+      })
+    }
+  } catch (err) {
+    logger.warn('Failed to update SMS delivered status (table may not exist)', {
+      error: (err as Error)?.message,
+      external_id: external_message_id,
+    })
+  }
+}
+
+/**
+ * Handle message.failed — SMS delivery failed
+ */
+async function handleMessageFailed(db: DbClient, payload: any) {
+  const { id: external_message_id, errors } = payload
+
+  if (!external_message_id) {
+    logger.warn('message.failed missing message ID')
+    return
+  }
+
+  const errorMessage = errors && errors.length > 0 ? errors[0].detail : 'Unknown error'
+
+  logger.error('SMS delivery failed', {
+    external_id: external_message_id,
+    error: errorMessage,
+  })
+
+  try {
+    const result = await db.query(
+      `UPDATE messages
+       SET status = 'failed', error_message = $1, updated_at = NOW()
+       WHERE external_message_id = $2
+       RETURNING organization_id`,
+      [errorMessage, external_message_id]
+    )
+
+    if (result.rows.length > 0) {
+      const organizationId = result.rows[0].organization_id
+
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        action: AuditAction.MESSAGE_DELIVERY_FAILED,
+        resourceType: 'message',
+        resourceId: external_message_id,
+        newValue: { status: 'failed', error: errorMessage },
+      })
+    }
+  } catch (err) {
+    logger.warn('Failed to update SMS failed status (table may not exist)', {
+      error: (err as Error)?.message,
+      external_id: external_message_id,
+    })
+  }
 }
 
 // --- Root-level aliases for newer WebhookManager frontend ---

@@ -51,6 +51,7 @@ function SignUpContent() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleAvailable, setGoogleAvailable] = useState(false)
+  const [isSigningUp, setIsSigningUp] = useState(false)
 
   // Invite handling
   const inviteToken = searchParams.get('invite')
@@ -91,12 +92,12 @@ function SignUpContent() {
       .catch(() => setGoogleAvailable(false))
   }, [])
 
-  // Redirect if already signed in (but not if accepting invite)
+  // Redirect if already signed in (but not if accepting invite or currently signing up)
   useEffect(() => {
-    if (session && !inviteToken) {
+    if (session && !inviteToken && !isSigningUp && window.location.pathname !== '/signup') {
       router.push('/dashboard')
     }
-  }, [session, router, inviteToken])
+  }, [session, router, inviteToken, isSigningUp])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -119,6 +120,7 @@ function SignUpContent() {
 
     setError(null)
     setLoading(true)
+    setIsSigningUp(true)
 
     try {
       // Step 0: Fetch CSRF token (same pattern as sign-in)
@@ -150,6 +152,7 @@ function SignUpContent() {
         // Account created but sign-in failed - redirect to signin with message
         logger.error('Auto sign-in failed', { error: signInRes.error })
         router.push('/signin?message=account-created')
+        setIsSigningUp(false)
         return
       }
 
@@ -168,17 +171,21 @@ function SignUpContent() {
         }
       }
 
-      // Step 4: Redirect to dashboard
+      // Step 4: Redirect to onboarding (not dashboard as comment suggests)
       if (signInRes?.ok) {
-        router.push('/onboarding')
+        // Force redirect to onboarding, bypassing the session redirect useEffect
+        setIsSigningUp(false)
+        window.location.href = '/onboarding'
       } else {
         // Fallback - redirect to signin
         router.push('/signin?message=account-created')
+        setIsSigningUp(false)
       }
     } catch (err: any) {
       logger.error('Signup error', { error: err?.message })
       setError(err?.message || 'Something went wrong')
       setLoading(false)
+      setIsSigningUp(false)
     }
   }
 

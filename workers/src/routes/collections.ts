@@ -941,3 +941,218 @@ collectionsRoutes.get('/promises', async (c) => {
 // Canonical handlers are at lines ~148 (/imports), ~228 (/import), ~898 (/promises)
 // See ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #2
 
+// ─── Get unified communications timeline for account ────────────────────────
+collectionsRoutes.get('/:id/communications', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const accountId = c.req.param('id')
+    const limit = Math.min(parseInt(c.req.query('limit') || '20', 10), 100)
+    const offset = parseInt(c.req.query('offset') || '0', 10)
+    const channelFilter = c.req.query('channel') // all|calls|sms|email|payments|notes
+    const searchQuery = c.req.query('search')
+
+    // Verify account belongs to org
+    const acctCheck = await db.query(
+      `SELECT id, primary_phone, email FROM collection_accounts 
+       WHERE id = $1 AND organization_id = $2 AND is_deleted = false`,
+      [accountId, session.organization_id]
+    )
+    if (acctCheck.rows.length === 0) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    const account = acctCheck.rows[0]
+    const communications: any[] = []
+
+    // Build unified timeline from multiple sources
+    // 1. Phone Calls (from calls table)
+    if (!channelFilter || channelFilter === 'all' || channelFilter === 'calls') {
+      const callsQuery = `
+        SELECT 
+          id,
+          'call' AS channel_type,
+          started_at AS timestamp,
+          ended_at,
+          status,
+          disposition,
+          disposition_notes AS content,
+          EXTRACT(EPOCH FROM (ended_at - started_at))::int AS duration_seconds,
+          created_by
+        FROM calls
+        WHERE organization_id = $1
+          AND (call_sid LIKE $2 OR call_sid LIKE $3)
+          AND is_deleted = false
+        ORDER BY started_at DESC
+        LIMIT 50
+      `
+      const callsResult = await db.query(callsQuery, [
+        session.organization_id,
+        `%${account.primary_phone}%`,
+        account.email ? `%${account.email}%` : '%NOEMAIL%'
+      ])
+      communications.push(...callsResult.rows)
+    }
+
+    // 2. SMS Messages (from sms_logs table if exists)
+    // Note: SMS logs table may not exist - skip silently
+    if (!channelFilter || channelFilter === 'all' || channelFilter === 'sms') {
+      try {
+        const smsQuery = `
+          SELECT 
+            id,
+            'sms' AS channel_type,
+            created_at AS timestamp,
+            direction,
+            message_body AS content,
+            status,
+            to_number,
+            from_number
+          FROM sms_logs
+          WHERE organization_id = $1
+            AND (to_number = $2 OR from_number = $2)
+          ORDER BY created_at DESC
+          LIMIT 50
+        `
+        const smsResult = await db.query(smsQuery, [
+          session.organization_id,
+          account.primary_phone
+        ])
+        communications.push(...smsResult.rows)
+      } catch (err) {
+        // Table may not exist - skip
+        logger.error('SMS logs query failed (table may not exist)', { error: err })
+      }
+    }
+
+    // 3. Email Logs (from email_logs table if exists)
+    if (!channelFilter || channelFilter === 'all' || channelFilter === 'email') {
+      if (account.email) {
+        try {
+          const emailQuery = `
+            SELECT 
+              id,
+              'email' AS channel_type,
+              created_at AS timestamp,
+              subject,
+              status,
+              opened_at,
+              clicked_at,
+              to_email,
+              from_email
+            FROM email_logs
+            WHERE organization_id = $1
+              AND to_email = $2
+            ORDER BY created_at DESC
+            LIMIT 50
+          `
+          const emailResult = await db.query(emailQuery, [
+            session.organization_id,
+            account.email
+          ])
+          communications.push(...emailResult.rows)
+        } catch (err) {
+          // Table may not exist - skip
+          logger.error('Email logs query failed (table may not exist)', { error: err })
+        }
+      }
+    }
+
+    // 4. Payment Links (from payment_links table if exists)
+    if (!channelFilter || channelFilter === 'all' || channelFilter === 'payments') {
+      try {
+        const paymentLinksQuery = `
+          SELECT 
+            id,
+            'payment_link' AS channel_type,
+            created_at AS timestamp,
+            amount,
+            status,
+            sent_at,
+            clicked_at,
+            paid_at,
+            link_url
+          FROM payment_links
+          WHERE organization_id = $1
+            AND account_id = $2
+          ORDER BY created_at DESC
+          LIMIT 50
+        `
+        const paymentLinksResult = await db.query(paymentLinksQuery, [
+          session.organization_id,
+          accountId
+        ])
+        communications.push(...paymentLinksResult.rows)
+      } catch (err) {
+        // Table may not exist - skip
+        logger.error('Payment links query failed (table may not exist)', { error: err })
+      }
+    }
+
+    // 5. Notes & Dispositions (from collection_tasks table)
+    if (!channelFilter || channelFilter === 'all' || channelFilter === 'notes') {
+      const notesQuery = `
+        SELECT 
+          id,
+          'note' AS channel_type,
+          created_at AS timestamp,
+          title,
+          notes AS content,
+          type,
+          status,
+          created_by
+        FROM collection_tasks
+        WHERE organization_id = $1
+          AND account_id = $2
+        ORDER BY created_at DESC
+        LIMIT 50
+      `
+      const notesResult = await db.query(notesQuery, [
+        session.organization_id,
+        accountId
+      ])
+      communications.push(...notesResult.rows)
+    }
+
+    // Sort all communications by timestamp (newest first)
+    communications.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime()
+      const timeB = new Date(b.timestamp).getTime()
+      return timeB - timeA
+    })
+
+    // Apply search filter if provided
+    let filtered = communications
+    if (searchQuery) {
+      const search = searchQuery.toLowerCase()
+      filtered = communications.filter((comm) => {
+        const content = (comm.content || comm.subject || comm.title || '').toLowerCase()
+        const disposition = (comm.disposition || '').toLowerCase()
+        return content.includes(search) || disposition.includes(search)
+      })
+    }
+
+    // Apply pagination
+    const total = filtered.length
+    const paginatedComms = filtered.slice(offset, offset + limit)
+
+    return c.json({
+      success: true,
+      communications: paginatedComms,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/collections/:id/communications error', { error: err?.message })
+    return c.json({ error: 'Failed to get communications' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+

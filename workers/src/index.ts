@@ -66,6 +66,8 @@ import { dncRoutes } from './routes/dnc'
 import { feedbackRoutes } from './routes/feedback'
 import { crmRoutes } from './routes/crm'
 import { importRoutes } from './routes/import'
+import { messagesRoutes } from './routes/messages'
+import { unsubscribeRoutes } from './routes/unsubscribe'
 import {
   buildErrorContext,
   logError,
@@ -107,6 +109,7 @@ export interface Env {
   TELNYX_CONNECTION_ID: string // Credential Connection for WebRTC
   TELNYX_CALL_CONTROL_APP_ID: string // Call Control Application for bridge calls
   TELNYX_NUMBER: string
+  TELNYX_MESSAGING_PROFILE_ID?: string // Messaging profile for SMS campaigns
   TELNYX_PUBLIC_KEY: string // Ed25519 public key for webhook signature verification (base64)
   ASSEMBLYAI_API_KEY: string
   ELEVENLABS_API_KEY: string
@@ -115,6 +118,7 @@ export interface Env {
   ASSEMBLYAI_WEBHOOK_SECRET?: string
   NEXT_PUBLIC_APP_URL?: string
   API_BASE_URL?: string
+  BASE_URL?: string // Base URL for Workers API (for webhooks and internal fetches)
 }
 
 // Session type — set by authMiddleware via c.set('session', session)
@@ -188,6 +192,8 @@ app.use(
       'X-Dialer-Session',
       'X-IVR-Flow-Id',
       'X-Session-Token',
+      'X-SMS-Status',
+      'X-Email-Status',
     ],
   })
 )
@@ -257,6 +263,8 @@ app.route('/api/productivity', productivityRoutes)
 app.route('/api/manager', managerRoutes)
 app.route('/api/feature-flags', featureFlagRoutes)
 app.route('/api/payments', paymentsRoutes)
+app.route('/api/messages', messagesRoutes)
+app.route('/api/messages', unsubscribeRoutes)
 app.route('/api/dnc', dncRoutes)
 app.route('/api/feedback', feedbackRoutes)
 app.route('/api/crm', crmRoutes)

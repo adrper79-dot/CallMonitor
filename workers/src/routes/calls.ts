@@ -28,8 +28,250 @@ import {
   telnyxVoiceRateLimit,
 } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml, getEmailDefaults } from '../lib/email'
+import { z } from 'zod'
 
 export const callsRoutes = new Hono<AppEnv>()
+
+/**
+ * Schema for POST /api/calls - Create outbound call for predictive dialer
+ */
+const CreateOutboundCallSchema = z.object({
+  to: z.string().min(10, 'Phone number required'),
+  from: z.string().optional(),
+  campaign_id: z.string().uuid().optional(),
+  campaign_call_id: z.string().uuid().optional(),
+  enable_amd: z.boolean().default(true),
+  recording_enabled: z.boolean().optional(),
+  transcription_enabled: z.boolean().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+})
+
+/**
+ * POST /api/calls - Originate outbound call via Telnyx Call Control v2
+ * Supports both manual calls and predictive dialer with AMD
+ */
+callsRoutes.post(
+  '/',
+  telnyxVoiceRateLimit,
+  callMutationRateLimit,
+  idempotent(),
+  async (c) => {
+    const session = await requireRole(c, 'agent')
+    if (!session) {
+      return c.json({ error: 'Forbidden' }, 403)
+    }
+
+    const parsed = await validateBody(c, CreateOutboundCallSchema)
+    if (!parsed.success) return parsed.response
+    const { to, from, campaign_id, campaign_call_id, enable_amd, recording_enabled, transcription_enabled, metadata } = parsed.data
+
+    const db = getDb(c.env, session.organization_id)
+    try {
+      // Check voice config for default settings
+      const voiceConfigResult = await db.query(
+        `SELECT record, transcribe, translate, translate_from, translate_to, live_translate, voice_to_voice
+         FROM voice_configs
+         WHERE organization_id = $1
+         LIMIT 1`,
+        [session.organization_id]
+      )
+      const voiceConfig = voiceConfigResult.rows[0]
+
+      // Create call record
+      const callResult = await db.query(
+        `INSERT INTO calls (
+          organization_id, direction, from_number, to_number, status, campaign_id,
+          started_at, created_by, caller_id_used
+        )
+        VALUES ($1, 'outbound', $2, $3, 'pending', $4, NOW(), $5, $2)
+        RETURNING *`,
+        [
+          session.organization_id,
+          from || c.env.TELNYX_NUMBER,
+          to,
+          campaign_id || null,
+          session.user_id,
+        ]
+      )
+      const call = callResult.rows[0]
+
+      // Update campaign_call if provided
+      if (campaign_call_id) {
+        await db.query(
+          `UPDATE campaign_calls SET call_id = $1, status = 'calling', updated_at = NOW()
+           WHERE id = $2 AND campaign_id IN (SELECT id FROM campaigns WHERE organization_id = $3)`,
+          [call.id, campaign_call_id, session.organization_id]
+        )
+      }
+
+      // Build Telnyx Call Control v2 payload
+      const telnyxPayload: Record<string, any> = {
+        connection_id: c.env.TELNYX_CONNECTION_ID,
+        to,
+        from: from || c.env.TELNYX_NUMBER,
+        webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
+      }
+
+      // Enable AMD for predictive dialer calls
+      if (enable_amd) {
+        telnyxPayload.answering_machine_detection = 'premium' // Use premium AMD for best accuracy
+        telnyxPayload.answering_machine_detection_config = {
+          after_greeting_silence_millis: 800,
+          greeting_duration_millis: 3500,
+          total_analysis_time_millis: 5000,
+          initial_silence_millis: 1500,
+        }
+      }
+
+      // Enable recording
+      const shouldRecord = recording_enabled ?? voiceConfig?.record ?? true
+      if (shouldRecord) {
+        telnyxPayload.record = 'record-from-answer'
+        telnyxPayload.record_channels = 'dual'
+        telnyxPayload.record_format = 'mp3'
+      }
+
+      // Enable transcription
+      const shouldTranscribe = transcription_enabled ?? voiceConfig?.transcribe ?? voiceConfig?.live_translate ?? voiceConfig?.voice_to_voice ?? false
+      if (shouldTranscribe) {
+        telnyxPayload.transcription = true
+        telnyxPayload.transcription_config = {
+          transcription_engine: 'B',
+          transcription_tracks: 'both',
+        }
+      }
+
+      // Add client_state for flow tracking
+      telnyxPayload.client_state = btoa(
+        JSON.stringify({
+          flow: campaign_id ? 'dialer' : 'manual',
+          call_id: call.id,
+          campaign_id: campaign_id || null,
+          campaign_call_id: campaign_call_id || null,
+          organization_id: session.organization_id,
+          ...metadata,
+        })
+      )
+
+      logger.info('Initiating Telnyx outbound call', {
+        callId: call.id,
+        to,
+        from: telnyxPayload.from,
+        campaignId: campaign_id,
+        amdEnabled: enable_amd,
+        organizationId: session.organization_id,
+      })
+
+      // Call Telnyx Call Control v2 API
+      const telnyxRes = await fetch('https://api.telnyx.com/v2/calls', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(telnyxPayload),
+      })
+
+      if (!telnyxRes.ok) {
+        const errBody = await telnyxRes.text()
+        logger.error('Telnyx call origination failed', {
+          status: telnyxRes.status,
+          body: errBody.substring(0, 500),
+          callId: call.id,
+        })
+
+        // Rollback: Mark call as failed
+        await db.query(
+          `UPDATE calls SET status = 'failed', ended_at = NOW(), hangup_cause = $1
+           WHERE id = $2 AND organization_id = $3`,
+          [`Telnyx API error: ${telnyxRes.status}`, call.id, session.organization_id]
+        )
+
+        // Update campaign_call if applicable
+        if (campaign_call_id) {
+          await db.query(
+            `UPDATE campaign_calls SET status = 'failed', updated_at = NOW()
+             WHERE id = $1 AND campaign_id IN (SELECT id FROM campaigns WHERE organization_id = $2)`,
+            [campaign_call_id, session.organization_id]
+          )
+        }
+
+        // Audit log failure
+        writeAuditLog(db, {
+          organizationId: session.organization_id,
+          userId: session.user_id,
+          resourceType: 'call',
+          resourceId: call.id,
+          action: AuditAction.CALL_FAILED,
+          oldValue: null,
+          newValue: { error: `Telnyx API ${telnyxRes.status}`, to, from: telnyxPayload.from },
+        })
+
+        return c.json({ error: 'Failed to originate call via telephony provider' }, 502)
+      }
+
+      const telnyxData = await telnyxRes.json() as {
+        data: { call_control_id: string; call_session_id: string; call_leg_id?: string }
+      }
+
+      // Store Telnyx IDs in database
+      await db.query(
+        `UPDATE calls
+         SET call_control_id = $1, call_sid = $2, status = 'initiated', updated_at = NOW()
+         WHERE id = $3 AND organization_id = $4`,
+        [telnyxData.data.call_control_id, telnyxData.data.call_session_id, call.id, session.organization_id]
+      )
+
+      logger.info('Telnyx call initiated successfully', {
+        callId: call.id,
+        callControlId: telnyxData.data.call_control_id,
+        callSessionId: telnyxData.data.call_session_id,
+        to,
+        organizationId: session.organization_id,
+      })
+
+      // Audit log success
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'call',
+        resourceId: call.id,
+        action: AuditAction.CALL_STARTED,
+        oldValue: null,
+        newValue: {
+          to,
+          from: telnyxPayload.from,
+          call_control_id: telnyxData.data.call_control_id,
+          campaign_id: campaign_id || null,
+          amd_enabled: enable_amd,
+        },
+      })
+
+      // Fetch updated call record
+      const updatedResult = await db.query(
+        `SELECT * FROM calls WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+        [call.id, session.organization_id]
+      )
+
+      return c.json(
+        {
+          success: true,
+          call: updatedResult.rows[0] || call,
+          telnyx: {
+            call_control_id: telnyxData.data.call_control_id,
+            call_session_id: telnyxData.data.call_session_id,
+          },
+        },
+        201
+      )
+    } catch (err: any) {
+      logger.error('POST /api/calls error', { error: err?.message, stack: err?.stack })
+      return c.json({ error: 'Failed to create call' }, 500)
+    } finally {
+      await db.end()
+    }
+  }
+)
 
 // List calls for organization
 callsRoutes.get('/', async (c) => {

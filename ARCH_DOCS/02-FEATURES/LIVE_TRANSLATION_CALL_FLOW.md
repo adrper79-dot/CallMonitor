@@ -21,6 +21,36 @@ Live voice translation enables real-time translation of phone conversations usin
 
 ---
 
+## Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant UI as Cockpit UI
+    participant API as Workers API
+    participant Telnyx
+    participant OpenAI
+    participant DB as Neon PostgreSQL
+    participant SSE as Server-Sent Events
+
+    Agent->>UI: Enable live translation
+    UI->>API: POST /api/voice/call {live_translate: true}
+    API->>DB: Check voice_configs.live_translate
+    DB-->>API: Config data
+    API->>Telnyx: POST /calls (with transcription webhook)
+    Telnyx-->>API: Call SID
+
+    Telnyx->>API: POST /webhooks/transcription (real-time)
+    API->>OpenAI: POST /chat/completions {translate prompt}
+    OpenAI-->>API: Translated text
+    API->>DB: INSERT call_translations
+    API->>SSE: Send translation to UI
+    SSE-->>UI: Real-time translation display
+    UI-->>Agent: Show translated text
+```
+
+---
+
 ## Prerequisites
 
 ### 1. Voice Config Setup

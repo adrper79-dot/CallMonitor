@@ -1,7 +1,7 @@
 # Codebase System Map
 
 **TOGAF Phase:** C — Information Systems Architecture  
-**Updated:** February 13, 2026 | **Version:** 4.56
+**Updated:** February 14, 2026 | **Version:** 4.66
 
 ```mermaid
 graph TB
@@ -11,10 +11,11 @@ graph TB
         Hooks[Custom Hooks<br/>hooks/useWebRTC.ts<br/>hooks/useAuth.ts<br/>hooks/useRBAC.ts]
     end
 
-    subgraph "Backend (Cloudflare Workers — 48 route files)"
-        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 48 files]
+    subgraph "Backend (Cloudflare Workers — 54 route files)"
+        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 54 files]
         Auth[Authentication<br/>auth.ts + lib/auth.ts]
         Voice[Voice & Telephony<br/>voice.ts, calls.ts, webrtc.ts<br/>live-translation.ts, tts.ts<br/>dialer.ts, ivr.ts, caller-id.ts]
+        Messaging[Multi-Channel Messaging<br/>messages.ts (SMS + Email)<br/>Telnyx SMS, Resend Email]
         AI[AI & Intelligence<br/>ai-llm.ts, ai-router.ts, ai-transcribe.ts<br/>bond-ai.ts, ai-config.ts, ai-toggle.ts<br/>audio.ts, sentiment.ts]
         Business[Business Logic<br/>billing.ts, campaigns.ts, collections.ts<br/>compliance.ts, bookings.ts, surveys.ts<br/>productivity.ts, scorecards.ts]
         Admin[Admin & Analytics<br/>admin.ts, admin-metrics.ts<br/>analytics.ts, reports.ts, usage.ts<br/>audit.ts, health.ts, reliability.ts]
@@ -38,6 +39,7 @@ graph TB
         R2[Cloudflare R2 — Recordings]
         KV[Cloudflare KV — Sessions/Rate Limits]
         Telnyx[Telnyx — Voice/SMS]
+        Resend[Resend — Email Delivery]
         Stripe[Stripe — Billing]
         AssemblyAI[AssemblyAI — Transcription]
         ElevenLabs[ElevenLabs — TTS]
@@ -51,12 +53,15 @@ graph TB
     APIClient --> WorkersAPI
     WorkersAPI --> Auth
     WorkersAPI --> Voice
+    WorkersAPI --> Messaging
     WorkersAPI --> AI
     WorkersAPI --> Business
     WorkersAPI --> Admin
     WorkersAPI --> DB
     Auth --> CoreLibs
     Voice --> VoiceLibs
+    Messaging --> Telnyx
+    Messaging --> Resend
     AI --> AILibs
     DB --> Neon
     WorkersAPI --> SecurityLibs
@@ -76,6 +81,7 @@ graph TB
     style WorkersAPI fill:#fff3e0
     style Auth fill:#fce4ec
     style Voice fill:#f1f8e9
+    style Messaging fill:#e0f7fa
     style AI fill:#ede7f6
     style Business fill:#e0f2f1
     style Admin fill:#fff8e1
@@ -90,6 +96,7 @@ graph TB
     style R2 fill:#fce4ec
     style KV fill:#e8eaf6
     style Telnyx fill:#f1f8e9
+    style Resend fill:#e0f7fa
     style Stripe fill:#e0f2f1
     style AssemblyAI fill:#ede7f6
     style ElevenLabs fill:#fff8e1
@@ -97,13 +104,14 @@ graph TB
     style Groq fill:#e8f5e8
 ```
 
-## 1. Backend API (Cloudflare Workers — 48 Route Files)
+## 1. Backend API (Cloudflare Workers — 54 Route Files)
 
 **Purpose**: Edge API, auth, DB, voice, AI, billing, compliance.
 
 **Route Files** (workers/src/routes/):
 - **Core**: auth.ts, health.ts, organizations.ts, users.ts, team.ts, teams.ts, admin.ts, admin-metrics.ts, audit.ts, onboarding.ts, internal.ts, test.ts
 - **Voice**: voice.ts, calls.ts, webrtc.ts, live-translation.ts, tts.ts, dialer.ts, ivr.ts, caller-id.ts, call-capabilities.ts, capabilities.ts, audio.ts, recordings.ts
+- **Messaging**: messages.ts (SMS via Telnyx, Email via Resend)
 - **AI**: ai-llm.ts, ai-router.ts, ai-transcribe.ts, bond-ai.ts, ai-config.ts, ai-toggle.ts, sentiment.ts
 - **Business**: billing.ts, campaigns.ts, collections.ts, compliance.ts, bookings.ts, surveys.ts, productivity.ts, scorecards.ts, shopper.ts, retention.ts
 - **Analytics**: analytics.ts, reports.ts, usage.ts, reliability.ts

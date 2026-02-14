@@ -39,7 +39,7 @@ export default defineConfig({
   /* ── Shared settings for all projects ────────────────────────────────── */
   use: {
     /* Base URL for relative page.goto() calls */
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
     /* Capture traces on first retry for debugging */
     trace: 'on-first-retry',
@@ -78,10 +78,10 @@ export default defineConfig({
   ],
 
   /* ── Dev server ──────────────────────────────────────────────────────── */
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // webServer: process.env.BASE_URL === 'https://wordis-bond.com' ? undefined : {
+  //   command: 'npm run dev',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120_000,
+  // },
 })

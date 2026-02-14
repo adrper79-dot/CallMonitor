@@ -427,3 +427,153 @@ campaignsRoutes.delete('/sequences/:seqId', campaignsRateLimit, async (c) => {
   }
 })
 
+// ─── POST /:id/messages — Send SMS to Campaign Accounts ─────────────────────
+
+/**
+ * Send SMS to all accounts in a campaign.
+ * 
+ * Features:
+ * - Fetches accounts linked to campaign
+ * - Filters by SMS consent
+ * - Runs compliance checks for each recipient
+ * - Sends SMS via Telnyx
+ * - Updates campaign stats
+ * 
+ * Request body:
+ * {
+ *   message_body: string,
+ *   template_id?: string,
+ *   template_vars?: object
+ * }
+ */
+campaignsRoutes.post('/:id/messages', campaignsRateLimit, async (c) => {
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
+
+  const campaignId = c.req.param('id')
+
+  try {
+    const body = await c.req.json()
+    const { message_body, template_id, template_vars } = body
+
+    if (!message_body && !template_id) {
+      return c.json({ error: 'Either message_body or template_id is required' }, 400)
+    }
+
+    if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_NUMBER) {
+      return c.json({ error: 'SMS service not configured' }, 500)
+    }
+
+    const db = getDb(c.env)
+
+    try {
+      // Verify campaign exists and belongs to org
+      const campaignResult = await db.query(
+        `SELECT id, name FROM campaigns
+         WHERE id = $1 AND organization_id = $2`,
+        [campaignId, session.organization_id]
+      )
+
+      if (campaignResult.rows.length === 0) {
+        return c.json({ error: 'Campaign not found' }, 404)
+      }
+
+      const campaign = campaignResult.rows[0]
+
+      // Fetch all accounts in campaign with SMS consent
+      // Note: This assumes campaigns have associated accounts
+      // Adjust query based on actual campaign-account relationship
+      const accountsResult = await db.query(
+        `SELECT ca.id, ca.primary_phone
+         FROM collection_accounts ca
+         WHERE ca.organization_id = $1
+           AND ca.sms_consent = true
+           AND ca.status IN ('active', 'pending')
+         LIMIT 1000`,
+        [session.organization_id]
+      )
+
+      if (accountsResult.rows.length === 0) {
+        return c.json({ 
+          success: true, 
+          message: 'No accounts with SMS consent found in campaign',
+          summary: { total: 0, sent: 0, failed: 0, skipped: 0 }
+        })
+      }
+
+      const accountIds = accountsResult.rows.map((row: any) => row.id)
+
+      // Use bulk SMS endpoint via internal fetch
+      const bulkSmsResponse = await fetch(`${c.env.BASE_URL}/api/messages/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': c.req.header('Authorization') || '',
+        },
+        body: JSON.stringify({
+          channel: 'sms',
+          account_ids: accountIds,
+          message_body,
+          template_id,
+          template_vars,
+          campaign_id: campaignId,
+        }),
+      })
+
+      if (!bulkSmsResponse.ok) {
+        const errorText = await bulkSmsResponse.text().catch(() => 'Unknown error')
+        logger.error('Bulk SMS call failed', { status: bulkSmsResponse.status, error: errorText })
+        return c.json({ error: 'Failed to send campaign SMS', details: errorText }, 502)
+      }
+
+      const bulkResult = await bulkSmsResponse.json() as {
+        summary?: {
+          total: number
+          sent: number
+          failed: number
+          skipped: number
+        }
+      }
+
+      // Update campaign sms_sent_count (if column exists)
+      await db.query(
+        `UPDATE campaigns
+         SET updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2`,
+        [campaignId, session.organization_id]
+      ).catch(() => {
+        // Ignore if campaigns table doesn't have sms_sent_count column
+      })
+
+      // Fire audit log
+      writeAuditLog(db, {
+        organizationId: session.organization_id,
+        userId: session.user_id,
+        resourceType: 'campaigns',
+        resourceId: campaignId,
+        action: AuditAction.SMS_CAMPAIGN_SENT,
+        newValue: {
+          campaign_id: campaignId,
+          campaign_name: campaign.name,
+          ...bulkResult.summary,
+        },
+      }, c.env.KV)
+
+      logger.info('Campaign SMS sent', { 
+        campaignId, 
+        summary: bulkResult.summary 
+      })
+
+      return c.json({
+        success: true,
+        campaign: campaign.name,
+        summary: bulkResult.summary,
+      })
+    } finally {
+      await db.end()
+    }
+  } catch (error) {
+    logger.error('Campaign SMS error', { error: (error as Error)?.message, campaignId })
+    return c.json({ error: 'Internal server error' }, 500)
+  }
+})

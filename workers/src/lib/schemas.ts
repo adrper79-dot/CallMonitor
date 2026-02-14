@@ -753,3 +753,62 @@ export const UpdateOrgFeatureFlagSchema = z.object({
   daily_limit: z.number().int().min(0).optional(),
   monthly_limit: z.number().int().min(0).optional(),
 })
+
+// ─── Messages & SMS Campaign Schemas ─────────────────────────────────────────
+
+export const SendSmsSchema = z.object({
+  channel: z.enum(['sms', 'email']).default('sms'),
+  // SMS fields
+  to: z.union([e164Phone, z.array(e164Phone), email, z.array(email)]).describe('Phone number(s) in E.164 format, email address(es), or account IDs'),
+  message_body: z.string().min(1).max(1600).describe('SMS message text or email body (max 1600 chars)'),
+  // Email-specific fields
+  subject: z.string().min(1).max(200).optional().describe('Email subject (required for email channel)'),
+  html: z.string().max(100000).optional().describe('HTML email content (if different from message_body)'),
+  from_name: z.string().max(100).optional().describe('Sender name for email'),
+  from_email: email.optional().describe('Sender email (default: noreply@wordis-bond.com)'),
+  reply_to: email.optional().describe('Reply-to email address'),
+  attachments: z.array(z.object({
+    filename: z.string().max(255),
+    content: z.string().describe('Base64 encoded file content'),
+  })).max(10).optional().describe('Email attachments (max 10)'),
+  // Shared fields
+  campaign_id: z.string().uuid().optional().describe('Associated campaign ID'),
+  account_id: z.string().uuid().optional().describe('For single send to specific account'),
+  template_id: z.string().uuid().optional().describe('Template to use for message'),
+  template_vars: z.record(z.string(), z.string()).optional().describe('Template variable replacements'),
+  scheduled_at: z.string().datetime().optional().describe('ISO timestamp for scheduled send'),
+})
+
+export const BulkSmsSchema = z.object({
+  channel: z.enum(['sms', 'email']).default('sms'),
+  account_ids: z.array(z.string().uuid()).min(1).max(1000).describe('Account IDs to send to'),
+  message_body: z.string().min(1).max(1600).optional().describe('Message body (if not using template)'),
+  // Email-specific fields
+  subject: z.string().min(1).max(200).optional().describe('Email subject (required for email channel)'),
+  html: z.string().max(100000).optional().describe('HTML email content'),
+  from_name: z.string().max(100).optional().describe('Sender name for email'),
+  from_email: email.optional().describe('Sender email'),
+  reply_to: email.optional().describe('Reply-to email address'),
+  // Shared fields
+  template_id: z.string().uuid().optional().describe('Template ID to use'),
+  template_vars: z.record(z.string(), z.string()).optional().describe('Template variables'),
+  campaign_id: z.string().uuid().optional().describe('Associated campaign ID'),
+  scheduled_at: z.string().datetime().optional().describe('ISO timestamp for scheduled send'),
+})
+
+export const CreateSmsTemplateSchema = z.object({
+  name: nonEmptyString.describe('Template name'),
+  category: z.enum(['auto_reply', 'campaign', 'reminder', 'payment_link', 'settlement', 'appointment', 'general']).default('general'),
+  message_body: z.string().min(1).max(1600).describe('Template text with {{variables}}'),
+  variables: z.array(z.string().max(50)).max(20).optional().describe('List of variable names'),
+  channel: z.enum(['sms', 'email']).default('sms'),
+  trigger_type: z.enum(['opt_out', 'opt_in', 'business_hours', 'generic', 'manual']).default('manual'),
+})
+
+export const UpdateSmsTemplateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  category: z.enum(['auto_reply', 'campaign', 'reminder', 'payment_link', 'settlement', 'appointment', 'general']).optional(),
+  message_body: z.string().min(1).max(1600).optional(),
+  variables: z.array(z.string().max(50)).max(20).optional(),
+  is_active: z.boolean().optional(),
+})

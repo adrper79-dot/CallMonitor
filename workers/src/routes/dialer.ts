@@ -254,3 +254,143 @@ dialerRoutes.get('/agents', dialerRateLimit, async (c) => {
   }
 })
 
+// Get next account from dialer queue for auto-advance
+dialerRoutes.get('/next', dialerRateLimit, async (c) => {
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const campaignId = c.req.query('campaign_id')
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    // Find active campaign for this agent if not specified
+    let activeCampaignId = campaignId
+    if (!activeCampaignId) {
+      const agentStatusResult = await db.query(
+        `SELECT campaign_id FROM dialer_agent_status
+         WHERE organization_id = $1 AND user_id = $2 AND status = 'available'
+         AND campaign_id IS NOT NULL
+         LIMIT 1`,
+        [session.organization_id, session.user_id]
+      )
+      if (agentStatusResult.rows.length > 0) {
+        activeCampaignId = agentStatusResult.rows[0].campaign_id
+      }
+    }
+
+    if (!activeCampaignId) {
+      // No active campaign — return 404
+      return c.json({ success: false, message: 'No active campaign' }, 404)
+    }
+
+    // Find next pending account in campaign queue
+    const accountResult = await db.query(
+      `SELECT cc.id AS campaign_call_id, cc.target_phone, cc.campaign_id,
+              ca.id AS account_id, ca.debtor_name, ca.balance, ca.primary_phone, ca.secondary_phone,
+              ca.timezone, ca.do_not_call, ca.cease_and_desist, ca.bankruptcy_flag, ca.consent_status
+       FROM campaign_calls cc
+       LEFT JOIN collection_accounts ca ON (
+         ca.organization_id = $1 AND
+         (ca.primary_phone = cc.target_phone OR ca.secondary_phone = cc.target_phone)
+         AND ca.is_deleted = false
+       )
+       WHERE cc.campaign_id = $2
+         AND cc.status = 'pending'
+         AND cc.organization_id = $1
+       ORDER BY cc.created_at ASC
+       LIMIT 10`,
+      [session.organization_id, activeCampaignId]
+    )
+
+    if (accountResult.rows.length === 0) {
+      // Queue empty
+      return c.json({ success: false, message: 'Queue is empty' }, 404)
+    }
+
+    // Check compliance for each account until we find a compliant one
+    let nextAccount = null
+    let complianceResult = null
+
+    for (const account of accountResult.rows) {
+      const { checkPreDialCompliance } = await import('../lib/compliance-checker')
+      complianceResult = await checkPreDialCompliance(db, {
+        phoneNumber: account.target_phone,
+        organizationId: session.organization_id,
+        accountId: account.account_id,
+      })
+
+      if (complianceResult.allowed) {
+        nextAccount = account
+        break
+      } else {
+        // Mark as compliance blocked
+        await db.query(
+          `UPDATE campaign_calls SET status = 'failed', outcome = 'compliance_blocked',
+           error_message = $1, updated_at = NOW()
+           WHERE id = $2 AND organization_id = $3`,
+          [complianceResult.reason || 'Compliance check failed', account.campaign_call_id, session.organization_id]
+        )
+
+        // Log compliance block
+        writeAuditLog(db, {
+          organizationId: session.organization_id,
+          userId: session.user_id,
+          action: AuditAction.COMPLIANCE_PREDIAL_BLOCKED,
+          resourceType: 'campaign_call',
+          resourceId: account.campaign_call_id,
+          oldValue: null,
+          newValue: {
+            reason: complianceResult.reason,
+            blocked_by: complianceResult.blockedBy,
+            checks: complianceResult.checks,
+          },
+        })
+      }
+    }
+
+    if (!nextAccount) {
+      // All accounts failed compliance
+      return c.json({ success: false, message: 'No compliant accounts in queue' }, 404)
+    }
+
+    // Mark account as "in_progress" and assign to agent
+    await db.query(
+      `UPDATE campaign_calls SET status = 'in_progress', assigned_agent_id = $1, updated_at = NOW()
+       WHERE id = $2 AND organization_id = $3`,
+      [session.user_id, nextAccount.campaign_call_id, session.organization_id]
+    )
+
+    // Log successful queue fetch
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      action: AuditAction.DIALER_NEXT_ACCOUNT_FETCHED,
+      resourceType: 'campaign_call',
+      resourceId: nextAccount.campaign_call_id,
+      oldValue: null,
+      newValue: {
+        account_id: nextAccount.account_id,
+        target_phone: nextAccount.target_phone,
+        debtor_name: nextAccount.debtor_name,
+      },
+    })
+
+    return c.json({
+      success: true,
+      account: {
+        campaign_call_id: nextAccount.campaign_call_id,
+        account_id: nextAccount.account_id,
+        phone: nextAccount.target_phone,
+        name: nextAccount.debtor_name,
+        balance: nextAccount.balance,
+        campaign_id: nextAccount.campaign_id,
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/dialer/next error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch next account' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+

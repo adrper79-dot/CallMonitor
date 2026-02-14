@@ -18,6 +18,7 @@ import {
   Webhook,
   Shield,
   ChevronRight,
+  Zap,
 } from 'lucide-react'
 
 /**
@@ -97,6 +98,12 @@ export default function SettingsPage() {
       href: '/settings/call-config',
       icon: <Phone className="h-5 w-5" />,
       dataTour: 'tab-call-config',
+    },
+    {
+      title: 'Dialer & Auto-Advance',
+      description: 'Power dialer settings, auto-advance preferences',
+      href: '/settings/dialer',
+      icon: <Zap className="h-5 w-5" />,
     },
     {
       title: 'AI & Intelligence',

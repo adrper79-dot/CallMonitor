@@ -1,8 +1,8 @@
 # Database Schema ERD
 
 > Auto-generated from Workers route analysis  
-> Last updated: 2026-02-06  
-> **49 active tables**, ~64 additional (legacy/unused)
+> Last updated: 2026-02-13  
+> **47 active tables**, ~64 additional (legacy/unused)
 
 ## Core Entity-Relationship Diagram
 

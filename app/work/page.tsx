@@ -37,7 +37,9 @@ export default function WorkPage() {
   const [stats, setStats] = useState<DailyStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [callbacks, setCallbacks] = useState<any[]>([])
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
+  // Load daily stats
   useEffect(() => {
     if (!session?.user?.organization_id) return
 
@@ -70,11 +72,38 @@ export default function WorkPage() {
     loadData()
   }, [session?.user?.organization_id])
 
+  // Auto-refresh stats every 30 seconds when auto-advance is enabled
+  useEffect(() => {
+    if (!session?.user?.organization_id || !autoRefresh) return
+
+    const interval = setInterval(async () => {
+      try {
+        const statsData = await apiGet('/api/collections/daily-stats').catch(() => null)
+        if (statsData?.data) {
+          setStats(prev => ({
+            ...prev,
+            ...statsData.data,
+          }))
+        }
+      } catch (err: any) {
+        logger.debug('Auto-refresh failed', { error: err?.message })
+      }
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [session?.user?.organization_id, autoRefresh])
+
   const greeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good morning'
     if (hour < 17) return 'Good afternoon'
     return 'Good evening'
+  }
+
+  // Check if auto-advance is enabled (from localStorage)
+  const isAutoAdvanceEnabled = () => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('wb-auto-advance-enabled') === 'true'
   }
 
   const callProgress = stats ? Math.min(100, Math.round((stats.calls_today / (stats.target_calls || 40)) * 100)) : 0
@@ -101,9 +130,17 @@ export default function WorkPage() {
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {greeting()}, {session?.user?.name?.split(' ')[0] || 'Agent'}
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-gray-500">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+            {isAutoAdvanceEnabled() && (
+              <Badge variant="default" className="text-[10px] bg-green-600 text-white">
+                <Zap className="w-3 h-3 mr-1" />
+                Auto-Advance ON
+              </Badge>
+            )}
+          </div>
         </div>
         <Link href="/work/call">
           <Button className="bg-green-600 hover:bg-green-700 text-white gap-1.5">
