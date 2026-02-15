@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Load environment variables from .env.e2e file
+require('dotenv').config({ path: '.env.e2e' })
+
 /**
  * Playwright E2E Test Configuration — Word Is Bond Platform
  *
@@ -63,18 +66,15 @@ export default defineConfig({
       testIgnore: /auth\.setup\.ts/,
     },
 
-    /* Authenticated tests — depend on setup project
-     * Uncomment when auth.setup.ts has real credentials:
-     *
-     * {
-     *   name: 'chromium-authenticated',
-     *   use: {
-     *     ...devices['Desktop Chrome'],
-     *     storageState: '.auth/user.json',
-     *   },
-     *   dependencies: ['setup'],
-     * },
-     */
+    /* Authenticated tests — depend on setup project */
+    {
+      name: 'chromium-authenticated',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
   ],
 
   /* ── Dev server ──────────────────────────────────────────────────────── */

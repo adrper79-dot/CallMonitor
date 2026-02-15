@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DialerPanel } from '@/components/voice/DialerPanel'
+import { signOut } from '@/components/AuthProvider'
 import {
   ArrowLeft,
   Phone,
@@ -29,6 +30,7 @@ import {
   Clock,
   BarChart3,
   Loader2,
+  LogOut,
 } from 'lucide-react'
 
 interface CampaignDetail {
@@ -70,8 +72,18 @@ export default function CampaignDetailClient() {
 
   const userId = (session?.user as any)?.id
   const [organizationId, setOrganizationId] = useState<string | null>((session?.user as any)?.organization_id || null)
+  const [organizationName, setOrganizationName] = useState<string | undefined>(undefined)
   const { role } = useRBAC(organizationId)
   const isOwnerOrAdmin = role === 'owner' || role === 'admin'
+
+  const handleSignOut = async () => {
+    try {
+      await signOut({ callbackUrl: '/signin' })
+    } catch (error) {
+      logger.error('Sign out failed', { error })
+      router.push('/signin')
+    }
+  }
 
   // Fetch organization ID
   const fetchOrganization = useCallback(async () => {
@@ -84,6 +96,7 @@ export default function CampaignDetailClient() {
       }>(`/api/users/${userId}/organization`)
       if (data.organization?.id) {
         setOrganizationId(data.organization.id)
+        setOrganizationName(data.organization.name)
       }
     } catch (err) {
       logger.error('Error fetching organization', err, { userId })
@@ -163,21 +176,25 @@ export default function CampaignDetailClient() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     )
   }
 
   if (error || !campaign) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => router.push('/campaigns')} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Campaigns
-        </Button>
-        <div className="rounded-lg bg-destructive/10 p-6 text-center">
-          <XCircle className="mx-auto h-12 w-12 text-destructive mb-2" />
-          <p className="text-sm text-destructive">{error || 'Campaign not found'}</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <Button variant="ghost" onClick={() => router.push('/campaigns')} className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Campaigns
+          </Button>
+          <div className="rounded-lg bg-destructive/10 p-6 text-center">
+            <XCircle className="mx-auto h-12 w-12 text-destructive mb-2" />
+            <p className="text-sm text-destructive">{error || 'Campaign not found'}</p>
+          </div>
         </div>
       </div>
     )
@@ -188,27 +205,47 @@ export default function CampaignDetailClient() {
       ? Math.round((campaign.calls_completed / campaign.total_targets) * 100)
       : 0
 
-  return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/campaigns')}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> Back
-          </Button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold text-gray-900">{campaign.name}</h1>
-              {getStatusBadge(campaign.status)}
-            </div>
-            {campaign.description && (
-              <p className="text-sm text-muted-foreground mt-1">{campaign.description}</p>
-            )}
+  if (!organizationId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Loading campaign...</p>
           </div>
         </div>
-        <Badge variant="secondary" className="capitalize">
-          {campaign.call_flow_type.replace('_', ' ')}
-        </Badge>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Minimal Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/campaigns')}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back
+            </Button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-semibold text-gray-900">{campaign.name}</h1>
+                {getStatusBadge(campaign.status)}
+              </div>
+              {campaign.description && (
+                <p className="text-sm text-muted-foreground mt-1">{campaign.description}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge variant="secondary" className="capitalize">
+              {campaign.call_flow_type.replace('_', ' ')}
+            </Badge>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="mr-1 h-4 w-4" /> Sign out
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Stats + Dialer side-by-side */}

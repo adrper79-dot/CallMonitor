@@ -16,7 +16,7 @@ test.describe('Navigation — Public Pages', () => {
 
   test('homepage has "Get Started" CTA', async ({ page }) => {
     await page.goto('/')
-    const cta = page.getByRole('link', { name: /get started/i })
+    const cta = page.getByRole('link', { name: /get started/i }).first()
     await expect(cta).toBeVisible()
     await expect(cta).toHaveAttribute('href', '/signup')
   })
@@ -34,15 +34,18 @@ test.describe('Navigation — Public Pages', () => {
 })
 
 test.describe('Navigation — Auth Guards', () => {
-  test('/dashboard redirects to signin when unauthenticated', async ({ page }) => {
+  test('/dashboard shows auth gate when unauthenticated', async ({ page }) => {
     await page.goto('/dashboard')
-    // Should redirect to signin (may include callbackUrl)
-    await expect(page).toHaveURL(/\/signin/, { timeout: 10_000 })
+    // Should show inline auth screen, not redirect
+    await expect(page.getByText('Sign in required')).toBeVisible()
+    await expect(page.getByRole('link', { name: /sign in with email/i })).toBeVisible()
   })
 
-  test('/settings redirects to signin when unauthenticated', async ({ page }) => {
+  test('/settings shows auth gate when unauthenticated', async ({ page }) => {
     await page.goto('/settings')
-    await expect(page).toHaveURL(/\/signin/, { timeout: 10_000 })
+    // Should show inline auth screen, not redirect
+    await expect(page.getByText('Sign in required')).toBeVisible()
+    await expect(page.getByRole('link', { name: /sign in with email/i })).toBeVisible()
   })
 })
 

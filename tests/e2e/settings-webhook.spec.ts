@@ -10,7 +10,7 @@ import { test, expect } from '@playwright/test'
  * these tests are skipped. Remove `.skip` and uncomment the storageState
  * project in playwright.config.ts once test credentials are available.
  */
-test.describe.skip('Webhooks (requires auth)', () => {
+test.describe('Webhooks (requires auth)', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the webhooks tab in settings
     await page.goto('/settings?tab=webhooks')

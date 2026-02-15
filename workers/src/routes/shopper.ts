@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateShopperSchema, UpdateShopperSchema } from '../lib/schemas'
@@ -51,9 +51,9 @@ async function listScripts(c: any) {
 
 /** Shared handler: create or update script */
 async function upsertScript(c: any) {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
 
   const parsed = await validateBody(c, CreateShopperSchema)
@@ -155,9 +155,9 @@ shopperRoutes.post('/scripts/manage', shopperRateLimit, async (c) => {
 
 // PUT /scripts/:id — update script
 shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
   const db = getDb(c.env, session.organization_id)
   try {
@@ -202,9 +202,9 @@ shopperRoutes.put('/scripts/:id', shopperRateLimit, async (c) => {
 
 // DELETE /scripts/:id — delete script
 shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
   const db = getDb(c.env, session.organization_id)
   try {
@@ -242,9 +242,9 @@ shopperRoutes.delete('/scripts/:id', shopperRateLimit, async (c) => {
 
 // DELETE /scripts/manage — frontend compat (id in body or query)
 shopperRoutes.delete('/scripts/manage', shopperRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
   const db = getDb(c.env, session.organization_id)
   try {

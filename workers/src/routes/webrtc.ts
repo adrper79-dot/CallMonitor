@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebRTCDialSchema } from '../lib/schemas'
@@ -276,9 +276,9 @@ webrtcRoutes.get('/token', telnyxVoiceRateLimit, async (c) => {
 
 // Initiate outbound call via Telnyx Call Control API
 webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
 
   const parsed = await validateBody(c, WebRTCDialSchema)
@@ -382,7 +382,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
           connectionId: c.env.TELNYX_CONNECTION_ID?.slice(0, 8) + '...',
           retryAfter,
         })
-        await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
+        await db.query('UPDATE calls SET status = $1 WHERE id = $2 AND organization_id = $3', ['failed', callId, session.organization_id])
         return c.json(
           {
             error: 'Call service rate limit exceeded. Please try again later.',
@@ -398,7 +398,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
         logger.error('Telnyx account payment issue (WebRTC)', {
           response: errorMessage,
         })
-        await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
+        await db.query('UPDATE calls SET status = $1 WHERE id = $2 AND organization_id = $3', ['failed', callId, session.organization_id])
         return c.json(
           {
             error: 'Voice service temporarily unavailable. Please contact support.',
@@ -415,7 +415,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
       })
 
       // Update call status to failed
-      await db.query('UPDATE calls SET status = $1 WHERE id = $2', ['failed', callId])
+      await db.query('UPDATE calls SET status = $1 WHERE id = $2 AND organization_id = $3', ['failed', callId, session.organization_id])
 
       return c.json({ error: 'Failed to initiate call' }, 500)
     }
@@ -428,8 +428,8 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
 
     // Update call record with Telnyx call IDs
     await db.query(
-      'UPDATE calls SET call_sid = $1, call_control_id = $2, status = $3 WHERE id = $4',
-      [callSessionId, callControlId, 'ringing', callId]
+      'UPDATE calls SET call_sid = $1, call_control_id = $2, status = $3 WHERE id = $4 AND organization_id = $5',
+      [callSessionId, callControlId, 'ringing', callId, session.organization_id]
     )
 
     writeAuditLog(db, {

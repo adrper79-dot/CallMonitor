@@ -402,7 +402,7 @@ googleWorkspaceRoutes.get('/contacts', async (c) => {
 // ── POST /contacts/sync — Sync contacts into platform ────────────────────────
 
 googleWorkspaceRoutes.post('/contacts/sync', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, ContactsSyncSchema)
@@ -553,7 +553,7 @@ googleWorkspaceRoutes.get('/events', async (c) => {
 // ── POST /events — Create calendar event (booking sync) ──────────────────────
 
 googleWorkspaceRoutes.post('/events', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, CreateEventSchema)
@@ -595,7 +595,7 @@ googleWorkspaceRoutes.post('/events', crmRateLimit, async (c) => {
 // ── DELETE /events/:eventId — Cancel calendar event ──────────────────────────
 
 googleWorkspaceRoutes.delete('/events/:eventId', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env, session.organization_id)

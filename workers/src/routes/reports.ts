@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth, authMiddleware } from '../lib/auth'
+import { requireAuth, authMiddleware, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { GenerateReportSchema, ScheduleReportSchema, UpdateScheduleSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
@@ -59,8 +59,8 @@ reportsRoutes.get('/', authMiddleware, requirePlan('business'), async (c) => {
 
 // POST / — Generate a new report
 reportsRoutes.post('/', authMiddleware, requirePlan('business'), reportRateLimit, async (c) => {
-  const session = c.get('session')
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
 
@@ -184,8 +184,8 @@ reportsRoutes.get('/schedules', async (c) => {
 
 // POST /schedules — Create report schedule
 reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
 
@@ -230,8 +230,8 @@ reportsRoutes.post('/schedules', reportRateLimit, async (c) => {
 
 // PATCH /schedules/:id — Update report schedule (toggle active, etc.)
 reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
 
@@ -275,8 +275,8 @@ reportsRoutes.patch('/schedules/:id', reportRateLimit, async (c) => {
 
 // DELETE /schedules/:id — Delete report schedule
 reportsRoutes.delete('/schedules/:id', reportRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'manager')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
 

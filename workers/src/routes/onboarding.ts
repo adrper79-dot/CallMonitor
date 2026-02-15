@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
@@ -16,8 +16,8 @@ const OnboardingSetupSchema = z.object({
 
 // Initialize onboarding (Step 1 -> 2)
 onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const parsed = await validateBody(c, OnboardingSetupSchema)
   if (!parsed.success) return parsed.response
@@ -123,8 +123,8 @@ const OnboardingProgressSchema = z.object({
 })
 
 onboardingRoutes.post('/progress', onboardingRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const parsed = await validateBody(c, OnboardingProgressSchema)
   if (!parsed.success) return parsed.response

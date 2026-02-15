@@ -351,22 +351,25 @@ export async function cleanupOldStripeData(retentionDays: number = 90) {
     // Clean up old invoices (keep successful ones longer)
     const invoiceCleanup = await db.query(
       `DELETE FROM stripe_invoices
-       WHERE updated_at < NOW() - INTERVAL '${retentionDays} days'
+       WHERE updated_at < NOW() - ($1 || ' days')::interval
        AND status NOT IN ('paid', 'open')`, // Keep recent paid/open invoices
+      [retentionDays]
     )
 
     // Clean up old payment methods (keep active ones)
     const pmCleanup = await db.query(
       `DELETE FROM stripe_payment_methods
-       WHERE updated_at < NOW() - INTERVAL '${retentionDays} days'
+       WHERE updated_at < NOW() - ($1 || ' days')::interval
        AND is_default = false`, // Keep default payment methods
+      [retentionDays]
     )
 
     // Clean up old subscriptions (keep active ones)
     const subCleanup = await db.query(
       `DELETE FROM stripe_subscriptions
-       WHERE updated_at < NOW() - INTERVAL '${retentionDays} days'
+       WHERE updated_at < NOW() - ($1 || ' days')::interval
        AND status NOT IN ('active', 'trialing')`, // Keep active subscriptions
+      [retentionDays]
     )
 
     const totalCleaned = (invoiceCleanup.rowCount ?? 0) + (pmCleanup.rowCount ?? 0) + (subCleanup.rowCount ?? 0)

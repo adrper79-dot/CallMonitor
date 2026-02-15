@@ -28,9 +28,9 @@ export default function EvidenceManifestSummary({ manifest }: { manifest?: Evide
   }
 
   const id = manifest.manifest_id || manifest.id || 'unknown'
-  const created = manifest.created_at || manifest.createdAt || 'unknown'
+  const created = manifest.created_at || 'unknown'
   const artifactsCount = Array.isArray(manifest.artifacts) ? manifest.artifacts.length : 0
-  const hash = manifest.manifest_hash || manifest.hash || manifest.manifestHash || 'n/a'
+  const hash = manifest.manifest_hash || manifest.hash || 'n/a'
 
   return (
     <section role="region" aria-label="Evidence manifest summary" className="w-full p-4 bg-white rounded-md border border-gray-200">

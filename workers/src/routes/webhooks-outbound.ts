@@ -24,7 +24,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv, Env } from '../index'
 import { getDb, type DbClient } from '../lib/db'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { logger } from '../lib/logger'
 import { rateLimit } from '../lib/rate-limit'
@@ -216,8 +216,8 @@ webhooksOutboundRoutes.get('/subscriptions', async (c) => {
  * @returns { subscription }
  */
 webhooksOutboundRoutes.post('/subscriptions', outboundWebhookRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   let body: unknown
   try {
@@ -333,8 +333,8 @@ webhooksOutboundRoutes.get('/subscriptions/:id', async (c) => {
  * @returns { subscription }
  */
 webhooksOutboundRoutes.put('/subscriptions/:id', outboundWebhookRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const { id } = c.req.param()
 
@@ -448,8 +448,8 @@ webhooksOutboundRoutes.put('/subscriptions/:id', outboundWebhookRateLimit, async
  * @returns 204 No Content
  */
 webhooksOutboundRoutes.delete('/subscriptions/:id', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const { id } = c.req.param()
 
@@ -502,8 +502,8 @@ webhooksOutboundRoutes.delete('/subscriptions/:id', async (c) => {
  * @returns { delivery }
  */
 webhooksOutboundRoutes.post('/subscriptions/:id/test', outboundWebhookRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const { id } = c.req.param()
 

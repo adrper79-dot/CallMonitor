@@ -10,6 +10,7 @@ const describeOrSkip = RUN_INTEGRATION ? describe : describe.skip
 
 // Import webhook handler functions for direct testing
 import {
+  handleCheckoutCompleted,
   handleSubscriptionUpdate,
   handleInvoiceFailed
 } from '../workers/src/routes/webhooks'
@@ -336,7 +337,7 @@ async function generateValidTelnyxSignature(payload: any, timestamp?: number) {
   const message = `${ts}.${JSON.stringify(payload)}`
   
   // Use test private key to sign
-  const signature = await signEd25519(message, process.env.TELNYX_TEST_PRIVATE_KEY)
+  const signature = await signEd25519(message, process.env.TELNYX_TEST_PRIVATE_KEY || '')
   
   return {
     signature: Buffer.from(signature).toString('base64'),

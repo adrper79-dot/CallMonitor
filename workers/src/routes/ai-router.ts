@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { authMiddleware, requireAuth } from '../lib/auth'
+import { authMiddleware, requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
 import { aiLlmRateLimit, aiTtsRateLimit, complianceRateLimit } from '../lib/rate-limit'
@@ -200,8 +200,8 @@ aiRouterRoutes.post('/tts', aiTtsRateLimit, async (c) => {
   let db: ReturnType<typeof getDb> | null = null
   const startedAt = Date.now()
   try {
-    const session = await requireAuth(c)
-    if (!session) return c.json({ error: 'Unauthorized' }, 401)
+    const session = await requireRole(c, 'agent')
+    if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
     const parsed = await validateBody(c, TTSGenerateSchema)
     if (!parsed.success) return parsed.response

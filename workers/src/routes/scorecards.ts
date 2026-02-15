@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateScorecardSchema } from '../lib/schemas'
 import { getDb } from '../lib/db'
@@ -58,8 +58,8 @@ scorecardsRoutes.get('/', async (c) => {
 
 // POST / — create scorecard
 scorecardsRoutes.post('/', scorecardsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {

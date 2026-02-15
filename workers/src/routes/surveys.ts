@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { CreateSurveySchema } from '../lib/schemas'
@@ -81,8 +81,8 @@ surveysRoutes.get('/', async (c) => {
 
 // POST / — Create survey
 surveysRoutes.post('/', surveyRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, CreateSurveySchema)
@@ -132,8 +132,8 @@ surveysRoutes.post('/', surveyRateLimit, async (c) => {
 
 // DELETE /:id — Delete survey
 surveysRoutes.delete('/:id', surveyRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const id = c.req.param('id')

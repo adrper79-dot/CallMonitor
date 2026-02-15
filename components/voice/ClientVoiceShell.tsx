@@ -23,7 +23,7 @@ export default function ClientVoiceShell({
   // Listen for call selection events from activity feed
   useEffect(() => {
     function handleCallSelect(e: CustomEvent) {
-      const callId = e.detail?.callId
+      const callId = e.detail?.call_id
       if (callId) {
         setSelectedCallId(callId)
         // Scroll to call detail

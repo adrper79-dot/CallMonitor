@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { AddCallerIdSchema, VerifyCallerIdSchema } from '../lib/schemas'
@@ -46,9 +46,9 @@ async function listCallerIds(c: any) {
 
 /** Shared: initiate verification */
 async function initiateVerification(c: any) {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
 
   const parsed = await validateBody(c, AddCallerIdSchema)
@@ -175,9 +175,9 @@ callerIdRoutes.post('/verify', callerIdRateLimit, async (c) => {
 
 // PUT /verify — confirm verification with code
 callerIdRoutes.put('/verify', callerIdVerifyRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
 
   const parsed = await validateBody(c, VerifyCallerIdSchema)
@@ -235,9 +235,9 @@ callerIdRoutes.put('/verify', callerIdVerifyRateLimit, async (c) => {
 
 // DELETE /:id — remove caller ID
 callerIdRoutes.delete('/:id', callerIdRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'operator')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
 
   const callerId = c.req.param('id')

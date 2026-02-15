@@ -17,7 +17,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb, withTransaction } from '../lib/db'
 import { logger } from '../lib/logger'
 import { collectionsRateLimit } from '../lib/rate-limit'
@@ -117,8 +117,8 @@ paymentsRoutes.get('/plans', async (c) => {
 
 // ─── POST /plans — Create a payment plan ───────────────────────────────────
 paymentsRoutes.post('/plans', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {
@@ -223,8 +223,8 @@ paymentsRoutes.get('/links', async (c) => {
 
 // ─── POST /links — Create a payment link ───────────────────────────────────
 paymentsRoutes.post('/links', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {

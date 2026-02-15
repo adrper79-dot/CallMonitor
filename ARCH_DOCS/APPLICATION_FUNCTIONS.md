@@ -2,10 +2,10 @@
 
 > **TOGAF Phase:** Phase B (Business Architecture) + Phase C (Information Systems Architecture)
 
-**Last Updated:** February 14, 2026
-**Platform Version:** v4.66
+**Last Updated:** February 15, 2026
+**Platform Version:** v4.67
 **Status:** Production Ready — 109/109 Roadmap Items Complete
-**Audited:** Feb 14, 2026 — Full codebase analysis (83 pages, 54 route files, 264+ endpoints, 37 lib modules)
+**Audited:** Feb 15, 2026 — Full codebase analysis (89 pages, 61 route files, ~310 endpoints, 44 lib modules)
 
 ---
 
@@ -166,7 +166,7 @@
 
 **Backend Routes:** `/api/dialer/*` (6 endpoints)
 **Backend Lib:** `dialer-engine.ts`
-**Frontend Component:** `DialerPanel.tsx` (283 lines) — **NOTE: Currently orphaned, not rendered in any page**
+**Frontend Component:** `DialerPanel.tsx` (283 lines) — Rendered in `/voice-operations` and `/campaigns/[id]`
 **Database Tables:** `dialer_agent_status`, `campaign_calls`
 
 ---
@@ -274,7 +274,7 @@
 - Team performance analytics
 - Organization-level configuration
 
-**Backend Routes:** `/api/teams/*` (10 endpoints), `/api/team/*` (8 endpoints), `/api/organizations/*` (3 endpoints)
+**Backend Routes:** `/api/teams/*` (10 endpoints), `/api/team/*` (8 endpoints), `/api/organizations/*` (3 endpoints), `/api/users/*` (2 endpoints: profile, org info)
 **Frontend Pages:** `/teams`, `/settings/team`, `/settings/org-create`
 **Components:** `TeamManagement`, `TeamsManager`, `RoleManager`, `OrgSwitcher`
 **Database Tables:** `organizations`, `org_members`, `teams`, `team_members`, `team_invites`
@@ -561,7 +561,7 @@
 - Deep health check endpoints (DB, KV, R2, Telnyx, OpenAI, Stripe, AssemblyAI)
 - Environment verification scripts
 - Deploy chain: Workers → Build → Pages → Health check
-- 7 cron jobs (transcription retry, session cleanup, audit DLQ flush, usage aggregation, payment processing, dunning, prevention scan)
+- 8 cron jobs (transcription retry, CRM delta sync, session cleanup, audit DLQ flush, usage aggregation, payment processing, dunning, prevention scan)
 
 **Backend Lib:** `db.ts`, `logger.ts`, `health-probes.ts`, `rate-limit.ts`, `idempotency.ts`
 
@@ -688,14 +688,32 @@
 
 ---
 
+## 38. Email Campaign System
+
+- CAN-SPAM compliant email campaigns via Resend integration
+- 4 built-in templates: welcome, follow-up, payment-reminder, custom
+- Automatic unsubscribe footer with one-click opt-out link
+- Batch sending with rate limiting and bounce handling
+- Campaign analytics (sent, delivered, opened, clicked, bounced)
+- Unsubscribe management shared with SMS via unified `/api/messages` mount
+
+**Backend Routes:** `/api/email-campaigns/*` (5 endpoints)
+**Backend Lib:** `email-campaigns.ts` (Resend integration, template rendering)
+**Frontend Pages:** `/campaigns` (unified campaign management)
+**Database Tables:** `email_campaigns`, `email_sends`, `unsubscribes`
+
+> **Note:** The `unsubscribe.ts` route shares the `/api/messages` mount point with SMS messaging for unified opt-out management across channels. This dual-mount is intentional and non-conflicting.
+
+---
+
 ## Architecture Summary
 
 | Layer | Technology | Count |
 |-------|-----------|-------|
 | Frontend Pages | Next.js 15 | 89 |
-| Backend Route Files | Hono on Workers | 59 |
+| Backend Route Files | Hono on Workers | 61 |
 | HTTP Endpoints | REST API | ~310 |
-| Backend Lib Modules | TypeScript | 42 |
+| Backend Lib Modules | TypeScript | 44 |
 | Frontend Components | React/TypeScript | ~165 |
 | Custom Hooks | React | 15 |
 | Database Tables | Neon PostgreSQL | 177 |

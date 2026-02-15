@@ -18,7 +18,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { getDb } from '../lib/db'
 import { logger } from '../lib/logger'
@@ -316,8 +316,8 @@ helpdeskRoutes.get('/status', async (c) => {
  * Body: { provider: 'zendesk'|'freshdesk', config: { subdomain, api_key, email? } }
  */
 helpdeskRoutes.post('/connect', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {
@@ -392,8 +392,8 @@ helpdeskRoutes.post('/connect', crmRateLimit, async (c) => {
  * POST /disconnect — Remove the active helpdesk connection.
  */
 helpdeskRoutes.post('/disconnect', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {
@@ -438,8 +438,8 @@ helpdeskRoutes.post('/disconnect', crmRateLimit, async (c) => {
  * Body: { call_id, subject?, priority?, tags? }
  */
 helpdeskRoutes.post('/tickets', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {
@@ -631,8 +631,8 @@ helpdeskRoutes.get('/tickets', async (c) => {
  * Body: { enabled, conditions: { on_missed_call?, on_negative_sentiment?, ... } }
  */
 helpdeskRoutes.post('/tickets/auto-create', crmRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const db = getDb(c.env, session.organization_id)
   try {

@@ -198,7 +198,7 @@ export default function VoiceOperationsClient({
   // Listen for call selection events from activity feed
   useEffect(() => {
     function handleCallSelect(e: CustomEvent) {
-      const callId = e.detail?.callId
+      const callId = e.detail?.call_id
       if (callId) {
         setSelectedCallId(callId)
         setMobileTab('dial')

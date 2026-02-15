@@ -1988,7 +1988,7 @@ async function handleCallBridged(env: Env, db: DbClient, payload: any) {
  * Handle checkout.session.completed event
  * Fired when a customer completes checkout and creates a subscription
  */
-async function handleCheckoutCompleted(db: DbClient, session: any) {
+export async function handleCheckoutCompleted(db: DbClient, session: any) {
   const customerId = session.customer
   const subscriptionId = session.subscription
   const orgId = session.metadata?.organization_id

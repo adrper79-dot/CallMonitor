@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { TranscribeSchema } from '../lib/schemas'
@@ -24,7 +24,7 @@ export const audioRoutes = new Hono<AppEnv>()
 
 // POST /upload — Upload audio file
 audioRoutes.post('/upload', audioRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env, session.organization_id)
@@ -77,7 +77,7 @@ audioRoutes.post('/upload', audioRateLimit, async (c) => {
 
 // POST /transcribe — Start transcription job
 audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const db = getDb(c.env, session.organization_id)
@@ -145,30 +145,33 @@ audioRoutes.post('/transcribe', audioRateLimit, async (c) => {
         if (assemblyRes.ok) {
           const assemblyData = (await assemblyRes.json()) as { id: string }
           // Store the AssemblyAI transcript ID for webhook matching
-          await db.query(`UPDATE transcriptions SET external_id = $1 WHERE id = $2`, [
+          await db.query(`UPDATE transcriptions SET external_id = $1 WHERE id = $2 AND organization_id = $3`, [
             assemblyData.id,
             transcription.id,
+            session.organization_id,
           ])
         } else {
           logger.warn('AssemblyAI submission failed', {
             status: assemblyRes.status,
             transcriptionId: transcription.id,
           })
-          await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1`, [
+          await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1 AND organization_id = $2`, [
             transcription.id,
+            session.organization_id,
           ])
         }
       } catch (assemblyErr: any) {
         logger.error('AssemblyAI submission exception', { error: assemblyErr?.message })
-        await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1`, [
+        await db.query(`UPDATE transcriptions SET status = 'failed' WHERE id = $1 AND organization_id = $2`, [
           transcription.id,
+          session.organization_id,
         ])
       }
     } else if (!c.env.ASSEMBLYAI_API_KEY) {
       // No STT provider configured — mark as failed
       await db.query(
-        `UPDATE transcriptions SET status = 'failed', transcript = 'No speech-to-text provider configured' WHERE id = $1`,
-        [transcription.id]
+        `UPDATE transcriptions SET status = 'failed', transcript = 'No speech-to-text provider configured' WHERE id = $1 AND organization_id = $2`,
+        [transcription.id, session.organization_id]
       )
     }
 

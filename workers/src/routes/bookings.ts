@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateBookingSchema, UpdateBookingSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
@@ -62,7 +62,7 @@ bookingsRoutes.get('/', async (c) => {
 
 // POST / — create a booking
 bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
@@ -133,7 +133,7 @@ bookingsRoutes.post('/', bookingRateLimit, idempotent(), async (c) => {
 
 // PATCH /:id — update booking (cancel, reschedule, etc.)
 bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
@@ -183,9 +183,9 @@ bookingsRoutes.patch('/:id', bookingRateLimit, async (c) => {
 
 // DELETE /:id — delete a booking
 bookingsRoutes.delete('/:id', bookingRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'manager')
   if (!session) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   }
   const db = getDb(c.env, session.organization_id)
   try {

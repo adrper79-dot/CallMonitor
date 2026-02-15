@@ -27,7 +27,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv, Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { logger } from '../lib/logger'
@@ -129,8 +129,8 @@ notificationsRoutes.get('/channels', async (c) => {
  * @body { provider, name, webhook_url, events, is_active? }
  */
 notificationsRoutes.post('/channels', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const body = await c.req.json().catch(() => null)
   if (!body) return c.json({ error: 'Invalid JSON body' }, 400)
@@ -181,8 +181,8 @@ notificationsRoutes.post('/channels', async (c) => {
  * Update a notification channel's config (name, webhook_url, events, is_active).
  */
 notificationsRoutes.put('/channels/:id', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const channelId = c.req.param('id')
 
@@ -277,8 +277,8 @@ notificationsRoutes.put('/channels/:id', async (c) => {
  * Delete a notification channel by ID. Scoped to the caller's org.
  */
 notificationsRoutes.delete('/channels/:id', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const channelId = c.req.param('id')
   const db = getDb(c.env, session.organization_id)
@@ -324,8 +324,8 @@ notificationsRoutes.delete('/channels/:id', async (c) => {
  * Send a test notification to verify the webhook URL is reachable.
  */
 notificationsRoutes.post('/channels/:id/test', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'operator')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
 
   const channelId = c.req.param('id')
   const db = getDb(c.env, session.organization_id)

@@ -122,7 +122,7 @@ export default function ActivityFeedEmbed({
     if (event.call_id) {
       window.dispatchEvent(
         new CustomEvent('call:select', {
-          detail: { callId: event.call_id },
+          detail: { call_id: event.call_id },
         })
       )
     }

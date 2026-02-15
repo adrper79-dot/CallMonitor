@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import { WebhookActionSchema } from '../lib/schemas'
@@ -86,8 +86,8 @@ reliabilityRoutes.get('/webhooks', async (c) => {
 
 // PUT /webhooks — Take action on a webhook failure
 reliabilityRoutes.put('/webhooks', reliabilityRateLimit, async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
   const db = getDb(c.env, session.organization_id)
   try {
     const parsed = await validateBody(c, WebhookActionSchema)

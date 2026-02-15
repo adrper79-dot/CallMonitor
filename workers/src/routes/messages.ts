@@ -182,7 +182,7 @@ async function sendSingleSms(
 // ─── POST / — Send SMS (Single or Bulk) ─────────────────────────────────────
 
 messagesRoutes.post('/', messagesRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const parsed = await validateBody(c, SendSmsSchema)
@@ -774,7 +774,7 @@ messagesRoutes.delete('/templates/:id', async (c) => {
 // ─── POST /email — Send Email via Resend ────────────────────────────────────
 
 messagesRoutes.post('/email', collectionsRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   try {
@@ -1058,7 +1058,7 @@ messagesRoutes.patch('/:id/read', messagesRateLimit, async (c) => {
 // ─── POST /:id/reply — Reply to Message ─────────────────────────────────────
 
 messagesRoutes.post('/:id/reply', messagesRateLimit, async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'agent')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const messageId = c.req.param('id')
