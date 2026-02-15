@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useSession } from '@/components/AuthProvider'
+import { useRBAC } from '@/hooks/useRBAC'
 import { apiGet } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
 import { AlertTriangle } from 'lucide-react'
@@ -58,7 +59,11 @@ export default function DialerPage() {
       })
   }, [session, status])
 
-  if (status === 'loading') {
+  // Check role-based access
+  const { role, loading: rbacLoading } = useRBAC(orgId)
+  const hasDialerAccess = role && ['agent', 'analyst', 'operator', 'manager', 'compliance', 'admin', 'owner'].includes(role)
+
+  if (status === 'loading' || rbacLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-center">
@@ -84,6 +89,25 @@ export default function DialerPage() {
           >
             Retry
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasDialerAccess) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center max-w-sm px-4">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+            <AlertTriangle className="h-6 w-6 text-amber-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Access Restricted</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            The dialer requires agent-level permissions or higher. Your current role ({role || 'unknown'}) does not have access to make calls.
+          </p>
+          <p className="mt-2 text-sm text-gray-400">
+            Contact your administrator to upgrade your role if you need dialer access.
+          </p>
         </div>
       </div>
     )

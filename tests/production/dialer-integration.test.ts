@@ -119,7 +119,7 @@ describe('Predictive Dialer Integration Tests', () => {
   test('Pause/Resume: Campaign can be paused and resumed', async () => {
     mockDb.query
       .mockResolvedValueOnce({ rowCount: 1 })
-      .mockResolvedValueOnce({ rows: [{ id: 'call-1, target_phone: '+15551234001' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'call-1', target_phone: '+15551234001' }] })
       .mockResolvedValueOnce({ rows: [{ user_id: 'agent-1' }] })
       .mockResolvedValueOnce({ rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ phone_number: '+15551234000' }] })
@@ -207,6 +207,7 @@ describe('Predictive Dialer Integration Tests', () => {
           call_flow_type: 'predictive',
         }],
       })
+      .mockResolvedValueOnce({ rows: [] }) // No agents available
       .mockResolvedValue({ rowCount: 1 })
 
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: {} }) })

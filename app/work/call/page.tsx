@@ -9,8 +9,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { useSession } from '@/components/AuthProvider'
+import { useRBAC } from '@/hooks/useRBAC'
 import { apiGet } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
+import { AlertTriangle } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 // Dynamic import to avoid SSR issues with WebRTC hooks
@@ -41,6 +43,40 @@ export default function WorkCallPage() {
       })
       .catch((err: any) => logger.error('Failed to load org for cockpit', err))
   }, [session])
+
+  // Check role-based access
+  const { role, loading: rbacLoading } = useRBAC(orgId)
+  const hasDialerAccess = role && ['agent', 'analyst', 'operator', 'manager', 'compliance', 'admin', 'owner'].includes(role)
+
+  if (rbacLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Loading Cockpit...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasDialerAccess) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center max-w-sm px-4">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+            <AlertTriangle className="h-6 w-6 text-amber-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Access Restricted</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            The cockpit requires agent-level permissions or higher. Your current role ({role || 'unknown'}) does not have access to make calls.
+          </p>
+          <p className="mt-2 text-sm text-gray-400">
+            Contact your administrator to upgrade your role if you need dialer access.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return <Cockpit organizationId={orgId} organizationName={orgName} />
 }

@@ -1,14 +1,7 @@
-/**
- * Workplace Person Simulator — Word Is Bond Platform
- *
- * Comprehensive E2E test suite that simulates complete employee journeys
- * from signup through productive use, testing all features and detecting kinks.
- */
-
-import { test, expect, Page } from '@playwright/test'
-import { faker } from '@faker-js/faker'
+import { test, Page } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
+import { faker } from '@faker-js/faker'
 
 // Configuration
 const SIMULATOR_CONFIG = {
@@ -26,27 +19,25 @@ if (!fs.existsSync(SIMULATOR_CONFIG.evidenceDir)) {
   fs.mkdirSync(SIMULATOR_CONFIG.evidenceDir, { recursive: true })
 }
 
-interface EvidenceItem {
-  timestamp: string
-  step: string
-  description: string
-  screenshot?: string
-  duration?: number
-  error?: string
-  metadata?: any
-}
-
 interface KinkReport {
   severity: 'critical' | 'high' | 'medium' | 'low'
-  category: 'performance' | 'ui' | 'ux' | 'validation' | 'flow' | 'security'
+  category: 'performance' | 'ux' | 'functionality' | 'accessibility'
   description: string
   step: string
   evidence: string[]
   recommendation: string
 }
 
+interface Evidence {
+  timestamp: string
+  step: string
+  description: string
+  screenshot?: string
+  metadata?: any
+}
+
 class WorkplaceSimulator {
-  private evidence: EvidenceItem[] = []
+  private evidence: Evidence[] = []
   private kinks: KinkReport[] = []
   private testId: string
   private testUser: any
@@ -134,21 +125,16 @@ class WorkplaceSimulator {
     await page.click('button[type="submit"]')
     console.log('Waiting for onboarding URL...')
     await page.waitForURL('**/onboarding/**')
-    const currentUrl = page.url()
-    console.log('Current URL after signup:', currentUrl)
-    await this.captureEvidence(page, 'signup-complete', `Redirected to onboarding: ${currentUrl}`)
+    await this.captureEvidence(page, 'signup-complete', 'Redirected to onboarding')
   }
 
   async simulateOnboarding(page: Page): Promise<void> {
     console.log('Starting onboarding simulation...')
-    const currentUrl = page.url()
-    console.log('Current URL at start of onboarding:', currentUrl)
-    
-    // Wait for onboarding page to load - accept any onboarding URL
-    await page.waitForURL('**/onboarding/**')
-    const onboardingUrl = page.url()
-    console.log('Onboarding URL loaded:', onboardingUrl)
-    await this.captureEvidence(page, 'onboarding-start', `Onboarding page loaded: ${onboardingUrl}`)
+
+    // Wait for onboarding page to load
+    await page.waitForURL('**/onboarding')
+    console.log('Onboarding page loaded')
+    await this.captureEvidence(page, 'onboarding-start', 'Onboarding page loaded')
 
     // Step 1: Plan selection
     console.log('Waiting for plan selection step...')

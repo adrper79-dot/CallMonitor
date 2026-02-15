@@ -69,13 +69,13 @@ export default function CampaignDetailClient() {
   const [error, setError] = useState<string | null>(null)
 
   const userId = (session?.user as any)?.id
-  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [organizationId, setOrganizationId] = useState<string | null>((session?.user as any)?.organization_id || null)
   const { role } = useRBAC(organizationId)
   const isOwnerOrAdmin = role === 'owner' || role === 'admin'
 
   // Fetch organization ID
   const fetchOrganization = useCallback(async () => {
-    if (!userId) return
+    if (!userId || organizationId) return // Don't fetch if already have org ID
     try {
       const data = await apiGet<{
         success: boolean
@@ -88,7 +88,7 @@ export default function CampaignDetailClient() {
     } catch (err) {
       logger.error('Error fetching organization', err, { userId })
     }
-  }, [userId])
+  }, [userId, organizationId])
 
   // Fetch campaign details
   const fetchCampaign = useCallback(async () => {
@@ -118,6 +118,14 @@ export default function CampaignDetailClient() {
   useEffect(() => {
     if (userId) fetchOrganization()
   }, [userId, fetchOrganization])
+
+  // Update organizationId when session loads
+  useEffect(() => {
+    const sessionOrgId = (session?.user as any)?.organization_id
+    if (sessionOrgId && !organizationId) {
+      setOrganizationId(sessionOrgId)
+    }
+  }, [session, organizationId])
 
   useEffect(() => {
     fetchCampaign()

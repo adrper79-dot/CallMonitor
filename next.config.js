@@ -12,7 +12,7 @@
 
 const nextConfig = {
   // Static export for Cloudflare Pages — all server logic in Workers
-  output: 'export',
+  // output: 'export', // Disabled for development
 
   // Fix workspace root inference issue
   outputFileTracingRoot: __dirname,
