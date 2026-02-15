@@ -69,7 +69,7 @@ function toUuidOrNull(value: string | null | undefined): string | null {
   return UUID_REGEX.test(value) ? value : null
 }
 
-export function writeAuditLog(db: DbClient, entry: AuditLogEntry, kv?: KVNamespace): void {
+export function writeAuditLog(db: DbClient, entry: AuditLogEntry, kv?: KVNamespace): Promise<void> {
   const {
     organizationId,
     userId,
@@ -94,7 +94,7 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry, kv?: KVNamespa
       : null,
   ]
 
-  void db
+  return db
     .query(
       `INSERT INTO audit_logs (organization_id, user_id, resource_type, resource_id, action, old_value, new_value, metadata, created_at)
        VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, NOW())`,
@@ -132,6 +132,7 @@ export function writeAuditLog(db: DbClient, entry: AuditLogEntry, kv?: KVNamespa
         }
       }
     })
+    .then(() => {})
 }
 
 /**
@@ -324,15 +325,7 @@ export const AuditAction = {
   AI_ALERT_ACKNOWLEDGED: 'ai:alert_acknowledged',
   AI_ALERTS_BULK_UPDATED: 'ai:alerts_bulk_updated',
 
-  // SMS & Messaging
-  SMS_SENT: 'sms:sent',
-  SMS_BULK_SENT: 'sms:bulk_sent',
-  SMS_CAMPAIGN_SENT: 'sms:campaign_sent',
-  SMS_COMPLIANCE_BLOCKED: 'sms:compliance_blocked',
-  SMS_TEMPLATE_USED: 'sms:template_used',
-  SMS_TEMPLATE_CREATED: 'sms:template_created',
-  SMS_TEMPLATE_UPDATED: 'sms:template_updated',
-  SMS_TEMPLATE_DELETED: 'sms:template_deleted',
+  // SMS Opt Tracking
   SMS_OPT_OUT: 'sms:opt_out',
   SMS_OPT_IN: 'sms:opt_in',
   AI_ALERT_RULE_CREATED: 'ai:alert_rule_created',
@@ -412,9 +405,6 @@ export const AuditAction = {
   LANGUAGE_DETECTED: 'language:detected',
   TRANSLATION_CONFIG_UPDATED: 'translation:config_updated',
 
-  // Call Bridging (v5.0)
-  CALL_BRIDGED: 'call:bridged',
-
   // AI LLM Usage (BL-093)
   AI_CHAT_COMPLETED: 'ai:chat_completed',
   AI_ANALYZE_COMPLETED: 'ai:analyze_completed',
@@ -466,9 +456,28 @@ export const AuditAction = {
   CRM_OBJECT_LINKED: 'crm:object_linked',
   CRM_OBJECT_UPDATED: 'crm:object_updated',
   CRM_OBJECT_UNLINKED: 'crm:object_unlinked',
+  CRM_OAUTH_INITIATED: 'crm:oauth_initiated',
+  CRM_OAUTH_COMPLETED: 'crm:oauth_completed',
+  CRM_OAUTH_FAILED: 'crm:oauth_failed',
+  CRM_SYNC_STARTED: 'crm:sync_started',
+  CRM_SYNC_COMPLETED: 'crm:sync_completed',
+  CRM_SYNC_FAILED: 'crm:sync_failed',
+  CRM_MAPPING_UPDATED: 'crm:mapping_updated',
+  CRM_TOKEN_REFRESHED: 'crm:token_refreshed',
 
-  // Messages (SMS/Email)
-  MESSAGE_SENT: 'message:sent',
+  // Third-party Integrations
+  INTEGRATION_CONNECTED: 'integration:connected',
+  INTEGRATION_DISCONNECTED: 'integration:disconnected',
+  INTEGRATION_SYNC_TRIGGERED: 'integration:sync_triggered',
+  WEBHOOK_SUBSCRIPTION_CREATED: 'webhook:subscription_created',
+  WEBHOOK_SUBSCRIPTION_DELETED: 'webhook:subscription_deleted',
+  WEBHOOK_DELIVERED: 'webhook:delivered',
+  WEBHOOK_DELIVERY_FAILED: 'webhook:delivery_failed',
+  SLACK_NOTIFICATION_SENT: 'slack:notification_sent',
+  TEAMS_NOTIFICATION_SENT: 'teams:notification_sent',
+  QUICKBOOKS_INVOICE_CREATED: 'quickbooks:invoice_created',
+  GOOGLE_WORKSPACE_SYNCED: 'google:workspace_synced',
+  ZENDESK_TICKET_CREATED: 'zendesk:ticket_created',
 
   // Auto-Advance
   DIALER_NEXT_ACCOUNT_FETCHED: 'dialer:next_account_fetched',

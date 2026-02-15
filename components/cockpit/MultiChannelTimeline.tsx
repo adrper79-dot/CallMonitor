@@ -204,7 +204,7 @@ export default function MultiChannelTimeline({
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className={colorClass}>
+                  <Badge variant="default" className={colorClass}>
                     {CHANNEL_LABELS[item.channel_type]}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
@@ -438,7 +438,7 @@ export default function MultiChannelTimeline({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={() => fetchTimeline(true)}
             disabled={loading}
           >

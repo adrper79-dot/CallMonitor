@@ -52,6 +52,25 @@ export const FEATURE_PLAN_REQUIREMENTS: Record<string, PlanName> = {
   voice_cloning: 'enterprise',
   custom_integrations: 'enterprise',
   sso: 'enterprise',
+
+  // CRM Integrations (per-provider gating)
+  crm_hubspot: 'pro',
+  crm_salesforce: 'business',
+  crm_pipedrive: 'business',
+  crm_zoho: 'business',
+  crm_custom: 'enterprise',
+
+  // Third-party Integrations
+  zapier_integration: 'pro',
+  slack_integration: 'pro',
+  teams_integration: 'business',
+  quickbooks_integration: 'business',
+  google_workspace: 'pro',
+  zendesk_integration: 'business',
+  freshdesk_integration: 'business',
+  webhooks: 'pro',
+  csv_export: 'starter',
+  bulk_export: 'business',
 }
 
 /**

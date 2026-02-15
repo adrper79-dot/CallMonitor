@@ -64,6 +64,7 @@ dead_letter_queue = "wordisbond-transcription-dlq"
 [triggers]
 crons = [
   "*/5 * * * *",   # Every 5 min: retry failed transcriptions
+  "*/15 * * * *",  # Every 15 min: CRM delta sync
   "0 * * * *",     # Hourly: cleanup expired sessions
   "0 0 * * *",     # Daily midnight: usage aggregation
   "0 6 * * *"      # Daily 6am: scheduled payments + dunning
@@ -84,6 +85,15 @@ crons = [
 # - ELEVENLABS_API_KEY
 # - GROQ_API_KEY             # NEW: Groq LLM API (Llama models)
 # - GROK_API_KEY             # NEW: Grok Voice API (xAI TTS)
+# - CRM_ENCRYPTION_KEY       # AES-256 key for OAuth token encryption (32+ chars)
+# - HUBSPOT_CLIENT_ID        # HubSpot OAuth app client ID
+# - HUBSPOT_CLIENT_SECRET    # HubSpot OAuth app client secret
+# - SALESFORCE_CLIENT_ID     # Salesforce Connected App client ID
+# - SALESFORCE_CLIENT_SECRET # Salesforce Connected App client secret
+# - QUICKBOOKS_CLIENT_ID     # QuickBooks OAuth app client ID
+# - QUICKBOOKS_CLIENT_SECRET # QuickBooks OAuth app client secret
+# - GOOGLE_CLIENT_ID         # Google OAuth client ID
+# - GOOGLE_CLIENT_SECRET     # Google OAuth client secret
 
 # Routes for custom domain - add manually via Dashboard instead
 # Error 10013 when deploying via wrangler, use Dashboard UI to add routes

@@ -1,0 +1,165 @@
+/* ─── Word Is Bond — Content Script Styles ─────────────────────────────────── */
+
+/* Click-to-call inline button */
+.wib-call-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background 0.15s, transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.wib-call-btn:hover {
+  background: #1d4ed8;
+  transform: scale(1.15);
+}
+
+.wib-call-btn:active {
+  transform: scale(0.95);
+}
+
+/* ─── Floating widget ─────────────────────────────────────────────────────── */
+
+#wib-floating-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* FAB button */
+.wib-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.wib-fab:hover {
+  background: #1d4ed8;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+  transform: scale(1.05);
+}
+
+/* Panel */
+.wib-fab-panel {
+  position: absolute;
+  bottom: 64px;
+  right: 0;
+  width: 280px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: wib-slide-up 0.2s ease;
+}
+
+.wib-hidden {
+  display: none !important;
+}
+
+@keyframes wib-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Panel header */
+.wib-fab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.wib-fab-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.8;
+}
+
+.wib-fab-close:hover {
+  opacity: 1;
+}
+
+/* Panel body */
+.wib-fab-body {
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+}
+
+.wib-fab-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.wib-fab-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.wib-fab-dial {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.wib-fab-dial:hover {
+  background: #1d4ed8;
+}
+
+/* Status bar */
+.wib-fab-status {
+  padding: 0 16px 12px;
+  font-size: 12px;
+  color: #6b7280;
+  min-height: 18px;
+}

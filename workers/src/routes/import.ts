@@ -41,7 +41,7 @@ const CollectionImportSchema = z.object({
     secondary_phone: z.string().regex(/^\+[1-9]\d{1,14}$/).optional(),
     email: z.string().email().max(254).optional(),
     address: z.string().max(1000).optional(),
-    custom_fields: z.record(z.unknown()).optional(),
+    custom_fields: z.record(z.string(), z.unknown()).optional(),
     status: z.enum(['active', 'paid', 'partial', 'disputed', 'archived']).optional(),
     notes: z.string().max(5000).optional(),
     promise_date: z.string().max(20).optional(),
@@ -57,7 +57,7 @@ const UserImportSchema = z.object({
     name: z.string().min(1).max(100),
     role: z.enum(['owner', 'admin', 'operator', 'analyst', 'viewer']).optional(),
     team_ids: z.array(z.string().uuid()).optional(),
-    custom_fields: z.record(z.unknown()).optional(),
+    custom_fields: z.record(z.string(), z.unknown()).optional(),
   })).min(1).max(1000),
   send_invites: z.boolean().default(true),
   column_mapping: z.record(z.string(), z.string()).optional(),
@@ -69,7 +69,7 @@ const TeamImportSchema = z.object({
     name: z.string().min(1).max(100),
     description: z.string().max(500).optional(),
     member_emails: z.array(z.string().email()).optional(),
-    custom_fields: z.record(z.unknown()).optional(),
+    custom_fields: z.record(z.string(), z.unknown()).optional(),
   })).min(1).max(100),
   column_mapping: z.record(z.string(), z.string()).optional(),
 })
@@ -82,7 +82,7 @@ const CampaignImportSchema = z.object({
     scenario: z.string().max(50000).optional(),
     status: z.enum(['draft', 'active', 'paused', 'completed']).optional(),
     target_accounts: z.array(z.string()).optional(), // external_ids
-    custom_fields: z.record(z.unknown()).optional(),
+    custom_fields: z.record(z.string(), z.unknown()).optional(),
   })).min(1).max(100),
   column_mapping: z.record(z.string(), z.string()).optional(),
 })
@@ -344,7 +344,7 @@ importRoutes.post('/:entity', importRateLimit, async (c) => {
       userId: session.user_id,
       resourceType: entity,
       resourceId: 'bulk_import',
-      action: auditAction as AuditAction,
+      action: auditAction as typeof AuditAction[keyof typeof AuditAction],
       oldValue: null,
       newValue: {
         imported_count: results.length,

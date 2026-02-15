@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Word Is Bond</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #1f2937;
+      background: #f9fafb;
+    }
+
+    /* ─── Header ──────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: #2563eb;
+      color: #fff;
+    }
+    .header h1 { font-size: 15px; font-weight: 700; }
+    .header .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4ade80;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .header .status-dot.offline { background: #f87171; }
+
+    /* ─── Views ────────────────────────────────────────────────────────── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ─── Login ────────────────────────────────────────────────────────── */
+    .login-view { padding: 24px 16px; }
+    .login-view h2 { font-size: 16px; margin-bottom: 16px; text-align: center; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #374151; }
+    .form-group input {
+      width: 100%; padding: 8px 12px;
+      border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color .15s;
+    }
+    .form-group input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+
+    .btn {
+      width: 100%; padding: 10px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger  { background: #ef4444; color: #fff; margin-top: 8px; }
+    .btn-danger:hover  { background: #dc2626; }
+    .btn-ghost   { background: none; color: #2563eb; border: 1px solid #2563eb; margin-top: 8px; }
+    .btn-ghost:hover   { background: #eff6ff; }
+
+    .error-msg { color: #ef4444; font-size: 12px; margin-top: 8px; text-align: center; }
+
+    /* ─── Main view ───────────────────────────────────────────────────── */
+    .main-view { padding: 0; }
+
+    .user-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; background: #fff; border-bottom: 1px solid #e5e7eb;
+    }
+    .user-bar .email { font-size: 12px; color: #6b7280; }
+
+    /* Quick dial */
+    .quick-dial { padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+    .quick-dial-row { display: flex; gap: 8px; }
+    .quick-dial-row input {
+      flex: 1; padding: 8px 12px;
+      border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; outline: none;
+    }
+    .quick-dial-row input:focus { border-color: #2563eb; }
+    .quick-dial-row button {
+      padding: 8px 14px; background: #2563eb; color: #fff;
+      border: none; border-radius: 8px; font-weight: 600; cursor: pointer;
+    }
+    .quick-dial-row button:hover { background: #1d4ed8; }
+
+    .call-status { font-size: 12px; color: #6b7280; margin-top: 6px; min-height: 16px; }
+
+    /* Recent calls */
+    .section-label {
+      padding: 8px 16px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px; color: #9ca3af;
+      background: #f3f4f6;
+    }
+
+    .calls-list { max-height: 220px; overflow-y: auto; }
+
+    .call-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid #f3f4f6;
+      cursor: pointer; transition: background .1s;
+    }
+    .call-item:hover { background: #f9fafb; }
+    .call-item .phone { font-weight: 600; font-size: 13px; }
+    .call-item .meta  { font-size: 11px; color: #9ca3af; }
+    .call-item .duration { font-size: 12px; color: #6b7280; }
+
+    .empty-state {
+      padding: 24px 16px; text-align: center; color: #9ca3af; font-size: 13px;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex; gap: 8px;
+      padding: 12px 16px; background: #fff; border-top: 1px solid #e5e7eb;
+    }
+    .footer a {
+      flex: 1; text-align: center; padding: 8px;
+      font-size: 12px; font-weight: 600; color: #2563eb;
+      text-decoration: none; border-radius: 6px; transition: background .1s;
+    }
+    .footer a:hover { background: #eff6ff; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Word Is Bond</h1>
+    <span><span id="status-dot" class="status-dot offline"></span><span id="status-text">Offline</span></span>
+  </div>
+
+  <!-- Login view -->
+  <div id="login-view" class="view active login-view">
+    <h2>Sign In</h2>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="you@company.com" />
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="••••••••" />
+    </div>
+    <button id="login-btn" class="btn btn-primary">Sign In</button>
+    <div id="login-error" class="error-msg"></div>
+  </div>
+
+  <!-- Main view -->
+  <div id="main-view" class="view main-view">
+    <div class="user-bar">
+      <span class="email" id="user-email"></span>
+      <button id="logout-btn" style="background:none;border:none;color:#ef4444;font-size:12px;font-weight:600;cursor:pointer;">Logout</button>
+    </div>
+
+    <!-- Quick dial -->
+    <div class="quick-dial">
+      <div class="quick-dial-row">
+        <input id="dial-input" type="tel" placeholder="Enter phone number" />
+        <button id="dial-btn">Call</button>
+      </div>
+      <div id="dial-status" class="call-status"></div>
+    </div>
+
+    <!-- Recent calls -->
+    <div class="section-label">Recent Calls</div>
+    <div id="calls-list" class="calls-list">
+      <div class="empty-state">Loading…</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <a href="https://wordis-bond.com/dashboard" target="_blank">Dashboard</a>
+      <a href="https://wordis-bond.com/analytics" target="_blank">Analytics</a>
+      <a href="https://wordis-bond.com/settings" target="_blank">Settings</a>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

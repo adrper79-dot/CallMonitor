@@ -176,6 +176,9 @@ const SearchbarCopilot = forwardRef<{ openSearch: () => void }>((props, ref) => 
     "What compliance rules apply?",
     "Generate a performance report",
     "Review my scorecard results",
+    "Connect my CRM",
+    "Set up Slack alerts",
+    "Configure integrations",
   ]
 
   return (

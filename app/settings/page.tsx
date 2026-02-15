@@ -19,6 +19,7 @@ import {
   Shield,
   ChevronRight,
   Zap,
+  Plug,
 } from 'lucide-react'
 
 /**
@@ -141,6 +142,13 @@ export default function SettingsPage() {
       icon: <Webhook className="h-5 w-5" />,
       ownerOnly: true,
       external: true,
+    },
+    {
+      title: 'Integrations',
+      description: 'CRM, Slack, Teams, QuickBooks, Google & more',
+      href: '/settings/integrations',
+      icon: <Plug className="h-5 w-5" />,
+      ownerOnly: true,
     },
     {
       title: 'Billing & Plan',

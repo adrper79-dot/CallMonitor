@@ -15,6 +15,7 @@ import { logger } from './lib/logger'
 import { processScheduledPayments, processDunningEscalation } from './lib/payment-scheduler'
 import { flushAuditDlq } from './lib/audit'
 import { runPreventionScan } from './lib/prevention-scan'
+import { handleCrmSync } from './crons/crm-sync'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -78,6 +79,9 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         await trackCronExecution(env, 'retry_transcriptions', () =>
           retryFailedTranscriptions(env)
         )
+        break
+      case '*/15 * * * *':
+        await trackCronExecution(env, 'crm_sync', () => handleCrmSync(env))
         break
       case '0 * * * *':
         await trackCronExecution(env, 'cleanup_sessions', () => cleanupExpiredSessions(env))

@@ -34,6 +34,8 @@ Guidelines:
     test: `\n\nContext: The user is reviewing test/QA results. Help them understand test pass rates, frequency configs, and KPI performance.`,
     report: `\n\nContext: The user is looking at reports. Help them interpret analytics, identify trends, and suggest improvements.`,
     copilot: `\n\nContext: You are acting as a real-time call co-pilot. Provide brief, actionable guidance. Keep responses under 2 sentences. Focus on: compliance reminders, script adherence, and objection handling tips.`,
+    integration: `\n\nContext: The user is setting up or managing integrations (CRM, Slack, Teams, QuickBooks, Google Workspace, Zendesk, webhooks). Help them connect services, troubleshoot sync issues, configure field mappings, and understand data flow between systems. Offer step-by-step guidance. If they mention a specific provider, tailor your advice to that provider's capabilities and limitations.`,
+    onboarding: `\n\nContext: The user is going through initial setup. Guide them step-by-step through connecting their tools and configuring their workspace. Be encouraging and proactive — suggest next steps after each completed configuration.`,
   }
 
   return base + (contextPrompts[contextType || ''] || '')
@@ -167,6 +169,50 @@ export async function fetchTestResults(env: Env, orgId: string, limit = 20) {
       [orgId, limit]
     )
     return result.rows
+  } finally {
+    await db.end()
+  }
+}
+
+export async function fetchIntegrationContext(env: Env, orgId: string) {
+  const db = getDb(env)
+  try {
+    const [integrations, syncLog, channels] = await Promise.all([
+      db.query(
+        `SELECT id, provider, status, error_message, last_sync_at, config,
+                created_at, updated_at
+         FROM integrations WHERE organization_id = $1
+         ORDER BY created_at DESC`,
+        [orgId]
+      ),
+      db.query(
+        `SELECT sl.id, sl.integration_id, sl.direction, sl.records_synced,
+                sl.records_failed, sl.status, sl.error_detail, sl.started_at, sl.completed_at,
+                i.provider
+         FROM crm_sync_log sl
+         JOIN integrations i ON i.id = sl.integration_id
+         WHERE sl.organization_id = $1
+         ORDER BY sl.started_at DESC LIMIT 10`,
+        [orgId]
+      ),
+      db.query(
+        `SELECT id, provider, name, is_active, created_at
+         FROM notification_channels WHERE organization_id = $1`,
+        [orgId]
+      ).catch(() => ({ rows: [] })),
+    ])
+
+    return {
+      integrations: integrations.rows,
+      recentSyncs: syncLog.rows,
+      notificationChannels: channels.rows,
+      summary: {
+        totalIntegrations: integrations.rows.length,
+        activeIntegrations: integrations.rows.filter((i: any) => i.status === 'active').length,
+        errorIntegrations: integrations.rows.filter((i: any) => i.status === 'error').length,
+        lastSyncAt: syncLog.rows[0]?.started_at || null,
+      },
+    }
   } finally {
     await db.end()
   }

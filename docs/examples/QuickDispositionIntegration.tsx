@@ -8,6 +8,7 @@
 import React from 'react'
 import { QuickDisposition, DispositionCode } from '@/components/voice/QuickDisposition'
 import { useSession } from '@/components/AuthProvider'
+import { apiGet } from '@/lib/apiClient'
 import { apiPost } from '@/lib/apiClient'
 import { useToast } from '@/components/ui/use-toast'
 

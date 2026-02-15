@@ -34,11 +34,11 @@ import { z } from 'zod'
 
 const CreateIntegrationSchema = z.object({
   provider: z.enum(['hubspot', 'salesforce', 'zoho', 'pipedrive']),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 })
 
 const UpdateIntegrationSchema = z.object({
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
   sync_enabled: z.boolean().optional(),
 })
 

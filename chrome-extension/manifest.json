@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Word Is Bond - Click to Call",
+  "version": "1.0.0",
+  "description": "Click-to-call from any CRM. Record, transcribe, and analyze every call.",
+  "permissions": ["activeTab", "storage", "notifications"],
+  "host_permissions": [
+    "https://wordisbond-api.adrper79.workers.dev/*",
+    "https://wordis-bond.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.hubspot.com/*",
+        "https://*.my.salesforce.com/*",
+        "https://*.lightning.force.com/*",
+        "https://*.pipedrive.com/*",
+        "https://*.zoho.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

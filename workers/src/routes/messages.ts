@@ -1038,8 +1038,8 @@ messagesRoutes.patch('/:id/read', messagesRateLimit, async (c) => {
     // Audit log
     writeAuditLog(db, {
       userId: session.user_id,
-      orgId: session.organization_id,
-      action: AuditAction.RESOURCE_UPDATED,
+      organizationId: session.organization_id,
+      action: AuditAction.MESSAGE_SENT,
       resourceType: 'message',
       resourceId: messageId,
       oldValue: { read_at: message.read_at },
@@ -1155,15 +1155,14 @@ messagesRoutes.post('/:id/reply', messagesRateLimit, async (c) => {
         return c.json({ error: 'No email address to reply to' }, 400)
       }
 
-      const emailDefaults = getEmailDefaults(c.env.RESEND_FROM_EMAIL)
+      const emailDefaults = getEmailDefaults({ RESEND_FROM: c.env.RESEND_FROM })
       const subject = originalMessage.subject 
         ? `Re: ${originalMessage.subject}`
         : 'Reply to your message'
 
-      const emailResult = await sendEmail({
-        apiKey: c.env.RESEND_API_KEY,
+      const emailResult = await sendEmail(c.env.RESEND_API_KEY!, {
         to: toEmail,
-        from: emailDefaults.from,
+        from: emailDefaults.from || 'Word Is Bond <noreply@wordis-bond.com>',
         subject,
         html: message_body,
         text: message_body.replace(/<[^>]*>/g, ''),

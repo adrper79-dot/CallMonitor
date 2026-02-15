@@ -117,7 +117,7 @@ class WorkplaceSimulator {
   }
 
   async simulateSignup(page: Page): Promise<void> {
-    const signupUrl = 'https://wordis-bond.com/signup' // Hardcode for testing
+    const signupUrl = `${SIMULATOR_CONFIG.baseURL}/signup`
     console.log('Navigating to:', signupUrl)
     await page.goto(signupUrl)
     await this.captureEvidence(page, 'signup-start', 'Signup page loaded')

@@ -68,6 +68,11 @@ import { crmRoutes } from './routes/crm'
 import { importRoutes } from './routes/import'
 import { messagesRoutes } from './routes/messages'
 import { unsubscribeRoutes } from './routes/unsubscribe'
+import { webhooksOutboundRoutes } from './routes/webhooks-outbound'
+import { notificationsRoutes } from './routes/notifications'
+import { quickbooksRoutes } from './routes/quickbooks'
+import { googleWorkspaceRoutes } from './routes/google-workspace'
+import { helpdeskRoutes } from './routes/helpdesk'
 import {
   buildErrorContext,
   logError,
@@ -119,6 +124,18 @@ export interface Env {
   NEXT_PUBLIC_APP_URL?: string
   API_BASE_URL?: string
   BASE_URL?: string // Base URL for Workers API (for webhooks and internal fetches)
+
+  // Integration secrets (optional — only needed when integrations are configured)
+  CRM_ENCRYPTION_KEY?: string // AES-256 key for OAuth token encryption (32+ chars)
+  HUBSPOT_CLIENT_ID?: string
+  HUBSPOT_CLIENT_SECRET?: string
+  SALESFORCE_CLIENT_ID?: string
+  SALESFORCE_CLIENT_SECRET?: string
+  QUICKBOOKS_CLIENT_ID?: string
+  QUICKBOOKS_CLIENT_SECRET?: string
+  QUICKBOOKS_ENVIRONMENT?: string // 'sandbox' | 'production'
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
 }
 
 // Session type — set by authMiddleware via c.set('session', session)
@@ -183,6 +200,10 @@ app.use(
       'X-AI-Mode',
       'X-Dialer-Session',
       'X-IVR-Flow-Id',
+      'X-CRM-Sync-Id',
+      'X-Integration-Provider',
+      'X-Export-Job-Id',
+      'X-Webhook-Signature',
     ],
     exposeHeaders: [
       'Idempotent-Replayed',
@@ -194,6 +215,10 @@ app.use(
       'X-Session-Token',
       'X-SMS-Status',
       'X-Email-Status',
+      'X-CRM-Sync-Id',
+      'X-Export-Status',
+      'X-Export-Download-Url',
+      'X-Webhook-Delivery-Id',
     ],
   })
 )
@@ -269,6 +294,11 @@ app.route('/api/dnc', dncRoutes)
 app.route('/api/feedback', feedbackRoutes)
 app.route('/api/crm', crmRoutes)
 app.route('/api/import', importRoutes)
+app.route('/api/webhooks/outbound', webhooksOutboundRoutes)
+app.route('/api/notifications', notificationsRoutes)
+app.route('/api/quickbooks', quickbooksRoutes)
+app.route('/api/google-workspace', googleWorkspaceRoutes)
+app.route('/api/helpdesk', helpdeskRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

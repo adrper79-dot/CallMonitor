@@ -38,8 +38,7 @@ export function AutoAdvanceSettings() {
     setAutoAdvancePrefs(newEnabled, delay)
   }
 
-  const handleDelayChange = (values: number[]) => {
-    const newDelay = values[0]
+  const handleDelayChange = (newDelay: number) => {
     setDelay(newDelay)
     setAutoAdvancePrefs(enabled, newDelay)
   }
@@ -91,8 +90,8 @@ export function AutoAdvanceSettings() {
               min={1}
               max={5}
               step={1}
-              value={[delay]}
-              onValueChange={handleDelayChange}
+              value={delay}
+              onValueChange={(value) => handleDelayChange(value)}
               className="w-full"
             />
             <p className="text-xs text-gray-500">

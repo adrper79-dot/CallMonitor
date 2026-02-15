@@ -174,7 +174,6 @@ function SignUpContent() {
       // Step 4: Redirect to onboarding (not dashboard as comment suggests)
       if (signInRes?.ok) {
         // Force redirect to onboarding, bypassing the session redirect useEffect
-        setIsSigningUp(false)
         window.location.href = '/onboarding'
       } else {
         // Fallback - redirect to signin

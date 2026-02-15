@@ -67,7 +67,7 @@ export default function InboxPage() {
   }
 
   return (
-    <ProtectedGate requiredRole="agent">
+    <ProtectedGate>
       <AppShell 
         organizationName={organizationName}
         organizationId={organizationId}

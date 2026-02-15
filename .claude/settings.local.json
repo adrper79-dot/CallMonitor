@@ -1,13 +1,126 @@
 {
+  "mcpServers": {
+    "neon": {
+      "command": "npx",
+      "args": ["-y", "@neondatabase/mcp-server-neon"],
+      "env": {
+        "NEON_API_KEY": "${NEON_API_KEY}"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "arch-docs-validator": {
+      "command": "node",
+      "args": ["tools/arch-docs-mcp-server.js"]
+    }
+  },
   "permissions": {
     "allow": [
-      "Bash(findstr:*)",
-      "Bash(npm run build:*)",
-      "Bash(npm test:*)",
-      "Bash(npx wrangler tail:*)",
-      "Bash(npm run:*)",
-      "Bash(npx wrangler deploy:*)",
-      "Bash(find:*)"
+      "**/READ OPERATIONS - ALWAYS SAFE",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(Get-Content *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-String *)",
+      
+      "**/TESTING - AUTO-APPROVE",
+      "Bash(npm test*)",
+      "Bash(npm run test*)",
+      "Bash(npx vitest*)",
+      "Bash(npx playwright test*)",
+      "Bash(node --test*)",
+      
+      "**/BUILD & LINT - SAFE",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(npx tsc*)",
+      "Bash(npx eslint*)",
+      "Bash(npx prettier*)",
+      
+      "**/DEPLOYMENT - CONTROLLED",
+      "Bash(npm run api:deploy)",
+      "Bash(npm run pages:deploy)",
+      "Bash(npx wrangler deploy*)",
+      "Bash(npx wrangler tail*)",
+      "Bash(npm run health-check)",
+      
+      "**/DATABASE - READ-ONLY VIA MCP",
+      "Bash(psql * -c 'SELECT*')",
+      "Bash(psql * -c 'EXPLAIN*')",
+      "Bash(psql * -c '\\dt')",
+      "Bash(psql * -c '\\d *')",
+      
+      "**/GIT - SAFE OPERATIONS",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      
+      "**/NODE/NPM - SAFE",
+      "Bash(npm install*)",
+      "Bash(npm ci)",
+      "Bash(node scripts/*)",
+      "Bash(npx *)",
+      
+      "**/CLOUDFLARE - MONITORING",
+      "Bash(wrangler pages deployment list*)",
+      "Bash(wrangler kv:*list*)",
+      "Bash(wrangler r2 object get*)",
+      
+      "**/UTILITIES",
+      "Bash(echo *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(curl -X GET*)",
+      "Bash(jq *)"
+    ],
+    "deny": [
+      "**/DESTRUCTIVE OPERATIONS - ALWAYS BLOCKED",
+      "Bash(rm -rf*)",
+      "Bash(Remove-Item -Recurse*)",
+      "Bash(DROP DATABASE*)",
+      "Bash(DELETE FROM * WHERE 1=1*)",
+      "Bash(TRUNCATE*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(npm publish*)",
+      "Bash(wrangler secret put*)",
+      "Bash(wrangler kv:key delete*)"
     ]
+  },
+  "skills": {
+    "arch-compliance-check": {
+      "description": "Validates code against ARCH_DOCS standards before commits",
+      "trigger": "before-commit",
+      "script": "node tools/validate-arch-compliance.js"
+    },
+    "test-runner": {
+      "description": "Intelligent test runner that selects appropriate test suite",
+      "commands": {
+        "unit": "npm run test:production",
+        "e2e": "npm run test:dialer:e2e",
+        "all": "npm run test:dialer:all"
+      }
+    },
+    "deployment-workflow": {
+      "description": "Safe deployment sequence with health checks",
+      "steps": [
+        "npm run build",
+        "npm run api:deploy",
+        "npm run pages:deploy",
+        "npm run health-check"
+      ]
+    }
   }
 }

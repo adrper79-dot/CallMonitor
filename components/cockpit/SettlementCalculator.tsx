@@ -378,7 +378,7 @@ export default function SettlementCalculator({
                 AI Recommendation
               </span>
               <Badge
-                variant="outline"
+                variant="default"
                 className={`ml-auto text-[10px] ${
                   recommendation.urgency === 'high'
                     ? 'border-red-400 text-red-600'
