@@ -1,21 +1,23 @@
 # Claude Skills Configuration Guide
 
-**Project:** Word Is Bond v4.66  
-**Date:** February 14, 2026  
-**Setup Level:** Production-Grade with MCP Integration
+**Project:** Word Is Bond v4.66
+**Date:** February 15, 2026
+**Setup Level:** Production-Grade with MCP Integration + Workplace Simulator
 
 ---
 
 ## 🎯 Overview
 
-Your Claude skills are now configured for **high-autonomy development** with comprehensive automation and architecture compliance enforcement.
+Your Claude skills are now configured for **high-autonomy development** with comprehensive automation, architecture compliance enforcement, and automated UX testing capabilities.
 
 ### Capabilities Enabled
 
-✅ **Auto-approved workflows:** Testing, building, deployments, read operations  
-✅ **MCP Server Integration:** Neon DB, GitHub, Custom ARCH_DOCS validator  
-✅ **Architecture Compliance:** Real-time validation against ARCH_DOCS standards  
-✅ **Smart Permissions:** 40+ safe commands whitelisted, destructive ops blocked  
+✅ **Auto-approved workflows:** Testing, building, deployments, read operations
+✅ **MCP Server Integration:** Neon DB, GitHub, Custom ARCH_DOCS validator
+✅ **Architecture Compliance:** Real-time validation against ARCH_DOCS standards
+✅ **Workplace Simulator:** Automated employee journey testing with kink detection
+✅ **Smart Permissions:** 60+ safe commands whitelisted, destructive ops blocked
+✅ **Production Validation:** Live site testing and deployment verification  
 
 ---
 
@@ -25,9 +27,9 @@ Your Claude skills are now configured for **high-autonomy development** with com
 
 **Features:**
 - **3 MCP Servers** configured (Neon, GitHub, ARCH_DOCS)
-- **60+ whitelisted commands** (testing, builds, deploys, monitoring)
+- **60+ whitelisted commands** (testing, builds, deploys, monitoring, simulation)
 - **10 blocked operations** (destructive commands)
-- **3 custom skills** (arch-compliance-check, test-runner, deployment-workflow)
+- **4 custom skills** (arch-compliance-check, test-runner, deployment-workflow, workplace-simulator)
 
 **Critical Permissions:**
 ```json
@@ -35,6 +37,7 @@ Your Claude skills are now configured for **high-autonomy development** with com
   "allow": [
     "npm test*",           // All test commands
     "npm run build*",      // Build processes
+    "npm run simulator*",  // Workplace simulator tests
     "npx wrangler deploy*" // Cloudflare deployments
   ],
   "deny": [
@@ -111,6 +114,42 @@ GITHUB_TOKEN=ghp_YOUR_TOKEN_HERE
 
 ---
 
+## 🤖 Workplace Simulator
+
+**Purpose:** Automated employee journey testing with UX kink detection
+
+**Capabilities:**
+- `simulate_signup_journey` - Complete signup → onboarding → productive use flow
+- `detect_ux_kinks` - Identify performance, UI, and flow issues
+- `generate_evidence_reports` - Screenshots, timing metrics, and categorized kinks
+- `test_live_site` - Production environment validation
+
+**Tools Available:**
+- `run_workplace_simulator` - Execute full employee journey simulation
+- `analyze_kink_reports` - Parse and categorize detected issues
+- `validate_onboarding_flow` - Test signup-to-productive-use conversion
+- `performance_benchmarking` - Measure and report UX performance metrics
+
+**Usage Examples:**
+```bash
+# Run complete employee journey simulation
+npm run test:simulator
+
+# Run with browser UI for debugging
+npm run test:simulator:headed
+
+# Test specific kink detection
+npm run test:simulator:kinks
+```
+
+**Evidence Output:**
+- JSON reports with timestamps and metadata
+- Screenshots at each journey step
+- Performance metrics and timing data
+- Categorized kink detection (critical/high/medium/low severity)
+
+---
+
 ## 🚀 Usage Examples
 
 ### Running Tests
@@ -120,8 +159,29 @@ GITHUB_TOKEN=ghp_YOUR_TOKEN_HERE
 npm test
 npm run test:production
 npm run test:dialer:e2e
+npm run test:simulator              # Workplace simulator
+npm run test:simulator:headed       # With browser UI
 npx vitest tests/production/dialer-integration.test.ts
 ```
+
+### Workplace Simulator
+
+```bash
+# Complete employee journey testing
+npm run test:simulator
+
+# Debug with browser UI
+npm run test:simulator:headed
+
+# Focus on kink detection
+npm run test:simulator:kinks
+```
+
+Ask Claude:
+- "Run the workplace simulator against production"
+- "Analyze the latest kink detection report"
+- "Test the employee onboarding flow"
+- "Validate signup-to-productive-use conversion"
 
 ### Deployment Workflow
 
@@ -231,9 +291,10 @@ node tools/validate-arch-compliance.js workers/src/routes/calls.ts
 **Commands:**
 - `unit` → `npm run test:production`
 - `e2e` → `npm run test:dialer:e2e`
+- `simulator` → `npm run test:simulator`
 - `all` → `npm run test:dialer:all`
 
-**Purpose:** Intelligent test suite selection
+**Purpose:** Intelligent test suite selection including workplace simulation
 
 ### 3. **deployment-workflow**
 
@@ -244,6 +305,19 @@ node tools/validate-arch-compliance.js workers/src/routes/calls.ts
 4. `npm run health-check` - Verify deployment
 
 **Purpose:** Safe, repeatable deployment sequence
+
+### 4. **workplace-simulator**
+
+**Trigger:** On demand or scheduled  
+**Action:** Runs employee journey simulation with kink detection  
+**Purpose:** Automated UX testing and quality assurance
+
+**Capabilities:**
+- Complete signup → onboarding → productive use flow testing
+- Performance benchmarking and timing analysis
+- Screenshot evidence collection
+- Kink categorization and severity assessment
+- Production environment validation
 
 ---
 
@@ -270,8 +344,9 @@ These are **ALWAYS safe** and auto-approved:
 
 ```bash
 cat, ls, find, grep         # Read operations
-npm test, vitest            # Testing
+npm test*, npm run test*    # All testing including simulator
 npm run build, tsc          # Building
+npm run simulator*          # Workplace simulation
 git status, git log         # Git read
 psql -c 'SELECT...'         # Read-only DB queries
 ```
@@ -295,6 +370,28 @@ Add new skills to `.claude/settings.local.json`:
   }
 }
 ```
+
+### Workplace Simulator Integration
+
+**Automated Testing Workflow:**
+```json
+{
+  "skills": {
+    "ux-validation": {
+      "description": "Run workplace simulator after deployments",
+      "trigger": "post-deployment",
+      "script": "npm run test:simulator",
+      "evidence": "test-results/simulator-evidence/"
+    }
+  }
+}
+```
+
+**Kink Detection Alerts:**
+- Automatically detect critical UX issues
+- Generate evidence-based reports
+- Categorize by severity and impact
+- Provide actionable recommendations
 
 ### Pre-Commit Hook Integration
 
@@ -333,6 +430,22 @@ Ask Claude:
 - "How many commands did you auto-approve today?"
 - "Show me the last 10 architecture validations"
 - "What's my deployment success rate?"
+- "Analyze the latest workplace simulator results"
+- "How many UX kinks were detected this week?"
+
+### Workplace Simulator Metrics
+
+**Performance Tracking:**
+- Journey completion rates
+- Average signup-to-productive-use time
+- Kink detection frequency by category
+- Evidence collection success rate
+
+**Quality Assurance:**
+- Automated UX regression testing
+- Production environment validation
+- Employee journey optimization
+- Conversion funnel analysis
 
 ### Adjust Permissions
 
@@ -402,6 +515,39 @@ echo "GITHUB_TOKEN=your_token" >> .env.local
 }
 ```
 
+### Workplace Simulator Issues
+
+**Symptom:** Simulator redirects to localhost instead of live site
+
+**Fix:**
+```bash
+# Set BASE_URL environment variable
+BASE_URL=https://wordis-bond.com npm run test:simulator
+
+# Or update playwright.config.ts
+baseURL: process.env.BASE_URL || 'https://wordis-bond.com'
+```
+
+**Symptom:** Test timeouts during onboarding flow
+
+**Fix:**
+```bash
+# Increase timeout in playwright.config.ts
+timeout: 300_000,  // 5 minutes for complex flows
+expect: { timeout: 30_000 }
+```
+
+**Symptom:** Screenshot evidence not generating
+
+**Fix:**
+```bash
+# Ensure test-results directory exists
+mkdir -p test-results/simulator-evidence
+
+# Check file permissions
+chmod 755 test-results/
+```
+
 ---
 
 ## 📚 References
@@ -418,11 +564,12 @@ echo "GITHUB_TOKEN=your_token" >> .env.local
 1. **Install MCP servers** (Step 1 above)
 2. **Configure environment variables** (Step 2)
 3. **Test architecture validator** (Step 4)
-4. **Restart Claude** (Step 5)
-5. **Try asking Claude:** "Validate my code against ARCH_DOCS" or "Run the test suite"
+4. **Test workplace simulator** (run `npm run test:simulator`)
+5. **Restart Claude** (Step 5)
+6. **Try asking Claude:** "Validate my code against ARCH_DOCS" or "Run the workplace simulator"
 
-Your skills setup is now **production-ready** for high-velocity development with automated compliance checking! 🚀
+Your skills setup is now **production-ready** for high-velocity development with automated compliance checking and UX testing! 🚀
 
 ---
 
-**Questions?** Ask Claude: "Explain my current skills configuration" or "How do I use the ARCH_DOCS MCP server?"
+**Questions?** Ask Claude: "Explain my current skills configuration" or "How do I use the workplace simulator?" or "Run a complete employee journey test"

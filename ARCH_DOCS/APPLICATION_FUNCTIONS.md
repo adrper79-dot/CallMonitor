@@ -343,9 +343,19 @@
 - CRM object linking (map external entities to WIB records)
 - Sync log tracking for integration health
 - Generic entity import pipeline
+- **OAuth 2.0 flows** for HubSpot (API v3), Salesforce (REST v59.0)
+- **Encrypted token storage** (AES-256-GCM in KV via `crm-tokens.ts`)
+- **Delta sync cron** (*/15 min via `crm-sync.ts`) — contacts, deals, call activities
+- **Field mapping UI** with AI auto-map (`CrmFieldMapper.tsx`)
+- **Contact cache** for fast lookups without hitting CRM APIs
+- **Plan gating**: HubSpot (pro+), Salesforce (business+), Pipedrive/Zoho (business+)
 
 **Backend Routes:** `/api/crm/*` (12 endpoints)
-**Database Tables:** `integrations`, `crm_object_links`, `crm_sync_log`
+**Backend Lib:** `crm-tokens.ts`, `crm-hubspot.ts`, `crm-salesforce.ts`
+**Backend Crons:** `crm-sync.ts` (runs every 15 min)
+**Frontend Components:** `CrmFieldMapper`
+**Frontend Hooks:** `useCrmIntegration.ts` (SWR: `useCrmIntegrations`, `useCrmSyncLog`, `useCrmObjectLinks`)
+**Database Tables:** `integrations`, `crm_object_links`, `crm_sync_log`, `crm_field_mappings`, `crm_contact_cache`
 
 ---
 
@@ -591,21 +601,109 @@
 
 ---
 
+## 32. QuickBooks Online Integration
+
+- OAuth 2.0 connect/disconnect flow
+- Customer sync (bidirectional)
+- Invoice generation from call records (call-to-invoice)
+- Invoice listing and sync
+- Plan gating: business+
+
+**Backend Routes:** `/api/quickbooks/*` (8 endpoints: status, connect, callback, disconnect, customers, invoices/generate, invoices, invoices/sync)
+**Backend Lib:** `quickbooks-client.ts`
+**Frontend Hooks:** `useIntegrations.ts`
+
+---
+
+## 33. Google Workspace Integration
+
+- OAuth 2.0 connect/disconnect flow
+- Google People API: contact sync with delta via syncToken
+- Google Calendar API: list calendars, CRUD events
+- Contact search for click-to-call and caller ID enrichment
+- Plan gating: pro+
+
+**Backend Routes:** `/api/google-workspace/*` (10 endpoints: status, connect, callback, disconnect, contacts, contacts/sync, calendars, events CRUD)
+**Backend Lib:** `google-workspace.ts`
+**Frontend Hooks:** `useIntegrations.ts`
+
+---
+
+## 34. Notification Channels (Slack & Teams)
+
+- Slack Block Kit message formatting (7 event types)
+- Microsoft Teams Adaptive Cards v1.4
+- Channel management (add, remove, test)
+- Event-driven notifications: call_completed, escalation, compliance_alert, payment_received, campaign_completed, sentiment_alert, system_alert
+- Plan gating: Slack (pro+), Teams (business+)
+
+**Backend Routes:** `/api/notifications/*` (6 endpoints: channels, channels/:id, channels/:id/test, send)
+**Backend Lib:** `formatSlackMessage()`, `formatTeamsMessage()`, `sendNotification()`
+**Frontend Hooks:** `useNotificationChannels()`
+
+---
+
+## 35. Helpdesk Integration (Zendesk & Freshdesk)
+
+- Zendesk ticket creation (API v2)
+- Freshdesk ticket creation (API v2)
+- Auto-create rules stored in integration config JSONB
+- `buildTicketFromCall()` — generates ticket from call record
+- Status sync and connection management
+
+**Backend Routes:** `/api/helpdesk/*` (7 endpoints: status, connect, disconnect, tickets, tickets/:id, tickets/auto-create, settings)
+**Backend Lib:** `createZendeskTicket()`, `createFreshdeskTicket()`, `buildTicketFromCall()`
+**Database Tables:** `helpdesk_tickets`
+
+---
+
+## 36. Webhook Automation (Zapier & Make.com)
+
+- Outbound webhook subscription management
+- HMAC-SHA256 signed payloads
+- Delivery tracking with automatic retry
+- Event type filtering per subscription
+- Webhook delivery log with response codes
+- Plan gating: pro+
+
+**Backend Routes:** `/api/webhooks/outbound/*` (8 endpoints: subscriptions CRUD, deliveries, retry, test)
+**Backend Lib:** `fanoutWebhookEvent(env, orgId, eventType, payload)`
+**Frontend Hooks:** `useWebhookSubscriptions()`
+**Database Tables:** `webhook_subscriptions`, `webhook_deliveries`
+
+---
+
+## 37. Integration Settings Hub
+
+- Unified 6-tab settings page: CRM, Notifications, Billing, Calendar, Helpdesk, Webhooks
+- Connection status cards with provider logos
+- One-click OAuth connect/disconnect
+- Integration health monitoring
+- Chrome Extension: Manifest V3, click-to-call FAB, content scripts for HubSpot/Salesforce/Pipedrive/Zoho
+
+**Frontend Pages:** `/settings/integrations`
+**Frontend Components:** `IntegrationHub` (6 tabs), `CrmFieldMapper`
+**Frontend Hooks:** `useIntegrations()`, `useIntegrationStatus()`
+**Chrome Extension:** `chrome-extension/*` (manifest.json, background.js, content.js, popup.*)
+
+---
+
 ## Architecture Summary
 
 | Layer | Technology | Count |
 |-------|-----------|-------|
-| Frontend Pages | Next.js 15 | 82 |
-| Backend Route Files | Hono on Workers | 54 |
-| HTTP Endpoints | REST API | ~264 |
-| Backend Lib Modules | TypeScript | 37 |
-| Frontend Components | React/TypeScript | ~158 |
-| Custom Hooks | React | 13 |
-| Database Tables | Neon PostgreSQL | 170 |
-| Active Tables (route-referenced) | — | ~66 |
-| Cron Jobs | Scheduled Workers | 7 |
+| Frontend Pages | Next.js 15 | 89 |
+| Backend Route Files | Hono on Workers | 59 |
+| HTTP Endpoints | REST API | ~310 |
+| Backend Lib Modules | TypeScript | 42 |
+| Frontend Components | React/TypeScript | ~165 |
+| Custom Hooks | React | 15 |
+| Database Tables | Neon PostgreSQL | 177 |
+| Active Tables (route-referenced) | — | ~73 |
+| Cron Jobs | Scheduled Workers | 8 |
 | Queue Consumers | Cloudflare Queues | 1 |
-| Webhook Providers | Inbound | 3 |
+| Webhook Providers | Inbound + Outbound | 5 |
+| External Integrations | OAuth + API | 12 |
 | Test Files | Vitest + Playwright + k6 | 50+ |
 
 ---

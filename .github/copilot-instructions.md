@@ -5,7 +5,7 @@
 - **Product:** Word Is Bond — AI-powered voice intelligence platform for call centers
 - **Stack:** Next.js 15 (static export on Cloudflare Pages) + Hono 4.7 (Cloudflare Workers API) + Neon PostgreSQL 17 + Telnyx (voice) + Stripe (billing)
 - **URLs:** `https://wordis-bond.com` (UI) | `https://wordisbond-api.adrper79.workers.dev` (API)
-- **Version:** v4.29 | **Progress:** 109/109 ROADMAP items (100%)
+- **Version:** v4.67 | **Progress:** 109/109 ROADMAP items (100%) + 12-provider integration suite
 
 ## Critical Rules (NEVER Violate)
 
@@ -56,7 +56,7 @@ routes.post('/resource', rateLimit, async (c) => {
     ])
     writeAuditLog(db, {
       userId: session.user_id,
-      orgId: session.organization_id,
+      organizationId: session.organization_id,
       action: AuditAction.RESOURCE_CREATED,
       resourceType: 'resource',
       resourceId: result.rows[0].id,
@@ -78,14 +78,39 @@ routes.post('/resource', rateLimit, async (c) => {
 | Auth        | `workers/src/lib/auth.ts`        | `requireAuth()` middleware        |
 | Rate limit  | `workers/src/lib/rate-limit.ts`  | Pre-configured limiters           |
 | Idempotency | `workers/src/lib/idempotency.ts` | `idempotency()` middleware        |
-| Audit       | `workers/src/lib/audit.ts`       | `writeAuditLog()` fire-and-forget |
-| Validation  | `workers/src/lib/schemas.ts`     | Zod schemas                       |
+| Audit       | `workers/src/lib/audit.ts`       | `writeAuditLog()` returns `Promise<void>` |
+| Validation  | `workers/src/lib/schemas.ts`     | Zod v4 schemas (`z.record(k, v)`) |
 | Logging     | `workers/src/lib/logger.ts`      | Structured JSON logger            |
 | RBAC        | `workers/src/lib/rbac-v2.ts`     | Role hierarchy                    |
+| CRM Tokens  | `workers/src/lib/crm-tokens.ts`  | AES-256-GCM encrypt/decrypt in KV |
+| Plan Gates  | `workers/src/lib/plan-gating.ts` | Feature → plan tier mapping       |
+| CRM Sync    | `workers/src/crons/crm-sync.ts`  | Delta sync cron (*/15 min)        |
 
 ### CORS Custom Headers
 
 When adding custom request/response headers, update `workers/src/index.ts` CORS config — both `allowHeaders` and `exposeHeaders`.
+
+### Integration OAuth Pattern
+
+```typescript
+// OAuth tokens are ALWAYS encrypted in KV via crm-tokens.ts
+import { storeTokens, getTokens, deleteTokens } from '../lib/crm-tokens'
+
+// Store: encrypt + KV put (90-day TTL)
+await storeTokens(env, orgId, provider, tokens)
+
+// Retrieve: KV get + decrypt
+const tokens = await getTokens(env, orgId, provider)
+
+// Delete: KV delete
+await deleteTokens(env, orgId, provider)
+```
+
+Never store OAuth tokens in plain text. `CRM_ENCRYPTION_KEY` env var required.
+
+### Zod v4 Rule
+
+`z.record()` requires TWO arguments: `z.record(z.string(), z.unknown())`. Single-arg form is Zod v3 only.
 
 ## AI Role Policy
 

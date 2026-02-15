@@ -1,9 +1,9 @@
-# Cloudflare & Codebase Roadmap (Updated: Feb 9, 2026)
+# Cloudflare & Codebase Roadmap (Updated: Feb 15, 2026)
 
 **Architecture**: ✅ **HYBRID GOSPEL** - Static UI (Cloudflare Pages) + Workers API (Hono) + Neon Postgres (Hyperdrive)  
 **Deployment**: ✅ Live at https://wordis-bond.com (Pages) + https://wordisbond-api.adrper79.workers.dev (API)  
-**Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, 30/30 production-verified  
-**Progress**: 109/109 items complete ✅ | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
+**Status**: ✅ **PRODUCTION** — Custom Workers auth (9 endpoints), all API routes live, full integration suite deployed  
+**Progress**: 109/109 items complete + 12-provider integration suite ✅ | Tests: ✅ GREEN CI (123 passed, 87 skipped) | Lint: ✅ PASSING (126 warnings)
 
 > **Auth**: ✅ RESOLVED — Custom session-based auth built on Cloudflare Workers (Hono). PBKDF2 passwords, CSRF protection, KV rate limiting, HttpOnly cookies. See [AUTH_ARCHITECTURE_DECISION.md](AUTH_ARCHITECTURE_DECISION.md).
 
@@ -249,13 +249,23 @@ npm run health-check
 5. ✅ KV-backed rate limiting (already implemented)
 6. [ ] Playwright E2E for critical flows
 
-### Week 3 (Feb 15-21) - **Architecture Refinement**
+### Week 3 (Feb 15-21) - **Integration Suite** ✅ COMPLETE
 
-1. [x] **Telnyx Migration** (SWML → Telnyx): Legacy SignalWire code deleted. Workers already uses Telnyx Call Control directly. ✅
-2. [ ] **Lib Modules** (lib/ → /db/api/ui): Modular architecture
-3. [x] **RBAC Hooks** (`hooks/useRole.ts`): useRole, usePermissions hooks ✅
-4. [x] RLS audit and hardening (`migrations/2026-02-08-rls-enforcement.sql` + `scripts/rls-audit.sql`) ✅
-5. [x] Schema drift CI check (`scripts/schema-drift-check.sh`) ✅
+1. [x] **HubSpot CRM** (`crm-hubspot.ts`): OAuth flow, contacts/deals delta sync, call activity push ✅
+2. [x] **Salesforce CRM** (`crm-salesforce.ts`): OAuth flow, SOQL queries, contacts/deals/tasks ✅
+3. [x] **QuickBooks Online** (`quickbooks-client.ts` + `quickbooks.ts`): OAuth, customer/invoice CRUD, call-to-invoice ✅
+4. [x] **Google Workspace** (`google-workspace.ts`): Calendar + People API, delta sync via syncToken ✅
+5. [x] **Zendesk + Freshdesk** (`helpdesk.ts`): Auto-create tickets from calls, configurable rules ✅
+6. [x] **Slack + Teams** (`notifications.ts`): Block Kit + Adaptive Cards, 7 event types, channel management ✅
+7. [x] **Zapier/Make.com** (`webhooks-outbound.ts`): Webhook subscriptions, HMAC-signed delivery, delivery log ✅
+8. [x] **CRM Sync Engine** (`crm-sync.ts`): Delta sync cron (*/15 min), encrypted tokens (AES-256-GCM in KV) ✅
+9. [x] **Token Encryption** (`crm-tokens.ts`): PBKDF2 key derivation, 12-byte IV, base64 ciphertext, 90-day KV TTL ✅
+10. [x] **Integration Settings UI** (`IntegrationHub.tsx`): 6-tab settings page, CrmFieldMapper with AI auto-map ✅
+11. [x] **Chrome Extension** (`chrome-extension/*`): MV3 manifest, click-to-call FAB, content scripts for CRM sites ✅
+12. [x] **Bond AI Context** (`bond-ai.ts`): Integration + onboarding context types, guided CRM setup ✅
+13. [x] **Plan Gating** (`plan-gating.ts`): 15 new feature gates (crm_hubspot:pro, salesforce:business, etc.) ✅
+14. [x] **Database Migration** (`2026-02-14-integrations-full.sql`): 7 tables, 13 indexes, ALTER integrations ✅
+15. [x] **Pre-existing TS Fixes**: Zod v4 z.record(), writeAuditLog Promise<void>, sendEmail signature ✅
 
 ### Week 4+ (Feb 22+) - **Elegance & Scale**
 

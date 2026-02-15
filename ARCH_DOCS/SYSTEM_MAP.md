@@ -1,7 +1,7 @@
 # Codebase System Map
 
 **TOGAF Phase:** C — Information Systems Architecture  
-**Updated:** February 14, 2026 | **Version:** 4.66
+**Updated:** February 15, 2026 | **Version:** 4.67
 
 ```mermaid
 graph TB
@@ -11,23 +11,25 @@ graph TB
         Hooks[Custom Hooks<br/>hooks/useWebRTC.ts<br/>hooks/useAuth.ts<br/>hooks/useRBAC.ts]
     end
 
-    subgraph "Backend (Cloudflare Workers — 54 route files)"
-        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 54 files]
+    subgraph "Backend (Cloudflare Workers — 59 route files)"
+        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 59 files]
         Auth[Authentication<br/>auth.ts + lib/auth.ts]
         Voice[Voice & Telephony<br/>voice.ts, calls.ts, webrtc.ts<br/>live-translation.ts, tts.ts<br/>dialer.ts, ivr.ts, caller-id.ts]
         Messaging[Multi-Channel Messaging<br/>messages.ts (SMS + Email)<br/>Telnyx SMS, Resend Email]
         AI[AI & Intelligence<br/>ai-llm.ts, ai-router.ts, ai-transcribe.ts<br/>bond-ai.ts, ai-config.ts, ai-toggle.ts<br/>audio.ts, sentiment.ts]
         Business[Business Logic<br/>billing.ts, campaigns.ts, collections.ts<br/>compliance.ts, bookings.ts, surveys.ts<br/>productivity.ts, scorecards.ts]
+        Integrations[Integration Suite<br/>webhooks-outbound.ts, notifications.ts<br/>quickbooks.ts, google-workspace.ts<br/>helpdesk.ts, crm.ts]
         Admin[Admin & Analytics<br/>admin.ts, admin-metrics.ts<br/>analytics.ts, reports.ts, usage.ts<br/>audit.ts, health.ts, reliability.ts]
         DB[Database Layer<br/>workers/src/lib/db.ts]
     end
 
-    subgraph "Worker Libraries (34 files)"
+    subgraph "Worker Libraries (39 files)"
         CoreLibs[Core: db.ts, auth.ts, audit.ts<br/>logger.ts, errors.ts, utils.ts]
         AILibs[AI: ai-router.ts, groq-client.ts<br/>grok-voice-client.ts, bond-ai.ts<br/>prompt-sanitizer.ts, pii-redactor.ts]
         VoiceLibs[Voice: translation-processor.ts<br/>tts-processor.ts, sentiment-processor.ts<br/>audio-injector.ts, ivr-flow-engine.ts<br/>ai-call-engine.ts, dialer-engine.ts]
         SecurityLibs[Security: rate-limit.ts, idempotency.ts<br/>schemas.ts, validate.ts, compliance-checker.ts]
         ProcessingLibs[Processing: queue-consumer.ts<br/>post-transcription-processor.ts<br/>likelihood-scorer.ts, webhook-retry.ts<br/>payment-scheduler.ts]
+        IntegrationLibs[Integration: crm-tokens.ts, crm-hubspot.ts<br/>crm-salesforce.ts, quickbooks-client.ts<br/>google-workspace.ts]
     end
 
     subgraph "Shared Client Libraries"
@@ -35,9 +37,9 @@ graph TB
     end
 
     subgraph "External Services"
-        Neon[Neon Postgres — 149 tables]
+        Neon[Neon Postgres — 177 tables]
         R2[Cloudflare R2 — Recordings]
-        KV[Cloudflare KV — Sessions/Rate Limits]
+        KV[Cloudflare KV — Sessions/Rate Limits/Tokens]
         Telnyx[Telnyx — Voice/SMS]
         Resend[Resend — Email Delivery]
         Stripe[Stripe — Billing]
@@ -45,6 +47,14 @@ graph TB
         ElevenLabs[ElevenLabs — TTS]
         Grok[Grok xAI — Advanced LLM]
         Groq[Groq — Cost-Opt LLM]
+        HubSpot[HubSpot — CRM v3 API]
+        Salesforce[Salesforce — CRM v59.0]
+        QuickBooks[QuickBooks — Billing/Invoices]
+        GoogleWS[Google — Calendar + People]
+        Zendesk[Zendesk — Helpdesk Tickets]
+        Freshdesk[Freshdesk — Helpdesk Tickets]
+        SlackAPI[Slack — Block Kit Notifications]
+        TeamsAPI[MS Teams — Adaptive Cards]
     end
 
     UI --> APIClient
@@ -57,7 +67,18 @@ graph TB
     WorkersAPI --> AI
     WorkersAPI --> Business
     WorkersAPI --> Admin
+    WorkersAPI --> Integrations
     WorkersAPI --> DB
+    Integrations --> IntegrationLibs
+    IntegrationLibs --> HubSpot
+    IntegrationLibs --> Salesforce
+    IntegrationLibs --> QuickBooks
+    IntegrationLibs --> GoogleWS
+    IntegrationLibs --> Zendesk
+    IntegrationLibs --> Freshdesk
+    IntegrationLibs --> SlackAPI
+    IntegrationLibs --> TeamsAPI
+    IntegrationLibs --> KV
     Auth --> CoreLibs
     Voice --> VoiceLibs
     Messaging --> Telnyx
@@ -104,9 +125,9 @@ graph TB
     style Groq fill:#e8f5e8
 ```
 
-## 1. Backend API (Cloudflare Workers — 54 Route Files)
+## 1. Backend API (Cloudflare Workers — 59 Route Files)
 
-**Purpose**: Edge API, auth, DB, voice, AI, billing, compliance.
+**Purpose**: Edge API, auth, DB, voice, AI, billing, compliance, integrations.
 
 **Route Files** (workers/src/routes/):
 - **Core**: auth.ts, health.ts, organizations.ts, users.ts, team.ts, teams.ts, admin.ts, admin-metrics.ts, audit.ts, onboarding.ts, internal.ts, test.ts
@@ -115,14 +136,22 @@ graph TB
 - **AI**: ai-llm.ts, ai-router.ts, ai-transcribe.ts, bond-ai.ts, ai-config.ts, ai-toggle.ts, sentiment.ts
 - **Business**: billing.ts, campaigns.ts, collections.ts, compliance.ts, bookings.ts, surveys.ts, productivity.ts, scorecards.ts, shopper.ts, retention.ts
 - **Analytics**: analytics.ts, reports.ts, usage.ts, reliability.ts
-- **Integrations**: webhooks.ts, rbac-v2.ts, manager.ts
+- **Integrations**: webhooks.ts, crm.ts, webhooks-outbound.ts, notifications.ts, quickbooks.ts, google-workspace.ts, helpdesk.ts, rbac-v2.ts, manager.ts
 
-**Lib Files** (workers/src/lib/ — 34 files):
+**Lib Files** (workers/src/lib/ — 39 files):
 - **Core**: db.ts, auth.ts, audit.ts, logger.ts, errors.ts, utils.ts
 - **AI**: ai-router.ts, groq-client.ts, grok-voice-client.ts, bond-ai.ts, prompt-sanitizer.ts, pii-redactor.ts
 - **Voice**: translation-processor.ts, tts-processor.ts, sentiment-processor.ts, audio-injector.ts, ivr-flow-engine.ts, ai-call-engine.ts, dialer-engine.ts
 - **Security**: rate-limit.ts, idempotency.ts, schemas.ts, validate.ts, compliance-checker.ts, compliance-guides.ts, capabilities.ts, plan-gating.ts
+- **Integration**: crm-tokens.ts, crm-hubspot.ts, crm-salesforce.ts, quickbooks-client.ts, google-workspace.ts
 - **Processing**: queue-consumer.ts, post-transcription-processor.ts, likelihood-scorer.ts, webhook-retry.ts, payment-scheduler.ts, email.ts
+
+**Cron Jobs** (workers/src/crons/ + scheduled.ts):
+- `*/5 * * * *` — Queue consumer
+- `*/15 * * * *` — CRM delta sync (crm-sync.ts)
+- `0 * * * *` — Hourly maintenance
+- `0 0 * * *` — Daily cleanup
+- `0 6 * * *` — Morning reports
 
 ## 2. Frontend App (Next.js Static)
 
@@ -140,15 +169,24 @@ graph TB
 
 | Service | Purpose | Integration |
 |---------|---------|-------------|
-| Neon PostgreSQL | 149-table multi-tenant DB | Hyperdrive pooling, RLS |
+| Neon PostgreSQL | 177-table multi-tenant DB | Hyperdrive pooling, RLS |
 | Cloudflare R2 | Recording storage | Signed URLs, versioning |
-| Cloudflare KV | Sessions, rate limits, idempotency | Edge-native key-value |
+| Cloudflare KV | Sessions, rate limits, OAuth tokens | Edge-native key-value, AES-256-GCM encryption |
 | Telnyx | Voice/SMS, Call Control v2 | Webhooks + API |
 | Stripe | Billing, subscriptions | Webhooks + API |
 | AssemblyAI | Transcription (batch + real-time) | Webhooks + API |
 | ElevenLabs | Text-to-Speech | Streaming API |
 | Grok (xAI) | Advanced LLM reasoning | API (Bond AI Chat/Copilot) |
 | Groq (Llama 4 Scout) | Cost-optimized LLM | API (translation, simple tasks) |
+| HubSpot | CRM — contacts, deals, call activities | OAuth 2.0, API v3, delta sync |
+| Salesforce | CRM — contacts, deals, tasks | OAuth 2.0, REST v59.0, SOQL |
+| QuickBooks Online | Accounting — customers, invoices | OAuth 2.0, call-to-invoice |
+| Google Workspace | Calendar + People contacts | OAuth 2.0, syncToken delta |
+| Zendesk | Helpdesk — ticket auto-creation | API v2, configurable rules |
+| Freshdesk | Helpdesk — ticket auto-creation | API v2, configurable rules |
+| Slack | Notifications — Block Kit messages | Webhook + API, 7 event types |
+| Microsoft Teams | Notifications — Adaptive Cards | Webhook, v1.4 cards |
+| Zapier / Make.com | Webhook automation | HMAC-signed outbound webhooks |
 
 ## 5. Testing
 

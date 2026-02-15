@@ -3,8 +3,8 @@
 **TOGAF Phase:** H — Architecture Change Management  
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Last Updated:** February 12, 2026 (Session 16 — Deep Audit & Remediation)
-**Applicable Versions:** v4.8 – v4.53
+**Last Updated:** February 15, 2026 (Session 17 — Integration Suite Build)
+**Applicable Versions:** v4.8 – v4.67
 
 ---
 
@@ -2898,3 +2898,96 @@ async function apiCallWithRetry(method: string, url: string, retries = 3) {
 6. **Tool Dependencies:** Include all testing tools in project setup
 7. **Test Isolation:** Mock external services to avoid rate limits
 8. **CI Stability:** Run tests multiple times to catch flakes
+
+---
+
+## 🔴 CRITICAL — JSDoc Comments Cannot Contain `*/` Literals (v4.67)
+
+**A cron schedule string `*/15 * * * *` inside a JSDoc `/** */` block was parsed as the end of the block comment `*/`, causing the parser to interpret everything after it as code. This produced 200+ cascading TypeScript errors across the entire file.**
+
+### The Error
+```typescript
+/**
+ * CRM Delta Sync Cron
+ * Runs every */15 * * * * minutes   <-- `*/` terminates the comment!
+ */
+```
+
+### The Fix
+Convert JSDoc headers to `//` line comments when content includes `*/`:
+```typescript
+// CRM Delta Sync Cron
+// Runs every */15 minutes
+```
+
+### Rule
+**Never include cron schedule patterns (*/5, */15) or any `*/` literal inside JSDoc `/** */` blocks. Use `//` line comments instead. This applies to ALL comment blocks — not just JSDoc.**
+
+---
+
+## 🟠 HIGH — Zod v4 `z.record()` Requires Two Arguments (v4.67)
+
+**Zod v3 allowed `z.record(z.unknown())` with a single schema argument (defaulting to `z.string()` keys). Zod v4 requires both arguments: `z.record(keySchema, valueSchema)`. Six schemas across crm.ts and import.ts failed to compile.**
+
+### The Error
+```
+TS2554: Expected 2 arguments, but got 1.
+  z.record(z.unknown())  // ❌ Zod v4
+```
+
+### The Fix
+```typescript
+z.record(z.string(), z.unknown())  // ✅ Zod v4
+```
+
+### Rule
+**When using `z.record()`, ALWAYS pass both key and value schema arguments: `z.record(z.string(), valueSchema)`. This is mandatory in Zod v4 and prevents silent failures during upgrades.**
+
+---
+
+## 🟠 HIGH — writeAuditLog Must Return `Promise<void>` for `.catch()` Chaining (v4.67)
+
+**`writeAuditLog()` used `void db.query(...)` to make it fire-and-forget, which returned `undefined` (not a Promise). All callers used `.catch(() => {})`, which threw `TypeError: .catch is not a function` at runtime.**
+
+### The Fix
+```typescript
+// ❌ Before: returns void (undefined)
+export function writeAuditLog(...): void {
+  void db.query(...)
+}
+
+// ✅ After: returns Promise<void>
+export function writeAuditLog(...): Promise<void> {
+  return db.query(...).then(() => {})
+}
+```
+
+### Rule
+**If any caller chains `.then()` or `.catch()` on a function, that function MUST return a Promise. The `void` keyword discards the return, preventing chaining. Use `return` instead of `void` and declare the return type as `Promise<void>`.**
+
+---
+
+## 🟡 MEDIUM — Badge/Button Variants Must Match Component Definitions (v4.67)
+
+**IntegrationHub.tsx used Badge variants `destructive` and `outline` from generic shadcn/ui docs, but this project's customized `badge.tsx` only supports: default, error, info, secondary, success, warning. Build failed with `Type '"destructive"' is not assignable to type 'BadgeVariant'`.**
+
+### Rule
+**Before using UI component variants, check the actual variant definitions in `components/ui/badge.tsx` and `components/ui/button.tsx`. Don't assume shadcn/ui defaults — this project customizes variant sets. Map: destructive→error, outline→default.**
+
+---
+
+## 🟡 MEDIUM — OAuth Token Storage Requires Encryption at Rest (v4.67)
+
+**CRM OAuth tokens (access_token, refresh_token) stored in Cloudflare KV MUST be encrypted. KV is not a secrets store — values are readable by any Worker in the account. AES-256-GCM with PBKDF2 key derivation (100k iterations) + 12-byte random IV was implemented in `crm-tokens.ts`.**
+
+### Rule
+**Never store OAuth tokens in plain text in KV. Always encrypt using AES-256-GCM via `crm-tokens.ts` functions: `storeTokens()`, `getTokens()`, `deleteTokens()`. Set KV TTL to 90 days max to auto-expire stale tokens.**
+
+---
+
+## 🟡 MEDIUM — Root tsconfig.json Excludes `workers/` — VS Code Shows False Positives (v4.67)
+
+**The root `tsconfig.json` has `"exclude": ["workers/**"]` because Workers use a separate `workers/tsconfig.json` with Cloudflare types. VS Code's TypeScript language server picks up the root config and flags all worker files as errors. These are false positives — the Workers build (`wrangler deploy`) uses the correct tsconfig.**
+
+### Rule
+**Ignore VS Code TypeScript errors in `workers/` files if the Workers build (`npm run api:deploy`) succeeds. To validate worker types locally, run `cd workers && npx tsc --noEmit`. Keep both tsconfig files in sync on shared types.**

@@ -14,6 +14,9 @@ const nextConfig = {
   // Static export for Cloudflare Pages — all server logic in Workers
   output: 'export',
 
+  // Fix workspace root inference issue
+  outputFileTracingRoot: __dirname,
+
   images: {
     // Static export uses unoptimized images, but we configure
     // Cloudflare Image Resizing via a custom loader.
