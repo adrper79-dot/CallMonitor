@@ -2,10 +2,10 @@
 
 > **TOGAF Phase:** Phase B (Business Architecture) + Phase C (Information Systems Architecture)
 
-**Last Updated:** February 15, 2026
-**Platform Version:** v4.67
+**Last Updated:** February 16, 2026
+**Platform Version:** v4.68
 **Status:** Production Ready — 109/109 Roadmap Items Complete
-**Audited:** Feb 15, 2026 — Full codebase analysis (89 pages, 61 route files, ~310 endpoints, 44 lib modules)
+**Audited:** Feb 16, 2026 — Full codebase analysis (89 pages, 62 route files, ~310 endpoints, 46 lib modules)
 
 ---
 
@@ -314,7 +314,7 @@
 **Backend Routes:** `/api/ivr/*` (2 endpoints)
 **Backend Lib:** `ivr-flow-engine.ts`
 **Frontend Component:** `IVRPaymentPanel`
-**Database Tables:** `ivr_flows`, `inbound_phone_numbers`
+**Database Tables:** `inbound_phone_numbers`, `org_phone_numbers` (outbound pool integration)
 
 ---
 
@@ -381,9 +381,11 @@
 - 7-step guided setup flow (plan, phone number, compliance, CSV import, test call, invite team, product tour)
 - Onboarding progress persistence
 - "WORD IS BOND TEST CALL. THANKS." TTS test call feature
-- Integration with all provisioning APIs
+- Telnyx provisioning integration (5-number org pool + CNAM assignment)
+- Round-robin outbound number pool initialization for new organizations
 
-**Backend Routes:** `/api/onboarding/*` (2 endpoints)
+**Backend Routes:** `/api/onboarding/*` (3 endpoints: POST `/setup`, POST `/progress`, POST `/compliance`)
+**Backend Lib:** `phone-provisioning.ts`
 **Frontend Pages:** `/onboarding`
 **Components:** `OnboardingWizard`
 

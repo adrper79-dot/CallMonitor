@@ -312,6 +312,20 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
        FROM org_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
+       ORDER BY
+         CASE om.role
+           WHEN 'owner' THEN 5
+           WHEN 'admin' THEN 4
+           WHEN 'manager' THEN 3
+           WHEN 'operator' THEN 3
+           WHEN 'compliance' THEN 3
+           WHEN 'agent' THEN 2
+           WHEN 'analyst' THEN 2
+           WHEN 'viewer' THEN 1
+           ELSE 0
+         END DESC,
+         om.created_at ASC,
+         om.organization_id ASC
        LIMIT 1`,
       [user.id]
     )
@@ -353,6 +367,12 @@ authRoutes.post('/callback/credentials', loginRateLimit, async (c) => {
       await c.env.KV.put(`fp:${sessionToken}`, fingerprint, {
         expirationTtl: 7 * 24 * 60 * 60,
       })
+
+      if (org?.organization_id) {
+        await c.env.KV.put(`sess-org:${sessionToken}`, String(org.organization_id), {
+          expirationTtl: 7 * 24 * 60 * 60,
+        })
+      }
 
       // C-1 fix: Mark test org sessions in KV so rate limiter can bypass
       // without opening a DB connection on every request.
@@ -474,6 +494,14 @@ authRoutes.post('/refresh', async (c) => {
       })
       await c.env.KV.delete(`fp:${token}`)
 
+      const activeOrg = await c.env.KV.get(`sess-org:${token}`)
+      if (activeOrg) {
+        await c.env.KV.put(`sess-org:${newToken}`, activeOrg, {
+          expirationTtl: 7 * 24 * 60 * 60,
+        })
+      }
+      await c.env.KV.delete(`sess-org:${token}`)
+
       // Update cookie with new token
       c.header(
         'Set-Cookie',
@@ -541,6 +569,7 @@ authRoutes.post('/signout', async (c) => {
     // H2 hardening: clean up fingerprint from KV
     try {
       await c.env.KV.delete(`fp:${token}`)
+      await c.env.KV.delete(`sess-org:${token}`)
     } catch {
       // Non-fatal — KV cleanup best-effort
     }

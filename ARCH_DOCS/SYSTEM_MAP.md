@@ -1,7 +1,7 @@
 # Codebase System Map
 
 **TOGAF Phase:** C — Information Systems Architecture  
-**Updated:** February 15, 2026 | **Version:** 4.67
+**Updated:** February 16, 2026 | **Version:** 4.68
 
 ```mermaid
 graph TB
@@ -11,8 +11,8 @@ graph TB
         Hooks[Custom Hooks<br/>hooks/useWebRTC.ts<br/>hooks/useAuth.ts<br/>hooks/useRBAC.ts]
     end
 
-    subgraph "Backend (Cloudflare Workers — 59 route files)"
-        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 59 files]
+    subgraph "Backend (Cloudflare Workers — 62 route files)"
+        WorkersAPI[API Layer<br/>workers/src/index.ts<br/>workers/src/routes/* — 62 files]
         Auth[Authentication<br/>auth.ts + lib/auth.ts]
         Voice[Voice & Telephony<br/>voice.ts, calls.ts, webrtc.ts<br/>live-translation.ts, tts.ts<br/>dialer.ts, ivr.ts, caller-id.ts]
         Messaging[Multi-Channel Messaging<br/>messages.ts (SMS + Email)<br/>Telnyx SMS, Resend Email]
@@ -23,10 +23,10 @@ graph TB
         DB[Database Layer<br/>workers/src/lib/db.ts]
     end
 
-    subgraph "Worker Libraries (39 files)"
+    subgraph "Worker Libraries (46 files)"
         CoreLibs[Core: db.ts, auth.ts, audit.ts<br/>logger.ts, errors.ts, utils.ts]
         AILibs[AI: ai-router.ts, groq-client.ts<br/>grok-voice-client.ts, bond-ai.ts<br/>prompt-sanitizer.ts, pii-redactor.ts]
-        VoiceLibs[Voice: translation-processor.ts<br/>tts-processor.ts, sentiment-processor.ts<br/>audio-injector.ts, ivr-flow-engine.ts<br/>ai-call-engine.ts, dialer-engine.ts]
+        VoiceLibs[Voice: translation-processor.ts<br/>tts-processor.ts, sentiment-processor.ts<br/>audio-injector.ts, ivr-flow-engine.ts<br/>ai-call-engine.ts, dialer-engine.ts<br/>phone-provisioning.ts]
         SecurityLibs[Security: rate-limit.ts, idempotency.ts<br/>schemas.ts, validate.ts, compliance-checker.ts]
         ProcessingLibs[Processing: queue-consumer.ts<br/>post-transcription-processor.ts<br/>likelihood-scorer.ts, webhook-retry.ts<br/>payment-scheduler.ts]
         IntegrationLibs[Integration: crm-tokens.ts, crm-hubspot.ts<br/>crm-salesforce.ts, quickbooks-client.ts<br/>google-workspace.ts]
@@ -125,7 +125,7 @@ graph TB
     style Groq fill:#e8f5e8
 ```
 
-## 1. Backend API (Cloudflare Workers — 59 Route Files)
+## 1. Backend API (Cloudflare Workers — 62 Route Files)
 
 **Purpose**: Edge API, auth, DB, voice, AI, billing, compliance, integrations.
 
@@ -138,10 +138,10 @@ graph TB
 - **Analytics**: analytics.ts, reports.ts, usage.ts, reliability.ts
 - **Integrations**: webhooks.ts, crm.ts, webhooks-outbound.ts, notifications.ts, quickbooks.ts, google-workspace.ts, helpdesk.ts, rbac-v2.ts, manager.ts
 
-**Lib Files** (workers/src/lib/ — 39 files):
+**Lib Files** (workers/src/lib/ — 46 files):
 - **Core**: db.ts, auth.ts, audit.ts, logger.ts, errors.ts, utils.ts
 - **AI**: ai-router.ts, groq-client.ts, grok-voice-client.ts, bond-ai.ts, prompt-sanitizer.ts, pii-redactor.ts
-- **Voice**: translation-processor.ts, tts-processor.ts, sentiment-processor.ts, audio-injector.ts, ivr-flow-engine.ts, ai-call-engine.ts, dialer-engine.ts
+- **Voice**: translation-processor.ts, tts-processor.ts, sentiment-processor.ts, audio-injector.ts, ivr-flow-engine.ts, ai-call-engine.ts, dialer-engine.ts, phone-provisioning.ts
 - **Security**: rate-limit.ts, idempotency.ts, schemas.ts, validate.ts, compliance-checker.ts, compliance-guides.ts, capabilities.ts, plan-gating.ts
 - **Integration**: crm-tokens.ts, crm-hubspot.ts, crm-salesforce.ts, quickbooks-client.ts, google-workspace.ts
 - **Processing**: queue-consumer.ts, post-transcription-processor.ts, likelihood-scorer.ts, webhook-retry.ts, payment-scheduler.ts, email.ts
@@ -169,7 +169,7 @@ graph TB
 
 | Service | Purpose | Integration |
 |---------|---------|-------------|
-| Neon PostgreSQL | 177-table multi-tenant DB | Hyperdrive pooling, RLS |
+| Neon PostgreSQL | 149-table multi-tenant DB | Hyperdrive pooling, RLS |
 | Cloudflare R2 | Recording storage | Signed URLs, versioning |
 | Cloudflare KV | Sessions, rate limits, OAuth tokens | Edge-native key-value, AES-256-GCM encryption |
 | Telnyx | Voice/SMS, Call Control v2 | Webhooks + API |

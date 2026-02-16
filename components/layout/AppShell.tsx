@@ -157,7 +157,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/work/payment-links',
+              href: '/work/payments',
               label: 'Payment Links',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -221,7 +221,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/schedule/appointments',
+              href: '/schedule',
               label: 'Appointments',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -276,7 +276,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: '',
           items: [
             {
-              href: '/performance',
+              href: '/analytics/me',
               label: 'My Performance',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -307,7 +307,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'TEAM',
           items: [
             {
-              href: '/team/live-board',
+              href: '/command/live',
               label: 'Live Board',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -316,7 +316,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/members',
+              href: '/teams',
               label: 'Members',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -325,7 +325,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/scorecards',
+              href: '/command/scorecards',
               label: 'Scorecards',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -334,7 +334,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/coaching',
+              href: '/command/coaching',
               label: 'Coaching',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -357,7 +357,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/analytics/agent-performance',
+              href: '/analytics/agents',
               label: 'Agent Performance',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -366,7 +366,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/analytics/campaigns',
+              href: '/analytics',
               label: 'Campaign Results',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -389,7 +389,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'COMPLIANCE',
           items: [
             {
-              href: '/compliance/dashboard',
+              href: '/compliance',
               label: 'Violation Dashboard',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -457,7 +457,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/payments/receipts',
+              href: '/payments',
               label: 'Receipts',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -471,7 +471,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'CAMPAIGNS',
           items: [
             {
-              href: '/campaigns/active',
+              href: '/campaigns',
               label: 'Active Campaigns',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -536,7 +536,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'TEAM',
           items: [
             {
-              href: '/team/live-board',
+              href: '/command/live',
               label: 'Live Board',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -545,7 +545,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/members',
+              href: '/teams',
               label: 'Members',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -554,7 +554,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/scorecards',
+              href: '/command/scorecards',
               label: 'Scorecards',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -563,7 +563,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/team/coaching',
+              href: '/command/coaching',
               label: 'Coaching',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -586,7 +586,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/analytics/agent-performance',
+              href: '/analytics/agents',
               label: 'Agent Performance',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -595,7 +595,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/analytics/campaigns',
+              href: '/analytics',
               label: 'Campaign Results',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -618,7 +618,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'COMPLIANCE',
           items: [
             {
-              href: '/compliance/dashboard',
+              href: '/compliance',
               label: 'Violation Dashboard',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -686,7 +686,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/payments/receipts',
+              href: '/payments',
               label: 'Receipts',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -700,7 +700,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
           title: 'CAMPAIGNS',
           items: [
             {
-              href: '/campaigns/active',
+              href: '/campaigns',
               label: 'Active Campaigns',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -792,7 +792,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/admin/api-keys',
+              href: '/admin/api',
               label: 'API Keys',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -801,7 +801,7 @@ export function AppShell({ children, organizationName, organizationId, userEmail
               ),
             },
             {
-              href: '/admin/org',
+              href: '/settings',
               label: 'Org Settings',
               icon: (
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

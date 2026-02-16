@@ -164,6 +164,7 @@ export default function FollowUpTracker() {
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/accounts/${fu.account_id}`}
+                          prefetch={false}
                           className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600 truncate"
                         >
                           {fu.account_name}

@@ -148,6 +148,7 @@ export default function PaymentPlansPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <Link
                           href={`/accounts/${plan.account_id}`}
+                          prefetch={false}
                           className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600"
                         >
                           {plan.account_name}

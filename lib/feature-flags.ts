@@ -65,7 +65,6 @@ export const ROUTE_REDIRECTS: Record<string, string> = {
   '/voice': '/admin/voice',
   '/admin/metrics': '/admin',
   '/review': '/work/call',
-  '/teams': '/settings/team',
 }
 
 /**

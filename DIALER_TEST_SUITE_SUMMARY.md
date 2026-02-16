@@ -440,7 +440,7 @@ Detailed troubleshooting: [docs/DIALER_TESTING.md](docs/DIALER_TESTING.md#troubl
 **Files Referenced:**
 - `tests/production/translation-processor-osi.test.ts` — Pattern reference
 - `tests/production/helpers.ts` — API call helpers
-- `tests/e2e/workplace-simulator-final.spec.ts` — E2E pattern reference
+- `tests/e2e/workplace-simulator.spec.ts` — E2E pattern reference
 
 ---
 

@@ -1,0 +1,4 @@
+/signin /signin/ 301
+/accounts/import /accounts/import 200
+/accounts/disputes /accounts/disputes 200
+/accounts/:id /accounts/placeholder?accountId=:id 200

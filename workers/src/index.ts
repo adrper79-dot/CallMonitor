@@ -73,6 +73,7 @@ import { notificationsRoutes } from './routes/notifications'
 import { quickbooksRoutes } from './routes/quickbooks'
 import { googleWorkspaceRoutes } from './routes/google-workspace'
 import { helpdeskRoutes } from './routes/helpdesk'
+import { cockpitRoutes } from './routes/cockpit'
 import {
   buildErrorContext,
   logError,
@@ -299,6 +300,7 @@ app.route('/api/notifications', notificationsRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/google-workspace', googleWorkspaceRoutes)
 app.route('/api/helpdesk', helpdeskRoutes)
+app.route('/api', cockpitRoutes) // /api/notes, /api/callbacks, /api/disputes
 
 // Root endpoint
 app.get('/', (c) => {

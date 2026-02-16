@@ -12,6 +12,7 @@ import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { voiceRateLimit, telnyxVoiceRateLimit } from '../lib/rate-limit'
 import { getTranslationConfig } from '../lib/translation-processor'
+import { getNextOutboundNumber } from '../lib/phone-provisioning'
 
 export const voiceRoutes = new Hono<AppEnv>()
 
@@ -280,9 +281,9 @@ voiceRoutes.post('/call', telnyxVoiceRateLimit, voiceRateLimit, async (c) => {
       return c.json({ error: 'Invalid phone number format (must be E.164)' }, 400)
     }
 
-    const callerNumber = c.env.TELNYX_NUMBER
+    const callerNumber = from_number || await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
     if (!callerNumber) {
-      return c.json({ error: 'Telnyx caller number not configured' }, 500)
+      return c.json({ error: 'Telnyx caller number not configured and no org numbers provisioned' }, 500)
     }
 
     if (!c.env.TELNYX_API_KEY) {

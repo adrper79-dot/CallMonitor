@@ -20,7 +20,7 @@ export function BottomNav() {
     },
     {
       href: '/bookings',
-      label: 'Schedule',
+      label: 'Schedules',
       icon: Calendar,
     },
     {

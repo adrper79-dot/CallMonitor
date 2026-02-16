@@ -80,6 +80,8 @@ npm run test:live    # Production smoke tests
 | `npm run test:live:api`   | API endpoint smoke tests     |
 | `npm run test:live:db`    | Database connectivity tests  |
 | `npm run test:live:voice` | Voice/Telnyx tests           |
+| `npm run test:e2e`        | E2E tests with Playwright    |
+| `npm run test:e2e:headed` | E2E tests with browser UI    |
 | `npm run test:coverage`   | Coverage report              |
 
 ### Database
@@ -147,7 +149,15 @@ npm run test:live    # Production smoke tests
 │   └── ...
 │
 ├── tests/                  # Test suites
-│   └── production/         # Live smoke tests
+│   ├── production/         # Live smoke tests
+│   └── e2e/                # E2E test suite (Playwright)
+│       ├── voice-auth-test.spec.ts      # Voice operations auth
+│       ├── permission-access-control.spec.ts # RBAC testing
+│       ├── real-time-features-edge-cases.spec.ts # WebSocket tests
+│       ├── security-edge-cases.spec.ts  # Security validation
+│       ├── reports.spec.ts              # Reports interface
+│       ├── workplace-simulator.spec.ts # Employee journeys
+│       └── workflow-validation.test.ts # Business workflow tests
 │
 ├── ARCH_DOCS/              # Architecture documentation
 │   ├── 00-README.md        # Doc navigation index

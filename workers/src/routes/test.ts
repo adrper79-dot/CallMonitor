@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv, Env } from '../index'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { getDb } from '../lib/db'
 import {
   probeDatabase,
@@ -1056,11 +1056,10 @@ testRoutes.post('/run', async (c) => {
 testRoutes.post('/run-all', async (c) => {
   const correlation_id = generateCorrelationId()
   const suite_start = Date.now()
-  let session: any = null
-
-  try {
-    session = await requireAuth(c)
-  } catch (_) {}
+  const session = await requireRole(c, 'admin')
+  if (!session) {
+    return c.json({ passed: false, error: 'Insufficient permissions', correlation_id }, 403)
+  }
 
   const results: TestResult[] = []
   const category_results: Record<

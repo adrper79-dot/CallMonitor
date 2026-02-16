@@ -387,7 +387,7 @@ export function RoleShell({ children, organizationName, organizationId, userEmai
               { href: '/work', icon: Home, label: 'Today' },
               { href: '/work/call', icon: PhoneCall, label: 'Call' },
               { href: '/accounts', icon: Users, label: 'Accounts' },
-              { href: '/schedule', icon: Calendar, label: 'Schedule' },
+              { href: '/schedule', icon: Calendar, label: 'Schedules' },
             ].map((tab) => {
               const active = isNavActive(pathname || '', tab.href)
               return (

@@ -146,7 +146,7 @@ export default function CrmFieldMapper({ integrationId }: CrmFieldMapperProps) {
 And these ${integration.provider} CRM fields: ${crmFields.map((f) => `${f.name} (${f.label}, type: ${f.type})`).join(', ')}
 Suggest the best field mappings as a JSON array of objects with {wib_field, crm_field, direction} where direction is "to_crm", "from_crm", or "bidirectional". Only map fields that have a logical correspondence.`
 
-      const res = await apiPost('/bond-ai/chat', {
+      const res = await apiPost('/api/bond-ai/chat', {
         message: prompt,
         context: 'crm_field_mapping',
       })

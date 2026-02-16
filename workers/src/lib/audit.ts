@@ -492,5 +492,10 @@ export const AuditAction = {
   OPT_OUT_REQUESTED: 'message:opt_out_requested',
   OPT_IN_CONFIRMED: 'message:opt_in_confirmed',
   AUTO_REPLY_SENT: 'message:auto_reply_sent',
+
+  // Collection Cockpit Quick Actions
+  COLLECTION_NOTE_CREATED: 'collection:note_created',
+  COLLECTION_CALLBACK_SCHEDULED: 'collection:callback_scheduled',
+  COLLECTION_DISPUTE_FILED: 'collection:dispute_filed',
 } as const
 

@@ -56,6 +56,7 @@ export default function SettlementCalculator({
   const [created, setCreated] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showLinkGenerator, setShowLinkGenerator] = useState(false)
+  const [paymentLink, setPaymentLink] = useState<string | null>(null)
 
   // Calculate recommendation based on aging and likelihood score
   const recommendation = useMemo((): SettlementRecommendation => {
@@ -131,19 +132,18 @@ export default function SettlementCalculator({
     setLoading(true)
     setError(null)
     try {
-      const data = await apiPost('/api/settlements', {
+      const data = await apiPost('/api/payments/links', {
         account_id: accountId,
-        original_balance: balanceDue,
-        settlement_amount: settlementAmount,
-        settlement_percentage: settlementPct,
-        offer_type: offerType,
-        days_past_due: daysPastDue,
-        likelihood_score: likelihoodScore,
-        recommended_range: `${recommendation.min}-${recommendation.max}%`,
+        amount: settlementAmount,
+        description: `Settlement offer: ${settlementPct}% (${accountName}) · ${offerType}`,
+        currency: 'usd',
       })
 
+      const link = data.url || data.link || data.data?.url || null
+      setPaymentLink(link)
+
       setCreated(true)
-      onSettlementCreated?.(data.id || data.data?.id)
+      onSettlementCreated?.(data.id || data.data?.id || crypto.randomUUID())
       logger.info('Settlement offer created', {
         accountId,
         settlementPct,
@@ -162,6 +162,7 @@ export default function SettlementCalculator({
     }
   }, [
     accountId,
+    accountName,
     balanceDue,
     settlementAmount,
     settlementPct,
@@ -173,6 +174,14 @@ export default function SettlementCalculator({
   ])
 
   const handleSendPaymentLink = useCallback(async () => {
+    if (paymentLink) {
+      navigator.clipboard.writeText(paymentLink)
+      setTimeout(() => {
+        onClose()
+      }, 2000)
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -204,7 +213,7 @@ export default function SettlementCalculator({
     } finally {
       setLoading(false)
     }
-  }, [accountId, settlementAmount, settlementPct, accountName, onClose])
+  }, [accountId, settlementAmount, settlementPct, accountName, onClose, paymentLink])
 
   // Success state
   if (created && showLinkGenerator) {

@@ -14,6 +14,7 @@ import { logger } from '../lib/logger'
 import { writeAuditLog, AuditAction } from '../lib/audit'
 import { getTranslationConfig } from '../lib/translation-processor'
 import { telnyxVoiceRateLimit } from '../lib/rate-limit'
+import { getNextOutboundNumber } from '../lib/phone-provisioning'
 
 export const webrtcRoutes = new Hono<AppEnv>()
 
@@ -292,12 +293,15 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
   // Use centralized DB client to create call record
   const db = getDb(c.env, session.organization_id)
   try {
+    // Round-robin number selection for outbound WebRTC calls
+    const webrtcFrom = await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+
     // Create call record - using actual schema columns
     const callResult = await db.query(
       `INSERT INTO calls (id, organization_id, status, started_at, created_by, phone_number, from_number, direction, flow_type, user_id)
        VALUES (gen_random_uuid(), $1, 'initiated', NOW(), $2, $3, $4, 'outbound', 'webrtc', $2)
        RETURNING id`,
-      [session.organization_id, session.user_id, phone_number, c.env.TELNYX_NUMBER]
+      [session.organization_id, session.user_id, phone_number, webrtcFrom]
     )
 
     const callId = callResult.rows[0].id
@@ -316,7 +320,7 @@ webrtcRoutes.post('/dial', telnyxVoiceRateLimit, async (c) => {
     const callPayload: Record<string, unknown> = {
       connection_id: c.env.TELNYX_CONNECTION_ID,
       to: phone_number,
-      from: c.env.TELNYX_NUMBER,
+      from: webrtcFrom,
       webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx?call_id=${callId}`,
       timeout_secs: 30,
     }

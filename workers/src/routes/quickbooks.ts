@@ -155,7 +155,8 @@ quickbooksRoutes.post('/connect', crmRateLimit, async (c) => {
 
     const authUrl = getQuickBooksAuthUrl(config)
 
-    writeAuditLog(getDb(c.env, session.organization_id), {
+    const auditDb = getDb(c.env, session.organization_id)
+    writeAuditLog(auditDb, {
       organizationId: session.organization_id,
       userId: session.user_id,
       resourceType: 'quickbooks',
@@ -163,7 +164,11 @@ quickbooksRoutes.post('/connect', crmRateLimit, async (c) => {
       action: AuditAction.CRM_OAUTH_INITIATED,
       oldValue: null,
       newValue: { provider: PROVIDER },
-    }).catch(() => {})
+    })
+      .finally(async () => {
+        await auditDb.end()
+      })
+      .catch(() => {})
 
     logger.info('QuickBooks OAuth flow initiated', {
       orgId: session.organization_id,

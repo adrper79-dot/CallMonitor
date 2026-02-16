@@ -65,7 +65,7 @@ dead_letter_queue = "wordisbond-transcription-dlq"
 crons = [
   "*/5 * * * *",   # Every 5 min: retry failed transcriptions
   "*/15 * * * *",  # Every 15 min: CRM delta sync
-  "0 * * * *",     # Hourly: cleanup expired sessions
+  "0 * * * *",     # Hourly: cleanup expired sessions + sequence execution
   "0 0 * * *",     # Daily midnight: usage aggregation
   "0 6 * * *"      # Daily 6am: scheduled payments + dunning
 ]

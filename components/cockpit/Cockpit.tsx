@@ -570,9 +570,19 @@ function ContextPanel({
       return
     }
     setLoadingCompliance(true)
-    apiGet(`/api/compliance/pre-dial?accountId=${selectedAccount.id}`)
+    apiGet(`/api/compliance/pre-dial?account_id=${selectedAccount.id}&phone=${encodeURIComponent(selectedAccount.primary_phone || '')}`)
       .then((data: any) => {
-        setCompliance(data.checks || null)
+        // Transform API object checks into booleans for the compliance badge
+        const rawChecks = data.checks || {}
+        setCompliance({
+          dnc: !(rawChecks.dnc?.blocked),
+          consent: true, // not tracked in pre-dial — default true
+          time_ok: !(rawChecks.tcpa?.restricted),
+          frequency_ok: !(rawChecks.reg_f?.blocked),
+          legal_hold: false, // not tracked — default false (no hold)
+          bankruptcy: false, // not tracked — default false
+          mini_miranda: true, // not tracked — default true
+        })
       })
       .catch(() => setCompliance(null))
       .finally(() => setLoadingCompliance(false))

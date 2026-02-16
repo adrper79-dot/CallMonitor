@@ -16,6 +16,7 @@ import { processScheduledPayments, processDunningEscalation } from './lib/paymen
 import { flushAuditDlq } from './lib/audit'
 import { runPreventionScan } from './lib/prevention-scan'
 import { handleCrmSync } from './crons/crm-sync'
+import { executeSequences } from './lib/sequence-executor'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -90,6 +91,8 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
           const result = await flushAuditDlq(env)
           return { processed: result.flushed, errors: result.failed }
         })
+        // Execute campaign sequences — evaluate enrollments and fire due steps
+        await trackCronExecution(env, 'execute_sequences', () => executeSequences(env))
         break
       case '0 0 * * *':
         await trackCronExecution(env, 'aggregate_usage', () => aggregateUsage(env))

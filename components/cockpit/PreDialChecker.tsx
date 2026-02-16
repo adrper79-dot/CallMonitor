@@ -60,9 +60,15 @@ export default function PreDialChecker({
     setError(null)
     try {
       const data = await apiGet(
-        `/api/compliance/pre-dial?accountId=${accountId}&phone=${encodeURIComponent(phone)}`
+        `/api/compliance/pre-dial?account_id=${accountId}&phone=${encodeURIComponent(phone)}`
       )
-      const checks: ComplianceCheck[] = data.checks || buildFallbackChecks(data)
+      // API may return checks as object {dnc:{}, tcpa:{}, reg_f:{}} or array
+      const rawChecks = data.checks
+      const checks: ComplianceCheck[] = Array.isArray(rawChecks)
+        ? rawChecks
+        : rawChecks && typeof rawChecks === 'object'
+          ? transformChecksObject(rawChecks)
+          : buildFallbackChecks(data)
       const allowed = checks.every((c) => c.status !== 'fail')
       setResult({
         allowed,
@@ -240,6 +246,60 @@ export default function PreDialChecker({
  * Build fallback checks from a flat API response
  * (e.g. if API returns {calling_hours: true, consent: true, ...})
  */
+/**
+ * Transform the object-format checks from the API into ComplianceCheck[]
+ * API returns: { dnc: { blocked, reason, source }, tcpa: { restricted, reason }, reg_f: { blocked, contact_count_7day, limit } }
+ */
+function transformChecksObject(checks: Record<string, any>): ComplianceCheck[] {
+  const result: ComplianceCheck[] = []
+
+  if (checks.dnc) {
+    result.push({
+      rule: 'dnc',
+      label: 'Do Not Call List',
+      status: checks.dnc.blocked ? 'fail' : 'pass',
+      detail: checks.dnc.blocked
+        ? `DNC blocked: ${checks.dnc.reason || 'On do-not-call list'}`
+        : 'Not on do-not-call list',
+    })
+  }
+
+  if (checks.tcpa) {
+    result.push({
+      rule: 'tcpa',
+      label: 'TCPA Calling Hours',
+      status: checks.tcpa.restricted ? 'fail' : 'pass',
+      detail: checks.tcpa.restricted
+        ? checks.tcpa.reason || 'Outside permitted calling hours'
+        : 'Within permitted calling window',
+    })
+  }
+
+  if (checks.reg_f) {
+    const count = checks.reg_f.contact_count_7day ?? 0
+    const limit = checks.reg_f.limit ?? 7
+    result.push({
+      rule: 'reg_f',
+      label: 'Reg F Contact Limit',
+      status: checks.reg_f.blocked ? 'fail' : count >= limit - 2 ? 'warn' : 'pass',
+      detail: checks.reg_f.blocked
+        ? `Contact limit reached (${count}/${limit} in 7 days)`
+        : `${count}/${limit} contacts this period`,
+    })
+  }
+
+  if (result.length === 0) {
+    result.push({
+      rule: 'generic',
+      label: 'Compliance Status',
+      status: 'pass',
+      detail: 'All checks passed',
+    })
+  }
+
+  return result
+}
+
 function buildFallbackChecks(data: Record<string, any>): ComplianceCheck[] {
   const checks: ComplianceCheck[] = []
 

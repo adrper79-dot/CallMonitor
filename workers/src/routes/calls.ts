@@ -29,6 +29,7 @@ import {
 } from '../lib/rate-limit'
 import { sendEmail, callShareEmailHtml, getEmailDefaults } from '../lib/email'
 import { z } from 'zod'
+import { getNextOutboundNumber } from '../lib/phone-provisioning'
 
 export const callsRoutes = new Hono<AppEnv>()
 
@@ -77,6 +78,9 @@ callsRoutes.post(
       )
       const voiceConfig = voiceConfigResult.rows[0]
 
+      // Round-robin number selection: use org pool or fallback to global
+      const outboundFrom = from || await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+
       // Create call record
       const callResult = await db.query(
         `INSERT INTO calls (
@@ -87,7 +91,7 @@ callsRoutes.post(
         RETURNING *`,
         [
           session.organization_id,
-          from || c.env.TELNYX_NUMBER,
+          outboundFrom,
           to,
           campaign_id || null,
           session.user_id,
@@ -108,7 +112,7 @@ callsRoutes.post(
       const telnyxPayload: Record<string, any> = {
         connection_id: c.env.TELNYX_CONNECTION_ID,
         to,
-        from: from || c.env.TELNYX_NUMBER,
+        from: outboundFrom,
         webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
       }
 
@@ -395,15 +399,19 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
   if (!parsed.success) return parsed.response
   const { phone_number, caller_id, system_id } = parsed.data
 
-  const db = getDb(c.env, session.organization_id)
+  let db: ReturnType<typeof getDb> | null = null
   try {
+    db = getDb(c.env, session.organization_id)
+    // Round-robin number selection for outbound caller ID
+    const outboundCallerId = caller_id || await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+
     // Create call record - matching actual schema columns
     // Schema has: id, organization_id, system_id, status, started_at, created_by, call_sid, caller_id_used
     const result = await db.query(
       `INSERT INTO calls (organization_id, system_id, status, started_at, created_by, caller_id_used)
        VALUES ($1, $2, 'pending', NOW(), $3, $4)
        RETURNING *`,
-      [session.organization_id, system_id, session.user_id, caller_id || phone_number]
+      [session.organization_id, system_id, session.user_id, outboundCallerId]
     )
 
     const call = result.rows[0]
@@ -433,7 +441,7 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
       const callPayload: Record<string, unknown> = {
         connection_id: c.env.TELNYX_CONNECTION_ID,
         to: phone_number,
-        from: caller_id || c.env.TELNYX_NUMBER,
+        from: outboundCallerId,
         webhook_url: `${c.env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
       }
 
@@ -503,10 +511,16 @@ callsRoutes.post('/start', telnyxVoiceRateLimit, callMutationRateLimit, idempote
 
     return c.json({ success: true, call: updatedResult.rows[0] || call }, 201)
   } catch (err: any) {
-    logger.error('POST /api/calls/start error', { error: err?.message })
-    return c.json({ error: 'Failed to start call' }, 500)
+    logger.error('POST /api/calls/start error', {
+      error: err?.message,
+      stack: err?.stack?.slice(0, 500),
+      code: err?.code,
+      org_id: session.organization_id,
+      phone: phone_number,
+    })
+    return c.json({ error: 'Failed to start call', detail: err?.message }, 500)
   } finally {
-    await db.end()
+    if (db) await db.end()
   }
 })
 

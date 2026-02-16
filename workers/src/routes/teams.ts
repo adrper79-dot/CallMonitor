@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
-import { requireAuth, authMiddleware } from '../lib/auth'
+import { requireAuth, authMiddleware, parseSessionToken } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { validateBody } from '../lib/validate'
 import {
@@ -431,6 +431,26 @@ teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
     // For now: return the new org context so the client can update its session cache
     const member = membership.rows[0]
 
+    const token = parseSessionToken(c)
+    if (token) {
+      try {
+        const sessionRow = await db.query(
+          `SELECT expires FROM public.sessions WHERE session_token = $1 LIMIT 1`,
+          [token]
+        )
+        const expires = sessionRow.rows?.[0]?.expires
+        const ttlSeconds = expires
+          ? Math.max(Math.floor((new Date(expires).getTime() - Date.now()) / 1000), 60)
+          : 7 * 24 * 60 * 60
+
+        await c.env.KV.put(`sess-org:${token}`, String(organization_id), {
+          expirationTtl: ttlSeconds,
+        })
+      } catch {
+        // Non-fatal: org switch still succeeds with deterministic fallback
+      }
+    }
+
     writeAuditLog(db, {
       organizationId: organization_id,
       userId: session.user_id,
@@ -448,7 +468,7 @@ teamsRoutes.post('/switch-org', teamRateLimit, async (c) => {
         name: member.org_name,
         role: member.role,
       },
-      message: 'Organization switched. Refresh your session to see changes.',
+      message: 'Organization switched successfully.',
     })
   } catch (err: any) {
     return c.json({ error: 'Failed to switch organization' }, 500)

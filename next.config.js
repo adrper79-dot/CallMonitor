@@ -12,7 +12,9 @@
 
 const nextConfig = {
   // Static export for Cloudflare Pages — all server logic in Workers
-  // output: 'export', // Disabled for development
+  // NOTE: Re-enable for production builds (npm run build + pages:deploy)
+  // Disabled for local development so next dev works properly
+  output: 'export',
 
   // Fix workspace root inference issue
   outputFileTracingRoot: __dirname,

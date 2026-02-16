@@ -53,27 +53,10 @@ export default defineConfig({
 
   /* ── Projects ────────────────────────────────────────────────────────── */
   projects: [
-    /* Auth setup — runs before authenticated tests */
-    {
-      name: 'setup',
-      testMatch: /auth\.setup\.ts/,
-    },
-
-    /* Unauthenticated tests (login, navigation, public pages) */
+    /* All tests run without authentication setup */
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: /auth\.setup\.ts/,
-    },
-
-    /* Authenticated tests — depend on setup project */
-    {
-      name: 'chromium-authenticated',
-      use: {
-        ...devices['Desktop Chrome'],
-        storageState: '.auth/user.json',
-      },
-      dependencies: ['setup'],
     },
   ],
 

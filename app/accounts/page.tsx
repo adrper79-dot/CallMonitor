@@ -59,6 +59,9 @@ export default function AccountsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState(searchParams.get('q') || '')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newAccount, setNewAccount] = useState({ name: '', primary_phone: '', balance_due: '' })
+  const [saving, setSaving] = useState(false)
 
   const orgId = session?.user?.organization_id
 
@@ -81,6 +84,25 @@ export default function AccountsPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const handleAddAccount = async () => {
+    if (!newAccount.name.trim() || !newAccount.primary_phone.trim() || !newAccount.balance_due.trim()) return
+    setSaving(true)
+    try {
+      await apiPost('/api/collections', {
+        name: newAccount.name.trim(),
+        primary_phone: newAccount.primary_phone.trim(),
+        balance_due: parseFloat(newAccount.balance_due),
+      })
+      setShowAddModal(false)
+      setNewAccount({ name: '', primary_phone: '', balance_due: '' })
+      fetchData()
+    } catch (err: any) {
+      logger.error('Failed to add account', { error: err?.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="p-4 lg:p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -90,11 +112,13 @@ export default function AccountsPage() {
           <p className="text-sm text-gray-500 mt-0.5">Portfolio of {stats?.total_accounts || accounts.length} accounts</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Upload className="w-4 h-4" />
-            Import
-          </Button>
-          <Button size="sm" className="gap-1.5">
+          <Link href="/accounts/import">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Upload className="w-4 h-4" />
+              Import
+            </Button>
+          </Link>
+          <Button size="sm" className="gap-1.5" onClick={() => setShowAddModal(true)}>
             <Plus className="w-4 h-4" />
             Add Account
           </Button>
@@ -185,11 +209,23 @@ export default function AccountsPage() {
           <div className="text-center py-12 text-gray-500">
             <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p className="text-sm font-medium">No accounts found</p>
-            <p className="text-xs">Try adjusting your filters or import accounts</p>
+            <p className="text-xs mb-3">Try adjusting your filters or import accounts</p>
+            <div className="flex items-center justify-center gap-2">
+              <Link href="/accounts/import">
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Upload className="w-4 h-4" />
+                  Import Accounts
+                </Button>
+              </Link>
+              <Button size="sm" className="gap-1.5" onClick={() => setShowAddModal(true)}>
+                <Plus className="w-4 h-4" />
+                Add Account
+              </Button>
+            </div>
           </div>
         ) : (
           accounts.map((account) => (
-            <Link key={account.id} href={`/accounts/${account.id}`} className="block">
+            <Link key={account.id} href={`/accounts/placeholder?accountId=${account.id}`} prefetch={false} className="block">
               <Card className="hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-3">
@@ -231,6 +267,60 @@ export default function AccountsPage() {
           ))
         )}
       </div>
+
+      {/* Add Account Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAddModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Add Account</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Name *</label>
+                <input
+                  type="text"
+                  value={newAccount.name}
+                  onChange={(e) => setNewAccount(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Account name"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Phone *</label>
+                <input
+                  type="tel"
+                  value={newAccount.primary_phone}
+                  onChange={(e) => setNewAccount(prev => ({ ...prev, primary_phone: e.target.value }))}
+                  placeholder="+1 (555) 123-4567"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Balance Due *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={newAccount.balance_due}
+                  onChange={(e) => setNewAccount(prev => ({ ...prev, balance_due: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="outline" size="sm" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={handleAddAccount}
+                disabled={saving || !newAccount.name.trim() || !newAccount.primary_phone.trim() || !newAccount.balance_due.trim()}
+                className="gap-1.5"
+              >
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Add Account'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

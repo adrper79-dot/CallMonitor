@@ -26,6 +26,130 @@
 - **Deliverables:** Coverage matrix by feature area, prioritized list of missing tests (P0/P1 focus: auth, billing, calls/voice, AI/transcription, audit logging, RBAC), and recommended test additions per gap.
 - **Status:** `[ ]` Open
 
+### Session 20 (Feb 16, 2026) — Multi-Agent Cohesion Audit Findings
+
+### BL-240: `/api/test/run-all` executed without role gate
+
+- **Files:** `workers/src/routes/test.ts`
+- **Root Cause:** Handler swallowed auth failures and executed full test suite for unauthenticated callers.
+- **Impact:** Security/information exposure risk; expensive infra tests could be triggered by unauthorized users.
+- **Fix:** Gate route with `requireRole(c, 'admin')` and return 403 when unauthorized.
+- **Status:** `[x]` ✅ Fixed and deployed (Worker version `08ec024e-bb43-438b-93a7-0880271ac942`)
+
+### BL-241: Collection notes insert used non-existent `user_id` column
+
+- **Files:** `workers/src/routes/collections.ts`
+- **Root Cause:** Insert statement used `collection_notes.user_id`, but live schema uses `created_by`.
+- **Impact:** Runtime 500 when posting account notes.
+- **Fix:** Updated insert to use `created_by`.
+- **Status:** `[x]` ✅ Fixed and deployed
+
+### BL-242: Frontend endpoint drift (`/bond-ai/chat`, `/api/payments/link`)
+
+- **Files:** `components/settings/CrmFieldMapper.tsx`, `components/cockpit/QuickActionModals.tsx`
+- **Root Cause:** Frontend paths did not match mounted Workers routes.
+- **Impact:** Runtime failures on CRM auto-map and payment-link quick action.
+- **Fix:** Updated to `/api/bond-ai/chat` and `/api/payments/links`.
+- **Status:** `[x]` ✅ Fixed
+
+### BL-243: Integration hooks still call non-canonical endpoints
+
+- **Files:** `hooks/useIntegrations.ts`, `hooks/useCrmIntegration.ts`
+- **Root Cause:** Hooks reference `/integrations*` and `/integrations/crm*` path families that are inconsistent with Workers route mounts.
+- **Impact:** High likelihood of runtime 404/contract mismatch in integrations settings workflows.
+- **Fix:** Remap hook endpoints to mounted `/api/*` contracts and normalize response adapters.
+- **Status:** `[x]` ✅ Fixed (Session 21)
+
+### BL-244: Ambiguous org selection in session resolver
+
+- **Files:** `workers/src/lib/auth.ts`, `workers/src/routes/auth.ts`, `workers/src/routes/teams.ts`
+- **Root Cause:** Session lookup relies on membership join + `LIMIT 1` behavior when users belong to multiple orgs.
+- **Impact:** Potential cross-org context confusion and non-deterministic org selection.
+- **Fix:** Persist active `organization_id` on session and resolve membership deterministically.
+- **Status:** `[x]` ✅ Fixed (Session 21)
+
+### BL-245: Cockpit settlement action points to missing backend contract
+
+- **Files:** `components/cockpit/SettlementCalculator.tsx`
+- **Root Cause:** Frontend posts to `/api/settlements`, but no mounted settlements route is present.
+- **Impact:** Settlement submission UX appears available but fails at runtime.
+- **Fix:** Implement + mount settlements route OR rewire to existing payment-plan endpoint.
+- **Status:** `[x]` ✅ Fixed (Session 21 rewire to `/api/payments/links`)
+
+### BL-246: Fire-and-forget audit calls used ad-hoc DB clients
+
+- **Files:** `workers/src/routes/quickbooks.ts`, `workers/src/routes/google-workspace.ts`
+- **Root Cause:** `writeAuditLog(getDb(...))` created non-request-scoped clients with no explicit close.
+- **Impact:** Connection hygiene risk under integration OAuth traffic.
+- **Fix:** Create scoped audit DB client and close it via `.finally(async () => db.end())`.
+- **Status:** `[x]` ✅ Fixed and deployed
+
+### BL-247: Stale simulator references in docs
+
+- **Files:** `README.md`, `ROADMAP.md`, `TEST_CASE_DOCUMENTATION.md`, `DIALER_TEST_SUITE_SUMMARY.md`, `ARCH_DOCS/VALIDATION_PLAN.md`
+- **Root Cause:** Documentation references simulator specs no longer present.
+- **Impact:** Onboarding confusion and test command drift.
+- **Fix:** Replace with current canonical E2E test files.
+- **Status:** `[x]` ✅ Fixed (Session 21)
+
+### Session 22 (Feb 16, 2026) — Design Cohesion + Live Neon/Code Audit
+
+### BL-248: Inbound SMS account matching could cross tenant boundaries
+
+- **Files:** `workers/src/routes/webhooks.ts`
+- **Root Cause:** `handleMessageReceived()` matched `collection_accounts` by sender phone with `LIMIT 1` and no guaranteed org scoping in first-pass lookup.
+- **Impact:** Potential cross-tenant consent/status mutation when phone values collide across organizations.
+- **Fix:** Resolve tenant from receiving DID (`inbound_phone_numbers`/`org_phone_numbers`) first, then match account within resolved `organization_id`; only fallback on unique-org sender match.
+- **Status:** `[x]` ✅ Fixed (Session 22)
+
+### BL-249: Webhook subscription mutation routes lacked admin role enforcement
+
+- **Files:** `workers/src/routes/webhooks.ts`
+- **Root Cause:** Create/update/delete/test subscription helpers used `requireAuth()` only.
+- **Impact:** Authenticated non-admin users could mutate webhook subscriptions.
+- **Fix:** Enforce `requireRole(c, 'admin')` on subscription mutation/test handlers.
+- **Status:** `[x]` ✅ Fixed (Session 22)
+
+### BL-250: Webhook subscriptions response/request contract drift in integrations hooks
+
+- **Files:** `hooks/useIntegrations.ts`, `workers/src/routes/webhooks.ts`
+- **Root Cause:** Hook expected `subscriptions` shape and sent legacy fields not fully aligned to server schema/response.
+- **Impact:** Subscription UI desync risk and create/list parsing fragility.
+- **Fix:** Add `webhooks|subscriptions` response compatibility and normalize create payload/response parsing.
+- **Status:** `[x]` ✅ Fixed (Session 22)
+
+### BL-251: Campaign SMS blast not constrained to campaign scope and fragile base URL usage
+
+- **Files:** `workers/src/routes/campaigns.ts`
+- **Root Cause:** Query selected org-wide SMS accounts; internal call depended on `BASE_URL` instead of canonical API base.
+- **Impact:** Potential wrong-recipient sends and runtime failure when `BASE_URL` not configured.
+- **Fix:** Scope recipients by `campaign_id`, use org-scoped DB client, and call `/api/messages/bulk` via canonical `API_BASE_URL` fallback chain.
+- **Status:** `[x]` ✅ Fixed (Session 22)
+
+### BL-252: Payment link SMS used non-existent endpoint
+
+- **Files:** `components/cockpit/PaymentLinkGenerator.tsx`
+- **Root Cause:** Frontend posted to `/api/messages/send` which is not mounted.
+- **Impact:** Payment-link SMS delivery action fails at runtime.
+- **Fix:** Rewire to mounted `/api/messages` with expected payload (`channel`, `to`, `message_body`, `account_id`).
+- **Status:** `[x]` ✅ Fixed (Session 22)
+
+### BL-253: Architecture documentation metrics and version claims are contradictory/stale
+
+- **Files:** `ARCH_DOCS/CURRENT_STATUS.md`, `ARCH_DOCS/MASTER_ARCHITECTURE.md`, `ARCH_DOCS/APPLICATION_FUNCTIONS.md`, `ROADMAP.md`, `BACKLOG.md`
+- **Root Cause:** Historical session updates appended without harmonizing top-level version/counters/endpoint-test metrics.
+- **Impact:** Design-governance ambiguity, onboarding confusion, and false confidence in operational/test posture.
+- **Fix:** Standardize single-source metrics block + archive history sections; align deploy/test/route/table counts to generated inventory.
+- **Status:** `[~]` In Progress (Session 22 doc harmonization started)
+
+### BL-254: Obsolete scripts and stale test setup references remain in package scripts/docs
+
+- **Files:** `package.json`, `tests/README.md`, `run-all-simulations.sh`
+- **Root Cause:** Legacy simulator/test setup scripts and stale references persisted after suite consolidation.
+- **Impact:** DX friction, failed commands, and inconsistent guidance.
+- **Fix:** Remove/replace stale script targets and align docs to canonical simulator and setup scripts.
+- **Status:** `[~]` In Progress (Session 22 cleanup pass)
+
 ---
 
 ## 🔴 TIER 1: CRITICAL — Security & Data Integrity (Fix Immediately)

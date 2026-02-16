@@ -1,7 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
-import { apiGet, apiPost, apiDelete } from '@/lib/apiClient'
+import { apiGet, apiDelete, apiPut, apiPost } from '@/lib/apiClient'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,12 +48,35 @@ export interface CrmObjectLink {
 
 // ─── SWR Hooks ───────────────────────────────────────────────────────────────
 
-const fetcher = (url: string) => apiGet(url).then((res) => res.data)
+const fetcher = (url: string) => apiGet(url)
 
 export function useCrmIntegrations() {
   const { data, error, isLoading, mutate } = useSWR<CrmIntegration[]>(
-    '/integrations/crm',
-    fetcher,
+    '/api/crm/integrations',
+    async (url) => {
+      const res = await fetcher(url)
+      const integrations = (res as any).integrations || []
+      return integrations.map((item: any) => ({
+        id: item.id,
+        provider: item.provider,
+        status:
+          item.status === 'active'
+            ? 'connected'
+            : item.status === 'syncing'
+              ? 'syncing'
+              : item.status === 'error'
+                ? 'error'
+                : 'disconnected',
+        organization_id: item.organization_id,
+        config: item.settings || {},
+        field_mappings: (item.settings?.field_mappings || []) as FieldMapping[],
+        last_sync_at: item.last_sync_at || null,
+        last_sync_status: item.last_sync_status || null,
+        sync_frequency: item.sync_frequency || 'manual',
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      }))
+    },
     { revalidateOnFocus: false }
   )
 
@@ -68,8 +91,32 @@ export function useCrmIntegrations() {
 
 export function useCrmIntegration(id: string) {
   const { data, error, isLoading, mutate } = useSWR<CrmIntegration>(
-    id ? `/integrations/crm/${id}` : null,
-    fetcher,
+    id ? `/api/crm/integrations/${id}` : null,
+    async (url) => {
+      const res = await fetcher(url)
+      const item = (res as any).integration
+      if (!item) return null as any
+      return {
+        id: item.id,
+        provider: item.provider,
+        status:
+          item.status === 'active'
+            ? 'connected'
+            : item.status === 'syncing'
+              ? 'syncing'
+              : item.status === 'error'
+                ? 'error'
+                : 'disconnected',
+        organization_id: item.organization_id,
+        config: item.settings || {},
+        field_mappings: (item.settings?.field_mappings || []) as FieldMapping[],
+        last_sync_at: item.last_sync_at || null,
+        last_sync_status: item.last_sync_status || null,
+        sync_frequency: item.sync_frequency || 'manual',
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+      }
+    },
     { revalidateOnFocus: false }
   )
 
@@ -83,13 +130,14 @@ export function useCrmIntegration(id: string) {
 }
 
 export function useCrmSyncLog(integrationId?: string) {
-  const key = integrationId
-    ? `/integrations/crm/${integrationId}/sync-log`
-    : null
+  const key = integrationId ? `/api/crm/sync-log?integration_id=${integrationId}` : null
 
   const { data, error, isLoading, mutate } = useSWR<CrmSyncLogEntry[]>(
     key,
-    fetcher,
+    async (url) => {
+      const res = await fetcher(url)
+      return (res as any).sync_log || []
+    },
     { revalidateOnFocus: false, refreshInterval: 30_000 }
   )
 
@@ -104,8 +152,11 @@ export function useCrmSyncLog(integrationId?: string) {
 
 export function useCrmObjectLinks(integrationId: string) {
   const { data, error, isLoading, mutate } = useSWR<CrmObjectLink[]>(
-    integrationId ? `/integrations/crm/${integrationId}/object-links` : null,
-    fetcher,
+    integrationId ? `/api/crm/objects?integration_id=${integrationId}` : null,
+    async (url) => {
+      const res = await fetcher(url)
+      return (res as any).objects || []
+    },
     { revalidateOnFocus: false }
   )
 
@@ -124,31 +175,46 @@ export async function connectCrm(
   provider: string,
   config: Record<string, unknown>
 ) {
-  const res = await apiPost('/integrations/crm', { provider, config })
-  return res.data as CrmIntegration
+  const res = await apiPost('/api/crm/integrations', { provider, settings: config })
+  return (res as any).integration as CrmIntegration
 }
 
 export async function disconnectCrm(id: string) {
-  await apiDelete(`/integrations/crm/${id}`)
+  await apiDelete(`/api/crm/integrations/${id}`)
 }
 
 export async function triggerSync(id: string) {
-  const res = await apiPost(`/integrations/crm/${id}/sync`, {})
-  return res.data as { status: string; message: string }
+  if (id === 'quickbooks') {
+    const res = await apiPost('/api/quickbooks/invoices/sync', {})
+    return { status: 'accepted', message: (res as any).message || 'QuickBooks sync triggered' }
+  }
+  if (id === 'google_workspace') {
+    const res = await apiPost('/api/google-workspace/contacts/sync', {})
+    return { status: 'accepted', message: (res as any).message || 'Google Workspace sync triggered' }
+  }
+  return { status: 'not_supported', message: 'Manual CRM sync endpoint is not available for this provider' }
 }
 
 export async function updateFieldMappings(
   id: string,
   mappings: FieldMapping[]
 ) {
-  const res = await apiPost(`/integrations/crm/${id}/field-mappings`, {
-    mappings,
+  const res = await apiPut(`/api/crm/integrations/${id}`, {
+    settings: { field_mappings: mappings },
   })
-  return res.data as CrmIntegration
+  return (res as any).integration as CrmIntegration
 }
 
 export async function getCrmFields(provider: string, objectType?: string) {
   const params = objectType ? `?object_type=${objectType}` : ''
-  const res = await apiGet(`/integrations/crm/fields/${provider}${params}`)
-  return res.data as { name: string; label: string; type: string }[]
+  const res = await apiGet(`/api/crm/objects${params}`)
+  const objects = (res as any).objects || []
+  const unique = new Map<string, { name: string; label: string; type: string }>()
+  for (const item of objects) {
+    const name = item.crm_object_type || 'object'
+    if (!unique.has(name)) {
+      unique.set(name, { name, label: name, type: provider })
+    }
+  }
+  return [...unique.values()]
 }

@@ -460,11 +460,11 @@ campaignsRoutes.post('/:id/messages', campaignsRateLimit, async (c) => {
       return c.json({ error: 'Either message_body or template_id is required' }, 400)
     }
 
-    if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_NUMBER) {
+    if (!c.env.TELNYX_API_KEY) {
       return c.json({ error: 'SMS service not configured' }, 500)
     }
 
-    const db = getDb(c.env)
+    const db = getDb(c.env, session.organization_id)
 
     try {
       // Verify campaign exists and belongs to org
@@ -480,17 +480,16 @@ campaignsRoutes.post('/:id/messages', campaignsRateLimit, async (c) => {
 
       const campaign = campaignResult.rows[0]
 
-      // Fetch all accounts in campaign with SMS consent
-      // Note: This assumes campaigns have associated accounts
-      // Adjust query based on actual campaign-account relationship
+      // Fetch campaign-scoped accounts with SMS consent
       const accountsResult = await db.query(
         `SELECT ca.id, ca.primary_phone
          FROM collection_accounts ca
          WHERE ca.organization_id = $1
+           AND ca.campaign_id = $2
            AND ca.sms_consent = true
            AND ca.status IN ('active', 'pending')
          LIMIT 1000`,
-        [session.organization_id]
+        [session.organization_id, campaignId]
       )
 
       if (accountsResult.rows.length === 0) {
@@ -504,7 +503,11 @@ campaignsRoutes.post('/:id/messages', campaignsRateLimit, async (c) => {
       const accountIds = accountsResult.rows.map((row: any) => row.id)
 
       // Use bulk SMS endpoint via internal fetch
-      const bulkSmsResponse = await fetch(`${c.env.BASE_URL}/api/messages/bulk`, {
+      const apiBaseUrl =
+        c.env.API_BASE_URL ||
+        'https://wordisbond-api.adrper79.workers.dev'
+
+      const bulkSmsResponse = await fetch(`${apiBaseUrl}/api/messages/bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

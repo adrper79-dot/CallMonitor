@@ -2035,27 +2035,27 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[Onboarding Wizard] --> B[Step Validation]
-    B --> C[GET /api/onboarding/status]
-    C --> D[Check completion status]
-    D --> E[Return current step]
+    B --> C[POST /api/onboarding/progress]
+    C --> D[Validate step payload]
+    D --> E[Persist onboarding step]
 
     A --> F[Step Completion]
-    F --> G[POST /api/onboarding/step/:id]
-    G --> H[Validate step data]
-    H --> I[Execute step logic]
-    I --> J[Mark step complete]
-    J --> K[Advance to next step]
+    F --> G[POST /api/onboarding/setup]
+    G --> H[Create Stripe customer]
+    H --> I[Provision 5 Telnyx numbers]
+    I --> J[Store org number pool]
+    J --> K[Advance onboarding step]
 
     A --> L[Phone Provisioning]
-    L --> M[POST /api/onboarding/phone]
-    M --> N[Telnyx API call]
-    N --> O[Configure number]
-    O --> P[Update org settings]
+    L --> M[workers/src/lib/phone-provisioning.ts]
+    M --> N[Create CNAM listing]
+    N --> O[Assign DID pool]
+    O --> P[Round-robin outbound ready]
 
     A --> Q[Team Setup]
-    Q --> R[POST /api/onboarding/team]
-    R --> S[Send invites]
-    S --> T[Track responses]
+    Q --> R[POST /api/onboarding/compliance]
+    R --> S[Persist timezone + call windows]
+    S --> T[Audit onboarding updates]
 ```
 ### Database Relationships
 
@@ -2136,9 +2136,21 @@ flowchart TD
         uuid id
         uuid organization_id
         text phone_number
+        text label
+        text routing_type
+        boolean auto_record
+        boolean auto_transcribe
+        boolean is_active
+        timestamp created_at
+    }
+    org_phone_numbers {
+        uuid id
+        uuid organization_id
+        text phone_number
         text purpose
-        uuid ivr_flow_id
-        timestamp configured_at
+        boolean is_active
+        integer pool_order
+        timestamp last_used_at
     }
     collection_accounts {
         uuid id
@@ -3217,7 +3229,7 @@ Usage Tracking:
 
 ### Database Elements
 
-No dedicated IVR tables currently exist. The IVR flow engine uses `collection_accounts` for account lookup and inline flow definitions. Tables `ivr_flows` and `inbound_phone_numbers` are planned but not yet created.
+Dedicated telephony tables are active. `inbound_phone_numbers` is live for DID routing and `org_phone_numbers` is live for outbound pool management/round-robin selection. IVR flow execution also references `collection_accounts` for account/payment context.
 
 ### Activation Requirements
 

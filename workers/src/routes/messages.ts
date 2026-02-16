@@ -50,6 +50,7 @@ import {
   isValidE164Phone,
   normalizePhoneNumber 
 } from '../lib/compliance'
+import { getNextOutboundNumber } from '../lib/phone-provisioning'
 
 export const messagesRoutes = new Hono<AppEnv>()
 
@@ -200,13 +201,19 @@ messagesRoutes.post('/', messagesRateLimit, async (c) => {
   }
 
   if (!c.env.TELNYX_NUMBER) {
-    logger.error('TELNYX_NUMBER not configured')
-    return c.json({ error: 'SMS sender number not configured' }, 500)
+    // Non-fatal: org may have pool numbers even without global fallback
+    logger.warn('TELNYX_NUMBER not configured — will use org pool numbers')
   }
 
   const db = getDb(c.env)
 
   try {
+    // Get round-robin outbound number for this org (SMS sender)
+    const smsFrom = await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+    if (!smsFrom) {
+      return c.json({ error: 'No outbound SMS number available' }, 500)
+    }
+
     let finalMessageBody = message_body
 
     // Fetch template if template_id provided
@@ -299,7 +306,7 @@ messagesRoutes.post('/', messagesRateLimit, async (c) => {
 
           // Send SMS
           const sendResult = await sendSingleSms(db, {
-            from: c.env.TELNYX_NUMBER,
+            from: smsFrom,
             to: normalizedPhone,
             text: finalMessageBody,
             accountId: foundAccountId,
@@ -394,7 +401,7 @@ messagesRoutes.post('/', messagesRateLimit, async (c) => {
 
     // Send SMS
     const sendResult = await sendSingleSms(db, {
-      from: c.env.TELNYX_NUMBER,
+      from: smsFrom,
       to: normalizedPhone,
       text: finalMessageBody,
       accountId: account_id,
@@ -453,13 +460,19 @@ messagesRoutes.post('/bulk', messagesRateLimit, async (c) => {
     return c.json({ error: 'Only SMS channel supported' }, 400)
   }
 
-  if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_NUMBER) {
+  if (!c.env.TELNYX_API_KEY) {
     return c.json({ error: 'SMS service not configured' }, 500)
   }
 
   const db = getDb(c.env)
 
   try {
+    // Get round-robin outbound number for bulk SMS
+    const bulkSmsFrom = await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+    if (!bulkSmsFrom) {
+      return c.json({ error: 'No outbound SMS number available' }, 500)
+    }
+
     let finalMessageBody: string = message_body || ''
 
     // Fetch template if provided
@@ -537,7 +550,7 @@ messagesRoutes.post('/bulk', messagesRateLimit, async (c) => {
 
         // Send SMS
         const sendResult = await sendSingleSms(db, {
-          from: c.env.TELNYX_NUMBER,
+          from: bulkSmsFrom,
           to: phone,
           text: finalMessageBody,
           accountId,
@@ -1107,7 +1120,7 @@ messagesRoutes.post('/:id/reply', messagesRateLimit, async (c) => {
         return c.json({ error: 'Account has not consented to SMS' }, 403)
       }
 
-      if (!c.env.TELNYX_API_KEY || !c.env.TELNYX_NUMBER) {
+      if (!c.env.TELNYX_API_KEY) {
         return c.json({ error: 'SMS service not configured' }, 500)
       }
 
@@ -1120,9 +1133,12 @@ messagesRoutes.post('/:id/reply', messagesRateLimit, async (c) => {
         return c.json({ error: 'No phone number to reply to' }, 400)
       }
 
+      // Get round-robin outbound number for reply
+      const replyFrom = await getNextOutboundNumber(db, session.organization_id, c.env.TELNYX_NUMBER)
+
       // Send SMS reply
       const smsResult = await sendSingleSms(db, {
-        from: c.env.TELNYX_NUMBER,
+        from: replyFrom,
         to: toNumber,
         text: message_body,
         accountId: account.id,

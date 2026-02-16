@@ -370,8 +370,33 @@ async function handlePaymentConfirm(
       ctx
     )
 
+    // PCI DSS: Pause recording before payment processing to protect cardholder data
+    await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/record_pause`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }).catch((err) =>
+      logger.warn('PCI record_pause failed (non-fatal)', { error: (err as Error)?.message })
+    )
+
     try {
       await processPayment(env, db, ctx)
+
+      // PCI DSS: Resume recording after successful payment processing
+      await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/record_resume`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      }).catch((err) =>
+        logger.warn('PCI record_resume failed (non-fatal)', { error: (err as Error)?.message })
+      )
+
       ctx.step = 'payment_complete'
       await telnyxSpeak(
         env.TELNYX_API_KEY,
@@ -380,6 +405,20 @@ async function handlePaymentConfirm(
         ctx
       )
     } catch (err: any) {
+      // PCI DSS: Resume recording even on payment failure
+      await fetch(`${TELNYX_BASE}/calls/${callControlId}/actions/record_resume`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      }).catch((resumeErr) =>
+        logger.warn('PCI record_resume (error path) failed (non-fatal)', {
+          error: (resumeErr as Error)?.message,
+        })
+      )
+
       logger.error('IVR payment processing failed', {
         error: err?.message,
         accountId: ctx.accountId,

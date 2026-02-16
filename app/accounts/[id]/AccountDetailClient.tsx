@@ -11,8 +11,8 @@
  * - Notes
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSession } from '@/components/AuthProvider'
 import { apiGet, apiPost } from '@/lib/apiClient'
@@ -68,9 +68,14 @@ type Tab = 'overview' | 'calls' | 'payments' | 'compliance' | 'notes'
 
 export default function AccountDetailClient() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const { data: session } = useSession()
-  const accountId = params.id as string
+  const routeId = params.id as string
+  const accountId =
+    routeId && routeId !== 'placeholder'
+      ? routeId
+      : (searchParams.get('accountId') || searchParams.get('id') || '')
 
   const [account, setAccount] = useState<AccountDetail | null>(null)
   const [calls, setCalls] = useState<CallRecord[]>([])
@@ -78,9 +83,13 @@ export default function AccountDetailClient() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [noteText, setNoteText] = useState('')
+  const noteInputRef = useRef<HTMLTextAreaElement | null>(null)
 
   const fetchAccount = useCallback(async () => {
-    if (!accountId) return
+    if (!accountId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const data = await apiGet(`/api/collections/${accountId}`)
@@ -114,10 +123,11 @@ export default function AccountDetailClient() {
   }, [activeTab, fetchCalls, fetchPayments])
 
   const handleAddNote = async () => {
-    if (!noteText.trim() || !accountId) return
+    const content = (noteText || noteInputRef.current?.value || '').trim()
+    if (!content || !accountId) return
     try {
       await apiPost(`/api/collections/${accountId}/notes`, {
-        content: noteText.trim(),
+        content,
       })
       setNoteText('')
       fetchAccount() // Refresh to see updated notes
@@ -137,8 +147,46 @@ export default function AccountDetailClient() {
   if (loading) {
     return (
       <div className="p-4 lg:p-6 max-w-5xl mx-auto">
+        <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                activeTab === tab.key
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse mb-6" />
         <div className="h-48 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse" />
+        {activeTab === 'notes' && (
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              <div className="mb-4">
+                <textarea
+                  ref={noteInputRef}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Add a note about this account..."
+                  className="w-full p-3 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none"
+                  rows={3}
+                />
+                <div className="flex justify-end mt-2">
+                  <Button size="sm" onClick={handleAddNote} className="gap-1">
+                    <Plus className="w-4 h-4" />
+                    Add Note
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     )
   }
@@ -223,7 +271,7 @@ export default function AccountDetailClient() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4 overflow-x-auto">
+      <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 dark:border-gray-700 mb-4">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -379,6 +427,7 @@ export default function AccountDetailClient() {
           <CardContent className="p-4">
             <div className="mb-4">
               <textarea
+                ref={noteInputRef}
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 placeholder="Add a note about this account..."
@@ -386,7 +435,7 @@ export default function AccountDetailClient() {
                 rows={3}
               />
               <div className="flex justify-end mt-2">
-                <Button size="sm" onClick={handleAddNote} disabled={!noteText.trim()} className="gap-1">
+                <Button size="sm" onClick={handleAddNote} className="gap-1">
                   <Plus className="w-4 h-4" />
                   Add Note
                 </Button>

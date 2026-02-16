@@ -78,14 +78,14 @@ export function PaymentLinkModal({
   const handleSend = async () => {
     setSending(true)
     try {
-      await apiPost('/api/payments/link', {
+      await apiPost('/api/payments/links', {
         account_id: accountId,
         amount: parseFloat(amount),
         delivery_method: method,
       })
       setSent(true)
       logger.info('Payment link sent', { accountId, amount, method })
-      setTimeout(onClose, 1500)
+      onClose()
     } catch (err: any) {
       logger.error('Payment link failed', { error: err?.message })
     } finally {
@@ -177,7 +177,7 @@ export function AddNoteModal({
       })
       setSaved(true)
       logger.info('Note saved', { accountId, callId })
-      setTimeout(onClose, 1000)
+      onClose()
     } catch (err: any) {
       logger.error('Note save failed', { error: err?.message })
     } finally {
@@ -246,7 +246,7 @@ export function ScheduleCallbackModal({
       })
       setScheduled(true)
       logger.info('Callback scheduled', { accountId, date, time })
-      setTimeout(onClose, 1500)
+      onClose()
     } catch (err: any) {
       logger.error('Callback schedule failed', { error: err?.message })
     } finally {
@@ -344,7 +344,7 @@ export function FileDisputeModal({
       })
       setFiled(true)
       logger.info('Dispute filed', { accountId, type })
-      setTimeout(onClose, 1500)
+      onClose()
     } catch (err: any) {
       logger.error('Dispute file failed', { error: err?.message })
     } finally {

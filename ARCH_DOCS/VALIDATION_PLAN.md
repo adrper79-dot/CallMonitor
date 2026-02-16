@@ -141,7 +141,7 @@ WHERE updated_at < NOW() - ($1 || ' days')::interval
 
 | File | Action |
 |------|--------|
-| `tests/simulator/workplace-simulator.spec.ts` | DELETE — structurally corrupt, the working version is `tests/e2e/workplace-simulator-final.spec.ts` |
+| `tests/simulator/workplace-simulator.spec.ts` | DELETE — structurally corrupt, the working version is `tests/e2e/workplace-simulator.spec.ts` |
 | `tests/webhooks-security.test.ts` | FIX — 4 errors (missing `handleCheckoutCompleted` import), or archive if superseded |
 
 **Estimated effort:** 30 minutes
@@ -346,7 +346,7 @@ After remediation, institute these guardrails to prevent regression:
 | Production tests | `tests/production/` (39 files) | Working |
 | Broken simulator | `tests/simulator/workplace-simulator.spec.ts` | ✅ DELETED |
 | Broken webhook test | `tests/webhooks-security.test.ts` | ✅ FIXED |
-| Working simulator | `tests/e2e/workplace-simulator-final.spec.ts` | Working |
+| Working simulator | `tests/e2e/workplace-simulator.spec.ts` | Working |
 | Schema drift check | `tests/production/validate-schema-drift.ts` | Working |
 | RLS audit | `migrations/rls-audit.sql` | Working |
 | Standards audit (new) | `scripts/standards-audit.ts` | ✅ BUILT — 0 violations |

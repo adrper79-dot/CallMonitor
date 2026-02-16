@@ -18,6 +18,26 @@ export interface Session {
   expires: string
 }
 
+interface OrgMembership {
+  organization_id: string
+  role: string | null
+  created_at: string | Date | null
+}
+
+function rolePriority(role: string | null | undefined): number {
+  const roleHierarchy: Record<string, number> = {
+    viewer: 1,
+    agent: 2,
+    analyst: 2,
+    operator: 3,
+    manager: 3,
+    compliance: 3,
+    admin: 4,
+    owner: 5,
+  }
+  return roleHierarchy[role || ''] || 0
+}
+
 /**
  * Compute device fingerprint from request headers.
  * Used to bind sessions to the device that created them (H2 hardening).
@@ -86,17 +106,15 @@ export async function verifySession(
     const result = await db.query(
       `
       SELECT
+        s.id,
         s.session_token,
         s.expires,
         u.email,
         u.name,
         u.id as user_id,
-        u.platform_role,
-        om.organization_id,
-        om.role
+        u.platform_role
       FROM public.sessions s
       JOIN public.users u ON u.id = s.user_id
-      LEFT JOIN org_members om ON om.user_id = u.id
       WHERE s.session_token = $1 AND s.expires > NOW()
       LIMIT 1
     `,
@@ -136,12 +154,62 @@ export async function verifySession(
       logger.warn('Fingerprint check error', { error: err })
     }
 
+    const membershipsResult = await db.query(
+      `SELECT om.organization_id::text AS organization_id, om.role, om.created_at
+       FROM org_members om
+       WHERE om.user_id = $1`,
+      [row.user_id]
+    )
+
+    const memberships = (membershipsResult.rows || []) as OrgMembership[]
+
+    memberships.sort((a, b) => {
+      const roleDiff = rolePriority(b.role) - rolePriority(a.role)
+      if (roleDiff !== 0) return roleDiff
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : Number.MAX_SAFE_INTEGER
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : Number.MAX_SAFE_INTEGER
+      if (aTime !== bTime) return aTime - bTime
+      return (a.organization_id || '').localeCompare(b.organization_id || '')
+    })
+
+    let activeOrgId = ''
+    let activeRole: string | null = null
+
+    try {
+      const mappedOrgId = await c.env.KV.get(`sess-org:${token}`)
+      if (mappedOrgId) {
+        const mappedMembership = memberships.find((m) => m.organization_id === mappedOrgId)
+        if (mappedMembership) {
+          activeOrgId = mappedMembership.organization_id
+          activeRole = mappedMembership.role
+        }
+      }
+
+      if (!activeOrgId && memberships.length > 0) {
+        activeOrgId = memberships[0].organization_id
+        activeRole = memberships[0].role
+        const ttlSeconds = Math.max(
+          Math.floor((new Date(row.expires).getTime() - Date.now()) / 1000),
+          60
+        )
+        await c.env.KV.put(`sess-org:${token}`, activeOrgId, { expirationTtl: ttlSeconds })
+      }
+    } catch (err) {
+      logger.warn('Active org KV lookup failed; falling back to deterministic membership', {
+        error: (err as Error)?.message,
+      })
+      if (!activeOrgId && memberships.length > 0) {
+        activeOrgId = memberships[0].organization_id
+        activeRole = memberships[0].role
+      }
+    }
+
     return {
       user_id: row.user_id,
       email: row.email,
       name: row.name,
-      organization_id: row.organization_id,
-      role: row.role || row.platform_role || 'owner',
+      organization_id: activeOrgId,
+      role: activeRole || row.platform_role || 'owner',
       platform_role: row.platform_role,
       expires: row.expires instanceof Date ? row.expires.toISOString() : String(row.expires),
     }

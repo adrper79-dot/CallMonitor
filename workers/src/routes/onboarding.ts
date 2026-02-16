@@ -7,8 +7,57 @@ import { writeAuditLog, AuditAction } from '../lib/audit'
 import { validateBody } from '../lib/validate'
 import { z } from 'zod'
 import { onboardingRateLimit } from '../lib/rate-limit'
+import { provisionOrgPhoneNumbers } from '../lib/phone-provisioning'
 
 export const onboardingRoutes = new Hono<AppEnv>()
+
+// Save compliance settings during onboarding
+const OnboardingComplianceSchema = z.object({
+  timezone: z.string().optional().default('America/New_York'),
+  calling_hours_start: z.string().optional().default('08:00'),
+  calling_hours_end: z.string().optional().default('21:00'),
+  dnc_enabled: z.boolean().optional().default(true),
+  disclosure_enabled: z.boolean().optional().default(true),
+})
+
+onboardingRoutes.post('/compliance', onboardingRateLimit, async (c) => {
+  const session = await requireRole(c, 'agent')
+  if (!session) return c.json({ error: 'Unauthorized or insufficient role' }, 403)
+
+  const parsed = await validateBody(c, OnboardingComplianceSchema)
+  if (!parsed.success) return parsed.response
+
+  const { timezone, calling_hours_start, calling_hours_end } = parsed.data
+  const db = getDb(c.env, session.organization_id)
+  try {
+    await db.query(
+      `UPDATE organizations
+       SET timezone = $1,
+           calling_hours_start = $2,
+           calling_hours_end = $3,
+           onboarding_step = GREATEST(COALESCE(onboarding_step, 0), 3)
+       WHERE id = $4`,
+      [timezone, calling_hours_start, calling_hours_end, session.organization_id]
+    )
+
+    writeAuditLog(db, {
+      userId: session.user_id,
+      organizationId: session.organization_id,
+      action: AuditAction.ORGANIZATION_UPDATED,
+      resourceType: 'organization',
+      resourceId: session.organization_id,
+      oldValue: null,
+      newValue: parsed.data,
+    }).catch(() => {})
+
+    return c.json({ success: true })
+  } catch (err: any) {
+    logger.error('Onboarding compliance save error', { error: err?.message })
+    return c.json({ error: 'Failed to save compliance settings' }, 500)
+  } finally {
+    await db.end()
+  }
+})
 
 const OnboardingSetupSchema = z.object({
   plan: z.string().optional().default('trial'),
@@ -59,40 +108,25 @@ onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
       }
     }
 
-    // 2. Provision Virtual Number (Telnyx Trial Number)
-    // In trial mode, we just pick the first available US number
-    const telnyxSearchRes = await fetch(
-      'https://api.telnyx.com/v2/available_phone_numbers?filter[country_code]=US&filter[limit]=1',
-      {
-        headers: { Authorization: `Bearer ${c.env.TELNYX_API_KEY}` },
-      }
-    )
+    // 2. Provision 5 Phone Numbers via Telnyx (outbound pool + CNAM masking)
+    const orgName = org?.name || session.name || 'WORD IS BOND'
+    const provisionResult = await provisionOrgPhoneNumbers(c.env, db, session.organization_id, orgName)
 
-    let provisionedNumber = ''
-    if (telnyxSearchRes.ok) {
-      const searchData = (await telnyxSearchRes.json()) as any
-      const phoneNumber = searchData.data?.[0]?.phone_number
+    const provisionedNumber = provisionResult.numbers[0] || ''
+    const provisionedNumbers = provisionResult.numbers
 
-      if (phoneNumber) {
-        const orderRes = await fetch('https://api.telnyx.com/v2/number_orders', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${c.env.TELNYX_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phone_numbers: [{ phone_number: phoneNumber }],
-          }),
-        })
+    if (provisionResult.success && provisionedNumber) {
+      await db.query(
+        "UPDATE organizations SET provisioned_number = $1, trial_ends_at = NOW() + INTERVAL '14 days', onboarding_step = 2 WHERE id = $2",
+        [provisionedNumber, session.organization_id]
+      )
+    }
 
-        if (orderRes.ok) {
-          provisionedNumber = phoneNumber
-          await db.query(
-            "UPDATE organizations SET provisioned_number = $1, trial_ends_at = NOW() + INTERVAL '14 days', onboarding_step = 2 WHERE id = $2",
-            [provisionedNumber, session.organization_id]
-          )
-        }
-      }
+    if (provisionResult.errors.length > 0) {
+      logger.warn('Phone provisioning had non-fatal errors', {
+        organizationId: session.organization_id,
+        errors: provisionResult.errors,
+      })
     }
 
     writeAuditLog(db, {
@@ -101,12 +135,19 @@ onboardingRoutes.post('/setup', onboardingRateLimit, async (c) => {
       action: AuditAction.ORGANIZATION_UPDATED,
       resourceType: 'organization',
       resourceId: session.organization_id,
-      newValue: { provisionedNumber, trial: true },
+      newValue: {
+        provisionedNumbers,
+        provisionedNumber,
+        cnamListingId: provisionResult.cnamListingId,
+        trial: true,
+      },
     })
 
     return c.json({
       success: true,
       provisionedNumber,
+      provisionedNumbers,
+      cnamListingId: provisionResult.cnamListingId,
       trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     })
   } catch (err: any) {

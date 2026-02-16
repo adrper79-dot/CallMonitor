@@ -74,7 +74,7 @@ export default function AccountImportPage() {
       const formData = new FormData()
       formData.append('file', file)
       const data = await apiPostFormData<{ imported?: number; count?: number; errors?: number }>(
-        '/api/accounts/import',
+        '/api/collections/import',
         formData
       )
       setResult({ imported: data.imported || data.count || 0, errors: data.errors || 0 })

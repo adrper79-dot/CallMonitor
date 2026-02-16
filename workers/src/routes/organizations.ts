@@ -135,7 +135,7 @@ organizationsRoutes.get('/current', async (c) => {
 
 // GET /:id — Get organization by ID (admin/owner only)
 organizationsRoutes.get('/:id', async (c) => {
-  const session = await requireAuth(c)
+  const session = await requireRole(c, 'admin')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
   const orgId = c.req.param('id')

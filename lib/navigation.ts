@@ -106,7 +106,7 @@ const AGENT_NAV: NavGroup[] = [
   },
   {
     id: 'schedule',
-    label: 'Schedule',
+    label: 'Schedules',
     icon: 'Calendar',
     items: [
       { href: '/schedule', label: 'Overview', icon: 'CalendarClock' },

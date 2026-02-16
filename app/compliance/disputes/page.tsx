@@ -336,6 +336,7 @@ export default function DisputesPage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
                             href={`/accounts/${d.account_id}`}
+                            prefetch={false}
                             className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600 truncate"
                           >
                             {d.account_name}

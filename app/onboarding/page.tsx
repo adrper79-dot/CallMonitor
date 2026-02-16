@@ -494,7 +494,12 @@ export default function OnboardingPage() {
                     if (teamEmails.trim()) {
                       try {
                         const emails = teamEmails.split('\n').map(e => e.trim()).filter(Boolean)
-                        await apiPost('/api/teams/invite-batch', { emails, role: 'agent' })
+                        // Send individual invitations via the existing team invite endpoint
+                        await Promise.allSettled(
+                          emails.map(email =>
+                            apiPost('/api/team/invites', { email, role: 'agent' })
+                          )
+                        )
                       } catch { /* Non-critical */ }
                     }
                     handleStepProgress('tour')

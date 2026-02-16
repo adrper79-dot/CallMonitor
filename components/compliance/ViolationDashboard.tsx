@@ -212,7 +212,7 @@ export default function ViolationDashboard() {
                       {v.account_id && (
                         <>
                           {' • '}
-                          <Link href={`/accounts/${v.account_id}`} className="text-primary-600 hover:underline">
+                          <Link href={`/accounts/${v.account_id}`} prefetch={false} className="text-primary-600 hover:underline">
                             Account
                           </Link>
                         </>

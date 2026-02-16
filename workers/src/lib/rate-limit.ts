@@ -101,7 +101,8 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
         // Increment counter — keep same expiry window
         const updated: RateLimitEntry = { count: existing.count + 1, resetAt: existing.resetAt }
         const remainingTtl = Math.ceil((existing.resetAt - now) / 1000)
-        await kv.put(key, JSON.stringify(updated), { expirationTtl: Math.max(remainingTtl, 1) })
+        // Cloudflare KV requires expirationTtl >= 60 seconds
+        await kv.put(key, JSON.stringify(updated), { expirationTtl: Math.max(remainingTtl, 60) })
 
         c.header('X-RateLimit-Limit', String(limit))
         c.header('X-RateLimit-Remaining', String(limit - updated.count))
@@ -110,7 +111,8 @@ export function rateLimit(config: RateLimitConfig): MiddlewareHandler<{ Bindings
         // New window — create entry
         const resetAt = now + windowSeconds * 1000
         const entry: RateLimitEntry = { count: 1, resetAt }
-        await kv.put(key, JSON.stringify(entry), { expirationTtl: windowSeconds })
+        // Cloudflare KV requires expirationTtl >= 60 seconds
+        await kv.put(key, JSON.stringify(entry), { expirationTtl: Math.max(windowSeconds, 60) })
 
         c.header('X-RateLimit-Limit', String(limit))
         c.header('X-RateLimit-Remaining', String(limit - 1))

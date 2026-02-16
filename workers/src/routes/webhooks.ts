@@ -25,7 +25,7 @@
 import { Hono } from 'hono'
 import type { AppEnv, Env } from '../index'
 import { getDb, DbClient } from '../lib/db'
-import { requireAuth } from '../lib/auth'
+import { requireAuth, requireRole } from '../lib/auth'
 import { validateBody } from '../lib/validate'
 import { CreateWebhookSchema, UpdateWebhookSchema } from '../lib/schemas'
 import { logger } from '../lib/logger'
@@ -40,6 +40,7 @@ import { deliverWithRetry } from '../lib/webhook-retry'
 import { processCompletedTranscript } from '../lib/post-transcription-processor'
 import { enqueueTranscriptionJob } from '../lib/queue-consumer'
 import { logDisclosureEvent } from '../lib/compliance-checker'
+import { getNextOutboundNumber } from '../lib/phone-provisioning'
 
 export const webhooksRoutes = new Hono<AppEnv>()
 
@@ -1084,10 +1085,13 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
 
       // Create a new call to the customer
       // IMPORTANT: `from` MUST be a Telnyx-owned number, not the agent's personal phone.
-      // call.from_number is the agent's phone (the first leg destination), so always use TELNYX_NUMBER.
+      // call.from_number is the agent's phone (the first leg destination), so use org pool or global TELNYX_NUMBER.
+      const bridgeFrom = call.organization_id
+        ? await getNextOutboundNumber(db, call.organization_id, env.TELNYX_NUMBER)
+        : env.TELNYX_NUMBER
       const customerCallPayload: Record<string, unknown> = {
         to: call.to_number,
-        from: env.TELNYX_NUMBER,
+        from: bridgeFrom,
         connection_id: env.TELNYX_CALL_CONTROL_APP_ID, // Use Call Control App ID for programmatic calls
         timeout_secs: 30,
         webhook_url: `${env.API_BASE_URL || 'https://wordisbond-api.adrper79.workers.dev'}/api/webhooks/telnyx`,
@@ -1301,8 +1305,44 @@ async function handleCallAnswered(env: Env, db: DbClient, payload: any) {
         error: (err as Error)?.message,
       })
     }
+  } else if ((call.flow_type === 'direct' || call.campaign_id) && env.TELNYX_API_KEY) {
+    // Outbound collections call — play Mini-Miranda disclosure (FDCPA §1692e(11))
+    const miniMirandaText =
+      'This is an attempt to collect a debt and any information obtained will be used for that purpose. This call may be recorded for quality assurance.'
+
+    logger.info('Mini-Miranda disclosure playing on outbound collections call', {
+      call_control_id,
+      flow_type: call.flow_type,
+      campaign_id: call.campaign_id,
+    })
+
+    fetch(`https://api.telnyx.com/v2/calls/${call_control_id}/actions/speak`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        payload: miniMirandaText,
+        voice: 'female',
+        language: 'en-US',
+      }),
+    }).catch((err) => {
+      logger.warn('Mini-Miranda speak failed (non-fatal)', { error: (err as Error)?.message })
+    })
+
+    // Log Mini-Miranda disclosure to compliance audit trail
+    logDisclosureEvent(db, {
+      organizationId: call.organization_id,
+      callId: call.id,
+      accountId: null,
+      disclosureType: 'mini_miranda',
+      disclosureText: miniMirandaText,
+    }).catch(() => {
+      /* non-fatal */
+    })
   } else {
-    logger.warn('Bridge call conditions not met', {
+    logger.warn('Unhandled call flow type at answer', {
       flowType: call.flow_type,
       hasToNumber: !!call.to_number,
       hasApiKey: !!env.TELNYX_API_KEY,
@@ -2393,7 +2433,7 @@ async function listWebhookSubscriptions(c: any) {
       [session.organization_id]
     )
 
-    return c.json({ success: true, webhooks: result.rows })
+    return c.json({ success: true, webhooks: result.rows, subscriptions: result.rows })
   } finally {
     await db.end()
   }
@@ -2401,8 +2441,8 @@ async function listWebhookSubscriptions(c: any) {
 
 /** Shared: create webhook subscription */
 async function createWebhookSubscription(c: any) {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const parsed = await validateBody(c, CreateWebhookSchema)
   if (!parsed.success) return parsed.response
@@ -2430,7 +2470,7 @@ async function createWebhookSubscription(c: any) {
       newValue: { url, events, description },
     })
 
-    return c.json({ success: true, webhook: result.rows[0] }, 201)
+    return c.json({ success: true, webhook: result.rows[0], subscription: result.rows[0] }, 201)
   } finally {
     await db.end()
   }
@@ -2438,8 +2478,8 @@ async function createWebhookSubscription(c: any) {
 
 /** Shared: update webhook subscription */
 async function updateWebhookSubscription(c: any, webhookId: string) {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const parsed = await validateBody(c, UpdateWebhookSchema)
   if (!parsed.success) return parsed.response
@@ -2480,7 +2520,7 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
       newValue: { url, events, is_active, description },
     })
 
-    return c.json({ success: true, webhook: result.rows[0] })
+    return c.json({ success: true, webhook: result.rows[0], subscription: result.rows[0] })
   } finally {
     await db.end()
   }
@@ -2488,8 +2528,8 @@ async function updateWebhookSubscription(c: any, webhookId: string) {
 
 /** Shared: delete webhook subscription */
 async function deleteWebhookSubscription(c: any, webhookId: string) {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const db = getDb(c.env)
   try {
@@ -2522,8 +2562,8 @@ async function deleteWebhookSubscription(c: any, webhookId: string) {
 
 /** Shared: send test delivery (with auto-retry) */
 async function testWebhookDelivery(c: any, webhookId: string) {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  const session = await requireRole(c, 'admin')
+  if (!session) return c.json({ error: 'Forbidden' }, 403)
 
   const db = getDb(c.env)
   try {
@@ -2867,59 +2907,105 @@ async function handleMessageReceived(env: Env, db: DbClient, payload: any) {
   })
 
   try {
-    // 1. Find matching account by phone number
-    const accountResult = await db.query(
-      `SELECT id, organization_id, campaign_id, primary_phone, secondary_phone, sms_consent
-       FROM collection_accounts
-       WHERE (primary_phone = $1 OR secondary_phone = $1)
-       AND is_deleted = false
-       LIMIT 1`,
-      [normalizedFrom]
-    )
-
+    // 1. Resolve organization from receiving DID first (tenant-safe)
     let accountId: string | null = null
     let organizationId: string | null = null
     let campaignId: string | null = null
     let currentSmsConsent = false
 
-    if (accountResult.rows.length > 0) {
-      const account = accountResult.rows[0]
-      accountId = account.id
-      organizationId = account.organization_id
-      campaignId = account.campaign_id
-      currentSmsConsent = account.sms_consent || false
+    const didResult = await db.query(
+      `SELECT organization_id FROM inbound_phone_numbers
+       WHERE phone_number = $1 AND is_active = true
+       LIMIT 1`,
+      [normalizedTo]
+    )
 
-      logger.info('Matched inbound SMS to account', {
-        accountId,
-        organizationId,
-        from: normalizedFrom,
-      })
+    if (didResult.rows.length > 0) {
+      organizationId = didResult.rows[0].organization_id
+      logger.info('Matched inbound SMS to org via inbound DID', { organizationId, to: normalizedTo })
+    }
 
-      // Update last_contact_at
-      await db.query(
-        `UPDATE collection_accounts
-         SET last_contact_at = NOW(), updated_at = NOW()
-         WHERE id = $1 AND organization_id = $2`,
-        [accountId, organizationId]
-      )
-    } else {
-      logger.warn('No account match for inbound SMS (orphaned message)', {
-        from: normalizedFrom,
-        to: normalizedTo,
-      })
-      
-      // Try to find organization from the receiving number (DID mapping)
-      const didResult = await db.query(
-        `SELECT organization_id FROM inbound_phone_numbers
+    if (!organizationId) {
+      const orgPhoneResult = await db.query(
+        `SELECT organization_id FROM org_phone_numbers
          WHERE phone_number = $1 AND is_active = true
          LIMIT 1`,
         [normalizedTo]
       )
-      
-      if (didResult.rows.length > 0) {
-        organizationId = didResult.rows[0].organization_id
-        logger.info('Matched inbound SMS to org via DID', { organizationId, to: normalizedTo })
+      if (orgPhoneResult.rows.length > 0) {
+        organizationId = orgPhoneResult.rows[0].organization_id
+        logger.info('Matched inbound SMS to org via org phone pool', {
+          organizationId,
+          to: normalizedTo,
+        })
       }
+    }
+
+    if (!organizationId) {
+      // Last-resort fallback: only accept account match when sender maps to exactly one org
+      const uniqueOrgResult = await db.query(
+        `SELECT organization_id, COUNT(*) OVER() AS org_count
+         FROM (
+           SELECT DISTINCT organization_id
+           FROM collection_accounts
+           WHERE (primary_phone = $1 OR secondary_phone = $1)
+             AND is_deleted = false
+         ) orgs
+         LIMIT 1`,
+        [normalizedFrom]
+      )
+
+      if (uniqueOrgResult.rows.length > 0 && Number(uniqueOrgResult.rows[0].org_count) === 1) {
+        organizationId = uniqueOrgResult.rows[0].organization_id
+        logger.warn('Inbound SMS tenant resolved by unique sender phone fallback', {
+          organizationId,
+          from: normalizedFrom,
+        })
+      }
+    }
+
+    // 2. Find matching account scoped to resolved organization
+    if (organizationId) {
+      const accountResult = await db.query(
+        `SELECT id, organization_id, campaign_id, primary_phone, secondary_phone, sms_consent
+         FROM collection_accounts
+         WHERE organization_id = $1
+           AND (primary_phone = $2 OR secondary_phone = $2)
+           AND is_deleted = false
+         LIMIT 1`,
+        [organizationId, normalizedFrom]
+      )
+
+      if (accountResult.rows.length > 0) {
+        const account = accountResult.rows[0]
+        accountId = account.id
+        campaignId = account.campaign_id
+        currentSmsConsent = account.sms_consent || false
+
+        logger.info('Matched inbound SMS to account', {
+          accountId,
+          organizationId,
+          from: normalizedFrom,
+        })
+
+        await db.query(
+          `UPDATE collection_accounts
+           SET last_contact_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND organization_id = $2`,
+          [accountId, organizationId]
+        )
+      } else {
+        logger.warn('No account match for inbound SMS in resolved organization', {
+          from: normalizedFrom,
+          to: normalizedTo,
+          organizationId,
+        })
+      }
+    } else {
+      logger.warn('Inbound SMS organization could not be resolved; storing as orphan skipped', {
+        from: normalizedFrom,
+        to: normalizedTo,
+      })
     }
 
     // 2. Check for opt-out/opt-in keywords

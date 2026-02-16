@@ -102,11 +102,12 @@ export default function PaymentLinkGenerator({
 
     try {
       if (delivery === 'sms') {
-        await apiPost('/api/messages/send', {
+        await apiPost('/api/messages', {
+          channel: 'sms',
           to: phone,
-          body: `Payment link for your account: ${link}`,
+          message_body: `Payment link for your account: ${link}`,
           account_id: accountId,
-          type: 'payment_link',
+          campaign_id: null,
         })
       } else if (delivery === 'email' && email) {
         await apiPost('/api/messages/email', {

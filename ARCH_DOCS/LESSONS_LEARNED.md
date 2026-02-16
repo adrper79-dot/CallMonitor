@@ -10,6 +10,113 @@
 
 ## 🔴 CRITICAL — PostgreSQL Does NOT Support `CREATE POLICY IF NOT EXISTS` (v4.53)
 
+## 🔴 CRITICAL — Inbound Messaging Must Resolve Tenant from Receiving DID First (v4.70)
+
+**Inbound SMS handling matched accounts by sender phone before tenant resolution, creating cross-tenant misattribution risk when phone values overlap across organizations.**
+
+### The Fix
+
+1. Resolve `organization_id` from receiving number (`inbound_phone_numbers`, then `org_phone_numbers`).
+2. Match account by sender phone **within resolved organization only**.
+3. Only allow a fallback sender-phone match when the sender maps to exactly one org.
+
+### Rule
+
+**For inbound telecom/webhook events, tenant resolution must be DID-first. Never mutate account state from sender lookup alone.**
+
+---
+
+## 🟠 HIGH — Webhook Subscription Mutation Endpoints Require Admin RBAC (v4.70)
+
+**Webhook subscription create/update/delete/test handlers used `requireAuth()` without `requireRole('admin')`, allowing non-admin mutation risk.**
+
+### Rule
+
+**Any endpoint that changes outbound delivery infrastructure (webhooks, notifications, integrations) must be admin-gated.**
+
+---
+
+## 🟡 MEDIUM — Contract Compatibility Windows Reduce Frontend/Backend Breakage (v4.70)
+
+**Integrations hook expected `subscriptions` while route returned `webhooks`, and create payload included legacy fields.**
+
+### The Fix
+
+- Return compatibility aliases during transition (`webhooks` + `subscriptions`).
+- Parse either shape in frontend adapters.
+- Normalize request payload to server schema (`url`, `events`, optional `description`).
+
+### Rule
+
+**When normalizing API contracts, provide temporary dual-shape compatibility at boundaries and remove after clients converge.**
+
+---
+
+## 🔴 CRITICAL — Internal Test Runner Endpoints Must Never Fail Open (v4.69)
+
+**`POST /api/test/run-all` allowed suite execution without a role gate because auth failure was swallowed and execution continued.**
+
+### The Error
+
+```typescript
+let session: any = null
+try { session = await requireAuth(c) } catch (_) {}
+// suite still ran
+```
+
+### The Fix
+
+```typescript
+const session = await requireRole(c, 'admin')
+if (!session) return c.json({ passed: false, error: 'Insufficient permissions' }, 403)
+```
+
+### Rule
+
+**Operational/diagnostic endpoints (`/api/test/*`, `/api/health/*` with deep internals) must be fail-closed with explicit RBAC gates. Never continue execution after auth failure on privileged routes.**
+
+---
+
+## 🟠 HIGH — Frontend/Worker Route Drift Causes Silent Runtime Regressions (v4.69)
+
+**Multiple client components pointed at stale endpoint paths (`/bond-ai/chat`, `/api/payments/link`) while Workers exposed `/api/bond-ai/chat` and `/api/payments/links`.**
+
+### Lesson
+
+**Treat route paths as contracts. Add route-contract checks in CI that fail when frontend API paths don’t map to mounted Worker routes.**
+
+---
+
+## 🟠 HIGH — Live Schema Check Before Query Changes Prevents 500s (v4.69)
+
+**Collections handlers drifted from live schema (`collection_notes.user_id` vs `created_by`, callback/date fields split between accounts and callbacks tables).**
+
+### Lesson
+
+**Before changing or adding SQL in Workers routes, run a live schema query (information_schema or describe table) and code against actual column names. Prefer compatibility fallbacks where migrations may lag.**
+
+---
+
+## 🟠 HIGH — Hook-Level Response Adapters Must Match Real Worker Payload Shapes (v4.69+)
+
+**Integration hooks were coupled to obsolete endpoint families and assumed `res.data` payload wrappers that many Workers routes do not return. This produced runtime contract drift even when routes existed.**
+
+### Lesson
+
+**Keep frontend hooks mapped to mounted `/api/*` routes and normalize response shapes in one adapter layer per hook. Do not spread route/path assumptions across components.**
+
+---
+
+## 🟡 MEDIUM — UI Features Must Only Call Mounted Contracts (v4.69+)
+
+**Settlement UI attempted `POST /api/settlements` with no mounted backend route. The feature looked available but failed at runtime.**
+
+### Lesson
+
+**Before shipping UI actions, verify mounted route existence in `workers/src/index.ts` and prefer rewiring to existing contracts when a dedicated backend resource is absent.**
+
+---
+
 **Migration `2026-02-11-compliance-and-payment-gaps.sql` completely failed on production because PostgreSQL does not support `CREATE POLICY IF NOT EXISTS` syntax. The entire transaction rolled back, leaving 6 tables uncreated.**
 
 ### The Error

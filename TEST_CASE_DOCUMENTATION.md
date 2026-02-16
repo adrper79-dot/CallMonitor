@@ -18,7 +18,7 @@ The platform maintains multiple test layers with varying levels of mocking:
 **Mocking Level: Minimal** - Browser-based tests with some simulation helpers.
 - **Mocked:** Customer speech simulation, webhook payloads for testing
 - **Live:** Full browser interactions, real API calls, UI workflows
-- **Examples:** `workplace-simulator-final.spec.ts` (mocks customer speech), `dialer-workflow.spec.ts` (simulates webhooks)
+- **Examples:** `workplace-simulator.spec.ts` (employee journey simulation), `dialer-workflow.spec.ts` (simulates webhooks)
 
 ### 3. Unit Tests (`tests/unit/`)
 **Mocking Level: None** - Pure function testing without mocks.
@@ -41,7 +41,7 @@ The platform maintains multiple test layers with varying levels of mocking:
 - **`webhook-retry.test.ts`**: Mocks logger
 
 #### E2E Tests with Simulation:
-- **`workplace-simulator-final.spec.ts`**: Simulates customer speech via API calls (not true mocks)
+- **`workplace-simulator.spec.ts`**: Simulates complete employee workflows against live UI/API paths
 - **`dialer-workflow.spec.ts`**: Simulates Telnyx webhooks for testing
 
 ### Tests That Are Fully Live (No Mocks):

@@ -246,19 +246,77 @@ paymentsRoutes.post('/links', collectionsRateLimit, async (c) => {
 
     // Generate a unique link token
     const linkToken = crypto.randomUUID()
+    const amountCents = Math.round(parseFloat(amount) * 100)
+    const linkCurrency = currency || 'usd'
+
+    // Create Stripe Checkout Session for hosted payment page
+    let stripeSessionId: string | null = null
+    let stripeCheckoutUrl: string | null = null
+    let expiresAt: string | null = null
+
+    const stripeKey = (c.env as any).STRIPE_SECRET_KEY
+    if (stripeKey && amountCents > 0) {
+      try {
+        const params = new URLSearchParams({
+          'line_items[0][price_data][currency]': linkCurrency,
+          'line_items[0][price_data][unit_amount]': amountCents.toString(),
+          'line_items[0][price_data][product_data][name]':
+            description || `Payment for account ${account_id}`,
+          'line_items[0][quantity]': '1',
+          mode: 'payment',
+          'metadata[organization_id]': session.organization_id,
+          'metadata[account_id]': account_id,
+          'metadata[link_token]': linkToken,
+          success_url: `https://wordis-bond.com/payments/success?token=${linkToken}`,
+          cancel_url: `https://wordis-bond.com/payments/cancel?token=${linkToken}`,
+        })
+
+        const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${btoa(stripeKey + ':')}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params.toString(),
+        })
+
+        if (stripeRes.ok) {
+          const checkoutSession = await stripeRes.json<{
+            id: string
+            url: string
+            expires_at: number
+          }>()
+          stripeSessionId = checkoutSession.id
+          stripeCheckoutUrl = checkoutSession.url
+          expiresAt = new Date(checkoutSession.expires_at * 1000).toISOString()
+        } else {
+          logger.warn('Stripe Checkout Session creation failed (non-fatal)', {
+            status: stripeRes.status,
+          })
+        }
+      } catch (err: any) {
+        logger.warn('Stripe Checkout error (non-fatal, link still created)', {
+          error: err?.message,
+        })
+      }
+    }
 
     const result = await db.query(
       `INSERT INTO payment_links
-        (organization_id, account_id, amount, description, currency, link_token, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (organization_id, account_id, amount, description, currency, link_token,
+         stripe_session_id, stripe_checkout_url, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         session.organization_id,
         account_id,
         amount,
         description || null,
-        currency || 'usd',
+        linkCurrency,
         linkToken,
+        stripeSessionId,
+        stripeCheckoutUrl,
+        expiresAt,
         session.user_id,
       ]
     )

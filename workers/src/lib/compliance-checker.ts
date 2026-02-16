@@ -30,6 +30,7 @@ export interface ComplianceCheck {
     do_not_call: boolean
     contact_frequency: boolean
     time_of_day: boolean
+    legal_hold: boolean
   }
   reason: string | null
   blockedBy: string | null
@@ -61,6 +62,7 @@ export async function checkPreDialCompliance(
     do_not_call: true,
     contact_frequency: true,
     time_of_day: true,
+    legal_hold: true,
   }
 
   let blockedBy: string | null = null
@@ -101,6 +103,21 @@ export async function checkPreDialCompliance(
           checks.consent = false
           blockedBy = blockedBy || 'consent_revoked'
           reason = reason || 'Contact consent has been revoked'
+        }
+
+        // ── Legal hold check (blocks all contact while litigation pending) ──
+        const legalHoldResult = await db.query(
+          `SELECT id FROM legal_holds
+           WHERE organization_id = $1
+             AND (account_id = $2 OR applies_to_all = true)
+             AND status = 'active'
+           LIMIT 1`,
+          [organizationId, accountId]
+        )
+        if (legalHoldResult.rows.length > 0) {
+          checks.legal_hold = false
+          blockedBy = blockedBy || 'legal_hold'
+          reason = reason || 'Active legal hold on account — contact prohibited'
         }
 
         // ── 4. Time-of-day enforcement (8am-9pm debtor local time) ──
@@ -167,6 +184,21 @@ export async function checkPreDialCompliance(
           checks.consent = false
           blockedBy = blockedBy || 'consent_revoked'
           reason = reason || 'Contact consent has been revoked'
+        }
+
+        // ── Legal hold check (blocks all contact while litigation pending) ──
+        const legalHoldPhoneResult = await db.query(
+          `SELECT id FROM legal_holds
+           WHERE organization_id = $1
+             AND (account_id = $2 OR applies_to_all = true)
+             AND status = 'active'
+           LIMIT 1`,
+          [organizationId, acct.id]
+        )
+        if (legalHoldPhoneResult.rows.length > 0) {
+          checks.legal_hold = false
+          blockedBy = blockedBy || 'legal_hold'
+          reason = reason || 'Active legal hold on account — contact prohibited'
         }
 
         // Time-of-day check using looked-up account
@@ -265,6 +297,7 @@ export async function checkPreDialCompliance(
         do_not_call: false,
         contact_frequency: false,
         time_of_day: false,
+        legal_hold: false,
       },
       reason: 'Compliance check failed — blocking call as safety measure',
       blockedBy: 'system_error',

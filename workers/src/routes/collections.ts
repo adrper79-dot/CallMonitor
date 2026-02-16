@@ -381,6 +381,158 @@ collectionsRoutes.post('/import', collectionsImportRateLimit, async (c) => {
   }
 })
 
+// ─── Get daily stats (collections dashboard) ──────────────────────────────────
+collectionsRoutes.get('/daily-stats', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const accountsResult = await db.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE status = 'active')::int AS queue_count,
+        COUNT(*) FILTER (WHERE last_contacted_at::date = CURRENT_DATE)::int AS calls_today,
+        COUNT(*) FILTER (WHERE promise_date = CURRENT_DATE)::int AS callbacks_due,
+        COUNT(*) FILTER (
+          WHERE status = 'disputed' OR (status = 'active' AND balance_due >= 5000)
+        )::int AS critical_accounts
+      FROM collection_accounts
+      WHERE organization_id = $1 AND is_deleted = false`,
+      [session.organization_id]
+    )
+
+    const paymentsTableResult = await db.query(
+      `SELECT to_regclass('public.collection_payments') IS NOT NULL AS exists`
+    )
+
+    let collectedToday = 0
+    if (paymentsTableResult.rows[0]?.exists) {
+      const paymentsResult = await db.query(
+        `SELECT COALESCE(SUM(amount), 0)::numeric AS collected_today
+         FROM collection_payments
+         WHERE organization_id = $1
+           AND created_at::date = CURRENT_DATE`,
+        [session.organization_id]
+      )
+      collectedToday = parseFloat(paymentsResult.rows[0]?.collected_today || '0') || 0
+    }
+
+    const callbacksTableResult = await db.query(
+      `SELECT to_regclass('public.collection_callbacks') IS NOT NULL AS exists`
+    )
+
+    let scheduledCallbacksDue = 0
+    if (callbacksTableResult.rows[0]?.exists) {
+      const callbacksCountResult = await db.query(
+        `SELECT COUNT(*)::int AS callbacks_due
+         FROM collection_callbacks
+         WHERE organization_id = $1
+           AND status = 'pending'
+           AND scheduled_for::date = CURRENT_DATE`,
+        [session.organization_id]
+      )
+      scheduledCallbacksDue = parseInt(callbacksCountResult.rows[0]?.callbacks_due || '0', 10) || 0
+    }
+
+    const stats = accountsResult.rows[0] || {}
+    const totalCallbacksDue = (parseInt(stats.callbacks_due) || 0) + scheduledCallbacksDue
+
+    return c.json({
+      data: {
+        queue_count: parseInt(stats.queue_count) || 0,
+        calls_today: parseInt(stats.calls_today) || 0,
+        target_calls: 40,
+        collected_today: collectedToday,
+        target_amount: 5000,
+        callbacks_due: totalCallbacksDue,
+        critical_accounts: parseInt(stats.critical_accounts) || 0,
+        avg_score: 0,
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/collections/daily-stats error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch daily stats' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
+// ─── Get callbacks (due today or upcoming) ────────────────────────────────────
+collectionsRoutes.get('/callbacks', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const today = c.req.query('today') === 'true'
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '10', 10) || 10, 1), 100)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const callbacksTableResult = await db.query(
+      `SELECT to_regclass('public.collection_callbacks') IS NOT NULL AS exists`
+    )
+
+    if (callbacksTableResult.rows[0]?.exists) {
+      const callbackWhereClause = today
+        ? 'AND cb.scheduled_for::date = CURRENT_DATE'
+        : 'AND cb.scheduled_for::date >= CURRENT_DATE'
+
+      const callbackResult = await db.query(
+        `SELECT
+          cb.id,
+          cb.account_id,
+          ca.name AS account_name,
+          cb.scheduled_for AS scheduled_time,
+          ca.balance_due,
+          cb.notes
+        FROM collection_callbacks cb
+        JOIN collection_accounts ca ON ca.id = cb.account_id
+        WHERE cb.organization_id = $1
+          AND ca.organization_id = $1
+          AND ca.is_deleted = false
+          AND cb.status = 'pending'
+          ${callbackWhereClause}
+        ORDER BY cb.scheduled_for ASC
+        LIMIT $2`,
+        [session.organization_id, limit]
+      )
+
+      if (callbackResult.rows.length > 0) {
+        return c.json({ data: callbackResult.rows, callbacks: callbackResult.rows })
+      }
+    }
+
+    const whereClause = today
+      ? 'AND promise_date = CURRENT_DATE'
+      : 'AND promise_date >= CURRENT_DATE'
+
+    const promiseResult = await db.query(
+      `SELECT
+        id,
+        id AS account_id,
+        name,
+        name AS account_name,
+        promise_date::timestamptz AS scheduled_time,
+        balance_due,
+        notes
+      FROM collection_accounts
+      WHERE organization_id = $1
+        AND is_deleted = false
+        AND promise_date IS NOT NULL
+        ${whereClause}
+      ORDER BY promise_date ASC, created_at ASC
+      LIMIT $2`,
+      [session.organization_id, limit]
+    )
+
+    return c.json({ data: promiseResult.rows, callbacks: promiseResult.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/callbacks error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch callbacks' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
 // ─── Get single account ──────────────────────────────────────────────────────
 collectionsRoutes.get('/:id', async (c) => {
   const session = await requireAuth(c)
@@ -391,7 +543,7 @@ collectionsRoutes.get('/:id', async (c) => {
     const accountId = c.req.param('id')
 
     // Skip static routes that are handled above
-    if (['stats', 'imports', 'import'].includes(accountId)) {
+    if (['stats', 'imports', 'import', 'promises', 'daily-stats', 'callbacks'].includes(accountId)) {
       return c.json({ error: 'Not found' }, 404)
     }
 
@@ -879,7 +1031,7 @@ collectionsRoutes.post('/:id/notes', collectionsRateLimit, async (c) => {
     }
 
     const result = await db.query(
-      `INSERT INTO collection_notes (organization_id, account_id, user_id, content)
+      `INSERT INTO collection_notes (organization_id, account_id, created_by, content)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [session.organization_id, accountId, session.user_id, content.trim()]

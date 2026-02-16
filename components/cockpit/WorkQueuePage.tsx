@@ -280,6 +280,7 @@ export default function WorkQueuePage({ organizationId }: WorkQueuePageProps) {
                       <div>
                         <Link
                           href={`/accounts/${account.id}`}
+                          prefetch={false}
                           className="font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400"
                         >
                           {account.name}

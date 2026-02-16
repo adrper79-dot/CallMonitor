@@ -8,9 +8,10 @@ import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
 import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Phone, Plus, Users } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
 import { NativeSelect as Select } from '@/components/ui/native-select'
+import { Button } from '@/components/ui/button'
 
 // Interfaces (derived from ARCH_DOCS/Schema.txt)
 export interface Call {
@@ -115,38 +116,65 @@ export default function VoiceOperationsPage() {
       <FeatureFlagRedirect to="/work/call" />
       <div className="min-h-screen bg-background p-4 space-y-4">
         {/* Dialer Panel Section */}
-        {organizationId && campaigns.length > 0 && (
+        {organizationId && (
           <div className="max-w-7xl mx-auto space-y-4">
-            {/* Campaign Selector */}
-            <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
-              <label htmlFor="campaign-select" className="text-sm font-medium whitespace-nowrap">
-                Campaign:
-              </label>
-              <Select
-                id="campaign-select"
-                value={selectedCampaignId}
-                onChange={(e) => setSelectedCampaignId(e.target.value)}
-                className="flex-1 max-w-md"
-              >
-                <option value="">Select a campaign...</option>
-                {campaigns.map((campaign) => (
-                  <option key={campaign.id} value={campaign.id}>
-                    {campaign.name} {campaign.is_active ? '(Active)' : '(Inactive)'}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {campaigns.length > 0 ? (
+              <>
+                {/* Campaign Selector */}
+                <div className="flex items-center gap-4 p-4 rounded-xl border bg-card">
+                  <label htmlFor="campaign-select" className="text-sm font-medium whitespace-nowrap">
+                    Campaign:
+                  </label>
+                  <Select
+                    id="campaign-select"
+                    value={selectedCampaignId}
+                    onChange={(e) => setSelectedCampaignId(e.target.value)}
+                    className="flex-1 max-w-md"
+                  >
+                    <option value="">Select a campaign...</option>
+                    {campaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id}>
+                        {campaign.name} {campaign.is_active ? '(Active)' : '(Inactive)'}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
 
-            {/* Dialer Panel - Render when campaign is selected */}
-            {selectedCampaignId && (
-              <div className="max-w-2xl mx-auto">
-                <DialerPanel
-                  campaignId={selectedCampaignId}
-                  campaignName={
-                    campaigns.find((c) => c.id === selectedCampaignId)?.name || 'Unknown'
-                  }
-                  organizationId={organizationId}
-                />
+                {/* Dialer Panel - Render when campaign is selected */}
+                {selectedCampaignId && (
+                  <div className="max-w-2xl mx-auto">
+                    <DialerPanel
+                      campaignId={selectedCampaignId}
+                      campaignName={
+                        campaigns.find((c) => c.id === selectedCampaignId)?.name || 'Unknown'
+                      }
+                      organizationId={organizationId}
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="p-6 rounded-xl border bg-card text-center">
+                <Phone className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Set Up Your Dialer</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Create a campaign first, then the predictive dialer will appear here.
+                  Campaigns let you organize your call lists and track results.
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <a href="/campaigns">
+                    <Button size="sm" className="gap-1.5">
+                      <Plus className="w-4 h-4" />
+                      Create Campaign
+                    </Button>
+                  </a>
+                  <a href="/accounts">
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <Users className="w-4 h-4" />
+                      View Accounts
+                    </Button>
+                  </a>
+                </div>
               </div>
             )}
           </div>

@@ -133,6 +133,7 @@ export default function FailedPaymentsPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/accounts/${p.account_id}`}
+                        prefetch={false}
                         className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-primary-600"
                       >
                         {p.account_name}

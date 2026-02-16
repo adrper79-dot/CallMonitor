@@ -1,0 +1,8 @@
+APs TESTING media fixture
+
+Customer: APs TESTING
+Email: stepdadstrong@gmail.com
+Phone: +12392027345
+Balance: $500
+
+Use this script when validating manual call, note, or transcript-related tools in simulation runs.

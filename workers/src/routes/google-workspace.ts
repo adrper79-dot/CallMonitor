@@ -213,7 +213,8 @@ googleWorkspaceRoutes.post('/connect', crmRateLimit, async (c) => {
     const config = buildAuthConfig(c.env)
     const authUrl = getGoogleAuthUrl(config)
 
-    writeAuditLog(getDb(c.env, session.organization_id), {
+    const auditDb = getDb(c.env, session.organization_id)
+    writeAuditLog(auditDb, {
       organizationId: session.organization_id,
       userId: session.user_id,
       resourceType: 'google_workspace',
@@ -221,7 +222,11 @@ googleWorkspaceRoutes.post('/connect', crmRateLimit, async (c) => {
       action: AuditAction.CRM_OAUTH_INITIATED,
       oldValue: null,
       newValue: { provider: PROVIDER },
-    }).catch(() => {})
+    })
+      .finally(async () => {
+        await auditDb.end()
+      })
+      .catch(() => {})
 
     return c.json({ success: true, authUrl })
   } catch (err: any) {
