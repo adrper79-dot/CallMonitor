@@ -239,25 +239,36 @@ Use this as the minimum documentation stack.
 
 ## Tier 1 — Required (authoritative flow validation set)
 
-1. **Flow Catalog (business + workflow + feature)**
+1. **Flow Deliverable Governance Standard**
+  - Mandatory production flow contract
+  - Required ownership, controls, validation, observability, and runbook handles
+
+2. **Flow Catalog (business + workflow + feature)**
    - Canonical IDs (BF-*, WF-*, FF-*)
    - Trigger, preconditions, happy path, exceptions, exit criteria
 
-2. **Route and Contract Matrix**
+3. **Route and Contract Matrix**
    - UI route ↔ API endpoint(s) ↔ database entities
    - request/response schema and auth level
 
-3. **State Transition Specs**
+4. **State Transition Specs**
    - Calls, messages, disputes, callbacks, payments, campaign enrollments
    - Allowed transitions + invalid transition behavior
 
-4. **Role Authorization Matrix**
+5. **Role Authorization Matrix**
    - action-by-action permission table (agent/manager/admin)
    - required middleware and expected denial response
 
-5. **Exception and Failure Handling Matrix**
+6. **Exception and Failure Handling Matrix**
    - user-facing behavior for auth errors, validation errors, provider failures, rate limits
    - retry behavior and escalation paths
+
+Core references:
+
+- `ARCH_DOCS/01-CORE/FLOW_DELIVERABLE_GOVERNANCE_STANDARD.md`
+- `ARCH_DOCS/01-CORE/FLOW_CATALOG.md`
+- `ARCH_DOCS/01-CORE/FLOW_TRACEABILITY_MATRIX.md`
+- `ARCH_DOCS/01-CORE/REQUIREMENTS_TO_FLOW_COVERAGE_MATRIX.md`
 
 6. **Flow-to-Test Traceability Matrix**
    - every BF/WF/FF mapped to unit/integration/e2e/production tests

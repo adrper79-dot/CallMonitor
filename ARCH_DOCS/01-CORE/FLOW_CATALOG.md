@@ -20,6 +20,13 @@ Use this file as the source of truth for:
 - acceptance criteria
 - test traceability
 - documentation QA
+- production flow governance requirements (see `FLOW_DELIVERABLE_GOVERNANCE_STANDARD.md`)
+
+Related standards:
+
+- `ARCH_DOCS/01-CORE/FLOW_DELIVERABLE_GOVERNANCE_STANDARD.md`
+- `ARCH_DOCS/01-CORE/FLOW_TRACEABILITY_MATRIX.md`
+- `ARCH_DOCS/01-CORE/REQUIREMENTS_TO_FLOW_COVERAGE_MATRIX.md`
 
 ---
 
