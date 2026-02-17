@@ -49,6 +49,10 @@ const CallbackSchema = z.object({
   state: z.string().optional(),
 })
 
+const ConnectSchema = z.object({
+  state: z.string().max(1024).optional(),
+})
+
 const ContactsSyncSchema = z.object({
   pageSize: z.number().int().min(1).max(1000).optional(),
   syncToken: z.string().optional(),
@@ -209,9 +213,15 @@ googleWorkspaceRoutes.post('/connect', crmRateLimit, async (c) => {
   const session = await requireRole(c, 'admin')
   if (!session) return c.json({ error: 'Unauthorized' }, 401)
 
+  const parsed = await validateBody(c, ConnectSchema)
+  if (!parsed.success) return parsed.response
+
   try {
     const config = buildAuthConfig(c.env)
-    const authUrl = getGoogleAuthUrl(config)
+    const authUrl = new URL(getGoogleAuthUrl(config))
+    if (parsed.data.state) {
+      authUrl.searchParams.set('state', parsed.data.state)
+    }
 
     const auditDb = getDb(c.env, session.organization_id)
     writeAuditLog(auditDb, {
@@ -228,7 +238,7 @@ googleWorkspaceRoutes.post('/connect', crmRateLimit, async (c) => {
       })
       .catch(() => {})
 
-    return c.json({ success: true, authUrl })
+    return c.json({ success: true, authUrl: authUrl.toString() })
   } catch (err: any) {
     logger.error('POST /api/google-workspace/connect error', { error: err?.message })
     return c.json({ error: 'Failed to initiate Google OAuth' }, 500)

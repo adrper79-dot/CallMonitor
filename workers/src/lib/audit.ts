@@ -497,5 +497,22 @@ export const AuditAction = {
   COLLECTION_NOTE_CREATED: 'collection:note_created',
   COLLECTION_CALLBACK_SCHEDULED: 'collection:callback_scheduled',
   COLLECTION_DISPUTE_FILED: 'collection:dispute_filed',
+
+  // Legal Escalation (v5.3)
+  LEGAL_ESCALATION_CREATED: 'legal:escalation_created',
+  LEGAL_ESCALATION_UPDATED: 'legal:escalation_updated',
+  LEGAL_ESCALATION_APPROVED: 'legal:escalation_approved',
+  LEGAL_ESCALATION_WITHDRAWN: 'legal:escalation_withdrawn',
+
+  // Consent Records (v5.3)
+  CONSENT_RECORDED: 'consent:recorded',
+  CONSENT_REVOKED: 'consent:revoked',
+
+  // Settlement Offers (v5.3)
+  SETTLEMENT_OFFER_CREATED: 'settlement:offer_created',
+  SETTLEMENT_OFFER_UPDATED: 'settlement:offer_updated',
+  SETTLEMENT_OFFER_APPROVED: 'settlement:offer_approved',
+  SETTLEMENT_OFFER_ACCEPTED: 'settlement:offer_accepted',
+  SETTLEMENT_OFFER_REJECTED: 'settlement:offer_rejected',
 } as const
 

@@ -631,6 +631,19 @@
 
 ---
 
+## 33A. Outlook (Microsoft 365) Integration
+
+- OAuth 2.0 connect/disconnect flow via Microsoft identity platform
+- Outlook/Microsoft 365 mail+calendar channel connectivity
+- Organization-scoped integration lifecycle aligned to existing `integrations` table
+- Plan gating and admin-driven setup via Integration Hub / onboarding optional step
+
+**Backend Routes:** `/api/outlook/*` (4 endpoints: status, connect, callback, disconnect)
+**Backend Route File:** `workers/src/routes/outlook.ts`
+**Frontend Hooks:** `useIntegrations.ts`
+
+---
+
 ## 34. Notification Channels (Slack & Teams)
 
 - Slack Block Kit message formatting (7 event types)
@@ -681,6 +694,7 @@
 - Connection status cards with provider logos
 - One-click OAuth connect/disconnect
 - Integration health monitoring
+- Post-onboarding revisit path for optional email OAuth setup (Gmail/Outlook)
 - Chrome Extension: Manifest V3, click-to-call FAB, content scripts for HubSpot/Salesforce/Pipedrive/Zoho
 
 **Frontend Pages:** `/settings/integrations`

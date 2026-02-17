@@ -1,0 +1,76 @@
+name: AI Agent Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      role:
+        description: 'Role to test (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - all
+          - owner
+          - admin
+          - manager
+          - compliance
+          - agent
+          - viewer
+      headless:
+        description: 'Run headless'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  agent-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run AI Agent Tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AGENT_TEST_URL: https://wordis-bond.com
+          AGENT_HEADLESS: 'true'
+        run: |
+          if [ "${{ inputs.role }}" = "all" ] || [ -z "${{ inputs.role }}" ]; then
+            npm run test:agents:headless
+          else
+            npx tsx tests/agents/run-single.ts ${{ inputs.role }}
+          fi
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-reports
+          path: test-results/agent-reports/
+          retention-days: 30
+
+      - name: Upload Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-screenshots
+          path: test-results/agent-screenshots/
+          retention-days: 14
+
+      - name: Upload Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-videos
+          path: test-results/agent-videos/
+          retention-days: 7

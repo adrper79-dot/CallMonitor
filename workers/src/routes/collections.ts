@@ -533,6 +533,49 @@ collectionsRoutes.get('/callbacks', async (c) => {
   }
 })
 
+// ─── Get promises to pay ─────────────────────────────────────────────────────
+collectionsRoutes.get('/promises', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const limit = parseInt(c.req.query('limit') || '100')
+    const offset = parseInt(c.req.query('offset') || '0')
+
+    const result = await db.query(
+      `SELECT
+        ca.id,
+        ca.name,
+        ca.balance_due,
+        ca.promise_date,
+        ca.promise_amount,
+        ca.status,
+        ca.last_contacted_at,
+        ca.created_at,
+        ca.updated_at,
+        u.name AS created_by_name
+      FROM collection_accounts ca
+      LEFT JOIN users u ON ca.created_by = u.id
+      WHERE ca.organization_id = $1
+        AND ca.promise_date IS NOT NULL
+        AND ca.promise_amount IS NOT NULL
+        AND ca.is_deleted = false
+        AND ca.status IN ('active', 'partial', 'disputed')
+      ORDER BY ca.promise_date ASC
+      LIMIT $2 OFFSET $3`,
+      [session.organization_id, limit, offset]
+    )
+
+    return c.json({ success: true, promises: result.rows })
+  } catch (err: any) {
+    logger.error('GET /api/collections/promises error', { error: err?.message })
+    return c.json({ error: 'Failed to get promises' }, 500)
+  } finally {
+    await db.end()
+  }
+})
+
 // ─── Get single account ──────────────────────────────────────────────────────
 collectionsRoutes.get('/:id', async (c) => {
   const session = await requireAuth(c)
@@ -1046,51 +1089,8 @@ collectionsRoutes.post('/:id/notes', collectionsRateLimit, async (c) => {
   }
 })
 
-// ─── Get promises to pay ─────────────────────────────────────────────────────
-collectionsRoutes.get('/promises', async (c) => {
-  const session = await requireAuth(c)
-  if (!session) return c.json({ error: 'Unauthorized' }, 401)
-
-  const db = getDb(c.env, session.organization_id)
-  try {
-    const limit = parseInt(c.req.query('limit') || '100')
-    const offset = parseInt(c.req.query('offset') || '0')
-
-    const result = await db.query(
-      `SELECT
-        ca.id,
-        ca.name,
-        ca.balance_due,
-        ca.promise_date,
-        ca.promise_amount,
-        ca.status,
-        ca.last_contacted_at,
-        ca.created_at,
-        ca.updated_at,
-        u.name AS created_by_name
-      FROM collection_accounts ca
-      LEFT JOIN users u ON ca.created_by = u.id
-      WHERE ca.organization_id = $1
-        AND ca.promise_date IS NOT NULL
-        AND ca.promise_amount IS NOT NULL
-        AND ca.is_deleted = false
-        AND ca.status IN ('active', 'partial', 'disputed')
-      ORDER BY ca.promise_date ASC
-      LIMIT $2 OFFSET $3`,
-      [session.organization_id, limit, offset]
-    )
-
-    return c.json({ success: true, promises: result.rows })
-  } catch (err: any) {
-    logger.error('GET /api/collections/promises error', { error: err?.message })
-    return c.json({ error: 'Failed to get promises' }, 500)
-  } finally {
-    await db.end()
-  }
-})
-
 // NOTE: Duplicate /import, /imports, /promises handlers removed 2026-02-13
-// Canonical handlers are at lines ~148 (/imports), ~228 (/import), ~898 (/promises)
+// Canonical handlers are at lines ~148 (/imports), ~228 (/import), ~537 (/promises)
 // See ARCH_DOCS/06-REFERENCE/ENGINEERING_GUIDE.md Appendix A, Issue #2
 
 // ─── Get unified communications timeline for account ────────────────────────

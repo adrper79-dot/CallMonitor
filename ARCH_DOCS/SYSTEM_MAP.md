@@ -1,7 +1,7 @@
 # Codebase System Map
 
 **TOGAF Phase:** C — Information Systems Architecture  
-**Updated:** February 16, 2026 | **Version:** 4.68
+**Updated:** February 17, 2026 | **Version:** 4.69
 
 ```mermaid
 graph TB
@@ -18,7 +18,7 @@ graph TB
         Messaging[Multi-Channel Messaging<br/>messages.ts (SMS + Email)<br/>Telnyx SMS, Resend Email]
         AI[AI & Intelligence<br/>ai-llm.ts, ai-router.ts, ai-transcribe.ts<br/>bond-ai.ts, ai-config.ts, ai-toggle.ts<br/>audio.ts, sentiment.ts]
         Business[Business Logic<br/>billing.ts, campaigns.ts, collections.ts<br/>compliance.ts, bookings.ts, surveys.ts<br/>productivity.ts, scorecards.ts]
-        Integrations[Integration Suite<br/>webhooks-outbound.ts, notifications.ts<br/>quickbooks.ts, google-workspace.ts<br/>helpdesk.ts, crm.ts]
+        Integrations[Integration Suite<br/>webhooks-outbound.ts, notifications.ts<br/>quickbooks.ts, google-workspace.ts, outlook.ts<br/>helpdesk.ts, crm.ts]
         Admin[Admin & Analytics<br/>admin.ts, admin-metrics.ts<br/>analytics.ts, reports.ts, usage.ts<br/>audit.ts, health.ts, reliability.ts]
         DB[Database Layer<br/>workers/src/lib/db.ts]
     end
@@ -29,7 +29,7 @@ graph TB
         VoiceLibs[Voice: translation-processor.ts<br/>tts-processor.ts, sentiment-processor.ts<br/>audio-injector.ts, ivr-flow-engine.ts<br/>ai-call-engine.ts, dialer-engine.ts<br/>phone-provisioning.ts]
         SecurityLibs[Security: rate-limit.ts, idempotency.ts<br/>schemas.ts, validate.ts, compliance-checker.ts]
         ProcessingLibs[Processing: queue-consumer.ts<br/>post-transcription-processor.ts<br/>likelihood-scorer.ts, webhook-retry.ts<br/>payment-scheduler.ts]
-        IntegrationLibs[Integration: crm-tokens.ts, crm-hubspot.ts<br/>crm-salesforce.ts, quickbooks-client.ts<br/>google-workspace.ts]
+        IntegrationLibs[Integration: crm-tokens.ts, crm-hubspot.ts<br/>crm-salesforce.ts, quickbooks-client.ts<br/>google-workspace.ts, outlook.ts]
     end
 
     subgraph "Shared Client Libraries"
@@ -51,6 +51,7 @@ graph TB
         Salesforce[Salesforce — CRM v59.0]
         QuickBooks[QuickBooks — Billing/Invoices]
         GoogleWS[Google — Calendar + People]
+        MicrosoftGraph[Microsoft Graph — Outlook Mail/Calendar OAuth]
         Zendesk[Zendesk — Helpdesk Tickets]
         Freshdesk[Freshdesk — Helpdesk Tickets]
         SlackAPI[Slack — Block Kit Notifications]
@@ -74,6 +75,7 @@ graph TB
     IntegrationLibs --> Salesforce
     IntegrationLibs --> QuickBooks
     IntegrationLibs --> GoogleWS
+    IntegrationLibs --> MicrosoftGraph
     IntegrationLibs --> Zendesk
     IntegrationLibs --> Freshdesk
     IntegrationLibs --> SlackAPI
@@ -136,14 +138,14 @@ graph TB
 - **AI**: ai-llm.ts, ai-router.ts, ai-transcribe.ts, bond-ai.ts, ai-config.ts, ai-toggle.ts, sentiment.ts
 - **Business**: billing.ts, campaigns.ts, collections.ts, compliance.ts, bookings.ts, surveys.ts, productivity.ts, scorecards.ts, shopper.ts, retention.ts
 - **Analytics**: analytics.ts, reports.ts, usage.ts, reliability.ts
-- **Integrations**: webhooks.ts, crm.ts, webhooks-outbound.ts, notifications.ts, quickbooks.ts, google-workspace.ts, helpdesk.ts, rbac-v2.ts, manager.ts
+- **Integrations**: webhooks.ts, crm.ts, webhooks-outbound.ts, notifications.ts, quickbooks.ts, google-workspace.ts, outlook.ts, helpdesk.ts, rbac-v2.ts, manager.ts
 
 **Lib Files** (workers/src/lib/ — 46 files):
 - **Core**: db.ts, auth.ts, audit.ts, logger.ts, errors.ts, utils.ts
 - **AI**: ai-router.ts, groq-client.ts, grok-voice-client.ts, bond-ai.ts, prompt-sanitizer.ts, pii-redactor.ts
 - **Voice**: translation-processor.ts, tts-processor.ts, sentiment-processor.ts, audio-injector.ts, ivr-flow-engine.ts, ai-call-engine.ts, dialer-engine.ts, phone-provisioning.ts
 - **Security**: rate-limit.ts, idempotency.ts, schemas.ts, validate.ts, compliance-checker.ts, compliance-guides.ts, capabilities.ts, plan-gating.ts
-- **Integration**: crm-tokens.ts, crm-hubspot.ts, crm-salesforce.ts, quickbooks-client.ts, google-workspace.ts
+- **Integration**: crm-tokens.ts, crm-hubspot.ts, crm-salesforce.ts, quickbooks-client.ts, google-workspace.ts, outlook.ts
 - **Processing**: queue-consumer.ts, post-transcription-processor.ts, likelihood-scorer.ts, webhook-retry.ts, payment-scheduler.ts, email.ts
 
 **Cron Jobs** (workers/src/crons/ + scheduled.ts):
@@ -182,6 +184,7 @@ graph TB
 | Salesforce | CRM — contacts, deals, tasks | OAuth 2.0, REST v59.0, SOQL |
 | QuickBooks Online | Accounting — customers, invoices | OAuth 2.0, call-to-invoice |
 | Google Workspace | Calendar + People contacts | OAuth 2.0, syncToken delta |
+| Outlook (Microsoft 365) | Mail + Calendar connectivity | OAuth 2.0 via Microsoft Graph |
 | Zendesk | Helpdesk — ticket auto-creation | API v2, configurable rules |
 | Freshdesk | Helpdesk — ticket auto-creation | API v2, configurable rules |
 | Slack | Notifications — Block Kit messages | Webhook + API, 7 event types |

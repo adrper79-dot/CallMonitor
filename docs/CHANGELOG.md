@@ -15,12 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive `.env.example` file for onboarding
 - `.gitignore` entries for `.next/` build artifacts
 - CHANGELOG.md for tracking changes
+- Outlook (Microsoft 365) OAuth integration routes: `/api/outlook/status|connect|callback|disconnect`
+- Onboarding optional Email OAuth step (Gmail/Outlook) with SMS-only skip path
+- OAuth callback pages for Google Workspace and Outlook to complete authorization in-app
+- Integration migration `2026-02-16-add-outlook-provider-to-integrations.sql`
 
 ### Changed
 - **BREAKING**: Enabled TypeScript strict mode in `tsconfig.json`
 - **BREAKING**: Disabled `ignoreBuildErrors` in `next.config.js` - builds now fail on type errors
 - Re-enabled webhook signature validation for SignalWire webhooks
 - Improved error handling in root layout with ErrorBoundary
+- Integration Hub calendar tab now supports both Google Workspace (Gmail) and Outlook providers
+- Google Workspace connect endpoint now accepts optional OAuth `state` passthrough for return-to-flow redirects
 
 ### Fixed
 - Removed `.next/` build artifacts from git tracking

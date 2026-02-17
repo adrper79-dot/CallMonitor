@@ -74,6 +74,7 @@ Authoritative inputs:
 | 31. UI/UX Framework | WF-AGENT/WF-MANAGER/WF-ADMIN | Full | Medium | UX quality checks not fully codified as flow acceptance |
 | 32. QuickBooks Integration | FF-09 | Full | Strong | Included in integrations lifecycle |
 | 33. Google Workspace Integration | FF-09 | Full | Strong | Included in integrations lifecycle |
+| 33A. Outlook Integration | FF-09 | Full | Strong | Included in integrations lifecycle |
 | 34. Notifications (Slack/Teams) | FF-09 | Full | Strong | Included in integrations lifecycle |
 | 35. Helpdesk Integration | FF-09 | Full | Strong | Included in integrations lifecycle |
 | 36. Webhook Automation (Zapier/Make) | FF-09 | Full | Strong | Included in integrations lifecycle |

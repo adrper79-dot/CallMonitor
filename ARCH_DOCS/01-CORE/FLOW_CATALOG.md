@@ -321,6 +321,7 @@ Related standards:
   - `/api/crm/*`
   - `/api/quickbooks/*`
   - `/api/google-workspace/*`
+  - `/api/outlook/*`
   - `/api/helpdesk/*`
   - `/api/webhooks*`
 - Data entities:

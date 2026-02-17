@@ -2,26 +2,29 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from '@/components/AuthProvider'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
-import { apiPost } from '@/lib/apiClient'
+import { apiGet, apiPost } from '@/lib/apiClient'
+import { OnboardingAIAdvisor } from '@/components/bond-ai/OnboardingAIAdvisor'
 
-type Step = 'plan' | 'number' | 'compliance' | 'import' | 'call' | 'team' | 'tour' | 'launch'
+type Step = 'plan' | 'number' | 'compliance' | 'email' | 'import' | 'call' | 'team' | 'tour' | 'launch'
 
 const STEP_LABELS: { key: Step; label: string }[] = [
   { key: 'plan', label: '1. Trial Plan' },
   { key: 'number', label: '2. Claim Number' },
   { key: 'compliance', label: '3. Compliance' },
-  { key: 'import', label: '4. Import Contacts' },
-  { key: 'call', label: '5. Test Call' },
-  { key: 'team', label: '6. Invite Team' },
-  { key: 'tour', label: '7. Get Started' },
+  { key: 'email', label: '4. Email OAuth (Optional)' },
+  { key: 'import', label: '5. Import Contacts' },
+  { key: 'call', label: '6. Test Call' },
+  { key: 'team', label: '7. Invite Team' },
+  { key: 'tour', label: '8. Get Started' },
 ]
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const [step, setStep] = useState<Step>('plan')
   const [loading, setLoading] = useState(false)
@@ -34,6 +37,41 @@ export default function OnboardingPage() {
   const [callingHoursEnd, setCallingHoursEnd] = useState('21:00')
   const [orgTimezone, setOrgTimezone] = useState('America/New_York')
   const [teamEmails, setTeamEmails] = useState('')
+  const [gmailConnected, setGmailConnected] = useState(false)
+  const [outlookConnected, setOutlookConnected] = useState(false)
+  const [emailProviderConnecting, setEmailProviderConnecting] = useState<'google_workspace' | 'outlook' | null>(null)
+
+  const refreshEmailStatuses = async () => {
+    try {
+      const [googleRes, outlookRes] = await Promise.allSettled([
+        apiGet<{ connected?: boolean }>('/api/google-workspace/status'),
+        apiGet<{ connected?: boolean }>('/api/outlook/status'),
+      ])
+
+      setGmailConnected(googleRes.status === 'fulfilled' && !!googleRes.value.connected)
+      setOutlookConnected(outlookRes.status === 'fulfilled' && !!outlookRes.value.connected)
+    } catch {
+      setGmailConnected(false)
+      setOutlookConnected(false)
+    }
+  }
+
+  const startEmailOAuth = async (provider: 'google_workspace' | 'outlook') => {
+    setEmailProviderConnecting(provider)
+    try {
+      const endpoint = provider === 'google_workspace' ? '/api/google-workspace/connect' : '/api/outlook/connect'
+      const res = await apiPost<{ success?: boolean; authUrl?: string }>(endpoint, { state: 'onboarding_email' })
+      if (!res.authUrl) {
+        alert('OAuth URL unavailable. Please check integration settings and try again.')
+        return
+      }
+      window.location.assign(res.authUrl)
+    } catch {
+      alert('Failed to start email OAuth flow. Please try again.')
+    } finally {
+      setEmailProviderConnecting(null)
+    }
+  }
 
   const handleSetupOnboarding = async () => {
     setLoading(true)
@@ -55,13 +93,34 @@ export default function OnboardingPage() {
     setStep(nextStep)
     try {
       const stepMap: Record<Step, number> = {
-        plan: 1, number: 2, compliance: 3, import: 4, call: 5, team: 6, tour: 7, launch: 8,
+        plan: 1, number: 2, compliance: 3, email: 4, import: 5, call: 6, team: 7, tour: 8, launch: 9,
       }
       await apiPost('/api/onboarding/progress', { step: stepMap[nextStep] })
     } catch (err) {
       // Progress update failed — non-critical
     }
   }
+
+  useEffect(() => {
+    const requestedStep = searchParams.get('step')
+    if (requestedStep === 'email') {
+      setStep('email')
+    }
+
+    const oauthStatus = searchParams.get('oauth_status')
+    const oauthProvider = searchParams.get('oauth_provider')
+    if (oauthStatus === 'success') {
+      if (oauthProvider === 'google_workspace') setGmailConnected(true)
+      if (oauthProvider === 'outlook') setOutlookConnected(true)
+      setStep('email')
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (step === 'email') {
+      refreshEmailStatuses().catch(() => {})
+    }
+  }, [step])
 
   if (status === 'loading') {
     return (
@@ -136,6 +195,9 @@ export default function OnboardingPage() {
               ))}
             </div>
           </div>
+
+          {/* Bond AI contextual advisor */}
+          <OnboardingAIAdvisor currentStep={step} />
 
           {step === 'plan' && (
             <section className="bg-white border border-gray-200 rounded-lg p-8 space-y-6 text-center">
@@ -300,10 +362,94 @@ export default function OnboardingPage() {
                         disclosure_enabled: true,
                       })
                     } catch { /* Non-critical during onboarding */ }
-                    handleStepProgress('import')
+                    handleStepProgress('email')
                   }}
                 >
                   Save & Continue
+                </Button>
+              </div>
+            </section>
+          )}
+
+          {step === 'email' && (
+            <section className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-bold text-gray-900">Email Channel Setup (Optional)</h2>
+                <p className="text-gray-500">
+                  Connect Gmail or Outlook for email-based workflows. If your agency is SMS-only,
+                  you can skip this step and continue.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="font-semibold text-gray-900">Gmail OAuth</p>
+                    <p className="text-xs text-gray-500">Google Workspace authorization</p>
+                  </div>
+                  <div className="text-xs">
+                    {gmailConnected ? (
+                      <span className="text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">Connected</span>
+                    ) : (
+                      <span className="text-gray-600 bg-gray-100 border border-gray-200 px-2 py-1 rounded">Not connected</span>
+                    )}
+                  </div>
+                  <Button
+                    variant={gmailConnected ? 'outline' : 'default'}
+                    onClick={() => startEmailOAuth('google_workspace')}
+                    disabled={emailProviderConnecting !== null}
+                  >
+                    {emailProviderConnecting === 'google_workspace'
+                      ? 'Redirecting...'
+                      : gmailConnected
+                        ? 'Reconnect Gmail'
+                        : 'Connect Gmail'}
+                  </Button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="font-semibold text-gray-900">Outlook OAuth</p>
+                    <p className="text-xs text-gray-500">Microsoft 365 / Outlook authorization</p>
+                  </div>
+                  <div className="text-xs">
+                    {outlookConnected ? (
+                      <span className="text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded">Connected</span>
+                    ) : (
+                      <span className="text-gray-600 bg-gray-100 border border-gray-200 px-2 py-1 rounded">Not connected</span>
+                    )}
+                  </div>
+                  <Button
+                    variant={outlookConnected ? 'outline' : 'default'}
+                    onClick={() => startEmailOAuth('outlook')}
+                    disabled={emailProviderConnecting !== null}
+                  >
+                    {emailProviderConnecting === 'outlook'
+                      ? 'Redirecting...'
+                      : outlookConnected
+                        ? 'Reconnect Outlook'
+                        : 'Connect Outlook'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <p className="text-xs text-blue-700">
+                  System emails (password reset, account notices) continue to use Resend. You can
+                  manage or reconnect email OAuth later in{' '}
+                  <Link href="/settings/integrations" className="font-medium underline">
+                    Settings → Integrations
+                  </Link>
+                  .
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <Button variant="outline" onClick={() => handleStepProgress('import')}>
+                  Skip (SMS-Only)
+                </Button>
+                <Button onClick={() => handleStepProgress('import')}>
+                  Continue to Import
                 </Button>
               </div>
             </section>

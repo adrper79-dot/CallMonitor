@@ -43,6 +43,7 @@ import {
   type IntegrationCategory,
 } from '@/hooks/useIntegrations'
 import { triggerSync } from '@/hooks/useCrmIntegration'
+import { IntegrationAIAdvisor } from '@/components/bond-ai/IntegrationAIAdvisor'
 
 // ─── Tab Definitions ─────────────────────────────────────────────────────────
 
@@ -73,7 +74,8 @@ const PROVIDERS: ProviderMeta[] = [
   { provider: 'slack', name: 'Slack', description: 'Real-time call notifications and alerts', category: 'notifications', color: 'bg-purple-500' },
   { provider: 'teams', name: 'Microsoft Teams', description: 'Team notifications and call summaries', category: 'notifications', color: 'bg-indigo-500' },
   { provider: 'quickbooks', name: 'QuickBooks', description: 'Invoice sync and billing automation', category: 'billing', color: 'bg-emerald-500' },
-  { provider: 'google_workspace', name: 'Google Workspace', description: 'Calendar, contacts, and Gmail sync', category: 'calendar', color: 'bg-yellow-500' },
+  { provider: 'google_workspace', name: 'Google Workspace (Gmail)', description: 'Gmail, calendar, and contacts sync', category: 'calendar', color: 'bg-yellow-500' },
+  { provider: 'outlook', name: 'Outlook (Microsoft 365)', description: 'Outlook mail and calendar sync', category: 'calendar', color: 'bg-blue-600' },
   { provider: 'zendesk', name: 'Zendesk', description: 'Ticket creation from call outcomes', category: 'helpdesk', color: 'bg-teal-500' },
   { provider: 'freshdesk', name: 'Freshdesk', description: 'Support ticket and knowledge base sync', category: 'helpdesk', color: 'bg-cyan-500' },
 ]
@@ -197,14 +199,27 @@ function ConnectDialog({
   const [instanceUrl, setInstanceUrl] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const isOAuthProvider =
+    provider?.provider === 'google_workspace' ||
+    provider?.provider === 'outlook' ||
+    provider?.provider === 'quickbooks'
+
   const handleConnect = async () => {
     if (!provider) return
     setLoading(true)
     try {
-      await connectIntegration(provider.provider, {
+      const result = await connectIntegration(provider.provider, {
         api_key: apiKey,
         instance_url: instanceUrl || undefined,
+        state: 'settings_integrations',
       })
+
+      const authUrl = (result as { authUrl?: string })?.authUrl
+      if (authUrl) {
+        window.location.assign(authUrl)
+        return
+      }
+
       onConnected()
       onOpenChange(false)
       setApiKey('')
@@ -222,36 +237,49 @@ function ConnectDialog({
         <DialogHeader>
           <DialogTitle>Connect {provider?.name}</DialogTitle>
           <DialogDescription>
-            Enter your API credentials to connect {provider?.name} with Word Is Bond.
+            {isOAuthProvider
+              ? `You will be redirected to ${provider?.name} to authorize access.`
+              : `Enter your API credentials to connect ${provider?.name} with Word Is Bond.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="api-key">API Key</Label>
-            <Input
-              id="api-key"
-              type="password"
-              placeholder="Enter your API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-            />
-          </div>
-          {(provider?.provider === 'salesforce' || provider?.provider === 'zoho') && (
+          {!isOAuthProvider && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="api-key">API Key</Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder="Enter your API key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+              </div>
+              {(provider?.provider === 'salesforce' || provider?.provider === 'zoho') && (
+                <div className="space-y-2">
+                  <Label htmlFor="instance-url">Instance URL</Label>
+                  <Input
+                    id="instance-url"
+                    placeholder="https://your-instance.salesforce.com"
+                    value={instanceUrl}
+                    onChange={(e) => setInstanceUrl(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
+          )}
+          {isOAuthProvider && (
             <div className="space-y-2">
-              <Label htmlFor="instance-url">Instance URL</Label>
-              <Input
-                id="instance-url"
-                placeholder="https://your-instance.salesforce.com"
-                value={instanceUrl}
-                onChange={(e) => setInstanceUrl(e.target.value)}
-              />
+              <p className="text-sm text-muted-foreground">
+                After authorization, you&apos;ll return to Word Is Bond and this integration will be marked connected.
+              </p>
             </div>
           )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleConnect} disabled={!apiKey || loading}>
-            {loading ? 'Connecting...' : 'Connect'}
+          <Button onClick={handleConnect} disabled={(!isOAuthProvider && !apiKey) || loading}>
+            {loading ? 'Connecting...' : isOAuthProvider ? 'Continue to OAuth' : 'Connect'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -620,6 +648,12 @@ export default function IntegrationHub() {
           </button>
         ))}
       </div>
+
+      {/* Bond AI Integration Advisor */}
+      <IntegrationAIAdvisor
+        activeCategory={activeTab === 'all' ? 'crm' : activeTab}
+        activeProvider={connectProvider?.provider}
+      />
 
       {/* Content */}
       {activeTab === 'webhooks' ? (

@@ -12,7 +12,7 @@ import { useSession } from '@/components/AuthProvider'
 import { useRBAC } from '@/hooks/useRBAC'
 import { apiGet } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { signOut } from '@/components/AuthProvider'
 import { Button } from '@/components/ui/button'
@@ -80,6 +80,13 @@ export default function DialerPage() {
   if (status === 'loading' || rbacLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Mode Switcher - Loading State */}
+        <div className="p-4 flex justify-end">
+          <a href="/voice-operations" className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-1">
+            <Phone className="w-4 h-4" />
+            Full Voice Operations
+          </a>
+        </div>
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -93,6 +100,13 @@ export default function DialerPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Mode Switcher - Error State */}
+        <div className="p-4 flex justify-end">
+          <a href="/voice-operations" className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-1">
+            <Phone className="w-4 h-4" />
+            Full Voice Operations
+          </a>
+        </div>
         <div className="flex items-center justify-center h-screen">
           <div className="text-center max-w-sm px-4">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
@@ -115,6 +129,13 @@ export default function DialerPage() {
   if (!hasDialerAccess) {
     return (
       <div className="min-h-screen bg-gray-50">
+        {/* Mode Switcher - Access Restricted */}
+        <div className="p-4 flex justify-end">
+          <a href="/voice-operations" className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-1">
+            <Phone className="w-4 h-4" />
+            Full Voice Operations
+          </a>
+        </div>
         <div className="flex items-center justify-center h-screen">
           <div className="text-center max-w-sm px-4">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
@@ -142,6 +163,13 @@ export default function DialerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mode Switcher - Active Dialer */}
+      <div className="p-4 flex justify-end border-b border-gray-200 dark:border-gray-700">
+        <a href="/voice-operations" className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-1">
+          <Phone className="w-4 h-4" />
+          Full Voice Operations
+        </a>
+      </div>
       <Cockpit organizationId={orgId} />
     </div>
   )

@@ -37,6 +37,12 @@ Complete these in order:
 2. Business configuration
 3. Number provisioning setup
 4. Compliance settings
+5. Email channel setup (optional): Gmail OAuth or Outlook OAuth
+6. Import contacts
+7. Place test call
+8. Invite team and launch
+
+If your org is SMS-only, skip step 5 and continue. Email OAuth can be configured later in `/settings/integrations`.
 
 ### 2.3 Number provisioning behavior (important)
 
@@ -55,6 +61,8 @@ Use this before handing a user to production:
 - [ ] User can open `/accounts`
 - [ ] User can open `/work/call`
 - [ ] Outbound workflow is available
+- [ ] Email channel decision is explicit (Gmail connected, Outlook connected, or SMS-only skip)
+- [ ] User knows where to configure/reconnect later: `/settings/integrations`
 
 ---
 
@@ -116,6 +124,7 @@ Weekly runbook:
 1. Verify users and role assignments
 2. Review integrations/notification channels
 3. Confirm onboarding and telephony settings for new org/users
+4. Confirm optional email OAuth state for each new org (Gmail/Outlook connected or intentionally skipped)
 
 ---
 

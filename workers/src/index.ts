@@ -72,8 +72,12 @@ import { webhooksOutboundRoutes } from './routes/webhooks-outbound'
 import { notificationsRoutes } from './routes/notifications'
 import { quickbooksRoutes } from './routes/quickbooks'
 import { googleWorkspaceRoutes } from './routes/google-workspace'
+import { outlookRoutes } from './routes/outlook'
 import { helpdeskRoutes } from './routes/helpdesk'
 import { cockpitRoutes } from './routes/cockpit'
+import { legalEscalationRoutes } from './routes/legal-escalation'
+import { consentRoutes } from './routes/consent'
+import { settlementRoutes } from './routes/settlements'
 import {
   buildErrorContext,
   logError,
@@ -137,6 +141,10 @@ export interface Env {
   QUICKBOOKS_ENVIRONMENT?: string // 'sandbox' | 'production'
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
+  MICROSOFT_CLIENT_ID?: string
+  MICROSOFT_CLIENT_SECRET?: string
+  MICROSOFT_REDIRECT_URI?: string
+  MICROSOFT_TENANT_ID?: string
 }
 
 // Session type — set by authMiddleware via c.set('session', session)
@@ -299,8 +307,12 @@ app.route('/api/webhooks/outbound', webhooksOutboundRoutes)
 app.route('/api/notifications', notificationsRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/google-workspace', googleWorkspaceRoutes)
+app.route('/api/outlook', outlookRoutes)
 app.route('/api/helpdesk', helpdeskRoutes)
 app.route('/api', cockpitRoutes) // /api/notes, /api/callbacks, /api/disputes
+app.route('/api/legal-escalation', legalEscalationRoutes)
+app.route('/api/consent', consentRoutes)
+app.route('/api/settlements', settlementRoutes)
 
 // Root endpoint
 app.get('/', (c) => {

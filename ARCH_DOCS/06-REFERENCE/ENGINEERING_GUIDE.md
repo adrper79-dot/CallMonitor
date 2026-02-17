@@ -1167,14 +1167,15 @@ flowchart TD
     I -->|No| J[Redirect to /onboarding]
     I -->|Yes| K[Allow access]
 
-    J --> L[7-Step Wizard]
-    L --> M[Step 1: Account Setup]
-    M --> N[Step 2: Phone Number]
-    N --> O[Step 3: Team Invites]
-    O --> P[Step 4: Collections Import]
-    P --> Q[Step 5: Campaign Setup]
-    Q --> R[Step 6: Compliance Review]
-    R --> S[Step 7: Go Live]
+    J --> L[8-Step Wizard]
+    L --> M[Step 1: Trial Plan]
+    M --> N[Step 2: Claim Number]
+    N --> O[Step 3: Compliance]
+    O --> P[Step 4: Email OAuth (Optional)]
+    P --> Q[Step 5: Import Contacts]
+    Q --> R[Step 6: Test Call]
+    R --> S[Step 7: Invite Team]
+    S --> T[Step 8: Get Started]
 Flow Diagram
 
 ```mermaid
@@ -3334,8 +3335,8 @@ Dedicated telephony tables are active. `inbound_phone_numbers` is live for DID r
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Backend Route | `workers/src/routes/onboarding.ts` | 2 onboarding endpoints |
-| Frontend Pages | `app/onboarding/page.tsx` | 7-step wizard |
+| Backend Route | `workers/src/routes/onboarding.ts` | 3 onboarding endpoints |
+| Frontend Pages | `app/onboarding/page.tsx` | 8-step wizard (email OAuth optional) |
 | Frontend | `components/voice/OnboardingWizard.tsx` | Wizard component |
 
 ### Status: **ACTIVE** on website

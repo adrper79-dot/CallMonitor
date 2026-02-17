@@ -26,6 +26,7 @@ export type IntegrationProvider =
   | 'quickbooks'
   // Calendar
   | 'google_workspace'
+  | 'outlook'
   // Helpdesk
   | 'zendesk'
   | 'freshdesk'
@@ -124,21 +125,40 @@ async function fetchIntegrations(category?: IntegrationCategory): Promise<Integr
   }
 
   if (category === 'calendar') {
-    const res = await apiGet<{ connected?: boolean; integration?: { connected_at?: string; updated_at?: string } }>('/api/google-workspace/status')
-    const connected = !!res.connected
+    const [googleRes, outlookRes] = await Promise.allSettled([
+      apiGet<{ connected?: boolean; integration?: { connected_at?: string; updated_at?: string } }>('/api/google-workspace/status'),
+      apiGet<{ connected?: boolean; integration?: { connected_at?: string; updated_at?: string } }>('/api/outlook/status'),
+    ])
+
+    const google = googleRes.status === 'fulfilled' ? googleRes.value : { connected: false, integration: null }
+    const outlook = outlookRes.status === 'fulfilled' ? outlookRes.value : { connected: false, integration: null }
+
     return [
       {
         id: 'google_workspace',
         provider: 'google_workspace',
         category: 'calendar',
-        status: connected ? 'connected' : 'disconnected',
-        display_name: 'Google Workspace',
-        description: 'Calendar and contacts sync',
+        status: google.connected ? 'connected' : 'disconnected',
+        display_name: 'Google Workspace (Gmail)',
+        description: 'Gmail, calendar, and contacts sync',
         icon_url: null,
         config: {},
         last_sync_at: null,
-        created_at: res.integration?.connected_at || new Date(0).toISOString(),
-        updated_at: res.integration?.updated_at || new Date(0).toISOString(),
+        created_at: google.integration?.connected_at || new Date(0).toISOString(),
+        updated_at: google.integration?.updated_at || new Date(0).toISOString(),
+      },
+      {
+        id: 'outlook',
+        provider: 'outlook',
+        category: 'calendar',
+        status: outlook.connected ? 'connected' : 'disconnected',
+        display_name: 'Outlook (Microsoft 365)',
+        description: 'Outlook mail and calendar sync',
+        icon_url: null,
+        config: {},
+        last_sync_at: null,
+        created_at: outlook.integration?.connected_at || new Date(0).toISOString(),
+        updated_at: outlook.integration?.updated_at || new Date(0).toISOString(),
       },
     ]
   }
@@ -318,7 +338,9 @@ export async function connectIntegration(
   }
 
   if (provider === 'quickbooks') {
-    const res = await apiPost<{ success?: boolean; authUrl?: string }>('/api/quickbooks/connect', {})
+    const res = await apiPost<{ success?: boolean; authUrl?: string }>('/api/quickbooks/connect', {
+      state: (config.state as string) || undefined,
+    })
     return {
       id: 'quickbooks',
       provider: 'quickbooks',
@@ -328,6 +350,7 @@ export async function connectIntegration(
       description: 'Invoice sync and billing automation',
       icon_url: null,
       config: {},
+      authUrl: res.authUrl,
       last_sync_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -335,7 +358,9 @@ export async function connectIntegration(
   }
 
   if (provider === 'google_workspace') {
-    const res = await apiPost<{ success?: boolean; authUrl?: string }>('/api/google-workspace/connect', {})
+    const res = await apiPost<{ success?: boolean; authUrl?: string }>('/api/google-workspace/connect', {
+      state: (config.state as string) || undefined,
+    })
     return {
       id: 'google_workspace',
       provider: 'google_workspace',
@@ -345,6 +370,27 @@ export async function connectIntegration(
       description: 'Calendar and contacts sync',
       icon_url: null,
       config: {},
+      authUrl: res.authUrl,
+      last_sync_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
+
+  if (provider === 'outlook') {
+    const res = await apiPost<{ success?: boolean; authUrl?: string }>('/api/outlook/connect', {
+      state: (config.state as string) || undefined,
+    })
+    return {
+      id: 'outlook',
+      provider: 'outlook',
+      category: 'calendar',
+      status: res.authUrl ? 'pending' : 'connected',
+      display_name: 'Outlook',
+      description: 'Mail and calendar sync',
+      icon_url: null,
+      config: {},
+      authUrl: res.authUrl,
       last_sync_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -381,6 +427,10 @@ export async function disconnectIntegration(id: string) {
   }
   if (id === 'google_workspace') {
     await apiPost('/api/google-workspace/disconnect', {})
+    return
+  }
+  if (id === 'outlook') {
+    await apiPost('/api/outlook/disconnect', {})
     return
   }
   if (id === 'zendesk' || id === 'freshdesk') {

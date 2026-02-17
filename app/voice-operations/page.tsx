@@ -4,11 +4,12 @@ import React, { useEffect, useState } from 'react'
 import { useSession } from '@/components/AuthProvider'
 import VoiceOperationsClient from '@/components/voice/VoiceOperationsClient'
 import { DialerPanel } from '@/components/voice/DialerPanel'
+import ExecutionControls from '@/components/voice/ExecutionControls'
 import { logger } from '@/lib/logger'
 import { ProtectedGate } from '@/components/ui/ProtectedGate'
 import { TroubleshootChatToggle } from '@/components/admin/TroubleshootChatToggle'
 import { FeatureFlagRedirect } from '@/components/layout/FeatureFlagRedirect'
-import { AlertTriangle, Phone, Plus, Users } from 'lucide-react'
+import { AlertTriangle, Phone, Plus, Users, Zap } from 'lucide-react'
 import { apiGet } from '@/lib/apiClient'
 import { NativeSelect as Select } from '@/components/ui/native-select'
 import { Button } from '@/components/ui/button'
@@ -115,6 +116,36 @@ export default function VoiceOperationsPage() {
     <>
       <FeatureFlagRedirect to="/work/call" />
       <div className="min-h-screen bg-background p-4 space-y-4">
+        {/* Mode Switcher */}
+        <div className="max-w-7xl mx-auto flex justify-end">
+          <a href="/work/dialer" className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-1">
+            <Zap className="w-4 h-4" />
+            Switch to Power Dialer Mode
+          </a>
+        </div>
+
+        {/* Quick Dial Section */}
+        {organizationId && (
+          <div className="max-w-7xl mx-auto">
+            <div className="p-4 rounded-xl border bg-card">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick Dial</h3>
+                <span className="text-xs text-gray-500">Make a single call</span>
+              </div>
+              <ExecutionControls 
+                organizationId={organizationId} 
+                onCallPlaced={(callId) => {
+                  // Scroll to VoiceOperationsClient to show active call panel
+                  const element = document.getElementById('voice-operations-client')
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' })
+                  }
+                }} 
+              />
+            </div>
+          </div>
+        )}
+
         {/* Dialer Panel Section */}
         {organizationId && (
           <div className="max-w-7xl mx-auto space-y-4">
@@ -181,11 +212,13 @@ export default function VoiceOperationsPage() {
         )}
 
         {/* Main Voice Operations Client */}
-        <VoiceOperationsClient
-          initialCalls={calls}
-          organizationId={organizationId}
-          organizationName={organizationName || undefined}
-        />
+        <div id="voice-operations-client">
+          <VoiceOperationsClient
+            initialCalls={calls}
+            organizationId={organizationId}
+            organizationName={organizationName || undefined}
+          />
+        </div>
       </div>
       <TroubleshootChatToggle />
     </>

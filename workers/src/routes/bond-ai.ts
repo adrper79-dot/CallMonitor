@@ -227,6 +227,52 @@ bondAiRoutes.post('/chat', authMiddleware, requirePlan('pro'), aiLlmRateLimit, a
       }
     }
 
+    // Include onboarding context when user is in setup wizard
+    if (context_type === 'onboarding') {
+      try {
+        const orgResult = await db.query(
+          `SELECT onboarding_step, name, industry, plan_tier, created_at
+           FROM organizations WHERE id = $1`,
+          [session.organization_id]
+        )
+        const org = orgResult.rows[0]
+        const stepNames = ['not started', 'plan', 'number', 'compliance', 'import', 'call', 'team', 'tour', 'launched']
+        contextData.push(
+          `Onboarding progress: Step ${org?.onboarding_step || 0}/7 (${stepNames[org?.onboarding_step || 0]})\n` +
+          `Organization: ${org?.name || 'Not named yet'}\n` +
+          `Industry: ${org?.industry || 'Not set'}\n` +
+          `Plan: ${org?.plan_tier || 'trial'}\n` +
+          `Current step being viewed: ${context_id || 'unknown'}\n` +
+          `Account age: ${org?.created_at ? Math.round((Date.now() - new Date(org.created_at).getTime()) / 86400000) + ' days' : 'unknown'}`
+        )
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    // Include integration context when user is in integration hub
+    if (context_type === 'integration') {
+      try {
+        const intResult = await db.query(
+          `SELECT provider, status, last_sync_at, sync_frequency, config, error_message
+           FROM integrations WHERE organization_id = $1 AND status != 'deleted'
+           ORDER BY created_at DESC`,
+          [session.organization_id]
+        )
+        const connected = intResult.rows.filter((r: any) => r.status === 'connected')
+        const errored = intResult.rows.filter((r: any) => r.status === 'error')
+        contextData.push(
+          `Integration status:\n` +
+          `Total integrations: ${intResult.rows.length}\n` +
+          `Connected: ${connected.map((r: any) => r.provider).join(', ') || 'none'}\n` +
+          `Errored: ${errored.map((r: any) => `${r.provider} (${r.error_message || 'unknown error'})`).join(', ') || 'none'}\n` +
+          `Provider being viewed: ${context_id || 'general hub'}`
+        )
+      } catch {
+        /* non-critical */
+      }
+    }
+
     // Get conversation history (last 20 messages for context)
     const historyResult = await db.query(
       `SELECT role, content FROM bond_ai_messages

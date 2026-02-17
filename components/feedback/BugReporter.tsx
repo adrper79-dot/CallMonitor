@@ -99,11 +99,11 @@ export function BugReporter() {
 
   return (
     <>
-      {/* Floating trigger button */}
+      {/* Floating trigger button — positioned above Bond AI Chat FAB */}
       <Button
         onClick={() => setOpen(true)}
         size="sm"
-        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg hover:shadow-xl transition-shadow p-0"
+        className="fixed bottom-[5.5rem] right-6 z-50 h-10 w-10 rounded-full shadow-lg hover:shadow-xl transition-shadow p-0"
         aria-label="Report a bug or send feedback"
       >
         <Bug className="h-5 w-5" />
