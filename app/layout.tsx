@@ -3,6 +3,7 @@ import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import AuthProvider from '../components/AuthProvider'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import GlobalErrorHandler from '../components/GlobalErrorHandler'
 import { ToastProvider } from '../components/ui/toast'
 import { ThemeProvider } from '../components/theme-provider'
 import { RealtimeProvider } from '../hooks/useRealtime'
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-body min-h-screen">
         <ErrorBoundary>
           <AuthProvider>
+            <GlobalErrorHandler />
             <ThemeProvider
               attribute="class"
               defaultTheme="system"
