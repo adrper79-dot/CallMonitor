@@ -56,10 +56,13 @@ settlementRoutes.get('/', async (c) => {
 
     const result = await db.query(query, params)
 
-    const countResult = await db.query(
-      `SELECT COUNT(*)::int as total FROM settlement_offers WHERE organization_id = $1${status ? ` AND status = '${status}'` : ''}`,
-      [session.organization_id]
-    )
+    const countParams: any[] = [session.organization_id]
+    let countQuery = `SELECT COUNT(*)::int as total FROM settlement_offers WHERE organization_id = $1`
+    if (status) {
+      countParams.push(status)
+      countQuery += ` AND status = $${countParams.length}`
+    }
+    const countResult = await db.query(countQuery, countParams)
 
     return c.json({
       success: true,
