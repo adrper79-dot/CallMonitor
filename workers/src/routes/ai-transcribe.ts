@@ -22,7 +22,7 @@ import { requireAuth, authMiddleware } from '../lib/auth'
 import { getDb } from '../lib/db'
 import { aiTranscriptionRateLimit } from '../lib/rate-limit'
 import { requirePlan } from '../lib/plan-gating'
-import { writeAuditLog } from '../lib/audit'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 import { logger } from '../lib/logger'
 
 export const aiTranscribeRoutes = new Hono<AppEnv>()
@@ -95,7 +95,7 @@ aiTranscribeRoutes.post(
       writeAuditLog(db, {
         userId: session.user_id,
         organizationId: session.organization_id,
-        action: 'transcription:submitted',
+        action: AuditAction.TRANSCRIPTION_SUBMITTED,
         resourceType: 'transcription',
         resourceId: aaiResult.id,
         oldValue: null,

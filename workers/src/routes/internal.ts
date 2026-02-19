@@ -15,7 +15,8 @@ import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { logger } from '../lib/logger'
 import { getDb } from '../lib/db'
-import { analyticsRateLimit } from '../lib/rate-limit'
+import { analyticsRateLimit, rateLimit } from '../lib/rate-limit'
+import { sendEmail } from '../lib/email'
 
 export const internalRoutes = new Hono<AppEnv>()
 
@@ -296,4 +297,68 @@ internalRoutes.get('/schema-health', requireInternalKey, analyticsRateLimit, asy
   } finally {
     await db.end()
   }
+})
+
+// ─── POST /demo-request — Public enterprise demo request form ────────────────
+
+/**
+ * Accepts demo request submissions from /request-demo page.
+ * No auth required — public endpoint. Rate-limited to 5/hr per IP.
+ * Sends a Resend notification email to the founder (fire-and-forget).
+ *
+ * @see app/request-demo/page.tsx — CEO-18
+ */
+const demoRequestRateLimit = rateLimit({ limit: 5, windowSeconds: 3600, prefix: 'rl:demo' })
+
+internalRoutes.post('/demo-request', demoRequestRateLimit, async (c) => {
+  let body: Record<string, string>
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const { name, email, company, teamSize, useCase, message } = body
+
+  if (!name || !email || !company) {
+    return c.json({ error: 'name, email, and company are required' }, 400)
+  }
+
+  logger.info('demo-request received', { name, email, company, teamSize, useCase })
+
+  // Notify founder via Resend — fire-and-forget so frontend always gets 200
+  const env = c.env as any
+  if (env.RESEND_API_KEY) {
+    const notifyEmail = env.DEMO_REQUEST_NOTIFY_EMAIL || env.RESEND_FROM || 'hello@wordis-bond.com'
+    sendEmail(env.RESEND_API_KEY, {
+      from: env.RESEND_FROM || 'notifications@wordis-bond.com',
+      to: notifyEmail,
+      subject: `🎯 Demo Request: ${company} (${teamSize || 'unknown size'})`,
+      html: `<p><strong>Name:</strong> ${name}<br>
+<strong>Email:</strong> <a href="mailto:${email}">${email}</a><br>
+<strong>Company:</strong> ${company}<br>
+<strong>Team size:</strong> ${teamSize || '—'}<br>
+<strong>Use case:</strong> ${useCase || '—'}</p>
+<p><strong>Message:</strong><br>${message ? message.replace(/\n/g, '<br>') : '(none)'}</p>`,
+    }).catch((err: Error) => {
+      logger.warn('demo-request: notification email failed', { error: err.message })
+    })
+  }
+
+  // Persist to demo_requests table if it exists (best-effort — non-blocking)
+  if (env.NEON_PG_CONN || env.HYPERDRIVE) {
+    const db = getDb(env)
+    db.query(
+      `INSERT INTO demo_requests (name, email, company, team_size, use_case, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT DO NOTHING`,
+      [name, email, company, teamSize || null, useCase || null, message || null]
+    )
+      .catch((err: Error) => {
+        logger.warn('demo-request: DB insert failed (table may not exist yet)', { error: err.message })
+      })
+      .finally(() => db.end().catch(() => {}))
+  }
+
+  return c.json({ ok: true, message: 'Request received — we will be in touch within one business day.' }, 201)
 })

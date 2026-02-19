@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { apiGet, apiPost } from '@/lib/apiClient'
 import { OnboardingAIAdvisor } from '@/components/bond-ai/OnboardingAIAdvisor'
+import SmartImportWizard from '@/components/voice/SmartImportWizard'
 
 type Step = 'plan' | 'number' | 'compliance' | 'email' | 'import' | 'call' | 'team' | 'tour' | 'launch'
 
@@ -40,6 +41,7 @@ export default function OnboardingPage() {
   const [gmailConnected, setGmailConnected] = useState(false)
   const [outlookConnected, setOutlookConnected] = useState(false)
   const [emailProviderConnecting, setEmailProviderConnecting] = useState<'google_workspace' | 'outlook' | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const refreshEmailStatuses = async () => {
     try {
@@ -58,16 +60,17 @@ export default function OnboardingPage() {
 
   const startEmailOAuth = async (provider: 'google_workspace' | 'outlook') => {
     setEmailProviderConnecting(provider)
+    setErrorMsg(null)
     try {
       const endpoint = provider === 'google_workspace' ? '/api/google-workspace/connect' : '/api/outlook/connect'
       const res = await apiPost<{ success?: boolean; authUrl?: string }>(endpoint, { state: 'onboarding_email' })
       if (!res.authUrl) {
-        alert('OAuth URL unavailable. Please check integration settings and try again.')
+        setErrorMsg('OAuth URL unavailable. Please check integration settings and try again.')
         return
       }
       window.location.assign(res.authUrl)
     } catch {
-      alert('Failed to start email OAuth flow. Please try again.')
+      setErrorMsg('Failed to start email OAuth flow. Please try again.')
     } finally {
       setEmailProviderConnecting(null)
     }
@@ -75,6 +78,7 @@ export default function OnboardingPage() {
 
   const handleSetupOnboarding = async () => {
     setLoading(true)
+    setErrorMsg(null)
     try {
       const res = await apiPost('/api/onboarding/setup')
       if (res.success) {
@@ -83,7 +87,7 @@ export default function OnboardingPage() {
         setStep('number')
       }
     } catch (err) {
-      alert('Failed to set up your account. Please try again or contact support.')
+      setErrorMsg('Failed to set up your account. Please try again or contact support@wordis-bond.com.')
     } finally {
       setLoading(false)
     }
@@ -173,6 +177,21 @@ export default function OnboardingPage() {
 
       <div className="flex-1 px-6 py-10">
         <div className="max-w-5xl mx-auto space-y-6">
+          {errorMsg && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              <span className="flex-1">{errorMsg}</span>
+              <button
+                onClick={() => setErrorMsg(null)}
+                className="ml-2 shrink-0 font-medium underline hover:no-underline"
+                aria-label="Dismiss error"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           <div className="bg-white border border-gray-200 rounded-lg p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -457,73 +476,10 @@ export default function OnboardingPage() {
 
           {step === 'import' && (
             <section className="bg-white border border-gray-200 rounded-lg p-8 space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-xl font-bold text-gray-900">Import Your Contacts</h2>
-                <p className="text-gray-500">
-                  Upload a CSV file with your contacts, leads, or accounts. We auto-detect formats
-                  from COLLECT!, Excel, and most CRM exports.
-                </p>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-primary-600"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      Drag & drop or click to upload
-                    </p>
-                    <p className="text-xs text-gray-500">CSV, XLS, XLSX — up to 10,000 rows</p>
-                  </div>
-                </div>
-
-                <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-primary-400 transition-colors cursor-pointer"
-                  onClick={() => {
-                    // Navigate to the full import wizard
-                    localStorage.setItem('wib-onboarding-completed', 'true')
-                    window.open('/voice-operations/accounts?tab=import', '_blank')
-                  }}
-                >
-                  <p className="text-sm text-gray-600">Click here to open the full Import Wizard</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Supports COLLECT!, Salesforce, and custom CSV formats
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg">
-                  <svg
-                    className="w-5 h-5 text-blue-600 flex-shrink-0"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
-                    />
-                  </svg>
-                  <p className="text-xs text-blue-700">
-                    <strong>Migrating from COLLECT!?</strong> Export your accounts as CSV, then
-                    upload here. We auto-map account number, debtor name, balance, and phone fields.
-                  </p>
-                </div>
-              </div>
+              <SmartImportWizard
+                compact
+                onComplete={() => handleStepProgress('call')}
+              />
 
               <div className="flex items-center justify-between pt-4">
                 <Button
@@ -582,7 +538,7 @@ export default function OnboardingPage() {
                         setCallStarted(true)
                         handleStepProgress('team')
                       } catch (err) {
-                        alert('Failed to place call. Check number format.')
+                        setErrorMsg('Failed to place call. Please check the number format (E.164: +1XXXXXXXXXX).')
                       } finally {
                         setLoading(false)
                       }

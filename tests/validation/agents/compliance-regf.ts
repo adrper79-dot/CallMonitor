@@ -190,11 +190,12 @@ export const complianceRegFAgent: ValidationAgent = {
     if (fs.existsSync(ccPath)) {
       const ccContent = fs.readFileSync(ccPath, 'utf-8')
 
-      // Must check: attorney_represented, two_party_consent states, conversation_count
+      // Must check: attorney_represented, two_party_consent states, conversation_cooldown
+      // Note: our impl uses `conversation_cooldown` (boolean flag) rather than a raw count field
       const checks = [
         { name: 'attorney check', pattern: 'attorney_represented' },
         { name: 'two-party states', pattern: 'two_party_consent' },
-        { name: 'conversation cooldown', pattern: 'conversation_count' },
+        { name: 'conversation cooldown', pattern: 'conversation_cooldown' },
         { name: 'state SOL rules', pattern: 'state_sol_rules' },
         { name: 'employer block', pattern: 'employer_prohibits_contact' },
       ]

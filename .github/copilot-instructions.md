@@ -5,7 +5,7 @@
 - **Product:** Word Is Bond — AI-powered voice intelligence platform for call centers
 - **Stack:** Next.js 15 (static export on Cloudflare Pages) + Hono 4.7 (Cloudflare Workers API) + Neon PostgreSQL 17 + Telnyx (voice) + Stripe (billing)
 - **URLs:** `https://wordis-bond.com` (UI) | `https://wordisbond-api.adrper79.workers.dev` (API)
-- **Version:** v4.67 | **Progress:** 109/109 ROADMAP items (100%) + 12-provider integration suite
+- **Version:** v5.3 | **Progress:** 109/109 ROADMAP items (100%) + 12-provider integration suite + Reg F compliance engine
 
 ## Critical Rules (NEVER Violate)
 

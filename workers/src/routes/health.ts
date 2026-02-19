@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '../index'
 import { getDb } from '../lib/db'
-import { logger } from '../lib/logger'
+import { logger, configureAxiom, flushAxiomLogs } from '../lib/logger'
 
 export const healthRoutes = new Hono<AppEnv>()
 
@@ -145,6 +145,42 @@ healthRoutes.get('/', async (c) => {
   )
 })
 
+// Readiness probe — purpose-built for external uptime monitors (BetterUptime / Betterstack).
+// CIO Item 0.2: monitor URL = https://wordisbond-api.adrper79.workers.dev/health/ready
+// BetterUptime config: expected HTTP 200, keyword "ok", check interval 1 min.
+//
+// Intentionally lightweight: only validates the critical-path DB dependency.
+// Full system health (KV, R2, Telnyx) is available at GET /health.
+healthRoutes.get('/ready', async (c) => {
+  const start = Date.now()
+  const db = getDb(c.env)
+  try {
+    await db.query('SELECT 1')
+    return c.json(
+      {
+        status: 'ok',
+        version: '5.3',
+        timestamp: new Date().toISOString(),
+        latency_ms: Date.now() - start,
+      },
+      200
+    )
+  } catch (err: any) {
+    logger.error('Readiness probe: DB unavailable', { error: err?.message })
+    return c.json(
+      {
+        status: 'error',
+        error: 'Database unavailable',
+        timestamp: new Date().toISOString(),
+        latency_ms: Date.now() - start,
+      },
+      503
+    )
+  } finally {
+    await db.end()
+  }
+})
+
 // Simple ping
 healthRoutes.get('/ping', (c) => {
   return c.text('pong')
@@ -226,4 +262,65 @@ healthRoutes.get('/webhooks', async (c) => {
   } finally {
     await db.end()
   }
+})
+
+// Axiom connectivity diagnostic — call GET /health/axiom to verify token + dataset
+// Returns the raw Axiom ingest HTTP status so you can pinpoint the exact failure.
+// Does NOT require auth — safe because it only sends a synthetic test event.
+healthRoutes.get('/axiom', async (c) => {
+  const token = c.env.AXIOM_API_TOKEN
+  const dataset = c.env.AXIOM_DATASET || 'wib-main'
+
+  if (!token) {
+    return c.json({
+      ok: false,
+      problem: 'AXIOM_API_TOKEN secret is not set',
+      dataset,
+      hint: 'Run: npx wrangler secret put AXIOM_API_TOKEN --config workers/wrangler.toml',
+    }, 500)
+  }
+
+  // 1. List all datasets the token can access
+  let datasets: string[] = []
+  try {
+    const dsResp = await fetch('https://api.axiom.co/v1/datasets', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (dsResp.ok) {
+      const dsData: any[] = await dsResp.json()
+      datasets = dsData.map((d: any) => d.name)
+    }
+  } catch { /* ignore */ }
+
+  // 2. Try a direct ingest to the configured dataset
+  const testEvent = [{ _time: new Date().toISOString(), msg: 'axiom-connectivity-test', level: 'INFO', source: 'health-check' }]
+  const ingestResp = await fetch(`https://api.axiom.co/v1/datasets/${dataset}/ingest`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(testEvent),
+  })
+  const ingestBody = await ingestResp.text()
+
+  // 3. Also fire a real logger.warn so the middleware flush path is exercised
+  configureAxiom(token, dataset)
+  logger.warn('Axiom diagnostic test via /health/axiom', { dataset, ts: new Date().toISOString() })
+  await flushAxiomLogs()
+
+  return c.json({
+    ok: ingestResp.ok,
+    token_prefix: token.slice(0, 8) + '…',
+    dataset_configured: dataset,
+    datasets_accessible: datasets,
+    dataset_match: datasets.includes(dataset),
+    axiom_ingest_status: ingestResp.status,
+    axiom_ingest_body: ingestBody,
+    hint: !ingestResp.ok
+      ? (ingestResp.status === 401 ? 'Token is invalid or lacks ingest permission' :
+         ingestResp.status === 404 ? `Dataset "${dataset}" not found — check datasets_accessible list` :
+         'Unexpected error — see axiom_ingest_body')
+      : 'Ingest accepted — check Axiom dataset for the test event',
+  })
 })

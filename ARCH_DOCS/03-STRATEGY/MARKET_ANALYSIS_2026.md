@@ -209,7 +209,7 @@ Word Is Bond: Intersection of Tier 2 + Tier 3
 3. **Self-serve onboarding** — no "contact sales" gatekeeping (Stripe billing)
 4. **Edge-first architecture** — Cloudflare Workers = sub-50ms latency, sub-$300/mo base cost
 5. **AI-as-notary** model — defensible position as agencies fear autonomous AI liability
-6. **12-provider integration suite** — HubSpot, Salesforce, QuickBooks, Google, Outlook, Zendesk, Freshdesk, Slack, Teams, Zapier
+6. **12-provider integration suite** — HubSpot, Salesforce, Zoho, Pipedrive, QuickBooks, Google, Outlook, Zendesk, Freshdesk, Slack, Teams, Zapier
 7. **Reg F compliance engine** — 37 mapped regulatory requirements with automated enforcement
 8. **Modern stack** — Next.js 15 + Hono 4.7 + Neon PG 17 ships features faster than legacy vendors
 

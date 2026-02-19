@@ -19,6 +19,7 @@
 
 import type { DbClient } from './db'
 import { logger } from './logger'
+import { writeAuditLog, AuditAction } from './audit'
 
 export interface ComplianceCheck {
   allowed: boolean
@@ -31,9 +32,13 @@ export interface ComplianceCheck {
     contact_frequency: boolean
     time_of_day: boolean
     legal_hold: boolean
+    attorney_represented: boolean   // §1006.6(b)(2): blocked if consumer has attorney
+    conversation_cooldown: boolean  // §1006.14(b)(2)(i)(B): 7-day cooldown after conversation
+    two_party_consent_state: boolean // TCPA: true = needs enhanced recording disclosure
   }
   reason: string | null
   blockedBy: string | null
+  warnings: string[]               // Non-blocking alerts (SOL expired, two-party state)
 }
 
 interface ComplianceContext {
@@ -63,18 +68,30 @@ export async function checkPreDialCompliance(
     contact_frequency: true,
     time_of_day: true,
     legal_hold: true,
+    attorney_represented: true,
+    conversation_cooldown: true,
+    two_party_consent_state: true,
   }
 
   let blockedBy: string | null = null
   let reason: string | null = null
+  const warnings: string[] = []
 
   try {
     // ── 1. Account-level flags (if we have an account) ──────────────
     if (accountId) {
       const accountResult = await db.query(
-        `SELECT do_not_call, cease_and_desist, bankruptcy_flag, consent_status, timezone
-         FROM collection_accounts
-         WHERE id = $1 AND organization_id = $2`,
+        `SELECT ca.do_not_call, ca.cease_and_desist, ca.bankruptcy_flag, ca.consent_status, ca.timezone,
+                ca.attorney_represented, ca.sol_state, ca.charge_off_date, ca.employer_prohibits_contact,
+                CASE
+                  WHEN ca.sol_expires_at IS NOT NULL THEN ca.sol_expires_at < CURRENT_DATE
+                  WHEN ca.charge_off_date IS NOT NULL AND ca.sol_state IS NOT NULL THEN
+                    (ca.charge_off_date + (COALESCE(sr.sol_years, 6) * INTERVAL '1 year'))::date < CURRENT_DATE
+                  ELSE NULL
+                END AS sol_expired
+         FROM collection_accounts ca
+         LEFT JOIN state_sol_rules sr ON sr.state_code = ca.sol_state AND sr.debt_type = 'open_account'
+         WHERE ca.id = $1 AND ca.organization_id = $2`,
         [accountId, organizationId]
       )
 
@@ -91,6 +108,19 @@ export async function checkPreDialCompliance(
           checks.cease_and_desist = false
           blockedBy = blockedBy || 'cease_and_desist'
           reason = reason || 'Account has cease and desist order'
+        }
+
+        // ── TASK-002: Attorney-represented consumer check (§1006.6(b)(2)) ──
+        if (acct.attorney_represented) {
+          checks.attorney_represented = false
+          blockedBy = blockedBy || 'attorney_represented'
+          reason = reason || 'Consumer represented by attorney — direct contact prohibited (§1006.6(b)(2))'
+        }
+
+        // ── TASK-003: Employer prohibits contact (§1006.6(b)(3)) ──
+        // Not a hard block — advisory warning (applies to workplace calls only)
+        if (acct.employer_prohibits_contact) {
+          warnings.push('Employer prohibits contact — do not call consumer at workplace (§1006.6(b)(3))')
         }
 
         if (acct.bankruptcy_flag) {
@@ -146,15 +176,61 @@ export async function checkPreDialCompliance(
           blockedBy = blockedBy || 'frequency_7in7'
           reason = reason || `Reg F 7-in-7 limit reached (${contactCount} contacts in last 7 days)`
         }
+
+        // ── TASK-008: 7-day conversation cooldown (§1006.14(b)(2)(i)(B)) ──
+        // Cannot call within 7 days after a telephone conversation (connected call)
+        const lastConversation = await db.query(
+          `SELECT created_at FROM calls
+           WHERE organization_id = $1 AND to_number = $2
+             AND direction = 'outbound' AND status = 'completed'
+             AND duration_seconds > 0
+             AND created_at > NOW() - INTERVAL '7 days'
+           ORDER BY created_at DESC LIMIT 1`,
+          [organizationId, phoneNumber]
+        )
+        if (lastConversation.rows.length > 0) {
+          checks.conversation_cooldown = false
+          blockedBy = blockedBy || 'frequency_conversation_cooldown'
+          reason = reason || 'Reg F: Cannot call within 7 days after telephone conversation (§1006.14(b)(2)(i)(B))'
+        }
+
+        // ── TASK-015: Two-party consent state check (TCPA) ──────────
+        // Sets warning flag — does NOT block the call. Webhook handler reads this
+        // to play enhanced recording disclosure.
+        const consumerState = acct.sol_state // Reuse sol_state as consumer state
+        if (consumerState) {
+          const consentRule = await db.query(
+            `SELECT consent_type FROM state_consent_rules WHERE state_code = $1`,
+            [consumerState]
+          )
+          if (consentRule.rows[0]?.consent_type === 'all_party') {
+            // Not a block — flag for enhanced disclosure
+            warnings.push(`Two-party consent state (${consumerState}) — enhanced recording disclosure required`)
+          }
+        }
+
+        // ── TASK-017: Statute of limitations warning ────────────────
+        // Not a block (collecting time-barred debt is legal; threatening to SUE is not)
+        if (acct.sol_expired === true) {
+          warnings.push('Statute of limitations expired — cannot threaten or initiate legal action (§1006.26(b))')
+        }
       }
     } else {
       // No account — look up by phone number for account-level checks
       const phoneAccountResult = await db.query(
-        `SELECT id, do_not_call, cease_and_desist, bankruptcy_flag, consent_status, timezone
-         FROM collection_accounts
-         WHERE organization_id = $1
-           AND (primary_phone = $2 OR secondary_phone = $2)
-           AND is_deleted = false
+        `SELECT ca.id, ca.do_not_call, ca.cease_and_desist, ca.bankruptcy_flag, ca.consent_status, ca.timezone,
+                ca.attorney_represented, ca.sol_state, ca.charge_off_date, ca.employer_prohibits_contact,
+                CASE
+                  WHEN ca.sol_expires_at IS NOT NULL THEN ca.sol_expires_at < CURRENT_DATE
+                  WHEN ca.charge_off_date IS NOT NULL AND ca.sol_state IS NOT NULL THEN
+                    (ca.charge_off_date + (COALESCE(sr.sol_years, 6) * INTERVAL '1 year'))::date < CURRENT_DATE
+                  ELSE NULL
+                END AS sol_expired
+         FROM collection_accounts ca
+         LEFT JOIN state_sol_rules sr ON sr.state_code = ca.sol_state AND sr.debt_type = 'open_account'
+         WHERE ca.organization_id = $1
+           AND (ca.primary_phone = $2 OR ca.secondary_phone = $2)
+           AND ca.is_deleted = false
          LIMIT 1`,
         [organizationId, phoneNumber]
       )
@@ -172,6 +248,18 @@ export async function checkPreDialCompliance(
           checks.cease_and_desist = false
           blockedBy = blockedBy || 'cease_and_desist'
           reason = reason || 'Account has cease and desist order'
+        }
+
+        // ── TASK-002: Attorney check (phone-lookup branch) ──
+        if (acct.attorney_represented) {
+          checks.attorney_represented = false
+          blockedBy = blockedBy || 'attorney_represented'
+          reason = reason || 'Consumer represented by attorney — direct contact prohibited (§1006.6(b)(2))'
+        }
+
+        // ── TASK-003: Employer prohibits contact (phone-lookup branch) ──
+        if (acct.employer_prohibits_contact) {
+          warnings.push('Employer prohibits contact — do not call consumer at workplace (§1006.6(b)(3))')
         }
 
         if (acct.bankruptcy_flag) {
@@ -228,6 +316,39 @@ export async function checkPreDialCompliance(
           reason =
             reason || `Reg F 7-in-7 limit reached (${contactCount} contacts in last 7 days)`
         }
+
+        // ── TASK-008: Conversation cooldown (phone-lookup branch) ──
+        const lastConvPhone = await db.query(
+          `SELECT created_at FROM calls
+           WHERE organization_id = $1 AND to_number = $2
+             AND direction = 'outbound' AND status = 'completed'
+             AND duration_seconds > 0
+             AND created_at > NOW() - INTERVAL '7 days'
+           ORDER BY created_at DESC LIMIT 1`,
+          [organizationId, phoneNumber]
+        )
+        if (lastConvPhone.rows.length > 0) {
+          checks.conversation_cooldown = false
+          blockedBy = blockedBy || 'frequency_conversation_cooldown'
+          reason = reason || 'Reg F: Cannot call within 7 days after telephone conversation (§1006.14(b)(2)(i)(B))'
+        }
+
+        // ── TASK-015: Two-party consent (phone-lookup branch) ──
+        const consumerState = acct.sol_state
+        if (consumerState) {
+          const consentRule = await db.query(
+            `SELECT consent_type FROM state_consent_rules WHERE state_code = $1`,
+            [consumerState]
+          )
+          if (consentRule.rows[0]?.consent_type === 'all_party') {
+            warnings.push(`Two-party consent state (${consumerState}) — enhanced recording disclosure required`)
+          }
+        }
+
+        // ── TASK-017: SOL warning (phone-lookup branch) ──
+        if (acct.sol_expired === true) {
+          warnings.push('Statute of limitations expired — cannot threaten or initiate legal action (§1006.26(b))')
+        }
       }
     }
 
@@ -269,6 +390,7 @@ export async function checkPreDialCompliance(
             checks,
             blocked_by: blockedBy,
             reason,
+            warnings,
           }),
         ]
       )
@@ -278,7 +400,55 @@ export async function checkPreDialCompliance(
         })
       )
 
-    return { allowed, checks, reason, blockedBy }
+    // ── Reg F AuditAction entries for granular audit trail ──────────
+    // Fire specific AuditAction for each Reg F block/warning so the
+    // audit_logs table can be queried by action type directly.
+    if (!checks.attorney_represented) {
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        resourceType: 'compliance',
+        resourceId: accountId || phoneNumber,
+        action: AuditAction.COMPLIANCE_ATTORNEY_BLOCKED,
+        oldValue: null,
+        newValue: { phone: maskedPhone, reason: 'Consumer represented by attorney — §1006.6(b)(2)' },
+      }).catch(() => {})
+    }
+    if (!checks.conversation_cooldown) {
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        resourceType: 'compliance',
+        resourceId: accountId || phoneNumber,
+        action: AuditAction.COMPLIANCE_CONVERSATION_COOLDOWN,
+        oldValue: null,
+        newValue: { phone: maskedPhone, reason: '7-day conversation cooldown — §1006.14(b)(2)(i)(B)' },
+      }).catch(() => {})
+    }
+    if (warnings.some(w => w.includes('Two-party consent'))) {
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        resourceType: 'compliance',
+        resourceId: accountId || phoneNumber,
+        action: AuditAction.COMPLIANCE_TWO_PARTY_STATE,
+        oldValue: null,
+        newValue: { phone: maskedPhone, warning: 'Two-party consent state — enhanced disclosure required' },
+      }).catch(() => {})
+    }
+    if (warnings.some(w => w.includes('Statute of limitations'))) {
+      writeAuditLog(db, {
+        organizationId,
+        userId: 'system',
+        resourceType: 'compliance',
+        resourceId: accountId || phoneNumber,
+        action: AuditAction.COMPLIANCE_SOL_WARNING,
+        oldValue: null,
+        newValue: { phone: maskedPhone, warning: 'SOL expired — cannot threaten legal action — §1006.26(b)' },
+      }).catch(() => {})
+    }
+
+    return { allowed, checks, reason, blockedBy, warnings }
   } catch (error) {
     // Compliance check failure = FAIL CLOSED (block the call)
     logger.error('Pre-dial compliance check error — failing closed', {
@@ -298,9 +468,13 @@ export async function checkPreDialCompliance(
         contact_frequency: false,
         time_of_day: false,
         legal_hold: false,
+        attorney_represented: false,
+        conversation_cooldown: false,
+        two_party_consent_state: false,
       },
       reason: 'Compliance check failed — blocking call as safety measure',
       blockedBy: 'system_error',
+      warnings: [],
     }
   }
 }

@@ -148,7 +148,7 @@ All mutations emit audit log events:
 - Payment recording with balance auto-update
 - Task lifecycle (create → update → complete → delete)
 - Portfolio stats aggregation
-- CSV bulk import + import history
+- Smart CSV import (fuzzy column matching) + import history
 - 404 handling for non-existent accounts
 - Soft-delete verification (deleted account returns 404)
 - Test data cleanup

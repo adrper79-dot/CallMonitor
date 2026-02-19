@@ -22,6 +22,7 @@ import { auditRoutes } from './routes/audit'
 import { webrtcRoutes } from './routes/webrtc'
 import { handleScheduled } from './scheduled'
 import { handleQueueBatch, type TranscriptionQueueMessage } from './lib/queue-consumer'
+import { handleDlqBatch } from './lib/dlq-consumer'
 import { scorecardsRoutes } from './routes/scorecards'
 import { rbacRoutes } from './routes/rbac-v2'
 import { analyticsRoutes } from './routes/analytics'
@@ -78,6 +79,7 @@ import { cockpitRoutes } from './routes/cockpit'
 import { legalEscalationRoutes } from './routes/legal-escalation'
 import { consentRoutes } from './routes/consent'
 import { settlementRoutes } from './routes/settlements'
+import { validationNoticeRoutes } from './routes/validation-notices'
 import {
   buildErrorContext,
   logError,
@@ -85,6 +87,8 @@ import {
   isAppError,
   generateCorrelationId,
 } from './lib/errors'
+import { telemetryMiddleware, type TraceContext } from './lib/telemetry'
+import { configureAxiom, flushAxiomLogs, logger as axiomLogger } from './lib/logger'
 
 // Types for Cloudflare bindings
 export interface Env {
@@ -114,6 +118,7 @@ export interface Env {
   RESEND_API_KEY: string
   RESEND_FROM?: string
   RESEND_REPLY_TO?: string
+  DEMO_REQUEST_NOTIFY_EMAIL?: string // Recipient for demo request notifications (CEO-18)
   STRIPE_SECRET_KEY: string
   TELNYX_API_KEY: string
   TELNYX_CONNECTION_ID: string // Credential Connection for WebRTC
@@ -145,6 +150,15 @@ export interface Env {
   MICROSOFT_CLIENT_SECRET?: string
   MICROSOFT_REDIRECT_URI?: string
   MICROSOFT_TENANT_ID?: string
+
+  // Observability — Logpush → Axiom (CIO Item 0.1, configured via scripts/setup-logpush.sh)
+  AXIOM_API_TOKEN?: string           // Axiom ingestion token (wrangler secret put AXIOM_API_TOKEN)
+  AXIOM_DATASET?: string             // Axiom dataset name, default: 'wordisbond-workers'
+
+  // Monitoring — cron dead-man's-switch heartbeat (CIO Items 0.2 / 0.4)
+  // Compatible with any heartbeat provider: healthchecks.io (free), BetterStack, Cronitor, etc.
+  // Set via: wrangler secret put CRON_HEARTBEAT_URL --config workers/wrangler.toml
+  CRON_HEARTBEAT_URL?: string  // POST/HEAD this URL after every successful cron run
 }
 
 // Session type — set by authMiddleware via c.set('session', session)
@@ -155,7 +169,7 @@ import type { Session } from './lib/auth'
  * All route files should use `AppEnv` instead of `{ Bindings: Env }` directly
  * so that c.get('session') / c.set('session', ...) are type-safe.
  */
-export type AppEnv = { Bindings: Env; Variables: { session: Session } }
+export type AppEnv = { Bindings: Env; Variables: { session: Session; trace?: TraceContext } }
 
 // Create Hono app with typed bindings + session variable
 const app = new Hono<AppEnv>()
@@ -213,6 +227,8 @@ app.use(
       'X-Integration-Provider',
       'X-Export-Job-Id',
       'X-Webhook-Signature',
+      'traceparent',
+      'tracestate',
     ],
     exposeHeaders: [
       'Idempotent-Replayed',
@@ -228,9 +244,14 @@ app.use(
       'X-Export-Status',
       'X-Export-Download-Url',
       'X-Webhook-Delivery-Id',
+      'traceparent',
     ],
   })
 )
+
+// W3C Trace Context middleware — must be BEFORE request timing so every
+// log line and correlation entry can include trace_id / span_id
+app.use('*', telemetryMiddleware)
 
 // Request timing middleware — attaches start time + correlation ID for error diagnostics
 // Must be BEFORE route modules so handlers can access requestStart/correlationId
@@ -241,6 +262,38 @@ app.use('*', async (c, next) => {
   // Expose correlation ID on every response for client-side log correlation
   c.header('X-Correlation-ID', correlationId)
   await next()
+})
+
+// Axiom direct-log middleware — configures the logger sink and flushes buffered
+// WARN/ERROR entries to Axiom after the response is sent (non-blocking).
+// Requires AXIOM_API_TOKEN Workers secret. AXIOM_DATASET defaults to 'wib-main'.
+app.use('*', async (c, next) => {
+  if (c.env.AXIOM_API_TOKEN) {
+    configureAxiom(c.env.AXIOM_API_TOKEN, c.env.AXIOM_DATASET)
+  }
+  await next()
+  // Log every 4xx/5xx response as a structured WARN/ERROR so it reaches Axiom.
+  // This captures silent failures (invalid auth, not-found, validation errors)
+  // that the route handlers return without calling logger.warn/error directly.
+  const status = c.res.status
+  if (status >= 400) {
+    const level = status >= 500 ? 'error' : 'warn'
+    const entry = {
+      msg: `HTTP ${status}`,
+      status,
+      method: c.req.method,
+      path: c.req.path,
+      correlation_id: (c as any).get?.('correlationId'),
+    }
+    if (level === 'error') {
+      axiomLogger.error(entry.msg, entry)
+    } else {
+      axiomLogger.warn(entry.msg, entry)
+    }
+  }
+  if (c.env.AXIOM_API_TOKEN) {
+    c.executionCtx?.waitUntil(flushAxiomLogs())
+  }
 })
 
 // Mount route modules
@@ -309,16 +362,17 @@ app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/google-workspace', googleWorkspaceRoutes)
 app.route('/api/outlook', outlookRoutes)
 app.route('/api/helpdesk', helpdeskRoutes)
-app.route('/api', cockpitRoutes) // /api/notes, /api/callbacks, /api/disputes
+app.route('/api/cockpit', cockpitRoutes) // /api/cockpit/notes, /api/cockpit/callbacks, /api/cockpit/disputes
 app.route('/api/legal-escalation', legalEscalationRoutes)
 app.route('/api/consent', consentRoutes)
 app.route('/api/settlements', settlementRoutes)
+app.route('/api/validation-notices', validationNoticeRoutes)
 
 // Root endpoint
 app.get('/', (c) => {
   return c.json({
     service: 'wordisbond-api',
-    version: '1.0.0',
+    version: '5.3',
     status: 'operational',
     timestamp: new Date().toISOString(),
   })
@@ -365,8 +419,12 @@ export default {
     ctx.waitUntil(handleScheduled(event, env))
   },
 
-  // Queue consumer for async transcription processing
+  // Queue consumer — routes by queue name so both main and DLQ are handled here
   async queue(batch: MessageBatch<TranscriptionQueueMessage>, env: Env) {
-    await handleQueueBatch(batch, env)
+    if (batch.queue === 'wordisbond-transcription-dlq') {
+      await handleDlqBatch(batch as MessageBatch<any>, env)
+    } else {
+      await handleQueueBatch(batch, env)
+    }
   },
 }

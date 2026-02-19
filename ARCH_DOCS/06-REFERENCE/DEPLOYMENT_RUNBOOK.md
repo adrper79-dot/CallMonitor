@@ -1,7 +1,7 @@
 # Deployment Runbook - Word Is Bond Platform
 
-**Version:** 1.0
-**Date:** February 9, 2026
+**Version:** 1.1
+**Date:** February 18, 2026
 **Status:** Production Ready
 
 ---
@@ -33,9 +33,9 @@ This runbook provides step-by-step deployment procedures for the Word Is Bond pl
 **Pipeline Stages:**
 
 1. **Lint & Test** (`npm run lint && npm test`)
-2. **Build Static UI** (`npm run build`)
-3. **Deploy Pages** (`npm run pages:deploy`)
-4. **Deploy Workers** (`npm run api:deploy`)
+2. **Deploy Workers** (`npm run api:deploy`)
+3. **Build Static UI** (`npm run build`)
+4. **Deploy Pages** (`npm run pages:deploy`)
 5. **Health Check** (`npm run health-check`)
 6. **Rollback** (if health check fails)
 
@@ -61,7 +61,7 @@ npm test
 npm run api:deploy
 
 # Verify deployment
-curl -X GET "https://wordisbond-api.adrper79.workers.dev/api/health"
+curl -X GET "https://wordisbond-api.adrper79.workers.dev/health"
 ```
 
 #### Step 2: Deploy UI (Pages) Second
@@ -84,7 +84,7 @@ curl -X GET "https://wordis-bond.com"
 npm run health-check
 
 # Check key endpoints
-curl -X GET "https://wordis-bond.com/api/health"
+curl -X GET "https://wordisbond-api.adrper79.workers.dev/health"
 curl -X POST "https://wordisbond-api.adrper79.workers.dev/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"test"}'
@@ -99,25 +99,60 @@ curl -X POST "https://wordisbond-api.adrper79.workers.dev/api/auth/login" \
 **Required Variables:**
 
 ```bash
-# Database
+# Workers secrets (server-side only)
 NEON_PG_CONN=postgresql://...
-HYPERDRIVE_CONNECTION_STRING=...
-
-# Auth
-JWT_SECRET=...
-SESSION_SECRET=...
-
-# External APIs
-TELNYX_API_KEY=...
+AUTH_SECRET=...
 STRIPE_SECRET_KEY=...
-ASSEMBLYAI_API_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+TELNYX_API_KEY=...
 OPENAI_API_KEY=...
+ASSEMBLYAI_API_KEY=...
+RESEND_API_KEY=...
+CRM_ENCRYPTION_KEY=...
 
-# Cloudflare
-CF_API_TOKEN=...
-CF_ACCOUNT_ID=...
-CF_ZONE_ID=...
+# Workers bindings (configured in wrangler.toml, not secret values)
+HYPERDRIVE=<binding>
+KV=<binding>
+R2=<binding>
+TRANSCRIPTION_QUEUE=<binding>
+
+# Pages variables (build/static only)
+NEXT_PUBLIC_API_BASE_URL=https://wordisbond-api.adrper79.workers.dev
+NEXT_PUBLIC_APP_URL=https://wordis-bond.com
+
+# CI/deployment context (GitHub Actions or local shell)
+CLOUDFLARE_API_TOKEN=...
+CLOUDFLARE_ACCOUNT_ID=...
 ```
+
+### Secret Placement Standard
+
+For this architecture (static Next.js on Pages + runtime API on Workers), backend secrets belong in **Workers secrets**, not Pages.
+
+| Variable Type | Location | Notes |
+| --- | --- | --- |
+| Database/auth/provider secrets | Workers secrets | Includes `NEON_PG_CONN`, `AUTH_SECRET`, provider keys, webhook secrets |
+| Runtime service bindings | Workers bindings | `HYPERDRIVE`, `KV`, `R2`, `TRANSCRIPTION_QUEUE` |
+| Public build-time values | Pages vars (`NEXT_PUBLIC_*`) | Safe for browser exposure only |
+| Backend secrets in Pages | Prohibited | Remove immediately to avoid drift/confusion |
+
+### Secret Audit & Cleanup
+
+```bash
+# Audit Pages secrets (production)
+npx wrangler pages secret list --project-name wordisbond
+
+# Audit Pages secrets (preview)
+npx wrangler pages secret list --project-name wordisbond --env preview
+
+# Audit Workers secrets
+npx wrangler secret list --config workers/wrangler.toml
+
+# Remove misplaced Pages secret
+npx wrangler pages secret delete <SECRET_NAME> --project-name wordisbond
+```
+
+Current baseline: `wordisbond` Pages production secrets are empty; keep them empty unless a true static build variable is required.
 
 ### Environment Promotion
 

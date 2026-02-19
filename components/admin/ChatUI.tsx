@@ -52,7 +52,7 @@ export function ChatUI({ contextType = 'general', contextId }: ChatUIProps) {
     try {
       const data = await apiPost('/api/bond-ai/chat', {
         message: msg,
-        conversation_id: conversationId,
+        conversation_id: conversationId ?? undefined,
         context_type: contextType,
         context_id: contextId,
       })

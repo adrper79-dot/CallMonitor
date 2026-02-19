@@ -163,7 +163,7 @@ export class TestDataGenerator {
   }
 
   /**
-   * Generate CSV data for bulk import testing
+   * Generate CSV data for smart import testing (SmartImportWizard)
    */
   static generateAccountCSV(count: number): string {
     const accounts = this.generateAccounts(count)

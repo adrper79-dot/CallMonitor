@@ -38,7 +38,8 @@
 | apiClient.ts      | `apiGet/Post/Patch/Delete(url, opts)`, `ApiError`                                  | Auth headers from localStorage, error handling |
 | rbac.ts           | `hasPermission(role, plan, feature, action)`, `planSupportsFeature(plan, feature)` | UI conditional render (e.g., pro features)     |
 | utils.ts          | `cn(...classes)`, `formatCurrency(cents)`, `formatDuration(seconds)`               | Tailwind clsx, data formatting                 |
-| csv-validators.ts | `validateCsvRow(row)`, `validateCsvRows(rows)`                                     | Bulk upload validation                         |
+| csv-validators.ts | `validateCsvRow(row)`, `validateCsvRows(rows)`                                     | Legacy CSV validation (retained for backward compat) |
+| smart-csv-import.ts | `smartColumnMapping()`, `transformRow()`, `validateAllRows()`, `downloadTemplate()` | Smart CSV import engine — fuzzy matching, coercion, validation |
 | logger.ts         | `new Logger().info(msg, ctx)`                                                      | Console-based, levels debug/info/warn/error    |
 
 **Core Patterns/Insights:**

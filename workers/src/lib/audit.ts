@@ -418,12 +418,23 @@ export const AuditAction = {
   COMPLIANCE_CONSENT_CAPTURED: 'compliance:consent_captured',
   COMPLIANCE_GUIDE_VIEWED: 'compliance:guide_viewed',
 
+  // Reg F Compliance (v5.3)
+  VALIDATION_NOTICE_CREATED: 'compliance:validation_notice_created',
+  VALIDATION_NOTICE_SENT: 'compliance:validation_notice_sent',
+  VALIDATION_NOTICE_DISPUTED: 'compliance:validation_notice_disputed',
+  COMPLIANCE_ATTORNEY_BLOCKED: 'compliance:attorney_blocked',
+  COMPLIANCE_CONVERSATION_COOLDOWN: 'compliance:conversation_cooldown',
+  COMPLIANCE_SMS_CONSENT_EXPIRED: 'compliance:sms_consent_expired',
+  COMPLIANCE_SOL_WARNING: 'compliance:sol_warning',
+  COMPLIANCE_TWO_PARTY_STATE: 'compliance:two_party_consent_state',
+
   // Scheduled Payments / Dunning (v5.1)
   SCHEDULED_PAYMENT_PROCESSED: 'payment:scheduled_processed',
   SCHEDULED_PAYMENT_FAILED: 'payment:scheduled_failed',
   DUNNING_ESCALATED: 'dunning:escalated',
   PAYMENT_PLAN_CREATED: 'payment:plan_created',
   PAYMENT_PLAN_DEFAULTED: 'payment:plan_defaulted',
+  PAYMENT_LINK_CREATED: 'payment:link_created',
 
   // Audio Intelligence (v5.2)
   ENTITY_DETECTED: 'audio:entity_detected',
@@ -507,6 +518,23 @@ export const AuditAction = {
   // Consent Records (v5.3)
   CONSENT_RECORDED: 'consent:recorded',
   CONSENT_REVOKED: 'consent:revoked',
+
+  // Notification Channels (v5.3)
+  NOTIFICATION_CHANNEL_CREATED: 'notification_channel:created',
+  NOTIFICATION_CHANNEL_UPDATED: 'notification_channel:updated',
+  NOTIFICATION_CHANNEL_DELETED: 'notification_channel:deleted',
+
+  // Transcription (v5.3)
+  TRANSCRIPTION_SUBMITTED: 'transcription:submitted',
+
+  // Email Preferences (v5.3)
+  EMAIL_PREFERENCES_UPDATED: 'email:preferences_updated',
+
+  // CSV Import — entity-specific (v5.3)
+  USERS_CSV_IMPORTED: 'users:csv_imported',
+  TEAMS_CSV_IMPORTED: 'teams:csv_imported',
+  CAMPAIGNS_CSV_IMPORTED: 'campaigns:csv_imported',
+  IMPORT_GENERIC: 'import:generic',
 
   // Settlement Offers (v5.3)
   SETTLEMENT_OFFER_CREATED: 'settlement:offer_created',

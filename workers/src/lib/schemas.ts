@@ -351,9 +351,9 @@ export const AnalyzeCallSchema = z.object({
 
 export const ChatSchema = z.object({
   message: nonEmptyString,
-  conversation_id: uuid.optional(),
-  context_type: z.string().max(100).optional(),
-  context_id: z.string().max(200).optional(),
+  conversation_id: uuid.nullish(),
+  context_type: z.string().max(100).nullish(),
+  context_id: z.string().max(200).nullish(),
 })
 
 export const UpdateInsightSchema = z.object({

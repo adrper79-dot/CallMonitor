@@ -20,6 +20,7 @@ import type { AppEnv } from '../index'
 import { requireAuth, requireRole } from '../lib/auth'
 import { getDb, withTransaction } from '../lib/db'
 import { logger } from '../lib/logger'
+import { writeAuditLog, AuditAction } from '../lib/audit'
 import { collectionsRateLimit } from '../lib/rate-limit'
 
 export const paymentsRoutes = new Hono<AppEnv>()
@@ -184,6 +185,22 @@ paymentsRoutes.post('/plans', collectionsRateLimit, async (c) => {
       return created
     })
 
+    // Audit trail — financial mutation
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'payment_plans',
+      resourceId: plan.id,
+      action: AuditAction.PAYMENT_PLAN_CREATED,
+      oldValue: null,
+      newValue: {
+        account_id,
+        total_amount,
+        frequency: frequency || 'monthly',
+        num_payments: num_payments || 1,
+      },
+    }).catch(() => {})
+
     return c.json({ success: true, data: plan }, 201)
   } catch (err: any) {
     logger.error('POST /api/payments/plans error', { error: err?.message })
@@ -320,6 +337,17 @@ paymentsRoutes.post('/links', collectionsRateLimit, async (c) => {
         session.user_id,
       ]
     )
+
+    // Audit trail — financial mutation
+    writeAuditLog(db, {
+      organizationId: session.organization_id,
+      userId: session.user_id,
+      resourceType: 'payment_links',
+      resourceId: result.rows[0].id,
+      action: AuditAction.PAYMENT_LINK_CREATED,
+      oldValue: null,
+      newValue: { account_id, amount, currency: linkCurrency, link_token: linkToken },
+    }).catch(() => {})
 
     return c.json({ success: true, data: result.rows[0] }, 201)
   } catch (err: any) {

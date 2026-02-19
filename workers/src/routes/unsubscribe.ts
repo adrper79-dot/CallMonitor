@@ -404,7 +404,7 @@ unsubscribeRoutes.post('/preferences', async (c) => {
         userId: 'system',
         resourceType: 'accounts',
         resourceId: decoded.accountId,
-        action: 'email:preferences_updated',
+        action: AuditAction.EMAIL_PREFERENCES_UPDATED,
         newValue: { marketing, transactional, frequency },
       },
       c.env.KV

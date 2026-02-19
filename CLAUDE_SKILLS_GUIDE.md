@@ -1,7 +1,7 @@
 # Claude Skills Configuration Guide
 
-**Project:** Word Is Bond v4.66
-**Date:** February 15, 2026
+**Project:** Word Is Bond v5.3
+**Date:** February 18, 2026
 **Setup Level:** Production-Grade with MCP Integration + Workplace Simulator
 
 ---
@@ -13,7 +13,7 @@ Your Claude skills are now configured for **high-autonomy development** with com
 ### Capabilities Enabled
 
 ✅ **Auto-approved workflows:** Testing, building, deployments, read operations
-✅ **MCP Server Integration:** Neon DB, GitHub, Custom ARCH_DOCS validator
+✅ **MCP Server Integration:** Neon DB, GitHub, Cloudflare, Custom ARCH_DOCS validator
 ✅ **Architecture Compliance:** Real-time validation against ARCH_DOCS standards
 ✅ **Workplace Simulator:** Automated employee journey testing with kink detection
 ✅ **Smart Permissions:** 60+ safe commands whitelisted, destructive ops blocked
@@ -26,7 +26,7 @@ Your Claude skills are now configured for **high-autonomy development** with com
 ### `.claude/settings.local.json`
 
 **Features:**
-- **3 MCP Servers** configured (Neon, GitHub, ARCH_DOCS)
+- **4 MCP Servers** configured (Neon, GitHub, Cloudflare, ARCH_DOCS)
 - **60+ whitelisted commands** (testing, builds, deploys, monitoring, simulation)
 - **10 blocked operations** (destructive commands)
 - **4 custom skills** (arch-compliance-check, test-runner, deployment-workflow, workplace-simulator)
@@ -111,6 +111,28 @@ GITHUB_TOKEN=ghp_YOUR_TOKEN_HERE
 **Implementation:**
 - File: [`tools/arch-docs-mcp-server.js`](tools/arch-docs-mcp-server.js)
 - No environment variables needed (reads local ARCH_DOCS/)
+
+---
+
+### 4. **Cloudflare MCP**
+
+**Purpose:** Runtime observability and deployment context for Workers/Pages operations.
+
+**Most Useful Workflows (ARCH_DOCS-aligned):**
+- Verify production deployment state before/after release steps
+- Inspect runtime behavior/log context for incident triage
+- Validate configuration drift between intended and deployed Cloudflare resources
+
+**Environment Required:**
+```bash
+# Add to .env.local
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
+```
+
+**Token Scope Recommendation:**
+- Start with read-only account/workers/pages scopes
+- Keep mutating operations constrained to existing deploy workflow controls
 
 ---
 
@@ -233,6 +255,9 @@ npm install -g @neondatabase/mcp-server-neon
 
 # Install GitHub MCP
 npm install -g @modelcontextprotocol/server-github
+
+# Install Cloudflare MCP
+npm install -g @cloudflare/mcp-server-cloudflare
 ```
 
 ### Step 2: Configure Environment Variables
@@ -245,6 +270,10 @@ NEON_API_KEY=napi_YOUR_NEON_API_KEY_HERE
 
 # GitHub MCP
 GITHUB_TOKEN=ghp_YOUR_TOKEN_HERE
+
+# Cloudflare MCP
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
 ```
 
 ### Step 3: Verify MCP Servers
@@ -255,6 +284,9 @@ npx @neondatabase/mcp-server-neon --help
 
 # Test GitHub MCP
 npx @modelcontextprotocol/server-github --help
+
+# Test Cloudflare MCP
+npx @cloudflare/mcp-server-cloudflare --help
 
 # Test ARCH_DOCS MCP
 node tools/arch-docs-mcp-server.js

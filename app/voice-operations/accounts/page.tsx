@@ -8,7 +8,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient'
 import { logger } from '@/lib/logger'
 import CollectionsAnalytics from '@/components/voice/CollectionsAnalytics'
 import PaymentHistoryChart from '@/components/voice/PaymentHistoryChart'
-import BulkImportWizard from '@/components/voice/BulkImportWizard'
+import SmartImportWizard from '@/components/voice/SmartImportWizard'
 import {
   AlertTriangle,
   Plus,
@@ -219,9 +219,8 @@ export default function CollectionsPage() {
 
         {/* Bulk Import Tab */}
         {activeTab === 'import' && (
-          <BulkImportWizard
+          <SmartImportWizard
             onComplete={fetchData}
-            initialShowHistory={historyParam === '1'}
           />
         )}
 

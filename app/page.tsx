@@ -2,15 +2,11 @@ import Link from 'next/link'
 import { Logo } from '@/components/Logo'
 
 /**
- * WORDIS BOND LANDING PAGE - System of Record Positioning
+ * WORDIS BOND LANDING PAGE
  *
- * Design Philosophy:
- * - Professional, trustworthy, competent
- * - Clean, light theme with navy blue primary
- * - Evidence-first messaging
- * - "1960s Playboy confidence voice" - authoritative, not clever
- *
- * Positioning: "The System of Record for Business Conversations"
+ * Positioning: ICP-first for debt collection agencies (ARM industry)
+ * Primary moat: Evidence bundle + Reg F engine + bilingual TTS
+ * Homepage routes to /verticals/collections for ARM buyer qualification
  */
 
 export const dynamic = 'force-static'
@@ -18,6 +14,17 @@ export const dynamic = 'force-static'
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ICP QUALIFICATION BAR — ARM/Debt Collection Primary Buyer
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="bg-amber-950 text-amber-100 py-2 px-6 text-center text-sm">
+        <span className="font-medium">Built for debt collection agencies.</span>
+        {' '}FDCPA violation defense starts with the call record.{' '}
+        <Link href="/verticals/collections" className="underline font-semibold hover:text-white">
+          See the ARM solution →
+        </Link>
+      </div>
+
       {/* ═══════════════════════════════════════════════════════════════════════
           HERO SECTION - Above the Fold
       ═══════════════════════════════════════════════════════════════════════ */}
@@ -53,19 +60,48 @@ export default function HomePage() {
               Get Started Free
             </Link>
             <Link
-              href="#how-it-works"
+              href="/verticals/collections"
               className="inline-flex items-center justify-center px-8 py-4 text-base font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-600"
             >
-              See How It Works
+              Debt Collection Solution
               <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </Link>
+          </div>
+
+          {/* Video Demo Placeholder */}
+          <div className="mt-14 max-w-3xl mx-auto">
+            <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-video flex items-center justify-center shadow-2xl border border-gray-800">
+              {/* Simulated screenshot overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-950 opacity-90" />
+              {/* Play button */}
+              <div className="relative z-10 flex flex-col items-center gap-4">
+                <Link
+                  href="/request-demo"
+                  aria-label="Request a live demo"
+                  className="group w-20 h-20 rounded-full bg-white/10 border-2 border-white/30 flex items-center justify-center hover:bg-white/20 transition-colors backdrop-blur-sm"
+                >
+                  <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </Link>
+                <p className="text-white/70 text-sm font-medium tracking-wide">See a live product demo</p>
+              </div>
+              {/* Decorative evidence bundle mock */}
+              <div className="absolute bottom-4 right-4 bg-white/5 border border-white/10 rounded-md px-3 py-2 backdrop-blur-sm">
+                <p className="text-white/50 text-xs font-mono">evidence_bundle_2026-02-18.zip ✓ SHA-256 verified</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-gray-500 text-center">
+              <Link href="/request-demo" className="text-primary-600 hover:text-primary-700 font-medium">
+                Request a personalised demo
+              </Link>{' '}
+              — or explore the{' '}
+              <Link href="/verticals/collections" className="text-primary-600 hover:text-primary-700 font-medium">
+                debt collection use case
+              </Link>
+            </p>
           </div>
         </div>
       </section>
@@ -366,6 +402,38 @@ export default function HomePage() {
             Evidence-grade documentation tailored to your industry&apos;s compliance and
             documentation needs.
           </p>
+
+          {/* Collections featured card — ARM ICP first */}
+          <Link
+            href="/verticals/collections"
+            className="group block mb-6 p-6 bg-amber-950 rounded-md border border-amber-900 hover:border-amber-700 hover:shadow-lg transition-all"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="sm:w-14 sm:h-14 w-12 h-12 bg-amber-800 rounded-lg flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6 text-amber-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-amber-200 transition-colors">
+                    Debt Collection &amp; ARM
+                  </h3>
+                  <span className="text-xs bg-amber-700 text-amber-100 px-2 py-0.5 rounded-full font-medium">Primary ICP</span>
+                </div>
+                <p className="text-amber-300 text-sm font-medium mb-1">FDCPA · Reg F · Mini-Miranda · Evidence-grade recording</p>
+                <p className="text-amber-200/70 text-sm">
+                  The only platform built around the FDCPA evidence bundle. Every call produces a
+                  custody-grade artifact that survives a CFPB complaint. Bilingual TTS, Reg F
+                  call caps, mini-Miranda delivery — all verified and logged.
+                </p>
+              </div>
+              <svg className="w-5 h-5 text-amber-400 shrink-0 group-hover:translate-x-1 transition-transform hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Link>
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link
               href="/verticals/healthcare"
@@ -501,7 +569,7 @@ export default function HomePage() {
               href="/case-studies"
               className="inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
             >
-              See Customer Results & ROI Examples
+              See Customer Results &amp; ROI Examples
               <svg className="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -548,12 +616,20 @@ export default function HomePage() {
             is the record.
           </p>
           <h2 className="text-3xl font-semibold text-white mb-8">Wordis Bond</h2>
-          <Link
-            href="/signup"
-            className="inline-flex items-center justify-center px-10 py-4 text-lg font-medium text-primary-600 bg-white hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
-          >
-            Get Started Free
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center px-10 py-4 text-lg font-medium text-primary-600 bg-white hover:bg-gray-50 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+            >
+              Get Started Free
+            </Link>
+            <Link
+              href="/request-demo"
+              className="inline-flex items-center justify-center px-10 py-4 text-lg font-medium text-white border-2 border-white/60 hover:border-white hover:bg-white/10 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+            >
+              Request Enterprise Demo
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -584,6 +660,10 @@ export default function HomePage() {
             </Link>
             <Link href="/signin" className="hover:text-gray-700">
               Sign In
+            </Link>
+            {/* COO Item 0.4: Built-in status page — no external service needed */}
+            <Link href="/status" className="hover:text-gray-700">
+              Status
             </Link>
           </div>
           <p className="text-sm text-gray-500">

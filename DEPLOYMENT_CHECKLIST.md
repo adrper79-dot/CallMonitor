@@ -397,3 +397,92 @@ Before marking this as complete:
 **Next Action:** Run `.\deploy-ai-optimization.ps1`
 **Estimated Time:** 30-45 minutes
 **Expected Result:** 70% AI cost reduction + enhanced security
+
+---
+
+## 🚦 Phase 0 Pre-Customer Gate (CIO/COO/CLO)
+
+**Do not onboard first paying customer until all items below are checked.**
+
+### Item 0.1 — Logpush → Axiom (CIO)
+- [ ] Set `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `AXIOM_API_TOKEN`, `AXIOM_DATASET` as shell env vars
+- [ ] Run `bash scripts/setup-logpush.sh` — creates/updates CF Logpush job to Axiom
+- [ ] Verify logs appear in Axiom: app.axiom.co → Datasets → wordisbond-workers
+- [ ] Set `AXIOM_API_TOKEN` as Workers secret: `echo $AXIOM_API_TOKEN | npx wrangler secret put AXIOM_API_TOKEN --config workers/wrangler.toml`
+
+### Item 0.2 — Uptime Monitoring (CIO) — FREE STACK
+**Do not pay $30/mo for BetterStack yet. Use this free stack instead:**
+
+#### 0.2a — HTTP uptime monitor: Freshping (free, 1-min interval)
+- [ ] Create account at https://freshping.io (free — 50 monitors, 1-min check interval)
+- [ ] Add check: URL = `https://wordisbond-api.adrper79.workers.dev/health/ready`
+  - Check type: HTTP
+  - Expected status: 200
+  - Keyword: `"ok"`
+  - Alert: email on 2 consecutive failures
+- [ ] Add second check: `https://wordis-bond.com/status` (verifies Pages is up)
+
+#### 0.2b — Cron heartbeat: healthchecks.io (free, 20 monitors)
+- [ ] Create account at https://healthchecks.io (free — 20 checks, email alerts)
+- [ ] Create a new check:
+  - Name: `wordisbond-crons`
+  - Period: 5 minutes (tightest cron interval)
+  - Grace: 2 minutes
+- [ ] Copy the ping URL (format: `https://hc-ping.com/<uuid>`)
+- [ ] Set as Workers secret:
+  ```powershell
+  echo "https://hc-ping.com/<your-uuid>" | npx wrangler secret put CRON_HEARTBEAT_URL --config workers/wrangler.toml
+  ```
+- [ ] After next cron run (≤5 min), verify healthchecks.io shows green
+
+**Upgrade to BetterStack when:** You have paying customers and need SMS on-call + multi-region checks.
+
+### Item 0.3 — Neon PITR (CIO)
+- [ ] Set `NEON_API_KEY` and `NEON_PROJECT_ID` as shell env vars
+- [ ] Run `bash scripts/verify-neon-pitr.sh` — exits 1 if PITR not enabled
+- [ ] If script fails: upgrade Neon project to Launch ($19/mo) or Scale ($69/mo)
+- [ ] Re-run script until it exits 0: "PITR is ENABLED — 7-day recovery window."
+
+### Item 0.4 — Status Page (COO) — BUILT-IN (no cost)
+**Status page is built into the app at `/status` — no external service needed.**
+
+- [ ] Deploy using standard deploy chain (see Step 4):
+  ```powershell
+  npm run api:deploy && npm run build && npm run pages:deploy
+  ```
+- [ ] Verify status page is live: https://wordis-bond.com/status
+  - Should show all 4 services (database, kv, r2, telnyx) as Operational
+  - Auto-refreshes every 60 seconds
+  - "Status" link is now always visible in homepage footer → `/status`
+- [ ] Add to Freshping as a second check (URL: `https://wordis-bond.com/status`, keyword: `"Operational"`)
+
+The `/status` page is a client-side React component that fetches `/health` from the Workers API.
+If Pages goes down, the static assets are unavailable — but that's a Cloudflare infrastructure event,
+not an application issue. Good enough for pre-revenue monitoring.
+
+### Item 0.5 — E&O + Cyber Insurance (CLO)
+**Required before first enterprise deal. Start application immediately — lead time 2-4 weeks.**
+
+Recommended coverage:
+| Policy | Minimum Coverage | Est. Annual Premium |
+|--------|-----------------|---------------------|
+| Errors & Omissions (E&O) | $1,000,000 | $3,000–$6,000 |
+| Cyber Liability | $2,000,000 | $3,000–$6,000 |
+| General Liability | $1,000,000 | $1,000–$2,000 |
+| **Total** | | **$7,000–$14,000/yr** |
+
+Brokers to contact:
+- **Embroker** (tech startups, online) — https://home.embroker.com
+- **CoverWallet** (AIG / Aon) — https://www.coverwallet.com
+- **Vouch** (VC-backed startups) — https://www.vouch.us
+
+Documents needed:
+- [ ] Business formation docs (LLC)
+- [ ] Revenue projection (12 months)
+- [ ] Description of platform (FDCPA compliance SaaS, not a debt collector)
+- [ ] Security practices summary (pull from `ARCH_DOCS/SECURITY_AUDIT_REPORT_2026-02-12.json`)
+
+**Critical framing:** WIB is a **SaaS compliance tool** used by debt collectors — NOT a debt collector itself. This classification keeps premiums lower and avoids FDCPA professional liability exclusions.
+
+- [ ] E&O policy bound and certificate on file
+- [ ] Cyber Liability policy bound and certificate on file

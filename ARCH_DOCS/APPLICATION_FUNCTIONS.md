@@ -2,10 +2,10 @@
 
 > **TOGAF Phase:** Phase B (Business Architecture) + Phase C (Information Systems Architecture)
 
-**Last Updated:** February 16, 2026
-**Platform Version:** v4.68
-**Status:** Production Ready — 109/109 Roadmap Items Complete
-**Audited:** Feb 16, 2026 — Full codebase analysis (89 pages, 62 route files, ~310 endpoints, 46 lib modules)
+**Last Updated:** February 17, 2026
+**Platform Version:** v5.3
+**Status:** Production Ready — 109/109 Roadmap Items Complete + Reg F Compliance Engine
+**Audited:** Feb 17, 2026 — Full codebase analysis (89 pages, 67 route files, ~330 endpoints, 46 lib modules)
 
 ---
 
@@ -178,7 +178,7 @@
 - Payment recording and balance updates
 - Task management per account (create, update, complete, delete)
 - Account notes and history
-- Bulk CSV import with validation and error reporting
+- Smart CSV import with fuzzy column matching (Levenshtein + 200+ alias table), PapaParse parsing, automatic phone/currency/status coercion
 - Collection statistics and portfolio performance
 - Daily stats and callback tracking
 - Account-level disputes
@@ -188,7 +188,8 @@
 
 **Backend Routes:** `/api/collections/*` (18+ endpoints), `/api/import/*` (2 endpoints)
 **Frontend Pages:** `/accounts`, `/accounts/[id]`, `/accounts/import`, `/accounts/disputes`, `/voice-operations/accounts`
-**Components:** `BulkImportWizard`, `CollectionsAnalytics`, `CollectionsKPIs`, `PaymentHistoryChart`, `SettlementCalculator`, `MultiChannelTimeline`
+**Components:** `SmartImportWizard`, `CollectionsAnalytics`, `CollectionsKPIs`, `PaymentHistoryChart`, `SettlementCalculator`, `MultiChannelTimeline`
+**Import Engine:** `lib/smart-csv-import.ts` — Schema definitions, fuzzy column mapping, data coercion (phone → E.164, currency, status), row validation, CSV template generator
 **Database Tables:** `collection_accounts`, `collection_payments`, `collection_tasks`, `collection_csv_imports`, `calls`, `sms_logs`, `email_logs`, `payment_links`
 
 ---
@@ -378,7 +379,8 @@
 
 ## 19. Onboarding Wizard
 
-- 7-step guided setup flow (plan, phone number, compliance, CSV import, test call, invite team, product tour)
+- 8-step guided setup flow (plan, phone number, compliance, email OAuth, CSV import, test call, invite team, product tour) + launch completion action
+- SmartImportWizard embedded inline in Step 5 (no redirect to separate page)
 - Onboarding progress persistence
 - "WORD IS BOND TEST CALL. THANKS." TTS test call feature
 - Telnyx provisioning integration (5-number org pool + CNAM assignment)

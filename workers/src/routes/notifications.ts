@@ -159,7 +159,7 @@ notificationsRoutes.post('/channels', async (c) => {
       userId: session.user_id,
       resourceType: 'notification_channels',
       resourceId: channel.id,
-      action: 'notification_channel:created',
+      action: AuditAction.NOTIFICATION_CHANNEL_CREATED,
       oldValue: null,
       newValue: channel,
     })
@@ -255,7 +255,7 @@ notificationsRoutes.put('/channels/:id', async (c) => {
       userId: session.user_id,
       resourceType: 'notification_channels',
       resourceId: channelId,
-      action: 'notification_channel:updated',
+      action: AuditAction.NOTIFICATION_CHANNEL_UPDATED,
       oldValue: oldChannel,
       newValue: updated,
     })
@@ -302,7 +302,7 @@ notificationsRoutes.delete('/channels/:id', async (c) => {
       userId: session.user_id,
       resourceType: 'notification_channels',
       resourceId: channelId,
-      action: 'notification_channel:deleted',
+      action: AuditAction.NOTIFICATION_CHANNEL_DELETED,
       oldValue: existing.rows[0],
       newValue: null,
     })

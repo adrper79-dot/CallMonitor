@@ -42,6 +42,7 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_API_URL || 'https://wordisbond-api.adrper79.workers.dev',
     // Feature flag: set to 'true' to enable new role-based navigation
     NEXT_PUBLIC_NEW_NAV: process.env.NEXT_PUBLIC_NEW_NAV || 'false',
+    // COO Item 0.4: Status page is built-in at /status — no external env var needed.
   },
 
   typescript: {

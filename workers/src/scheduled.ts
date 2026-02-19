@@ -13,10 +13,11 @@ import type { Env } from './index'
 import { getDb } from './lib/db'
 import { logger } from './lib/logger'
 import { processScheduledPayments, processDunningEscalation } from './lib/payment-scheduler'
-import { flushAuditDlq } from './lib/audit'
+import { flushAuditDlq, writeAuditLog, AuditAction } from './lib/audit'
 import { runPreventionScan } from './lib/prevention-scan'
 import { handleCrmSync } from './crons/crm-sync'
 import { executeSequences } from './lib/sequence-executor'
+import { processTrialExpiry } from './lib/trial-expiry'
 // Cron job monitoring helpers
 interface CronMetrics {
   last_run: string // ISO timestamp
@@ -96,6 +97,11 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
         break
       case '0 0 * * *':
         await trackCronExecution(env, 'aggregate_usage', () => aggregateUsage(env))
+        // COO-4: Trial expiry notifications (T-7, T-3, T-0) + hard-cancel expired trials
+        await trackCronExecution(env, 'trial_expiry', async () => {
+          const r = await processTrialExpiry(env)
+          return { processed: r.processed, errors: r.errors }
+        })
         break
       case '0 6 * * *':
         // Process scheduled collection payments + dunning escalation (6am daily)
@@ -106,7 +112,20 @@ export async function handleScheduled(event: ScheduledEvent, env: Env): Promise<
           const scan = await runPreventionScan(env)
           return { processed: scan.tasksCreated, errors: scan.errors }
         })
+        // TASK-006: Expire SMS consent records older than 60 days (§1006.6(d)(5))
+        await trackCronExecution(env, 'sms_consent_expiry', () => expireSmsConsent(env))
+        // TASK-011: Alert on validation notices approaching 5-day deadline
+        await trackCronExecution(env, 'validation_notice_alerts', () => checkValidationNoticeDeadlines(env))
         break
+    }
+    // CIO Item 0.2/0.4: Cron dead-man's-switch heartbeat.
+    // Compatible with healthchecks.io (free), BetterStack, Cronitor, etc.
+    // If no ping arrives within 2× the shortest cron interval (~10 min),
+    // the monitor will alert. Non-critical — failure here must not fail the cron.
+    if (env.CRON_HEARTBEAT_URL) {
+      fetch(env.CRON_HEARTBEAT_URL, { method: 'HEAD' }).catch(() => {
+        logger.warn('Cron heartbeat ping failed — check CRON_HEARTBEAT_URL secret')
+      })
     }
   } catch (error) {
     logger.error('Scheduled job failed', { error: (error as Error)?.message, cron })
@@ -275,3 +294,136 @@ async function aggregateUsage(env: Env): Promise<{ processed: number; errors: nu
   }
 }
 
+/**
+ * TASK-006: Expire SMS consent records older than 60 days
+ * Regulation F §1006.6(d)(5): SMS safe harbor requires reconfirmation every 60 days
+ *
+ * Marks sms_contact consent records as 'expired' unless the consumer
+ * has sent an inbound SMS within the last 60 days.
+ *
+ * Runs daily at 6am UTC.
+ */
+async function expireSmsConsent(
+  env: Env
+): Promise<{ processed: number; errors: number }> {
+  const db = getDb(env)
+
+  try {
+    const result = await db.query(`
+      UPDATE consent_records
+      SET event_type = 'expired', updated_at = NOW()
+      WHERE consent_type = 'sms_contact'
+        AND event_type IN ('granted', 'renewed')
+        AND created_at < NOW() - INTERVAL '60 days'
+        AND account_id NOT IN (
+          SELECT DISTINCT m.account_id
+          FROM messages m
+          WHERE m.channel = 'sms'
+            AND m.direction = 'inbound'
+            AND m.created_at > NOW() - INTERVAL '60 days'
+            AND m.account_id IS NOT NULL
+        )
+      RETURNING id
+    `)
+
+    const expired = result.rowCount || 0
+
+    if (expired > 0) {
+      logger.info('SMS consent records expired per §1006.6(d)(5)', { expired })
+
+      // Audit trail for each batch expiry
+      writeAuditLog(db, {
+        organizationId: 'system',
+        userId: 'system',
+        resourceType: 'consent_records',
+        resourceId: 'batch_expiry',
+        action: AuditAction.COMPLIANCE_SMS_CONSENT_EXPIRED,
+        oldValue: null,
+        newValue: { expired_count: expired, regulation: '§1006.6(d)(5)', interval_days: 60 },
+      }).catch(() => {})
+    }
+
+    return { processed: expired, errors: 0 }
+  } catch (error) {
+    logger.error('SMS consent expiry cron failed', {
+      error: (error as Error)?.message,
+    })
+    return { processed: 0, errors: 1 }
+  } finally {
+    await db.end()
+  }
+}
+
+/**
+ * TASK-011: Check for validation notices approaching the 5-day deadline
+ * §1006.34(a)(1): Must provide validation info within 5 days of initial communication.
+ *
+ * Creates compliance_events for notices pending > 3 days (2-day warning).
+ * Runs daily at 6am UTC.
+ */
+async function checkValidationNoticeDeadlines(
+  env: Env
+): Promise<{ processed: number; errors: number }> {
+  const db = getDb(env)
+
+  try {
+    // Find pending notices created more than 3 days ago (approaching 5 day deadline)
+    const result = await db.query(`
+      SELECT vn.id, vn.organization_id, vn.account_id,
+             EXTRACT(DAY FROM NOW() - vn.created_at) AS days_pending
+      FROM validation_notices vn
+      WHERE vn.status = 'pending'
+        AND vn.created_at < NOW() - INTERVAL '3 days'
+    `)
+
+    let processed = 0
+    for (const notice of result.rows) {
+      // Log a compliance warning event
+      await db.query(
+        `INSERT INTO compliance_events
+         (organization_id, account_id, event_type, severity, passed, details)
+         VALUES ($1, $2, 'validation_notice_deadline_warning', 'warning', false, $3::jsonb)`,
+        [
+          notice.organization_id,
+          notice.account_id,
+          JSON.stringify({
+            notice_id: notice.id,
+            days_pending: Math.floor(notice.days_pending),
+            message: `Validation notice pending ${Math.floor(notice.days_pending)} days — must be sent within 5 days per §1006.34(a)(1)`,
+          }),
+        ]
+      ).catch((err) =>
+        logger.warn('Failed to log validation deadline warning (non-fatal)', {
+          error: (err as Error)?.message,
+        })
+      )
+      processed++
+
+      // Auto-escalate notices > 5 days to a violation
+      if (notice.days_pending > 5) {
+        await db.query(
+          `INSERT INTO compliance_violations
+           (organization_id, violation_type, severity, description, account_id, status)
+           VALUES ($1, 'validation_notice_overdue', 'critical',
+                   'Validation notice not sent within 5 days of initial communication — §1006.34(a)(1) violation',
+                   $2, 'open')
+           ON CONFLICT DO NOTHING`,
+          [notice.organization_id, notice.account_id]
+        ).catch((err) =>
+          logger.warn('Failed to create validation notice violation (non-fatal)', {
+            error: (err as Error)?.message,
+          })
+        )
+      }
+    }
+
+    return { processed, errors: 0 }
+  } catch (error) {
+    logger.error('Validation notice deadline check failed', {
+      error: (error as Error)?.message,
+    })
+    return { processed: 0, errors: 1 }
+  } finally {
+    await db.end()
+  }
+}

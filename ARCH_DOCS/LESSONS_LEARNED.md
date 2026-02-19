@@ -3,8 +3,8 @@
 **TOGAF Phase:** H — Architecture Change Management  
 **Purpose:** Capture every hard-won lesson, pitfall, and pattern discovered during development so any future AI session (Claude, Copilot, etc.) can avoid repeating costly mistakes.  
 **Created:** February 7, 2026  
-**Last Updated:** February 15, 2026 (Session 17 — Integration Suite Build)
-**Applicable Versions:** v4.8 – v4.67
+**Last Updated:** February 18, 2026 (CTO Risk Resolution — Telemetry + Migration Runner + Prod Guard)
+**Applicable Versions:** v5.3 (historical lessons from v5.0–v5.2 included)
 
 ---
 
@@ -3098,3 +3098,109 @@ export function writeAuditLog(...): Promise<void> {
 
 ### Rule
 **Ignore VS Code TypeScript errors in `workers/` files if the Workers build (`npm run api:deploy`) succeeds. To validate worker types locally, run `cd workers && npx tsc --noEmit`. Keep both tsconfig files in sync on shared types.**
+
+---
+
+## 🟠 HIGH — CSV Import Must Use Fuzzy Column Matching, Not Rigid Name Requirements (v4.70)
+
+**The original CSV import required exact column names (`name`, `phone`/`primary_phone`, `balance_due`). Different entry points (`/accounts/import`, `BulkImportWizard`, onboarding Step 5) used different required column sets and different upload mechanisms (FormData vs JSON). Real-world CRM exports use wildly different header names (`CustomerName`, `Debtor Name`, `Full Name`, `DEBTOR_FIRST + DEBTOR_LAST`, etc.).**
+
+**Six critical issues were found in the original system:**
+1. Two different required-column sets between simple import (`phone`) and wizard (`primary_phone`)
+2. Two different upload mechanisms (FormData vs JSON) — backend expects JSON
+3. `test-data.csv` headers (`CustomerName`, `OpenBalance`) failed auto-matching
+4. N+1 INSERT still exists in `/api/import` route (only batched in collections.ts)
+5. All parsing was hand-rolled `.split(',')` — no PapaParse, broke on quoted fields
+6. Three inconsistent import entry points with no shared logic
+
+### The Fix
+- Created `lib/smart-csv-import.ts` — engine with 3-phase matching: exact → alias (200+ aliases covering COLLECT!, Salesforce, QuickBooks, HubSpot, generic CRM variants) → fuzzy (Levenshtein distance, 0.6 threshold)
+- Installed PapaParse for robust CSV/TSV parsing (handles quoted fields, embedded newlines, delimiter auto-detection)
+- Auto-coercion: phone (any US format → E.164), currency (`$1,500.50` → `1500.5`), status (30+ variants → schema enum)
+- Created `components/voice/SmartImportWizard.tsx` — 4-step wizard (Upload → Map → Preview → Import)
+- All 3 entry points now share the same SmartImportWizard component
+
+### Rule
+**For data import features, NEVER require exact column names. Always implement fuzzy matching with aliases. Use PapaParse (not `.split(',')`) for CSV parsing. Maintain a single import component shared across all entry points to prevent drift. Test with real-world CRM exports (COLLECT!, Salesforce, QuickBooks) to verify auto-mapping.**
+
+---
+
+## 🟠 HIGH — Hono Route Mounts Must Be Explicit — Never Mount at Bare `/api` (v5.3)
+
+**`cockpitRoutes` was mounted at `app.route('/api', cockpitRoutes)` intending to serve `/api/notes`, `/api/callbacks`, `/api/disputes`. The bare `/api` prefix is a route-bleed trap — Hono attempts to match any `/api/*` request through cockpit handlers before reaching the correct routes, depending on registration order. It also makes the API surface undiscoverable.**
+
+### The Fix
+```typescript
+// ❌ Before — bare /api mount causes potential route bleed-through
+app.route('/api', cockpitRoutes)
+
+// ✅ After — explicit /api/cockpit prefix
+app.route('/api/cockpit', cockpitRoutes)  // serves /api/cockpit/notes, etc.
+```
+
+### Rule
+**Every `app.route()` call MUST use a specific, unique path prefix. Never mount a router at a shared prefix like `/api`. Use the feature name: `/api/cockpit`, `/api/dialer`, etc. Update E2E tests when paths change.**
+
+---
+
+## 🟢 PATTERN — W3C Trace Context Via Hono Middleware (v5.3)
+
+**To add distributed tracing to Cloudflare Workers without a full OTel SDK (which doesn't run in the CF runtime), implement a lightweight W3C `traceparent` propagation layer using Web Crypto `randomUUID()`.**
+
+### Implementation Pattern
+```typescript
+// workers/src/lib/telemetry.ts
+export async function telemetryMiddleware(c: Context, next: Next) {
+  const parent = parseTraceparent(c.req.header('traceparent'))
+  const trace = createTraceContext(parent ?? undefined)
+  ;(c as any).set('trace', trace)     // (c as any) required — generic Context doesn't know AppEnv Variables
+  c.header('traceparent', buildTraceparent(trace))
+  await next()
+}
+// In any handler: const trace = getTrace(c)
+// For outbound fetch: headers: { traceparent: buildTraceparent(trace) }
+```
+
+Mount BEFORE request timing middleware. Add `traceparent`/`tracestate` to CORS `allowHeaders` + `exposeHeaders`.
+
+### Rule
+- Make `trace` **optional** in `AppEnv.Variables` (`trace?: TraceContext`). Making it required cascades TypeScript errors through all 60+ route files that pass context to `requireAuth()` (which uses the old `{ session: Session }` Variables shape).
+- Use `(c as any).get('trace')` / `(c as any).set('trace', val)` in generic `Context` functions — the typed key API requires the exact `AppEnv` generic to resolve.
+
+---
+
+## 🟢 PATTERN — Idempotent Migration Runner Pattern (v5.3)
+
+**SQL files in `migrations/` accumulated with mixed naming conventions (`005_`, `2026-01-09-`, plain `add-campaigns.sql`). Running psql one-offs is not idempotent. Production needs a runner that tracks applied files and skips already-applied ones.**
+
+### Implementation
+- `migrations/0000_schema_migrations.sql` — bootstrap tracking table (`CREATE TABLE IF NOT EXISTS schema_migrations`)
+- `scripts/migrate.ts` — Node runner: discovers `migrations/*.sql`, sorts deterministically (numbered → date-prefixed → others), skips applied versions (by filename), wraps each in `BEGIN/COMMIT`, records SHA-256 checksum + duration in `schema_migrations`
+- `npm run db:migrate` / `db:migrate:status` / `db:migrate:dry`
+
+### Rule
+**Never run migrations with bare `psql -f file.sql` in production — not idempotent, no audit trail. Always use `npm run db:migrate`. New migration files: use date-prefix `YYYY-MM-DD-description.sql`. The runner picks them up automatically on next deploy.**
+
+---
+
+## 🟢 PATTERN — Production Guard for Test/Debug Routes (v5.3)
+
+**Test infrastructure routes (`/api/test/*`) were auth-gated (admin/owner role) but still mounted in production. Defense-in-depth requires an environment check before auth logic runs to eliminate the route from the production attack surface entirely.**
+
+### Implementation
+```typescript
+// workers/src/routes/test.ts — FIRST thing after creating the router
+export const testRoutes = new Hono<AppEnv>()
+
+testRoutes.use('*', async (c, next) => {
+  if (c.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Not Found' }, 404)
+  }
+  return next()
+})
+```
+
+`NODE_ENV = "production"` is set in `workers/wrangler.toml`. `wrangler dev` runs without it, so local testing works normally.
+
+### Rule
+**Any test/debug/health-probe route file MUST begin with a `NODE_ENV === 'production'` guard returning 404. Even if auth bypass is discovered, the route reveals nothing in production.**

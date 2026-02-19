@@ -1552,11 +1552,11 @@
 - **API Routes:** ✅ Complete (`/api/collections/*`)
 - **Database:** ✅ Tables exist (`collection_accounts`, `collection_payments`)
 - **UI:** ⚠️ Basic table view in `/voice-operations/accounts`
-- **Missing Components:** Payment history charts, account aging buckets, bulk import wizard
+- **Missing Components:** Payment history charts, account aging buckets, smart import wizard
 - **Impact:** Collections teams don't have visual analytics or bulk tools
 - **Business Value:** MEDIUM — Revenue operations efficiency
-- **Fix:** Build CollectionsAnalytics, PaymentHistoryChart, BulkImportWizard components
-- **Status:** `[x]` ✅ Fixed — Built 3 new components: CollectionsAnalytics.tsx (portfolio analytics dashboard), PaymentHistoryChart.tsx (payment timeline + monthly bar chart), BulkImportWizard.tsx (3-step CSV import wizard). Wired into accounts page with tabbed navigation.
+- **Fix:** Build CollectionsAnalytics, PaymentHistoryChart, SmartImportWizard components
+- **Status:** `[x]` ✅ Fixed — Built 3 new components: CollectionsAnalytics.tsx (portfolio analytics dashboard), PaymentHistoryChart.tsx (payment timeline + monthly bar chart), SmartImportWizard.tsx (4-step CSV import wizard with fuzzy column matching). Wired into accounts page with tabbed navigation. (Originally BulkImportWizard; superseded by SmartImportWizard in v4.70.)
 - **See:** ARCH_DOCS/HIDDEN_FEATURES_AUDIT.md Section 7
 
 **Note:** All sentiment/dialer/IVR features (BL-121 to BL-124) are now UNBLOCKED — BL-109 V5 migration applied in Session 16.

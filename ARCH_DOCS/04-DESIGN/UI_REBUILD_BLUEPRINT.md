@@ -321,7 +321,7 @@ These are the 15 shortcuts that save 10+ minutes/day:
 | `ScorecardTemplateLibrary` | voice components | `/command/scorecards` |
 | `ScorecardAlerts` | voice components | `/command` dashboard |
 | `SentimentWidget` | voice components | Cockpit right rail |
-| `BulkImportWizard` | voice components | `/accounts/import` |
+| `SmartImportWizard` | voice components | `/accounts/import`, `/voice-operations/accounts?tab=import`, `/onboarding` (Step 5) |
 | `SurveyBuilder` + `SurveyResults` | voice components | `/campaigns/surveys` |
 | `ShopperScriptManager` | voice components | `/tools/scripts` |
 | `CallAnalytics` | voice components | `/analytics` |

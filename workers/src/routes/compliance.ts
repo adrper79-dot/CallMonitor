@@ -3,6 +3,7 @@
  *
  * Endpoints:
  *   GET  /                 - List violations (alias for GET /violations)
+ *   GET  /status           - Org compliance status summary (health check)
  *   POST /violations       - Log a compliance violation
  *   GET  /violations       - List violations for organization
  *   GET  /violations/:id   - Get single violation
@@ -25,6 +26,57 @@ import { writeAuditLog, AuditAction } from '../lib/audit'
 import { complianceRateLimit } from '../lib/rate-limit'
 
 export const complianceRoutes = new Hono<AppEnv>()
+
+// GET /status — Compliance health summary for the organization
+// Used by validation agents and monitoring dashboards to confirm the endpoint is reachable.
+// Returns org-level compliance stats: open violations, unresolved disputes, dnc size.
+complianceRoutes.get('/status', async (c) => {
+  const session = await requireAuth(c)
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDb(c.env, session.organization_id)
+  try {
+    const [violations, disputes, dnc] = await Promise.all([
+      db.query(
+        `SELECT COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE resolution_status = 'open') AS open_count
+         FROM compliance_violations
+         WHERE organization_id = $1`,
+        [session.organization_id]
+      ),
+      db.query(
+        `SELECT COUNT(*) AS total
+         FROM compliance_violations
+         WHERE organization_id = $1 AND resolution_status = 'disputed'`,
+        [session.organization_id]
+      ),
+      db.query(
+        `SELECT COUNT(*) AS total FROM dnc_list WHERE organization_id = $1`,
+        [session.organization_id]
+      ),
+    ])
+
+    return c.json({
+      status: 'ok',
+      organization_id: session.organization_id,
+      violations: {
+        total: parseInt(violations.rows[0]?.total || '0', 10),
+        open: parseInt(violations.rows[0]?.open_count || '0', 10),
+      },
+      disputes: {
+        total: parseInt(disputes.rows[0]?.total || '0', 10),
+      },
+      dnc: {
+        total: parseInt(dnc.rows[0]?.total || '0', 10),
+      },
+    })
+  } catch (err: any) {
+    logger.error('GET /api/compliance/status error', { error: err?.message })
+    return c.json({ error: 'Failed to fetch compliance status' }, 500)
+  } finally {
+    await db.end()
+  }
+})
 
 // POST /violations — Log a compliance violation
 // Called by frontend's logComplianceViolation() in complianceUtils.ts

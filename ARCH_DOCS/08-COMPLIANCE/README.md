@@ -2,7 +2,7 @@
 
 **TOGAF Phase:** B/G (Business Architecture / Implementation Governance)  
 **Status:** Baseline — February 16, 2026  
-**Applicability:** Word Is Bond v4.68+
+**Applicability:** Word Is Bond v4.69+
 
 ---
 

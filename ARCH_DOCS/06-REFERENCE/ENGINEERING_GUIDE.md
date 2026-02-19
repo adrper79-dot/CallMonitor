@@ -2873,7 +2873,8 @@ GET /api/dialer/agents → list agents and status
 | Frontend Pages | `app/accounts/import/page.tsx` | CSV import |
 | Frontend Pages | `app/accounts/disputes/page.tsx` | Account disputes |
 | Frontend Pages | `app/voice-operations/accounts/page.tsx` | Legacy accounts view |
-| Frontend | `components/voice/BulkImportWizard.tsx` | CSV import UI |
+| Frontend | `components/voice/SmartImportWizard.tsx` | Smart CSV import wizard (4-step: Upload → Map → Preview → Import) |
+| Frontend Lib | `lib/smart-csv-import.ts` | Fuzzy column matching engine, data coercion, validation |
 | Frontend | `components/voice/CollectionsAnalytics.tsx` | Collections analytics |
 | Frontend | `components/analytics/CollectionsKPIs.tsx` | Collection KPIs |
 | Frontend | `components/voice/PaymentHistoryChart.tsx` | Payment history chart |
@@ -2909,7 +2910,8 @@ Account Lifecycle:
 |-----------|----------|
 | `tests/production/collections.test.ts` | Collections CRM endpoints |
 | `tests/production/csv-ingestion-e2e.test.ts` | CSV import pipeline |
-| `tests/production/csv-validators.test.ts` | CSV validation |
+| `tests/production/csv-validators.test.ts` | Legacy CSV validation |
+| `tests/production/smart-csv-import.test.ts` | Smart import engine (fuzzy matching, coercion, validation) |
 | `tests/load/collections.js` | k6 collections load test |
 
 ### Status: **ACTIVE** on website

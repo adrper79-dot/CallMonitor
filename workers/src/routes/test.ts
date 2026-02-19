@@ -32,6 +32,15 @@ import { logger } from '../lib/logger'
 
 export const testRoutes = new Hono<AppEnv>()
 
+// Production guard — test infrastructure endpoints must never be reachable in production.
+// Provides defense-in-depth on top of the per-route requireAdmin checks.
+testRoutes.use('*', async (c, next) => {
+  if (c.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Not Found' }, 404)
+  }
+  return next()
+})
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface TestResult {

@@ -74,6 +74,62 @@ export const TEST_SCENARIOS: TestScenario[] = [
     requiredRole: 'agent',
   },
 
+  {
+    name: 'Agent — Inbox Messages',
+    goal: 'Navigate to /inbox and verify the unified inbox loads. Check for message threads, filters, or channel tabs (SMS, Email, Chat). Confirm the empty state or message list is displayed.',
+    startUrl: '/inbox',
+    maxSteps: 10,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — Voice Operations',
+    goal: 'Navigate to /voice-operations and verify the voice operations page loads. Check for call controls, active call monitoring panels, or soft-phone UI. Do NOT initiate a call.',
+    startUrl: '/voice-operations',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — Bond AI Alerts',
+    goal: 'Navigate to /bond-ai/alerts and verify the Bond AI alerts page loads. Check for AI-generated alerts, severity flags, or notification cards.',
+    startUrl: '/bond-ai/alerts',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — Bookings',
+    goal: 'Navigate to /bookings and verify the bookings page loads. Check for appointment cards, calendar view, or booking creation interface.',
+    startUrl: '/bookings',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — Tools: Note Templates',
+    goal: 'Navigate to /tools/templates and verify the note templates page loads. Check for template cards, search functionality, or preview capability.',
+    startUrl: '/tools/templates',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — Tools: Objection Library',
+    goal: 'Navigate to /tools/objections and verify the objection handler library loads. Check for objection categories, response scripts, or search functionality.',
+    startUrl: '/tools/objections',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
+  {
+    name: 'Agent — My Performance Analytics',
+    goal: 'Navigate to /analytics/me and verify the personal performance analytics page loads. Check for KPI cards, call metrics, or performance charts.',
+    startUrl: '/analytics/me',
+    maxSteps: 8,
+    requiredRole: 'agent',
+  },
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MANAGER SCENARIOS (manager shell → /command/*)
   // Maps to: WF-MANAGER-01, BF-05
@@ -123,6 +179,70 @@ export const TEST_SCENARIOS: TestScenario[] = [
     name: 'Manager — Reports Generation',
     goal: 'Navigate to /reports. Verify the reports page loads with available report types. Check for options to generate or download reports.',
     startUrl: '/reports',
+    maxSteps: 10,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Team Overview',
+    goal: 'Navigate to /manager and verify the team overview dashboard loads. Check for agent cards, availability status, or performance summaries.',
+    startUrl: '/manager',
+    maxSteps: 8,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — QA Review',
+    goal: 'Navigate to /review and verify the QA review page loads. Check for call recordings eligible for review, scorecard forms, or QA queue items.',
+    startUrl: '/review',
+    maxSteps: 10,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Voice Operations Monitor',
+    goal: 'Navigate to /voice-operations and verify the voice operations monitoring page loads. Check for live call indicators, agent status, or queue depth metrics.',
+    startUrl: '/voice-operations',
+    maxSteps: 8,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Sentiment Analytics',
+    goal: 'Navigate to /analytics/sentiment and verify the sentiment analytics page loads. Check for sentiment trend charts, positive/negative indicators, or call-level sentiment scores.',
+    startUrl: '/analytics/sentiment',
+    maxSteps: 8,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Bond AI Alerts',
+    goal: 'Navigate to /bond-ai/alerts and verify the Bond AI alerts page loads. Check for AI-generated compliance or performance alerts.',
+    startUrl: '/bond-ai/alerts',
+    maxSteps: 8,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Payment Plans',
+    goal: 'Navigate to /payments/plans and verify the payment plans page loads. Check for plan cards, status indicators, or plan creation functionality.',
+    startUrl: '/payments/plans',
+    maxSteps: 10,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Create Campaign',
+    goal: 'Navigate to /campaigns/new and verify the campaign creation page loads. Check for campaign name input, channel selection (SMS, email, voice), audience targeting, or scheduling options.',
+    startUrl: '/campaigns/new',
+    maxSteps: 12,
+    requiredRole: 'manager',
+  },
+
+  {
+    name: 'Manager — Unified Inbox',
+    goal: 'Navigate to /inbox and verify the unified inbox loads. Check for message threads across channels (SMS, email, chat). Confirm filtering and channel navigation are available.',
+    startUrl: '/inbox',
     maxSteps: 10,
     requiredRole: 'manager',
   },
@@ -198,6 +318,70 @@ export const TEST_SCENARIOS: TestScenario[] = [
     goal: 'Navigate to /settings/integrations and verify the integrations page loads. Check for CRM connections (HubSpot, Salesforce), helpdesk integrations, or webhook configurations.',
     startUrl: '/settings/integrations',
     maxSteps: 10,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — Platform Metrics',
+    goal: 'Navigate to /admin/metrics and verify the platform metrics page loads. Check for system health indicators, usage statistics, or operational KPIs.',
+    startUrl: '/admin/metrics',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — AI Configuration',
+    goal: 'Navigate to /admin/ai and verify the AI configuration page loads. Check for AI model settings, transcription config, sentiment analysis toggles, or Bond AI feature controls.',
+    startUrl: '/admin/ai',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — Data Retention Policy',
+    goal: 'Navigate to /admin/retention and verify the data retention page loads. Check for retention period settings, deletion schedules, or legal hold configurations.',
+    startUrl: '/admin/retention',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — API Keys Management',
+    goal: 'Navigate to /admin/api and verify the API keys management page loads. Check for existing API key entries, create new key functionality, or key scope configuration.',
+    startUrl: '/admin/api',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — Feature Flags',
+    goal: 'Navigate to /admin/feature-flags and verify the feature flags page loads. Check for feature toggles, per-org overrides, or flag state indicators (on/off).',
+    startUrl: '/admin/feature-flags',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — Dialer Settings',
+    goal: 'Navigate to /settings/dialer and verify the dialer settings page loads. Check for dialer mode selection, predictive/power/manual settings, or compliance dial rules.',
+    startUrl: '/settings/dialer',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — Quality Settings',
+    goal: 'Navigate to /settings/quality and verify the quality assurance settings page loads. Check for QA scorecard templates, evaluation criteria, or auto-scoring configuration.',
+    startUrl: '/settings/quality',
+    maxSteps: 8,
+    requiredRole: 'admin',
+  },
+
+  {
+    name: 'Admin — AI Settings',
+    goal: 'Navigate to /settings/ai and verify the AI settings page loads. Check for Bond AI configuration, transcription provider selection, or AI feature toggles.',
+    startUrl: '/settings/ai',
+    maxSteps: 8,
     requiredRole: 'admin',
   },
 

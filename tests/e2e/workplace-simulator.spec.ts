@@ -426,7 +426,7 @@ class EmployeeSimulator {
           await page.getByRole('button', { name: /save note/i }).click({ timeout: 5000 }).catch(() => {})
         }
       },
-      ['/api/notes'],
+      ['/api/cockpit/notes'],
     )
 
     await page.getByRole('button', { name: /schedule callback/i }).first().click({ timeout: 4000 }).catch(() => {})
@@ -443,7 +443,7 @@ class EmployeeSimulator {
           await page.getByRole('button', { name: /^schedule$/i }).click({ timeout: 5000 }).catch(() => {})
         }
       },
-      ['/api/callbacks'],
+      ['/api/cockpit/callbacks'],
     )
 
     await page.getByRole('button', { name: /file dispute/i }).first().click({ timeout: 4000 }).catch(() => {})
@@ -457,7 +457,7 @@ class EmployeeSimulator {
           await page.getByRole('button', { name: /file dispute/i }).nth(1).click({ timeout: 5000 }).catch(() => {})
         }
       },
-      ['/api/disputes'],
+      ['/api/cockpit/disputes'],
     )
 
     await page.getByRole('button', { name: /send payment link/i }).first().click({ timeout: 4000 }).catch(() => {})
@@ -478,19 +478,41 @@ class EmployeeSimulator {
   }
 
   async routeSweep(page: Page) {
-    const navSource = path.join(process.cwd(), 'lib', 'navigation.ts')
-    const source = fs.readFileSync(navSource, 'utf-8')
-    const hrefRegex = /href:\s*'([^']+)'/g
-    const routes = new Set<string>([
-      '/dashboard', '/accounts', '/accounts/import', '/work/queue', '/work/call', '/work/payments',
-    ])
-    let match: RegExpExecArray | null
-    while ((match = hrefRegex.exec(source)) !== null) {
-      const href = match[1]
-      if (href.startsWith('/')) routes.add(href)
-    }
-
-    const prioritized = [...routes].slice(0, 30)
+    // Route list derived from AppShell.tsx agent-shell nav sections.
+    // Updated to match the most recent sidebar navigation build.
+    // Agent shell routes only — manager/admin sections are excluded here
+    // and simulated separately via the AI agent suite (tests/agents/).
+    const prioritized: string[] = [
+      // Core
+      '/dashboard',
+      '/work',
+      '/work/queue',
+      '/work/dialer',
+      '/work/call',
+      '/work/payments',
+      // Voice
+      '/voice-operations',
+      // Accounts
+      '/accounts',
+      '/accounts/import',
+      '/accounts/disputes',
+      // Schedule
+      '/schedule',
+      '/schedule/callbacks',
+      '/schedule/follow-ups',
+      '/bookings',
+      // Tools
+      '/tools/templates',
+      '/tools/objections',
+      '/tools/scripts',
+      '/tools/calculator',
+      // Bond AI
+      '/bond-ai/alerts',
+      // Inbox
+      '/inbox',
+      // Analytics (agent-visible)
+      '/analytics/me',
+    ]
 
     for (const route of prioritized) {
       const res = await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => null)

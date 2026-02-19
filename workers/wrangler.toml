@@ -21,6 +21,12 @@ NEXT_PUBLIC_APP_URL = "https://wordis-bond.com"
 RESEND_FROM = "Word Is Bond <noreply@wordis-bond.com>"
 RESEND_REPLY_TO = "noreply@wordis-bond.com"
 
+# Observability — Logpush → Axiom (CIO Item 0.1)
+# Run scripts/setup-logpush.sh to create the Logpush job on Cloudflare.
+AXIOM_DATASET = "wib-main"
+
+# Status page is built-in at /status (app/status/page.tsx) — no external service needed.
+
 # AI Provider Configuration (New - Cost Optimization)
 AI_PROVIDER_GROQ_ENABLED = true      # Enable Groq for translation/chat (38% cheaper)
 AI_PROVIDER_GROK_ENABLED = true      # Enable Grok Voice for TTS (83% cheaper)
@@ -60,6 +66,13 @@ max_batch_timeout = 10
 max_retries = 3
 dead_letter_queue = "wordisbond-transcription-dlq"
 
+# Dead Letter Queue consumer — handles permanently failed transcription messages
+[[queues.consumers]]
+queue = "wordisbond-transcription-dlq"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 1
+
 # Cron Triggers for scheduled jobs
 [triggers]
 crons = [
@@ -94,6 +107,12 @@ crons = [
 # - QUICKBOOKS_CLIENT_SECRET # QuickBooks OAuth app client secret
 # - GOOGLE_CLIENT_ID         # Google OAuth client ID
 # - GOOGLE_CLIENT_SECRET     # Google OAuth client secret
+# - AXIOM_API_TOKEN           # Axiom Worker log ingestion token (scripts/setup-logpush.sh)
+# - CRON_HEARTBEAT_URL        # Heartbeat URL for cron monitoring: healthchecks.io (free) or any provider
+#                             # Format: https://hc-ping.com/<uuid>  (healthchecks.io)
+#                             # Set: echo "https://hc-ping.com/..." | npx wrangler secret put CRON_HEARTBEAT_URL --config workers/wrangler.toml
+# - NEON_API_KEY              # Neon Management API key (scripts/verify-neon-pitr.sh)
+# - NEON_PROJECT_ID           # Neon project ID (scripts/verify-neon-pitr.sh)
 
 # Routes for custom domain - add manually via Dashboard instead
 # Error 10013 when deploying via wrangler, use Dashboard UI to add routes

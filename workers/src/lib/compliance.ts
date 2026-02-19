@@ -161,18 +161,48 @@ export async function checkSmsCompliance(
       }
     }
 
-    // 7. Time-of-day check (8am-9pm local time)
-    // Note: For simplicity, assuming US Eastern time for now
-    // In production, should use account's timezone from custom_fields
+    // 7. Time-of-day check (8am-9pm consumer's local time)
+    // TASK-001: Use account timezone instead of server time (§1006.6(b)(1)(i))
     if (cfg.enforceTimeRestrictions) {
-      const now = new Date()
-      const currentHour = now.getHours()
+      // Look up account timezone from collection_accounts
+      const tzResult = await db.query(
+        `SELECT timezone FROM collection_accounts
+         WHERE id = $1 AND organization_id = $2`,
+        [accountId, organizationId]
+      )
+      const accountTimezone = tzResult.rows[0]?.timezone || 'America/New_York'
 
-      // Simple check: 8am-9pm (can be enhanced with timezone lookup)
+      let currentHour: number
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: accountTimezone,
+          hour: 'numeric',
+          hour12: false,
+        })
+        currentHour = parseInt(formatter.format(new Date()), 10)
+      } catch {
+        // Invalid timezone — fall back to Eastern
+        try {
+          const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            hour: 'numeric',
+            hour12: false,
+          })
+          currentHour = parseInt(formatter.format(new Date()), 10)
+        } catch {
+          // Total failure — fail closed
+          return {
+            allowed: false,
+            reason: 'Cannot determine consumer timezone — failing closed',
+            skip_reason: 'timezone_error',
+          }
+        }
+      }
+
       if (currentHour < cfg.startHour || currentHour >= cfg.endHour) {
         return {
           allowed: false,
-          reason: `Outside business hours (${cfg.startHour}:00-${cfg.endHour}:00)`,
+          reason: `Outside allowed hours (${cfg.startHour}:00-${cfg.endHour}:00 ${accountTimezone})`,
           skip_reason: 'outside_business_hours',
         }
       }

@@ -32,8 +32,8 @@ export class FeatureTester {
     const callData = scenario || TestDataGenerator.generateCallScenario()
 
     try {
-      // Navigate to voice operations
-      await this.page.goto('/voice')
+      // Navigate to voice operations (was /voice — now /voice-operations)
+      await this.page.goto('/voice-operations')
       await this.page.waitForLoadState('networkidle')
 
       const loadEvidence = await this.evidence.captureEvidence(

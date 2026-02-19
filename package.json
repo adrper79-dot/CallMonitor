@@ -14,7 +14,10 @@
     "cf:logs": "wrangler tail --format pretty",
     "cf:secrets": "wrangler secret list",
     "cf:typegen": "wrangler types",
-    "db:migrate": "psql $NEON_PG_CONN -f schema.sql",
+    "db:migrate": "npx tsx scripts/migrate.ts",
+    "db:migrate:status": "npx tsx scripts/migrate.ts --status",
+    "db:migrate:dry": "npx tsx scripts/migrate.ts --dry-run",
+    "db:migrate:legacy": "psql $NEON_PG_CONN -f schema.sql",
     "db:reset-test": "psql $NEON_PG_CONN -f migrations/reset_test.sql",
     "db:rls-audit": "psql $NEON_PG_CONN -f scripts/rls-audit.sql",
     "db:rls-enforce": "psql $NEON_PG_CONN -f migrations/2026-02-08-rls-enforcement.sql",
@@ -123,7 +126,7 @@
     "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
     "uuid": "^11.1.0",
-    "zod": "^3.22.2"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.74.0",

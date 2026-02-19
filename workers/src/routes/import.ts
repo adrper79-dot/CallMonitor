@@ -334,17 +334,17 @@ importRoutes.post('/:entity', importRateLimit, async (c) => {
     // Audit log
     const auditAction = {
       collections: AuditAction.COLLECTION_CSV_IMPORTED,
-      users: 'users:csv_imported',
-      teams: 'teams:csv_imported',
-      campaigns: 'campaigns:csv_imported',
-    }[entity] || 'import:generic'
+      users: AuditAction.USERS_CSV_IMPORTED,
+      teams: AuditAction.TEAMS_CSV_IMPORTED,
+      campaigns: AuditAction.CAMPAIGNS_CSV_IMPORTED,
+    }[entity] || AuditAction.IMPORT_GENERIC
 
     writeAuditLog(db, {
       organizationId: session.organization_id,
       userId: session.user_id,
       resourceType: entity,
       resourceId: 'bulk_import',
-      action: auditAction as typeof AuditAction[keyof typeof AuditAction],
+      action: auditAction,
       oldValue: null,
       newValue: {
         imported_count: results.length,
